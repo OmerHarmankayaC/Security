@@ -11,7 +11,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 
-from app.models.girdi import MusaitlikDilimi
+from app.models.girdi import MusaitlikDilimi, TercihTipi
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,6 +27,7 @@ class VardiyaTipiBilgisi:
 class GorevNoktasiBilgisi:
     nokta_id: int
     onkosul_yetkinlik_id: int | None = None
+    bina_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,6 +36,7 @@ class PersonelBilgisi:
     aktif_baslangic: date
     aktif_bitis: date | None = None
     yetkinlikler: frozenset[int] = frozenset()
+    haftalik_hedef_saat: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,12 +57,32 @@ class AtamaKaydi:
     nokta_id: int
 
 
+@dataclass(frozen=True, slots=True)
+class TercihKaydi:
+    """Onaylanmis bir tercih kaydi (SDD 4.2.2). Sadece onaylanmislar Baglam'a girer (SRS S5)."""
+
+    personel_id: int
+    tarih: date
+    tip: TercihTipi
+    vardiya_tipi_id: int | None = None
+
+
 @dataclass(slots=True)
 class Baglam:
     vardiya_tipleri: dict[int, VardiyaTipiBilgisi]
     gorev_noktalari: dict[int, GorevNoktasiBilgisi]
     personel: dict[int, PersonelBilgisi]
     musaitlik: list[MusaitlikKaydi] = field(default_factory=list)
+    # (tarih, vardiya_tipi_id, nokta_id) -> gereken_sayi; istisna/genel talep satiri
+    # cakismasi (SDD 4.2.1) Baglam'i kuran taraf (repository/servis) tarafindan
+    # onceden cozulmus olarak verilir.
+    talep: dict[tuple[date, int, int], int] = field(default_factory=dict)
+    donem_baslangic: date | None = None
+    donem_bitis: date | None = None
+    ozel_gunler: frozenset[date] = frozenset()
+    tercihler: list[TercihKaydi] = field(default_factory=list)
+    # Yalniz yeniden cozum dogrulamasinda dolu olur (S8); normalde None.
+    onceki_atamalar: list[AtamaKaydi] | None = None
 
     def vardiya_araligi(self, tarih: date, vardiya_tipi_id: int) -> tuple[datetime, datetime]:
         """Vardiyanin mutlak baslangic/bitis zamani (TD-1: vardiya baslangic gunune yazilir)."""
@@ -107,6 +129,23 @@ class Baglam:
     def yetkin_mi(self, personel_id: int, yetkinlik_id: int) -> bool:
         personel = self.personel.get(personel_id)
         return personel is not None and yetkinlik_id in personel.yetkinlikler
+
+    def gereken_sayi(self, tarih: date, vardiya_tipi_id: int, nokta_id: int) -> int:
+        return self.talep.get((tarih, vardiya_tipi_id, nokta_id), 0)
+
+    def hafta_sonu_mu(self, tarih: date) -> bool:
+        """TD-3: cumartesi/pazar veya resmi tatil hafta sonu sayilir."""
+        return tarih.weekday() >= 5 or tarih in self.ozel_gunler
+
+    def donem_icinde(self, tarih: date) -> bool:
+        """TD-6: adalet sayaclari yalnizca planlama donemini kapsar, isitma penceresini degil.
+
+        Donem sinirlari bilinmiyorsa (ornegin bu alani kullanmayan testlerde)
+        her tarih donem ici sayilir.
+        """
+        if self.donem_baslangic is None or self.donem_bitis is None:
+            return True
+        return self.donem_baslangic <= tarih <= self.donem_bitis
 
 
 def _gun_araligi(baslangic: date, bitis: date) -> Iterable[date]:

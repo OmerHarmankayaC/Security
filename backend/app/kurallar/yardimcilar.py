@@ -67,10 +67,10 @@ def ardisik_kosu_ihlalleri(
             if kosu > sinir:
                 ihlaller.append(
                     Ihlal(
-                        kural_kimlik,
-                        personel_id,
-                        gun,
-                        aciklama_sablonu.format(kosu=kosu, sinir=sinir),
+                        kural_kimlik=kural_kimlik,
+                        personel_id=personel_id,
+                        tarih=gun,
+                        aciklama=aciklama_sablonu.format(kosu=kosu, sinir=sinir),
                     )
                 )
             onceki_gun = gun
@@ -97,10 +97,10 @@ def kayan_pencere_ihlalleri(
             if toplam > sinir:
                 ihlaller.append(
                     Ihlal(
-                        kural_kimlik,
-                        personel_id,
-                        pencere_baslangic,
-                        aciklama_sablonu.format(toplam=toplam, sinir=sinir),
+                        kural_kimlik=kural_kimlik,
+                        personel_id=personel_id,
+                        tarih=pencere_baslangic,
+                        aciklama=aciklama_sablonu.format(toplam=toplam, sinir=sinir),
                     )
                 )
     return ihlaller

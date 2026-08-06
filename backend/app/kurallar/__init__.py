@@ -1,4 +1,5 @@
 from app.kurallar import (
+    esnek,  # noqa: F401  kayit defterine kendini kaydetmesi icin import edilir
     zorunlu,  # noqa: F401  kayit defterine kendini kaydetmesi icin import edilir
 )
 from app.kurallar.baglam import (
@@ -7,6 +8,7 @@ from app.kurallar.baglam import (
     GorevNoktasiBilgisi,
     MusaitlikKaydi,
     PersonelBilgisi,
+    TercihKaydi,
     VardiyaTipiBilgisi,
 )
 from app.kurallar.kayit_defteri import bul, kayitli, kurallari_yukle
@@ -21,9 +23,11 @@ __all__ = [
     "Kural",
     "MusaitlikKaydi",
     "PersonelBilgisi",
+    "TercihKaydi",
     "VardiyaTipiBilgisi",
     "ZorunluKural",
     "bul",
+    "esnek",
     "kayitli",
     "kurallari_yukle",
     "zorunlu",

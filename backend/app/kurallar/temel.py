@@ -11,12 +11,20 @@ from app.models.kural import KuralTipi
 CezaTerimi = Any
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, kw_only=True)
 class Ihlal:
+    """Zorunlu kisit ihlali veya esnek hedef ceza kaydi (SDD Ek A).
+
+    personel_id/tarih zorunlu kisitlarda (H1-H8) daima doludur; bazi esnek
+    hedefler (orn. S1 kapsama acigi, S2 adalet dagilimi) tek bir kisi/gune
+    bagli olmayan toplu bir ceza urettigi icin bu iki alan opsiyoneldir
+    (Ek A'daki `Ihlal('S2', ceza=acik)` ornegiyle tutarli).
+    """
+
     kural_kimlik: str
-    personel_id: int
-    tarih: date
     aciklama: str
+    personel_id: int | None = None
+    tarih: date | None = None
     ceza: float | None = None
 
 

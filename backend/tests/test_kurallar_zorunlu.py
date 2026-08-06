@@ -244,7 +244,7 @@ def test_kurallari_yukle_tanimsiz_kimlikte_hata_verir() -> None:
 
 
 def test_ihlal_alanlari_dogru_atanir() -> None:
-    ihlal = Ihlal("H1", 1, date(2026, 1, 5), "aciklama")
+    ihlal = Ihlal(kural_kimlik="H1", personel_id=1, tarih=date(2026, 1, 5), aciklama="aciklama")
     assert ihlal.kural_kimlik == "H1"
     assert ihlal.personel_id == 1
     assert ihlal.ceza is None

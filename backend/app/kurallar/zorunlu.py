@@ -28,10 +28,10 @@ class H1GundeBirVardiya(ZorunluKural):
         sayac = Counter((a.personel_id, a.tarih) for a in atamalar)
         return [
             Ihlal(
-                self.kimlik,
-                personel_id,
-                tarih,
-                f"{tarih} gununde {sayi} atama var; en fazla 1 olmali",
+                kural_kimlik=self.kimlik,
+                personel_id=personel_id,
+                tarih=tarih,
+                aciklama=f"{tarih} gununde {sayi} atama var; en fazla 1 olmali",
             )
             for (personel_id, tarih), sayi in sayac.items()
             if sayi > 1
@@ -51,10 +51,10 @@ class H2AsgariDinlenme(ZorunluKural):
                 if ara < d:
                     ihlaller.append(
                         Ihlal(
-                            self.kimlik,
-                            personel_id,
-                            sonraki.tarih,
-                            f"Onceki vardiyayla arada yalnizca {ara:.1f} saat var; "
+                            kural_kimlik=self.kimlik,
+                            personel_id=personel_id,
+                            tarih=sonraki.tarih,
+                            aciklama=f"Onceki vardiyayla arada yalnizca {ara:.1f} saat var; "
                             f"en az {d} saat gerekli",
                         )
                     )
@@ -133,10 +133,10 @@ class H7Musaitlik(ZorunluKural):
     def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
         return [
             Ihlal(
-                self.kimlik,
-                atama.personel_id,
-                atama.tarih,
-                "Personel bu tarihte/vardiyada musait degil",
+                kural_kimlik=self.kimlik,
+                personel_id=atama.personel_id,
+                tarih=atama.tarih,
+                aciklama="Personel bu tarihte/vardiyada musait degil",
             )
             for atama in atamalar
             if not baglam.musait_mi(atama)
@@ -156,10 +156,10 @@ class H8OnkosulYetkinligi(ZorunluKural):
             if not baglam.yetkin_mi(atama.personel_id, nokta.onkosul_yetkinlik_id):
                 ihlaller.append(
                     Ihlal(
-                        self.kimlik,
-                        atama.personel_id,
-                        atama.tarih,
-                        f"Personel, {atama.nokta_id} nolu noktanin gerektirdigi "
+                        kural_kimlik=self.kimlik,
+                        personel_id=atama.personel_id,
+                        tarih=atama.tarih,
+                        aciklama=f"Personel, {atama.nokta_id} nolu noktanin gerektirdigi "
                         f"{nokta.onkosul_yetkinlik_id} nolu yetkinlige sahip degil",
                     )
                 )

@@ -204,3 +204,77 @@ zaten okundu). Her esnek hedef için `dogrula`/ceza hesaplama birim testi
 ekle. Önce SRS 4.3 (S1–S8 tanımları) ve SDD Ek A'daki S2 örneğini tekrar
 gözden geçir; `EsnekHedef` taban sınıfı zaten `app/kurallar/temel.py`'de
 hazır.
+
+---
+
+## 2026-08-06 — Sprint 1, Gün 3: Esnek Hedefler (S1–S8)
+
+**Tamamlanan:**
+- SRS 4.3 (S1–S8 tam formülasyonu) ve 4.4 (amaç fonksiyonu) okundu.
+- `app/kurallar/esnek.py`: S1–S8'in tamamı, her biri `@kayitli("Sx")` ile
+  kayıtlı, `dogrula` SDD Ek A'daki S2 örneğiyle tutarlı biçimde **ağırlıksız
+  (ham) ceza büyüklüğü** döndürüyor (`w1..w8` ile çarpım, amaç fonksiyonu/
+  ceza dökümü raporlaması gibi sonraki bir katmanın işi — Sprint 2 Gün 6 /
+  Sprint 3 Gün 12).
+- **`Ihlal` veri sınıfı genişletildi** (`app/kurallar/temel.py`):
+  `personel_id`/`tarih` artık opsiyonel (varsayılan `None`) ve sınıf
+  `kw_only=True` yapıldı. Gerekçe: SDD Ek A'daki `Ihlal('S2', ceza=acik)`
+  örneği tek bir kişi/güne bağlı olmayan toplu ihlaller üretiyor (S1
+  kapsama açığı, S2/S3 adalet sapması). H1–H8'deki tüm `Ihlal(...)`
+  çağrıları (zorunlu.py + yardimcilar.py + testler) anahtar kelime
+  argümanlarına çevrildi; pozisyonel imza kw_only ile artık geçersiz.
+  Mevcut testler değişiklik sonrası tekrar çalıştırıldı, hepsi geçti.
+- **`Baglam` genişletildi** (`app/kurallar/baglam.py`) S1–S8'in ihtiyaç
+  duyduğu veriyle:
+  - `talep: dict[(tarih, vardiya_tipi_id, nokta_id), gereken_sayi]` —
+    istisna/genel talep satırı çözümlemesi (SDD 4.2.1) Baglam'ı kuran
+    tarafın (repository/servis, Sprint 1 Gün 4+) sorumluluğu; Baglam
+    zaten çözümlenmiş değeri alır.
+  - `donem_baslangic`/`donem_bitis` + `donem_icinde()` — TD-6 (adalet
+    ufku ısıtma penceresini kapsamaz).
+  - `ozel_gunler` + `hafta_sonu_mu()` — TD-3.
+  - `tercihler: list[TercihKaydi]` — yalnızca **onaylanmış** tercihler
+    girer (filtreleme de yine Baglam'ı kuran tarafın işi, SRS S5).
+  - `onceki_atamalar: list[AtamaKaydi] | None` — yalnızca yeniden çözüm
+    doğrulamasında dolu (S8).
+  - `GorevNoktasiBilgisi.bina_id`, `PersonelBilgisi.haftalik_hedef_saat`
+    alanları eklendi (S6, S4 için gerekliydi; geriye dönük uyumlu —
+    ikisi de sondan eklenen varsayılanlı alanlar).
+- `tests/test_kurallar_esnek.py`: S1–S8'in her biri için en az bir
+  ceza-üretir ve bir ceza-üretmez senaryosu (24 test), elle kurulan
+  `Baglam`/`AtamaKaydi`/`TercihKaydi` örnekleriyle.
+- `ruff check`, `ruff format --check`, `pytest -q` temiz: toplam 50 test
+  (48 geçti, 2'si canlı PostgreSQL olmadığı için beklenen şekilde
+  atlandı).
+
+**Sapmalar / notlar (varsayım olarak işaretlendi, mentör onayı gerekebilir):**
+- **S4 dönemlik hedef formülü:** SRS yalnızca "haftalık hedef saatinden
+  türetilen dönemlik hedef" diyor, kesin formül vermiyor. Orantılama
+  kullandım: `hedef_saat[p] = haftalik_hedef_saat[p] * (donem_gun_sayisi / 7)`.
+  Mentör onayı bekleyen bir varsayım.
+- **S6'nın iki ayrı ağırlığı (w6, w6b):** SRS formülü `w6·Σdegisim +
+  w6b·Σbina_degisim` şeklinde iki ayrı ağırlık kullanıyor, ama `kural`
+  tablosunda (SDD 4.2.3) her kural için tek bir `agirlik` sütunu var. Bu
+  oturumda `dogrula` her iki ihlal türünü de (vardiya tipi değişimi,
+  bina değişimi) ham `ceza=1` ile, aynı `S6` kimliğiyle, yalnızca
+  `aciklama` metniyle ayrışan ayrı `Ihlal` kayıtları olarak döndürüyor —
+  ağırlıklandırma bu katmanda yapılmıyor zaten (diğer tüm kurallarla
+  tutarlı). Ancak Sprint 2 Gün 6'da amaç fonksiyonu kurulurken ya da
+  Sprint 3 Gün 12'de ceza dökümü hesaplanırken w6/w6b ayrımı somut bir
+  yer bulmalı; şema tek ağırlık sütunu içerdiği için bu noktada bir karar
+  gerekecek (iki ayrı kural kaydı mı, yoksa `parametreler` JSONB alanında
+  ikinci bir ağırlık mı). Şimdilik ilerlemeyi bloklamıyor, ama net.
+- Bu iki nokta dışında kalan tüm formüller SRS 4.3'ten birebir.
+
+**Kalan / ertelenen:** Yok — Gün 3 kapsamındaki tüm maddeler tamamlandı.
+
+**Sıradaki oturumun ilk işi:** Sprint 1, Gün 4 — Tanım Yönetimi CRUD
+API'leri. SDD Ek B'deki uç noktalardan tanım yönetimi grubunu uygula:
+`/api/personel`, `/api/yetkinlik`, `/api/bina`, `/api/nokta`,
+`/api/vardiya-tipi`, `/api/talep`, `/api/kural`. SRS FR-1.1–FR-1.14'ü
+karşıla, özellikle FR-1.9 (yük göstergesi hesaplaması — SDD 3.3.6'daki
+formülü kullan). Depo katmanı (repository) deseni: SQL yalnızca bu
+katmanda. Önce SDD Ek B (API özeti) ve SRS FR-1.x'i, ayrıca depo
+katmanının kural kataloğuna nasıl bağlanacağını (`kurallari_yukle`'nin
+beklediği `KuralSatiri` protokolü, `app/kurallar/kayit_defteri.py`) gözden
+geçir.

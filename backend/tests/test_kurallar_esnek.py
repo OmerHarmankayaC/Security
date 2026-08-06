@@ -1,0 +1,299 @@
+"""S1-S8 dogrula/ceza testleri: elle kurulan ornek atama listeleriyle (Sprint 1 Gun 3).
+
+Bu testler veritabani gerektirmez; Baglam ve AtamaKaydi elle olusturulur.
+"""
+
+from datetime import date, time
+
+import pytest
+
+from app.kurallar import (
+    AtamaKaydi,
+    Baglam,
+    GorevNoktasiBilgisi,
+    PersonelBilgisi,
+    TercihKaydi,
+    VardiyaTipiBilgisi,
+    bul,
+)
+from app.kurallar.esnek import (
+    S1TalepKarsilama,
+    S2GeceAdaleti,
+    S3HaftaSonuAdaleti,
+    S4ToplamSaatDengesi,
+    S5TercihKarsilama,
+    S6VardiyaDeseniTutarliligi,
+    S7IzoleGun,
+    S8DegisimMinimizasyonu,
+)
+from app.models.girdi import TercihTipi
+
+GECE = 1
+GUNDUZ = 2
+AKSAM = 3
+
+KAPI = 1
+KONTROL_ODASI = 2
+KAPI_BINA_A = 3
+KAPI_BINA_B = 4
+
+
+@pytest.fixture
+def baglam() -> Baglam:
+    vardiya_tipleri = {
+        GECE: VardiyaTipiBilgisi(GECE, time(0, 0), time(8, 0), 8, True),
+        GUNDUZ: VardiyaTipiBilgisi(GUNDUZ, time(8, 0), time(16, 0), 8, False),
+        AKSAM: VardiyaTipiBilgisi(AKSAM, time(16, 0), time(0, 0), 8, False),
+    }
+    gorev_noktalari = {
+        KAPI: GorevNoktasiBilgisi(KAPI),
+        KONTROL_ODASI: GorevNoktasiBilgisi(KONTROL_ODASI),
+        KAPI_BINA_A: GorevNoktasiBilgisi(KAPI_BINA_A, bina_id=1),
+        KAPI_BINA_B: GorevNoktasiBilgisi(KAPI_BINA_B, bina_id=2),
+    }
+    personel = {
+        1: PersonelBilgisi(1, date(2026, 1, 1), None, frozenset(), haftalik_hedef_saat=40),
+        2: PersonelBilgisi(2, date(2026, 1, 1), None, frozenset(), haftalik_hedef_saat=40),
+    }
+    return Baglam(
+        vardiya_tipleri=vardiya_tipleri, gorev_noktalari=gorev_noktalari, personel=personel
+    )
+
+
+def test_s1_kapsama_acigi_ceza_uretir(baglam: Baglam) -> None:
+    kural = S1TalepKarsilama(parametreler={}, agirlik=100)
+    baglam.talep[(date(2026, 1, 5), GUNDUZ, KAPI)] = 2
+    atamalar = [AtamaKaydi(1, date(2026, 1, 5), GUNDUZ, KAPI)]
+    ihlaller = kural.dogrula(atamalar, baglam)
+    assert len(ihlaller) == 1
+    assert ihlaller[0].kural_kimlik == "S1"
+    assert ihlaller[0].ceza == 1
+
+
+def test_s1_talep_karsilaninca_ceza_uretmez(baglam: Baglam) -> None:
+    kural = S1TalepKarsilama(parametreler={}, agirlik=100)
+    baglam.talep[(date(2026, 1, 5), GUNDUZ, KAPI)] = 1
+    atamalar = [AtamaKaydi(1, date(2026, 1, 5), GUNDUZ, KAPI)]
+    assert kural.dogrula(atamalar, baglam) == []
+
+
+def test_s2_gece_adaletsizligi_ceza_uretir(baglam: Baglam) -> None:
+    kural = S2GeceAdaleti(parametreler={}, agirlik=2)
+    baglam.donem_baslangic = date(2026, 1, 5)
+    baglam.donem_bitis = date(2026, 1, 8)
+    for i in range(4):
+        gun = date(2026, 1, 5 + i)
+        baglam.talep[(gun, GECE, KAPI)] = 1
+        baglam.talep[(gun, GECE, KONTROL_ODASI)] = 1
+    # hedef = 8 / 2 = 4; personel 1 tum 8 gece vardiyasini, personel 2 hicbirini almiyor.
+    atamalar = [AtamaKaydi(1, date(2026, 1, 5 + i), GECE, KAPI) for i in range(4)] + [
+        AtamaKaydi(1, date(2026, 1, 5 + i), GECE, KONTROL_ODASI) for i in range(4)
+    ]
+    ihlaller = kural.dogrula(atamalar, baglam)
+    ceza_by_personel = {i.personel_id: i.ceza for i in ihlaller}
+    assert ceza_by_personel == {1: 4, 2: 4}
+    assert all(i.kural_kimlik == "S2" for i in ihlaller)
+
+
+def test_s2_dengeli_dagilim_ceza_uretmez(baglam: Baglam) -> None:
+    kural = S2GeceAdaleti(parametreler={}, agirlik=2)
+    baglam.donem_baslangic = date(2026, 1, 5)
+    baglam.donem_bitis = date(2026, 1, 8)
+    for i in range(4):
+        gun = date(2026, 1, 5 + i)
+        baglam.talep[(gun, GECE, KAPI)] = 1
+        baglam.talep[(gun, GECE, KONTROL_ODASI)] = 1
+    atamalar = [AtamaKaydi(1, date(2026, 1, 5 + i), GECE, KAPI) for i in range(4)] + [
+        AtamaKaydi(2, date(2026, 1, 5 + i), GECE, KONTROL_ODASI) for i in range(4)
+    ]
+    assert kural.dogrula(atamalar, baglam) == []
+
+
+def test_s3_hafta_sonu_adaletsizligi_ceza_uretir(baglam: Baglam) -> None:
+    kural = S3HaftaSonuAdaleti(parametreler={}, agirlik=3)
+    baglam.donem_baslangic = date(2026, 1, 5)
+    baglam.donem_bitis = date(2026, 1, 11)
+    baglam.talep[(date(2026, 1, 10), GUNDUZ, KAPI)] = 1  # cumartesi
+    baglam.talep[(date(2026, 1, 11), GUNDUZ, KAPI)] = 1  # pazar
+    # hedef = 2 / 2 = 1; personel 1 her iki hafta sonu gununu de aliyor.
+    atamalar = [
+        AtamaKaydi(1, date(2026, 1, 10), GUNDUZ, KAPI),
+        AtamaKaydi(1, date(2026, 1, 11), GUNDUZ, KAPI),
+    ]
+    ihlaller = kural.dogrula(atamalar, baglam)
+    ceza_by_personel = {i.personel_id: i.ceza for i in ihlaller}
+    assert ceza_by_personel == {1: 1, 2: 1}
+    assert all(i.kural_kimlik == "S3" for i in ihlaller)
+
+
+def test_s3_dengeli_hafta_sonu_ceza_uretmez(baglam: Baglam) -> None:
+    kural = S3HaftaSonuAdaleti(parametreler={}, agirlik=3)
+    baglam.donem_baslangic = date(2026, 1, 5)
+    baglam.donem_bitis = date(2026, 1, 11)
+    baglam.talep[(date(2026, 1, 10), GUNDUZ, KAPI)] = 1
+    baglam.talep[(date(2026, 1, 11), GUNDUZ, KAPI)] = 1
+    atamalar = [
+        AtamaKaydi(1, date(2026, 1, 10), GUNDUZ, KAPI),
+        AtamaKaydi(2, date(2026, 1, 11), GUNDUZ, KAPI),
+    ]
+    assert kural.dogrula(atamalar, baglam) == []
+
+
+def test_s4_saat_sapmasi_ceza_uretir(baglam: Baglam) -> None:
+    kural = S4ToplamSaatDengesi(parametreler={}, agirlik=4)
+    baglam.donem_baslangic = date(2026, 1, 5)
+    baglam.donem_bitis = date(2026, 1, 11)  # 7 gun -> carpan 1.0
+    # personel 1 hedefi 40 saat; yalnizca 3 vardiya x 8 saat = 24 saat calisiyor.
+    atamalar = [AtamaKaydi(1, date(2026, 1, 5 + i), GUNDUZ, KAPI) for i in range(3)]
+    ihlaller = kural.dogrula(atamalar, baglam)
+    ceza_by_personel = {i.personel_id: i.ceza for i in ihlaller}
+    assert ceza_by_personel[1] == pytest.approx(16.0)
+    assert ceza_by_personel[2] == pytest.approx(40.0)  # hic calismiyor
+
+
+def test_s4_hedefi_tutturunca_ceza_uretmez(baglam: Baglam) -> None:
+    kural = S4ToplamSaatDengesi(parametreler={}, agirlik=4)
+    baglam.donem_baslangic = date(2026, 1, 5)
+    baglam.donem_bitis = date(2026, 1, 11)
+    baglam.personel = {1: PersonelBilgisi(1, date(2026, 1, 1), None, frozenset(), 40)}
+    atamalar = [AtamaKaydi(1, date(2026, 1, 5 + i), GUNDUZ, KAPI) for i in range(5)]  # 40 saat
+    assert kural.dogrula(atamalar, baglam) == []
+
+
+def test_s5_calismama_tercihi_ihlal_edilince_ceza_uretir(baglam: Baglam) -> None:
+    kural = S5TercihKarsilama(parametreler={}, agirlik=5)
+    baglam.tercihler.append(TercihKaydi(1, date(2026, 1, 5), TercihTipi.CALISMAMA))
+    atamalar = [AtamaKaydi(1, date(2026, 1, 5), GUNDUZ, KAPI)]
+    ihlaller = kural.dogrula(atamalar, baglam)
+    assert len(ihlaller) == 1
+    assert ihlaller[0].kural_kimlik == "S5"
+    assert ihlaller[0].ceza == 1
+
+
+def test_s5_calismama_tercihine_uyulunca_ceza_uretmez(baglam: Baglam) -> None:
+    kural = S5TercihKarsilama(parametreler={}, agirlik=5)
+    baglam.tercihler.append(TercihKaydi(1, date(2026, 1, 5), TercihTipi.CALISMAMA))
+    assert kural.dogrula([], baglam) == []
+
+
+def test_s5_vardiya_tipi_tercihi_farkli_vardiyaya_atanirsa_ceza_uretir(baglam: Baglam) -> None:
+    kural = S5TercihKarsilama(parametreler={}, agirlik=5)
+    baglam.tercihler.append(
+        TercihKaydi(1, date(2026, 1, 5), TercihTipi.VARDIYA_TIPI_TERCIHI, GUNDUZ)
+    )
+    atamalar = [AtamaKaydi(1, date(2026, 1, 5), AKSAM, KAPI)]
+    ihlaller = kural.dogrula(atamalar, baglam)
+    assert len(ihlaller) == 1
+
+
+def test_s5_vardiya_tipi_tercihi_karsilaninca_ceza_uretmez(baglam: Baglam) -> None:
+    kural = S5TercihKarsilama(parametreler={}, agirlik=5)
+    baglam.tercihler.append(
+        TercihKaydi(1, date(2026, 1, 5), TercihTipi.VARDIYA_TIPI_TERCIHI, GUNDUZ)
+    )
+    atamalar = [AtamaKaydi(1, date(2026, 1, 5), GUNDUZ, KAPI)]
+    assert kural.dogrula(atamalar, baglam) == []
+
+
+def test_s5_atanmamis_gun_vardiya_tipi_tercihini_ihlal_etmez(baglam: Baglam) -> None:
+    kural = S5TercihKarsilama(parametreler={}, agirlik=5)
+    baglam.tercihler.append(
+        TercihKaydi(1, date(2026, 1, 5), TercihTipi.VARDIYA_TIPI_TERCIHI, GUNDUZ)
+    )
+    assert kural.dogrula([], baglam) == []
+
+
+def test_s6_vardiya_tipi_degisimi_ceza_uretir(baglam: Baglam) -> None:
+    kural = S6VardiyaDeseniTutarliligi(parametreler={}, agirlik=6)
+    atamalar = [
+        AtamaKaydi(1, date(2026, 1, 5), GUNDUZ, KAPI),
+        AtamaKaydi(1, date(2026, 1, 6), AKSAM, KAPI),
+    ]
+    ihlaller = kural.dogrula(atamalar, baglam)
+    assert len(ihlaller) == 1
+    assert "vardiya tipi" in ihlaller[0].aciklama.lower()
+
+
+def test_s6_bina_degisimi_ceza_uretir(baglam: Baglam) -> None:
+    kural = S6VardiyaDeseniTutarliligi(parametreler={}, agirlik=6)
+    atamalar = [
+        AtamaKaydi(1, date(2026, 1, 5), GUNDUZ, KAPI_BINA_A),
+        AtamaKaydi(1, date(2026, 1, 6), GUNDUZ, KAPI_BINA_B),
+    ]
+    ihlaller = kural.dogrula(atamalar, baglam)
+    assert len(ihlaller) == 1
+    assert "bina" in ihlaller[0].aciklama.lower()
+
+
+def test_s6_tutarli_desen_ceza_uretmez(baglam: Baglam) -> None:
+    kural = S6VardiyaDeseniTutarliligi(parametreler={}, agirlik=6)
+    atamalar = [
+        AtamaKaydi(1, date(2026, 1, 5), GUNDUZ, KAPI_BINA_A),
+        AtamaKaydi(1, date(2026, 1, 6), GUNDUZ, KAPI_BINA_A),
+    ]
+    assert kural.dogrula(atamalar, baglam) == []
+
+
+def test_s7_izole_calisma_gunu_ceza_uretir(baglam: Baglam) -> None:
+    kural = S7IzoleGun(parametreler={}, agirlik=7)
+    baglam.donem_baslangic = date(2026, 1, 5)
+    baglam.donem_bitis = date(2026, 1, 7)
+    atamalar = [AtamaKaydi(1, date(2026, 1, 6), GUNDUZ, KAPI)]
+    ihlaller = kural.dogrula(atamalar, baglam)
+    assert len(ihlaller) == 1
+    assert "calisma" in ihlaller[0].aciklama.lower()
+
+
+def test_s7_izole_izin_gunu_ceza_uretir(baglam: Baglam) -> None:
+    kural = S7IzoleGun(parametreler={}, agirlik=7)
+    baglam.donem_baslangic = date(2026, 1, 5)
+    baglam.donem_bitis = date(2026, 1, 7)
+    atamalar = [
+        AtamaKaydi(1, date(2026, 1, 5), GUNDUZ, KAPI),
+        AtamaKaydi(1, date(2026, 1, 7), GUNDUZ, KAPI),
+    ]
+    ihlaller = kural.dogrula(atamalar, baglam)
+    assert len(ihlaller) == 1
+    assert "izin" in ihlaller[0].aciklama.lower()
+
+
+def test_s7_surekli_calisma_ceza_uretmez(baglam: Baglam) -> None:
+    kural = S7IzoleGun(parametreler={}, agirlik=7)
+    baglam.donem_baslangic = date(2026, 1, 5)
+    baglam.donem_bitis = date(2026, 1, 7)
+    atamalar = [AtamaKaydi(1, date(2026, 1, 5 + i), GUNDUZ, KAPI) for i in range(3)]
+    assert kural.dogrula(atamalar, baglam) == []
+
+
+def test_s8_onceki_cizelge_yoksa_ceza_uretmez(baglam: Baglam) -> None:
+    kural = S8DegisimMinimizasyonu(parametreler={}, agirlik=8)
+    atamalar = [AtamaKaydi(1, date(2026, 1, 5), GUNDUZ, KAPI)]
+    assert kural.dogrula(atamalar, baglam) == []
+
+
+def test_s8_degisen_atama_ceza_uretir(baglam: Baglam) -> None:
+    kural = S8DegisimMinimizasyonu(parametreler={}, agirlik=8)
+    baglam.onceki_atamalar = [AtamaKaydi(1, date(2026, 1, 5), GUNDUZ, KAPI)]
+    atamalar = [AtamaKaydi(1, date(2026, 1, 5), AKSAM, KAPI)]
+    ihlaller = kural.dogrula(atamalar, baglam)
+    # eski atama kalkti (1 birim), yeni atama geldi (1 birim) -> toplam 2 birim ceza.
+    assert len(ihlaller) == 2
+    assert all(i.ceza == 1 for i in ihlaller)
+
+
+def test_s8_ayni_cizelgede_ceza_uretmez(baglam: Baglam) -> None:
+    kural = S8DegisimMinimizasyonu(parametreler={}, agirlik=8)
+    baglam.onceki_atamalar = [AtamaKaydi(1, date(2026, 1, 5), GUNDUZ, KAPI)]
+    atamalar = [AtamaKaydi(1, date(2026, 1, 5), GUNDUZ, KAPI)]
+    assert kural.dogrula(atamalar, baglam) == []
+
+
+def test_esnek_kural_modele_ekle_henuz_uygulanmadi(baglam: Baglam) -> None:
+    kural = S1TalepKarsilama(parametreler={})
+    with pytest.raises(NotImplementedError):
+        kural.modele_ekle(model=None, degiskenler=None, baglam=baglam)
+
+
+def test_kayit_defterinde_s1_s8_tamami_bulunur() -> None:
+    for kimlik in ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8"]:
+        assert bul(kimlik) is not None, f"{kimlik} kayit defterinde yok"
