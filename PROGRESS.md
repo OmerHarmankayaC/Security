@@ -426,3 +426,107 @@ ve "sıkışık"). Çözücü-doğrulayıcı uyum testinin iskeletini kur (elle
 üretilmiş rastgele geçerli atamalarla, `app/kurallar` H1–H8/S1–S8
 `dogrula` metotlarını kullanarak). Önce UYGULAMA_PLANI.md'deki Gün 5
 maddesini ve Backlog'daki demo veri stratejisi notlarını gözden geçir.
+
+---
+
+## 2026-08-06 — Sprint 1, Gün 5: Demo Veri Üreteci ve Sprint 1 Checkpoint
+
+**Not:** Plandaki "Backlog'daki demo veri stratejisi" referansı da (Gün 4'teki
+"SDD 3.3.6" referansı gibi) doğrulanamadı — Backlog dokümanında "demo",
+"senaryo", "rahat" veya "sıkışık" geçen tek bir satır yok; bu üçü de
+yalnızca UYGULAMA_PLANI.md'nin kendi metninde tanımlı. SDD/SRS'te de
+"3.3" numaralı bölüm SRS'e ait (SDD'nin 3.3'ü "Tasarım Gerekçesi"dir,
+personel senaryosuyla ilgisizdir); SRS 3.3'ü kullandım.
+
+**Tasarım kararı — "rahat" ve "sıkışık" nasıl ayrışıyor:** Plan metni
+"'sıkışık' (izinler girince kapsama açığı doğuran)" diyor — bunu **aynı
+personel havuzu ve aynı talep matrisi üzerinde, yalnızca müsaitlik/izin
+kayıtlarının farklı olduğu iki ayrı dönem** olarak yorumladım (farklı
+kadro büyüklükleri değil). Bu hem plan metnine hem de SRS 3.3.6'nın
+kendi anlattığı kırılganlık mekanizmasına (5 kişilik vardiya şefi
+havuzunda tek bir iznin kapatılamayan boşluk doğurması) birebir uyuyor.
+
+**Tamamlanan:**
+- `app/services/ornek_senaryo.py`: SRS 3.3'teki senaryonun DB'siz yapısal
+  tanımı — `NOKTA_TANIMLARI` (3.3.3), `talep_satirlarini_olustur()`
+  (3.3.4, Gün 4'te `test_yuk_gostergesi.py` içine gömülü olarak yazılmış
+  mantığın buraya taşınmış hali), `PERSONEL_GRUPLARI` (3.3.6'daki "İzin
+  Payıyla" havuz oranlarının ~44'e ölçeklenmesi: Vardiya Şefi 9, Müracaat
+  Görevlisi 7, yalnız Güvenlik Görevi 28 — toplam 44). Hem
+  `scripts/demo_veri_uret.py` hem `tests/test_yuk_gostergesi.py` artık bu
+  tek kaynaktan besleniyor; `test_yuk_gostergesi.py` bunu kullanacak
+  şekilde küçük bir refactor ile güncellendi (davranış/doğrulanan sayılar
+  değişmedi — 144/1.152/29 hâlâ birebir üretiliyor).
+- `scripts/demo_veri_uret.py`: tek komutla veritabanına yazıyor —
+  3 yetkinlik, 2 bina, 6 görev noktası, 3 vardiya tipi (süre/gece_mi
+  `vardiya_hesaplari` ile türetilmiş), tam talep matrisi, **17 kural**
+  (H1–H8 SRS 3.3.5 varsayılan parametreleriyle; S1–S8+S6b — S1 ağırlığı
+  1000, diğerlerinin toplamından [41] belirgin büyük, SRS S1
+  gerekçesiyle tutarlı; S6/S6b sırasıyla 10/6, Gün 3/4 kararıyla
+  tutarlı), 44 personel + yetkinlik atamaları, iki `donem` ("Rahat
+  Dönem", "Sıkışık Dönem" — 28'er gün, örtüşmeyen tarih aralıkları).
+  Sıkışık dönemde, 9 kişilik vardiya şefi havuzunun 5'i o dönemin ilk iki
+  haftası için `yillik_izin`/`tam_gun` müsaitlik kaydıyla izinli
+  gösteriliyor (kalan 4 kişi, haftada gereken 5 kişinin altında —
+  SRS 3.3.6'daki mekanizmanın birebir tekrarı).
+  - `--reset` bayrağı: mevcut demo verisini (yalnızca bu betiğin
+    oluşturduğu türden satırları) FK bağımlılık sırasına göre silip
+    yeniden üretir. Bayrak verilmeden zaten veri varken çalıştırılırsa
+    açık bir hatayla durur (sessiz yinelenen kayıt yok).
+- Doğrulama: geçici Docker PostgreSQL'de betik iki kez ardışık
+  (`--reset` ile) çalıştırıldı, her ikisinde de "44 personel, 6 görev
+  noktası, 17 kural, 2 dönem" çıktısı; `/api/talep` uç noktası üzerinden
+  yük göstergesinin gerçekten 144/1.152/29 döndürdüğü curl ile doğrulandı
+  (API + demo veri + FR-1.9 hesaplaması uçtan uca tutarlı).
+- **Çözücü-doğrulayıcı uyum testi iskeleti**
+  (`tests/test_cozucu_dogrulayici_uyumu.py`): henüz gerçek çözücü
+  olmadığı için "çözülmüş" çizelge, H1–H8'in tamamını yapısal olarak
+  sağlayan elle kurulmuş bir örnek (3 personel, 28 gün, her personel iki
+  günde bir çalışıp SRS 3.3.5'teki ileri yönlü sırayla — gündüz→akşam→gece
+  — dönüyor). Kayıt defterinden H1–H8 sınıfları çekilip hepsinin
+  `dogrula`'sı çalıştırılıyor, sıfır ihlal bekleniyor. Bunun yanına, testin
+  kendisinin de bir şey yakalayabildiğini kanıtlayan bir negatif kontrol
+  eklendi: dinlenmeyi bilerek bozan bir atama H2 tarafından yakalanıyor.
+  Sprint 2 Gün 6'da gerçek çözücü bağlanınca bu iskelet, rastgele üretilmiş
+  örneklere ve gerçek çözücü çıktısına genişletilecek.
+- `README.md`'ye demo veri betiğinin kullanımı eklendi.
+- `ruff check`, `ruff format --check` temiz; DB'siz ortamda 64 test geçti
+  + 10 atlandı (beklenen); canlı PostgreSQL'de tüm paket (74 test) geçti.
+
+**Sprint 1 çıkış kabul kriteri (plan metninden):**
+- ✅ Tanım yönetimi ekranından bağımsız olarak, API üzerinden tam bir
+  personel/yetkinlik/nokta/talep kümesi kurulabiliyor (Gün 4'te
+  `test_tanim_api.py` ile doğrulandı, bugün demo betiğiyle de aynı akış
+  gerçek veriyle tekrar doğrulandı).
+- ✅ Demo veri betiği tek komutla iki senaryoyu da veritabanına yazabiliyor.
+- ✅ On yedi kuralın (plan "on altı" diyor — Gün 3/4'teki S6/S6b ayrımı
+  sonrası on yediye çıktı) `dogrula` tarafı test kapsamında (H1–H8:
+  `test_kurallar_zorunlu.py`; S1–S8+S6b: `test_kurallar_esnek.py`; ayrıca
+  uyum testi iskeletinde H1–H8 birlikte de çalıştırılıyor).
+
+**Sapmalar / notlar:**
+- Plan metnindeki iki doküman referansı ("SDD 3.3.6", "Backlog'daki demo
+  veri stratejisi") bu oturumda da (Gün 4'teki gibi) doğrulanamadı;
+  yukarıda not edildi. Üçüncü kez aynı örüntü çıkarsa (belge referansları
+  plan yazılırken karışmış olabilir) mentör görüşmesinde bir kez sorulup
+  netleştirilmesi faydalı olur.
+- "Rahat"/"sıkışık" ayrımının aynı roster üzerinde yalnızca izinle
+  yapılması bir tasarım kararı (yukarıda gerekçelendirildi); alternatif
+  yorum (farklı roster büyüklükleri) de mümkündü ama SRS'in kendi
+  anlatısıyla daha az örtüşüyordu.
+
+**Kalan / ertelenen:** Yok — Sprint 1 kapsamındaki tüm günler (1–5)
+tamamlandı.
+
+**Sıradaki oturumun ilk işi:** Sprint 2, Gün 6 — Çözücü Adaptörü ve Model
+Kurma. SDD 5.3'teki `model_kur` sözde kodunu (karar değişkeni `x[p,g,v,n]`,
+üç atlama koşulu, yardımcı değişken `y[p,g,v]`) birebir uygula;
+`CozucuAdaptoru` (model kur, çöz, ara çözüm geri çağırma, sonuç döndür —
+SDD 3.2'deki dar arayüz). H1–H8 ve S1–S8+S6b kurallarının `modele_ekle`
+metotlarını (şu ana kadar hepsi `NotImplementedError` fırlatıyordu) gerçek
+CP-SAT model nesnesiyle tamamla. Küçük bir örnek (5 personel, 3 gün)
+uçtan uca çözülüp `atama` tablosuna yazılabilmeli. Önce SDD 5.3'ü, Ek
+A'daki H2/S2 sözde kod örneklerini ve `app/kurallar/temel.py`'deki
+`CezaTerimi`/`modele_ekle` imzasını tekrar gözden geçir. `ortools` sürüm
+notunu (Sprint 0'da 9.14.6206'ya çıkılmıştı) hatırda tut — SDD 5.3'teki
+sözde kodla bu sürümün gerçek Python API'si arasında fark çıkarsa not düş.

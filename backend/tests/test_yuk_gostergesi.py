@@ -7,79 +7,35 @@ olarak (oturuma eklenmeden) kullanilir.
 from decimal import Decimal
 
 from app.models.tanim import GunTipi, Talep, VardiyaTipi
+from app.services.ornek_senaryo import AKSAM, GECE, GUNDUZ, talep_satirlarini_olustur
 from app.services.yuk_gostergesi import yuk_gostergesi_hesapla
 
-GECE, GUNDUZ, AKSAM = 1, 2, 3
-VARDIYA_SEFLIGI, KONTROL_ODASI, KAPI_A, KAPI_B, MURACAAT_A, MURACAAT_B = range(1, 7)
+_VARDIYA_ID = {GECE: 1, GUNDUZ: 2, AKSAM: 3}
+KAPI_A = 2  # NOKTA_TANIMLARI[2] (0-tabanli index) -- bkz. app/services/ornek_senaryo.py
 
 
 def _vardiya_tipleri() -> dict[int, VardiyaTipi]:
     return {
-        vid: VardiyaTipi(vardiya_tipi_id=vid, sure_saat=Decimal(8), gece_mi=(vid == GECE))
-        for vid in (GECE, GUNDUZ, AKSAM)
+        vid: VardiyaTipi(
+            vardiya_tipi_id=vid, sure_saat=Decimal(8), gece_mi=(vid == _VARDIYA_ID[GECE])
+        )
+        for vid in _VARDIYA_ID.values()
     }
 
 
 def _guvenlik_personeli_talep_matrisi() -> list[Talep]:
-    """SRS 3.3.3/3.3.4'teki tabloyu tam acilmis talep satirlarina cevirir.
-
-    'Gece / Hafta Sonu / Tatil' sutunu; hafta ici gece vardiyasina VE hafta
-    sonu/resmi tatildeki her uc vardiyaya da ayni deger olarak uygulanir
-    (SRS 3.3.4: 'Hafta sonu ve resmi tatillerde uc vardiyanin tamami
-    azaltilmis kadroyla calisir').
-    """
-    # nokta_id -> (hafta_ici_gunduz, hafta_ici_aksam, gece_veya_hafta_sonu_veya_tatil)
-    matris = {
-        VARDIYA_SEFLIGI: (1, 1, 1),
-        KONTROL_ODASI: (1, 1, 1),
-        KAPI_A: (3, 3, 1),
-        KAPI_B: (3, 3, 1),
-        MURACAAT_A: (1, 1, 0),
-        MURACAAT_B: (1, 1, 0),
-    }
-    satirlar: list[Talep] = []
-    talep_id = 1
-    for nokta_id, (hi_gunduz, hi_aksam, azaltilmis) in matris.items():
-        satirlar.append(
-            Talep(
-                talep_id=talep_id,
-                nokta_id=nokta_id,
-                vardiya_tipi_id=GUNDUZ,
-                gun_tipi=GunTipi.HAFTA_ICI,
-                tarih=None,
-                gereken_sayi=hi_gunduz,
-            )
+    """app.services.ornek_senaryo'daki SRS 3.3.3/3.3.4 tanimini Talep nesnelerine cevirir."""
+    return [
+        Talep(
+            talep_id=i,
+            nokta_id=tanim.nokta_index,
+            vardiya_tipi_id=_VARDIYA_ID[tanim.vardiya_tipi],
+            gun_tipi=tanim.gun_tipi,
+            tarih=None,
+            gereken_sayi=tanim.gereken_sayi,
         )
-        talep_id += 1
-        satirlar.append(
-            Talep(
-                talep_id=talep_id,
-                nokta_id=nokta_id,
-                vardiya_tipi_id=AKSAM,
-                gun_tipi=GunTipi.HAFTA_ICI,
-                tarih=None,
-                gereken_sayi=hi_aksam,
-            )
-        )
-        talep_id += 1
-        for vardiya_tipi_id, gun_tipi in (
-            (GECE, GunTipi.HAFTA_ICI),
-            (GUNDUZ, GunTipi.HAFTA_SONU),
-            (AKSAM, GunTipi.HAFTA_SONU),
-            (GECE, GunTipi.HAFTA_SONU),
-        ):
-            satirlar.append(
-                Talep(
-                    talep_id=talep_id,
-                    nokta_id=nokta_id,
-                    vardiya_tipi_id=vardiya_tipi_id,
-                    gun_tipi=gun_tipi,
-                    tarih=None,
-                    gereken_sayi=azaltilmis,
-                )
-            )
-            talep_id += 1
-    return satirlar
+        for i, tanim in enumerate(talep_satirlarini_olustur(), start=1)
+    ]
 
 
 def test_srs_3_3_6_referans_ornegi_birebir_uretilir() -> None:

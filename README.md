@@ -38,6 +38,16 @@ uvicorn app.main:app --reload
 
 `http://localhost:8000/health` 200 dönmelidir.
 
+Gösterim amaçlı örnek veri (FR-1.14 — SRS 3.3'teki güvenlik personeli
+senaryosu: 44 personel, 6 görev noktası, talep matrisi, 17 kural; "rahat"
+ve "sıkışık" iki dönem):
+
+```bash
+cd backend && source .venv/bin/activate
+python scripts/demo_veri_uret.py           # ilk calistirma
+python scripts/demo_veri_uret.py --reset   # var olan demo verisini silip yeniden uretir
+```
+
 Frontend:
 
 ```bash
