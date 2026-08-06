@@ -1,7 +1,7 @@
 """Cizelgeleme uc noktalari (SDD 3.2: cizelge_router; SDD Ek B).
 
-/api/on-kontrol (Sprint 2 Gun 7) ve /api/cozum (Sprint 2 Gun 8). /api/donem,
-/api/surum, /api/atama sonraki gunlerde eklenecek.
+/api/on-kontrol (Sprint 2 Gun 7), /api/cozum (Sprint 2 Gun 8), /api/atama
+(Sprint 2 Gun 9). /api/donem, /api/surum sonraki gunlerde eklenecek.
 """
 
 from typing import Annotated
@@ -13,8 +13,15 @@ from app.db import oturum_al
 from app.models.sonuc import CozumIsiDurumu
 from app.repositories.sonuc import CozumIsiDeposu
 from app.schemas.cozum import CozumBaslatIstek, CozumOku
+from app.schemas.dogrulama import AtamaDegisikligiIstek, DogrulamaSonucuOku, IhlalOku
 from app.schemas.on_kontrol import BulguOku, OnKontrolIstek, OnKontrolYaniti
 from app.services.cozum_servisi import CozumServisi
+from app.services.dogrulama_servisi import (
+    AtamaDegisikligi,
+    DogrulamaServisi,
+    DogrulamaSonucu,
+    SurumTaslakDegilError,
+)
 from app.services.on_kontrol_servisi import OnKontrolServisi
 
 router = APIRouter(prefix="/api", tags=["cizelge"])
@@ -68,3 +75,56 @@ def cozum_iptal(is_id: int, oturum: Oturum) -> CozumOku:
     if is_kaydi.durum not in _TAMAMLANMIS_DURUMLAR:
         is_kaydi.durum = CozumIsiDurumu.IPTAL
     return CozumOku.model_validate(is_kaydi)
+
+
+def _degisiklige_cevir(istek: AtamaDegisikligiIstek) -> AtamaDegisikligi:
+    return AtamaDegisikligi(
+        surum_id=istek.surum_id,
+        personel_id=istek.personel_id,
+        tarih=istek.tarih,
+        vardiya_tipi_id=istek.vardiya_tipi_id,
+        nokta_id=istek.nokta_id,
+    )
+
+
+def _sonucu_cevir(sonuc: DogrulamaSonucu) -> DogrulamaSonucuOku:
+    return DogrulamaSonucuOku(
+        kabul_edilebilir=sonuc.kabul_edilebilir,
+        zorunlu_ihlaller=[
+            IhlalOku(
+                kural_kimlik=i.kural_kimlik,
+                aciklama=i.aciklama,
+                personel_id=i.personel_id,
+                tarih=i.tarih,
+                ceza=i.ceza,
+            )
+            for i in sonuc.zorunlu_ihlaller
+        ],
+        ceza_degisimi=sonuc.ceza_degisimi,
+    )
+
+
+@router.post("/atama/dogrula", response_model=DogrulamaSonucuOku)
+def atama_dogrula(istek: AtamaDegisikligiIstek, oturum: Oturum) -> DogrulamaSonucuOku:
+    servis = DogrulamaServisi(oturum)
+    try:
+        sonuc = servis.dogrula(_degisiklige_cevir(istek))
+    except SurumTaslakDegilError as hata:
+        raise HTTPException(status_code=409, detail=str(hata)) from hata
+    if sonuc is None:
+        raise HTTPException(status_code=404, detail="Cizelge surumu bulunamadi")
+    return _sonucu_cevir(sonuc)
+
+
+@router.put("/atama", response_model=DogrulamaSonucuOku)
+def atama_guncelle(istek: AtamaDegisikligiIstek, oturum: Oturum) -> DogrulamaSonucuOku:
+    servis = DogrulamaServisi(oturum)
+    try:
+        sonuc = servis.uygula(_degisiklige_cevir(istek))
+    except SurumTaslakDegilError as hata:
+        raise HTTPException(status_code=409, detail=str(hata)) from hata
+    if sonuc is None:
+        raise HTTPException(status_code=404, detail="Cizelge surumu bulunamadi")
+    if not sonuc.kabul_edilebilir:
+        raise HTTPException(status_code=409, detail=_sonucu_cevir(sonuc).model_dump(mode="json"))
+    return _sonucu_cevir(sonuc)

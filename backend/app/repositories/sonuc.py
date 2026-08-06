@@ -1,6 +1,7 @@
 """Sonuc varliklari icin depo katmani (SDD 4.2.4)."""
 
 from collections.abc import Sequence
+from datetime import date
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
@@ -40,6 +41,22 @@ class AtamaDeposu(TabanDepo[Atama]):
     def surume_gore_getir(self, surum_id: int) -> Sequence[Atama]:
         stmt = select(Atama).where(Atama.surum_id == surum_id)
         return self.oturum.execute(stmt).scalars().all()
+
+    def surume_ve_araliga_gore_getir(
+        self, surum_id: int, baslangic: date, bitis: date
+    ) -> Sequence[Atama]:
+        """SDD 5.5: degisikligi_dogrula'nin pencere kapsamli kurallar icin kullandigi
+        atama kumesi (degistirilen gunun +-7 gunluk penceresi)."""
+        stmt = select(Atama).where(
+            Atama.surum_id == surum_id, Atama.tarih >= baslangic, Atama.tarih <= bitis
+        )
+        return self.oturum.execute(stmt).scalars().all()
+
+    def tekil_getir(self, surum_id: int, personel_id: int, tarih: date) -> Atama | None:
+        stmt = select(Atama).where(
+            Atama.surum_id == surum_id, Atama.personel_id == personel_id, Atama.tarih == tarih
+        )
+        return self.oturum.execute(stmt).scalar_one_or_none()
 
 
 class KapsamaAcigiDeposu(TabanDepo[KapsamaAcigi]):

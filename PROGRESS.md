@@ -899,5 +899,117 @@ kabul kriteriyle birebir tamamlandı.
 tamamlandı. Ek Görev (S1–S8+S6b uyum testi genişletmesi + S4 birim
 düzeltmesi) hâlâ Gün 11 sonrası için planlı, henüz yapılmadı.
 
-**Sıradaki oturumun ilk işi:** Sprint 2, Gün 9 — Doğrulama Alt Sistemi.
-UYGULAMA_PLANI.md'deki Gün 9 maddesini takip et.
+**Kullanıcı notu (Gün 8 incelemesi sırasında, Sprint 3'e ertelenmiş bir
+hatırlatma):** `/api/cozum/{id}/iptal` şu an gerçekten "en iyi çaba" —
+ayrı süreçteki CP-SAT aramasını fiilen öldürmüyor, yalnızca DB'de
+durumu `iptal` olarak işaretliyor. Bu, Gün 8'de bilinçli bir kapsam
+kararıydı (gerçek süreç sonlandırma süreç izleme/PID takibi gerektirir,
+Sprint 3'teki systemd entegrasyonuna bırakıldı — kod içindeki docstring
+zaten bunu söylüyor). Kullanıcı, arayüzde bir "Durdur" butonu eklenirse
+bunun kullanıcıya yanıltıcı bir his verebileceğini (buton basılsa da
+arama süre limitine kadar arka planda çalışmaya devam eder) vurguladı.
+Sprint 3'te gerçek sonlandırma (`process.terminate()` + zaman aşımlı
+bekleme, ardından gerekirse `kill()`) eklenene kadar, Gün 10/13'teki
+arayüz çalışmasında "Durdur" butonunun yanına bu sınırı açıklayan bir
+not/tooltip eklenmesi düşünülmeli.
+
+---
+
+## 2026-08-06 — Sprint 2, Gün 9: Doğrulama Alt Sistemi
+
+**Tasarım netleştirmesi (SDD 5.5 sürüm 1.3, kullanıcıyla birlikte
+çözüldü):** SDD 5.5'in `degisikligi_dogrula` sözde kodu, değiştirilen
+günün ±7 günlük penceresinden çekilen tek bir atama listesini hem
+zorunlu (H1-H8) hem esnek (S1-S8) kurallara aynı şekilde veriyordu.
+H1-H8'in `dogrula`'sı doğası gereği yerel olduğu için pencere sorunsuz
+çalışıyor, ama S2/S3/S4 (dönem genelindeki en yüksek/en düşük değere
+veya kişinin dönem toplamına bakan adalet/saat dengesi kuralları)
+pencereyle sınırlanırsa yanlış (hatta yanlış YÖNDE) sonuç üretir —
+bunu kullanıcıya `AskUserQuestion` ile ilettim. **Kullanıcı, docs/SDD.docx'i
+sürüm 1.3'e güncelledi**: her kural sınıfına sabit bir `kapsam` alanı
+eklendi (PENCERE veya DÖNEM_GENELİ); H1-H8 ile S1, S5, S6, S6b, S7, S8
+PENCERE (S1/S8 dönem genelinde tanımlı olsa da tek hücrelik bir
+değişikliğin etkisi yalnızca o hücreye bakılarak hesaplanabiliyor);
+S2, S3, S4 DÖNEM_GENELİ. `degisikligi_dogrula` artık iki ayrı atama
+kümesi çekiyor (pencere + tüm dönem) ve her kural kendi kapsamına göre
+doğru kümeyle çağrılıyor; dönem geneli tarama tipik ölçekte (40
+personel/28 gün, ~1200 satır) milisaniyeler sürüyor, performans
+endişesi yok.
+
+**Tamamlanan (kod):**
+- `app/kurallar/temel.py`: `KuralKapsami` enum'u (PENCERE,
+  DONEM_GENELI); `Kural` taban sınıfına `kapsam: ClassVar[KuralKapsami]
+  = PENCERE` (varsayılan) eklendi.
+- `app/kurallar/esnek.py`: S2, S3, S4 sınıflarına `kapsam =
+  KuralKapsami.DONEM_GENELI` eklendi (gerekçe docstring'lerde).
+- `app/repositories/sonuc.py`: `AtamaDeposu.surume_ve_araliga_gore_getir`
+  (pencere sorgusu) ve `AtamaDeposu.tekil_getir` (upsert için) eklendi.
+- `app/services/dogrulama_servisi.py` (yeni): `DogrulamaServisi` —
+  SDD 5.5'in birebir uygulaması. `dogrula()`: sürüm bulunamazsa `None`
+  (404), taslak değilse `SurumTaslakDegilError` (409, FR-7.3);
+  pencere+dönem atama kümelerini çekip değişikliği her ikisine de
+  uygular, zorunlu kurallar yalnızca SONRAKİ durumda değerlendirilir
+  (kabul/red kararı için yeterli), esnek kurallar ÖNCESİ/SONRASI iki
+  kez değerlendirilip ham ceza farkı toplanır (kural kendi `kapsam`ına
+  göre pencere ya da dönem atamalarıyla çağrılır). `uygula()`: önce
+  `dogrula()`, zorunlu ihlal yoksa `Atama` satırını upsert/siler
+  (`kaynak=MANUEL`).
+- `app/schemas/dogrulama.py` (yeni): `AtamaDegisikligiIstek` (hücre
+  boşaltmak için vardiya_tipi_id/nokta_id ikisi birden `None`
+  olabilir, tek biri olamaz — `model_validator` ile doğrulanıyor),
+  `IhlalOku`, `DogrulamaSonucuOku`.
+- `app/routers/cizelge.py`: `POST /api/atama/dogrula`, `PUT
+  /api/atama` eklendi (409'da `DogrulamaSonucuOku` gövdesi ihlal
+  detaylarıyla birlikte döner).
+- `tests/test_dogrulama_servisi.py` (yeni, 7 test):
+  - **DB gerektirmeyen, en önemli test:**
+    `test_s2_pencereyle_sinirlanirsa_donem_genelindeki_yuku_yanlis_yonde_hesaplar`
+    — personel 1'in değişiklik gününden (25) uzak on günde (1-10) zaten
+    dönem geneli tavanının üzerinde gece yükü olduğu elle kurulmuş bir
+    örnek: dönem geneli (doğru) atamalarla 11. geceyi eklemek cezayı
+    **+1** artırırken, yalnızca pencereyle (yanlış) değerlendirilince
+    aynı değişiklik cezayı **-1** azaltıyormuş gibi görünüyor — işaret
+    bile ters çıkıyor. Bu, kapsam ayrımının neden zorunlu olduğunu
+    doğrudan kanıtlıyor.
+  - `test_kural_kapsamlari_sdd_5_5_ile_tutarli` (DB'siz): on yedi
+    kuralın `kapsam` değerlerinin SDD 5.5'teki listeyle birebir
+    eşleştiğini doğrular.
+  - `test_dogrula_zorunlu_kisit_ihlalini_reddeder` (canlı DB): akşam
+    (16-24) vardiyasından sonraki güne gündüz (08-16) ataması, 8 saatlik
+    dinlenme bırakır (asgari 16 saatin altı) — H2 ihlali, `kabul_edilebilir
+    False`, `uygula()` da reddediyor ve **hiçbir şey yazılmıyor**
+    (canlı `curl` ile de doğrulandı, bkz. aşağıda).
+  - `test_dogrula_yayinlanmis_surumde_409`, `test_dogrula_bulunamayan_surumde_none_doner`.
+- Doğrulama: geçici Docker PostgreSQL'de tüm paket (92 test) iki kez
+  ardışık geçti (87 + 5 yeni).
+- **Gerçek `curl` ile manuel doğrulama** (Gün 9 kabul kriteri): H2
+  ihlali üreten bir `POST /api/atama/dogrula` **43ms**'de yanıt verdi
+  (kabul kriterinin "bir saniyenin altında" hedefinin çok altında);
+  aynı istek `PUT /api/atama`'ya gönderilince **409** döndü ve DB'de
+  hiçbir satır oluşmadığı doğrulandı; ardından zorunlu kısıtları
+  bozmayan bir değişiklik `PUT /api/atama`'ya gönderildi, **200**
+  döndü, `ceza_degisimi` esnek hedeflere etkiyi gösterdi (34ms) ve
+  `atama` tablosunda `kaynak=MANUEL` olarak kalıcı biçimde yazıldığı
+  doğrulandı.
+- `ruff check`, `ruff format --check` temiz.
+
+**Sapmalar / notlar:** Yok — SDD 5.5 sürüm 1.3'ün kendisi bu oturumda
+kullanıcıyla birlikte netleşen tasarımın doğrudan karşılığı; kod ondan
+sapmıyor.
+
+**Kalan / ertelenen:** Yok — Gün 9 kapsamındaki tüm maddeler
+tamamlandı. Ek Görev (S1–S8+S6b uyum testi genişletmesi + S4 birim
+düzeltmesi) hâlâ Gün 11 sonrası için planlı.
+
+**Sıradaki oturumun ilk işi:** Sprint 2, Gün 10 — Frontend: Çözüm ve
+Çizelge Ekranları (temel görünüm). UYGULAMA_PLANI.md'deki Gün 10
+maddesini takip et; SDD 6.3.2/6.3.3'teki nesneleri (çözüm başlatma,
+ilerleme göstergesi, çizelge ızgarası, hücre düzenleme, ihlal
+bildirimi, kilitleme, kapsama açığı işareti) uygula. Bu aşamada görsel
+tasarım Figma mockup'larına göre değil işlevsel iskelet olarak
+yapılıyor. Hücre düzenleme UI'ı `/api/atama/dogrula` ve `PUT
+/api/atama`'yı (bu oturumda tamamlandı) kullanacak; "Durdur" butonu
+eklenirse Gün 8'in sonunda not düşülen `/api/cozum/{id}/iptal`'in "en
+iyi çaba" sınırını (ayrı süreçteki CP-SAT aramasını fiilen
+öldürmüyor) kullanıcıya yansıtan bir not/tooltip eklenmesi
+düşünülmeli.

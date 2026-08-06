@@ -15,7 +15,7 @@ from ortools.sat.python import cp_model
 
 from app.kurallar.baglam import AtamaKaydi, Baglam
 from app.kurallar.kayit_defteri import kayitli
-from app.kurallar.temel import EsnekHedef, Ihlal, XAnahtari
+from app.kurallar.temel import EsnekHedef, Ihlal, KuralKapsami, XAnahtari
 from app.kurallar.yardimcilar import calisilan_gunler
 from app.models.girdi import TercihTipi
 
@@ -73,7 +73,13 @@ class S1TalepKarsilama(EsnekHedef):
 
 @kayitli("S2")
 class S2GeceAdaleti(EsnekHedef):
-    """Kisi basina gece vardiyasi sayisinin donem hedefinden sapmasi (SDD Ek A ornegi)."""
+    """Kisi basina gece vardiyasi sayisinin donem hedefinden sapmasi (SDD Ek A ornegi).
+
+    SDD 5.5 (surum 1.3): donem geneli kapsamli - taban/tavan donem genelindeki
+    en dusuk/en yuksek degerden turedigi icin pencereyle sinirlandirilamaz.
+    """
+
+    kapsam = KuralKapsami.DONEM_GENELI
 
     def modele_ekle(
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
@@ -107,7 +113,12 @@ class S2GeceAdaleti(EsnekHedef):
 
 @kayitli("S3")
 class S3HaftaSonuAdaleti(EsnekHedef):
-    """Kisi basina hafta sonu/resmi tatil vardiyasi sayisinin hedeften sapmasi (TD-3)."""
+    """Kisi basina hafta sonu/resmi tatil vardiyasi sayisinin hedeften sapmasi (TD-3).
+
+    SDD 5.5 (surum 1.3): donem geneli kapsamli, S2 ile ayni gerekce.
+    """
+
+    kapsam = KuralKapsami.DONEM_GENELI
 
     def modele_ekle(
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
@@ -147,7 +158,12 @@ class S4ToplamSaatDengesi(EsnekHedef):
     dogrula ise saat biriminde (bkz. asagidaki not, PROGRESS.md Sprint 2 Gun 6);
     optimizasyon sonucunu etkilemez (60 ile sabit olcekleme), yalnizca raporlanan
     ham ceza buyuklugu iki tarafta farkli birimde olur.
+
+    SDD 5.5 (surum 1.3): donem geneli kapsamli - kisinin donem toplam saatine
+    baktigi icin pencereyle sinirlandirilamaz.
     """
+
+    kapsam = KuralKapsami.DONEM_GENELI
 
     def modele_ekle(
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
