@@ -5,8 +5,7 @@ from sqlalchemy import engine_from_config, pool
 from alembic import context
 from app.config import ayarlar
 from app.db import Base
-
-# import model modules here so they register on Base.metadata before autogenerate runs
+from app.models import *  # noqa: F403  registers all models on Base.metadata for autogenerate
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

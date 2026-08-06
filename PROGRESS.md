@@ -63,3 +63,73 @@ anahtarını ve `atama` üzerindeki `(surum_id, personel_id, tarih)` benzersizli
 kısıtını uygula (SDD 4.2.4). Önce SDD Bölüm 4 (Veri Tasarımı / Veri
 Sözlüğü) tam metnini oku — bu oturumda yalnızca girişi okundu, tablo
 tanımlarının tamamı henüz çıkarılmadı.
+
+---
+
+## 2026-08-06 — Sprint 1, Gün 1: Veritabanı Şeması
+
+**Tamamlanan:**
+- SDD 4.2 (Veri Sözlüğü) tam metni okundu (4.2.1–4.2.4).
+- SDD'de veri sözlüğünde fiilen **16 tablo** bulundu (plandaki "15 tablo"
+  ifadesi muhtemelen `personel_yetkinlik` ilişki tablosunu ayrı saymıyor;
+  aşağıda not düşüldü, tasarımdan sapma değil — dokümandaki her tablo
+  birebir uygulandı).
+- `app/models/` dört modüle bölündü (SDD 4.1'deki dört varlık kümesiyle
+  birebir): `tanim.py` (personel, yetkinlik, personel_yetkinlik, bina,
+  gorev_noktasi, vardiya_tipi, talep, ozel_gun), `girdi.py` (musaitlik,
+  tercih), `kural.py` (kural), `sonuc.py` (donem, cizelge_surumu, atama,
+  cozum_isi, kapsama_acigi). Ortak `olusturma_zamani`/`guncelleme_zamani`
+  için `ortak.py`'de bir mixin (`ZamanDamgasiKarisimi`).
+- Alan adları veri sözlüğüyle birebir (Türkçe). ENUM alanları Python
+  `enum.StrEnum` + SQLAlchemy native Postgres ENUM olarak modellendi.
+  `kural.parametreler`, `cozum_isi.ceza_dokumu` ve `kural_anlik_goruntu`
+  `JSONB` (SDD 4.2.3/4.2.4'te açıkça istenen tip).
+- `personel_yetkinlik`: bileşik birincil anahtar (`personel_id`,
+  `yetkinlik_id`), ayrı `id` yok — SDD'deki "Birincil anahtar iki alanın
+  birleşimidir" notuna birebir.
+- `ozel_gun`: `tarih` alanı birincil anahtar (SDD'de ayrı bir kimlik alanı
+  tanımlanmamış).
+- `atama`: `(surum_id, personel_id, tarih)` üzerinde `UniqueConstraint`
+  (SDD 4.2.4 — H1'in veritabanı seviyesinde güvencesi).
+- `alembic revision --autogenerate` ile tek göç üretildi
+  (`b413bb80a4bd_kural_katalogu_veri_modeli.py`), Sprint 0'daki boş göç
+  silindi (henüz kimse üzerine göç zinciri kurmamıştı, tek commit'lik
+  bir depoda güvenli bir işlemdi).
+- **Düzeltme:** Alembic autogenerate, Postgres ENUM tiplerini
+  `downgrade()`'de otomatik bırakmıyor (bilinen bir kısıt) — bu, gerçek
+  bir `upgrade → downgrade → upgrade` denemesinde `type already exists`
+  hatasıyla ortaya çıktı. Göç dosyasının `downgrade()` fonksiyonuna dokuz
+  enum tipini (`kuraltipi`, `cizelgesurumudurumu`, `atamakaynagi`,
+  `cozumisidurumu`, `musaitlikdilimi`, `musaitliktipi`, `tercihtipi`,
+  `tercihdurumu`, `guntipi`) bırakan elle eklenmiş satırlar kondu. Bundan
+  sonraki her ENUM içeren göçte aynı düzeltme gerekecek — bu bir örüntü,
+  hatırlatma için burada not edildi.
+- Doğrulama: geçici Docker PostgreSQL container'ında `upgrade head →
+  downgrade base → upgrade head` döngüsü hatasız tamamlandı.
+- `tests/test_veritabani_semasi.py`: iki test — (1) personel + yetkinlik
+  + personel_yetkinlik INSERT/SELECT, (2) `atama` benzersizlik kısıtının
+  aynı `(surum_id, personel_id, tarih)` için ikinci kaydı `IntegrityError`
+  ile reddettiğini doğrulayan test. Testler canlı bir PostgreSQL
+  gerektiriyor; bağlanılamazsa `pytest.skip` ile atlanıyor (CI'da veya bu
+  makinede kalıcı bir Postgres yokken kırmızı görünmesin diye).
+- `ruff check`, `ruff format --check`, `pytest -q` temiz (3 test geçti).
+  Test container'ı doğrulama sonrası silindi.
+
+**Sapmalar / notlar:**
+- 15 vs 16 tablo notu yukarıda — kod, plan metnindeki sayıyı değil SDD veri
+  sözlüğünü esas aldı.
+- Modellerde şimdilik `relationship()` tanımlanmadı, yalnızca `ForeignKey`
+  sütunları var. SDD 5.x'teki servis/depo katmanı yazılırken ihtiyaç
+  çıkarsa (ör. ORM üzerinden gezinme) eklenecek; şu an için veri sözlüğü +
+  FK'ler kabul kriterini karşılıyor ve gereksiz karmaşıklık eklemekten
+  kaçınıldı.
+
+**Kalan / ertelenen:** Yok — Gün 1 kapsamındaki tüm maddeler tamamlandı.
+
+**Sıradaki oturumun ilk işi:** Sprint 1, Gün 2 — Kural Arayüzü ve Zorunlu
+Kısıtlar (H1–H8). SDD 5.1'deki `Kural` temel sınıfını ve kural kayıt
+defterini yaz, SDD Ek A'daki H2 örneğini şablon alarak H1–H8'i uygula
+(bu aşamada `modele_ekle` CP-SAT model nesnesini henüz tam almayabilir,
+ama imza ve `dogrula` metodu tam çalışır olmalı). Önce SDD 5.1 ve Ek A'yı,
+SRS Bölüm 4.2 (H1–H8 tanımları, zaten bu oturumda okundu) ve
+`app/models/kural.py`'deki `Kural` tablosunu tekrar gözden geçir.
