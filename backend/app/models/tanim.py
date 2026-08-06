@@ -3,7 +3,7 @@ from datetime import date, time
 from decimal import Decimal
 
 from sqlalchemy import Date, ForeignKey, Numeric, Time
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
 from app.models.ortak import ZamanDamgasiKarisimi
@@ -27,6 +27,8 @@ class Personel(Base, ZamanDamgasiKarisimi):
     )
     aktif_baslangic: Mapped[date] = mapped_column(Date)
     aktif_bitis: Mapped[date | None] = mapped_column(Date)
+
+    yetkinlikler: Mapped[list["Yetkinlik"]] = relationship(secondary="personel_yetkinlik")
 
 
 class Yetkinlik(Base, ZamanDamgasiKarisimi):

@@ -309,3 +309,120 @@ katmanda. Önce SDD Ek B (API özeti) ve SRS FR-1.x'i, ayrıca depo
 katmanının kural kataloğuna nasıl bağlanacağını (`kurallari_yukle`'nin
 beklediği `KuralSatiri` protokolü, `app/kurallar/kayit_defteri.py`) gözden
 geçir.
+
+---
+
+## 2026-08-06 — Sprint 1, Gün 4: Tanım Yönetimi CRUD API'leri
+
+**Not:** "SDD 3.3.6'daki formülü kullan" ifadesi plan metninde vardı, ama
+SDD'de 3.3.6 diye bir bölüm yok — bu bölüm numarası SRS'e ait ("SRS
+3.3.6 Kadro Büyüklüğü Analizi"). Muhtemelen plan yazılırken doküman
+karışmış; SRS 3.3.6'yı kullandım (bkz. aşağıda).
+
+**Tamamlanan:**
+- SDD Ek B (API özeti tablosu) ve SRS 5.1 (FR-1.1–FR-1.14) tam metni
+  okundu; SRS 3.3.6'nın (kadro büyüklüğü analizi) tüm sayısal örneği
+  (144 kişi-vardiya, 1.152 saat, 29 kişilik asgari kadro) FR-1.9'un
+  referans doğrulaması olarak kullanıldı.
+- **Depo katmanı** (`app/repositories/`): `TabanDepo` — generic CRUD
+  (`tumunu_getir`, `getir`, `olustur`, `guncelle`, `sil`); `tanim.py`
+  (`YetkinlikDeposu`, `BinaDeposu`, `VardiyaTipiDeposu`,
+  `GorevNoktasiDeposu`, `PersonelDeposu`, `TalepDeposu`); `kural.py`
+  (`KuralDeposu`, `aktif_kurallari_getir()` — SDD 5.1'deki
+  `kurallari_yukle()`'nin beklediği veri kaynağı).
+- **Şema düzeyinde DELETE kararı:** Ek B tüm tanım kaynaklarında DELETE
+  yöntemini listeliyor, ama veri sözlüğüne bakıldığında yalnızca
+  `personel` (`aktif_bitis`) ve `gorev_noktasi` (`aktif`) alanlarında
+  açık bir pasifleştirme alanı var (FR-1.1: "pasifleştirilmesine imkân
+  vermelidir"). Bu ikisinde DELETE, satırı silmek yerine bu alanı
+  güncelliyor (`PersonelDeposu.sil`, `GorevNoktasiDeposu.sil` override
+  edildi). `yetkinlik`/`bina`/`vardiya_tipi`'de böyle bir alan
+  tanımlanmadığı için DELETE gerçek satır silme; FK ile referans
+  edildiğinde veritabanı bunu zaten engelliyor. Tasarımdan sapma değil,
+  veri sözlüğündeki mevcut alanların doğal sonucu.
+- **Model revizyonu:** `Personel.yetkinlikler` many-to-many
+  `relationship` eklendi (`app/models/tanim.py`) — Sprint 1 Gün 1'de
+  "henüz relationship tanımlanmadı" denmişti, bugün API yanıtlarında
+  personelin yetkinlik kimliklerini döndürmek için gerekti. Şema
+  değişikliği yok (yalnızca ORM navigasyonu), Alembic göçü gerekmedi;
+  `alembic check` ile doğrulandı.
+- **`app/db.py`:** `oturum_al()` artık istek başarıyla bitince
+  `commit()`, hata halinde `rollback()` yapıyor (SDD 3.2: servis
+  metodunun başlattığı işlem ya bütünüyle işlenir ya geri alınır).
+  Önceden yalnızca `close()` yapıyordu; router'ların her yerde elle
+  commit çağırmasını önlemek için bu katmana taşındı.
+- **`app/services/vardiya_hesaplari.py`** (saf, DB'siz): `sure_saat_hesapla`
+  (FR-1.3) ve `gece_mi_oner` (FR-1.4/TD-2: 20:00–06:00 penceresiyle
+  kesişim ≥4 saatse öner). Not: TD-2'nin literal eşiği yüzünden akşam
+  vardiyası (16:00–24:00) da tam 4 saat kesiştiği için "gece" olarak
+  önerilebiliyor — SRS'in kendi örneğinde akşam gece sayılmıyor, ama bu
+  yalnızca bir öneri ("nihai değeri kullanıcı belirler"); bug değil, TD-2
+  formülünün doğal bir sınır durumu. Birim testinde not edildi.
+- **`app/services/yuk_gostergesi.py`** (saf, DB'siz, FR-1.9): SRS
+  3.3.6'nın yöntemini genelleştirdi — her talep hücresi gün tipinin
+  haftalık tekrarıyla (hafta_ici×5, hafta_sonu×2, resmi_tatil hariç)
+  çarpılıp haftalık kişi-vardiya/kişi-saate çevriliyor; asgari kadro,
+  kişi başına azami haftalık vardiyanın (H5 saat tavanı VE H6 asgari
+  izin günü kısıtlarından türetilip küçük olanı alınarak) toplam
+  kişi-vardiyaya bölünüp yukarı yuvarlanmasıyla bulunuyor. Bu formül,
+  SRS 3.3.6'nın 144/1.152/29 sayılarını **birebir** üretiyor
+  (`tests/test_yuk_gostergesi.py`) — güçlü bir doğrulama.
+- **`TanimServisi`** (`app/services/tanim_servisi.py`): repository +
+  hesaplama katmanlarını birleştiriyor; personel oluşturma/güncellemede
+  yetkinlik ataması, vardiya tipinde süre/gece_mi türetme, talep
+  hücresi upsert + yük göstergesi, kural parametresi okuma (H5/H6
+  varsayılanlarıyla, DB'de henüz satır yoksa SRS 3.3.5 varsayılanlarına
+  düşüyor).
+- **`app/routers/tanim.py`**: SDD 3.2'deki tek `tanim_router` — Ek
+  B'deki tüm tanım yönetimi uç noktaları (`/api/personel`,
+  `/api/yetkinlik`, `/api/bina`, `/api/nokta`, `/api/vardiya-tipi`
+  tam CRUD; `/api/talep`, `/api/kural` yalnız GET/PUT, Ek B'yle birebir).
+  Yönlendiriciler ince: şema doğrular, tek bir servis/depo metodunu
+  çağırır.
+- Pydantic şemaları (`app/schemas/tanim.py`, `app/schemas/kural.py`):
+  her kaynak için Olustur/Guncelle/Oku üçlüsü.
+- Testler:
+  - `tests/test_vardiya_hesaplari.py` (5 test, DB'siz) — süre hesabı ve
+    gece_mi önerisi.
+  - `tests/test_yuk_gostergesi.py` (4 test, DB'siz) — SRS 3.3.6'nın
+    tam güvenlik-personeli talep matrisi açılıp 144/1.152/29 sayılarının
+    birebir üretildiği doğrulandı; tekil tarih istisnası ve resmi tatil
+    satırlarının haftalık yüke girmediği ayrıca test edildi.
+  - `tests/test_tanim_api.py` (8 test, canlı PostgreSQL gerektirir) —
+    her kaynak için mutlu yol + personel/yetkinlik/görev noktası/talep
+    zincirinin API üzerinden kurulabildiğini doğrulayan Gün 4 kabul
+    testi + personel/nokta soft-delete + 404 senaryoları + kural PUT.
+  - `tests/conftest.py` eklendi: `pg_yoksa_atla()` ortak DB-atlama
+    yardımcısı; `test_veritabani_semasi.py` bunu kullanacak şekilde
+    küçük bir refactor ile güncellendi (davranış değişmedi).
+- Doğrulama: geçici Docker PostgreSQL container'ında `alembic upgrade
+  head`, tüm test paketi (72 test, hepsi geçti) iki kez art arda
+  (idempotentlik için testlerde `uuid` sonekli benzersiz değerler
+  kullanıldı), `alembic check` (şema kayması yok), ve gerçek `curl`
+  zinciriyle (yetkinlik→bina→nokta→vardiya tipi→personel→talep) elle
+  doğrulama. Container silindi. DB'siz ortamda 62 geçti + 10 atlandı
+  (beklenen).
+- `ruff check`, `ruff format --check` temiz.
+
+**Sapmalar / notlar (mentör onayı gerekebilecek varsayımlar):**
+- FR-1.9 asgari kadro formülü SRS'te net bir matematiksel ifadeyle
+  verilmiyor, yalnızca anlatı + tek bir sayısal örnek var. Yukarıdaki
+  yöntemle bu örneği birebir ürettim, ama genel (farklı vardiya
+  süreleri karışık) durumlarda "ortalama vardiya süresi" yaklaşıklığı
+  kullanılıyor — SDD/SRS'te bu genellemeye dair açık bir talimat yok.
+- TD-2'nin akşam vardiyasını da "gece" olarak önerebilmesi (yukarıda
+  açıklandı) — muhtemelen mentör görüşmesinde netleşecek bir sınır
+  durumu.
+
+**Kalan / ertelenen:** Yok — Gün 4 kapsamındaki tüm maddeler tamamlandı.
+
+**Sıradaki oturumun ilk işi:** Sprint 1, Gün 5 — Demo Veri Üreteci ve
+Sprint 1 Checkpoint. SDD 3.3'teki güvenlik personeli senaryosunu (bu
+oturumda `test_yuk_gostergesi.py` için zaten tam olarak modellendi —
+oradaki `_guvenlik_personeli_talep_matrisi()` fonksiyonu yeniden
+kullanılabilir bir başlangıç noktası) üreten bir betik yaz: ~44 personel,
+üç yetkinlik dağılımı, SDD 3.3.4'teki talep matrisi. İki senaryo ("rahat"
+ve "sıkışık"). Çözücü-doğrulayıcı uyum testinin iskeletini kur (elle
+üretilmiş rastgele geçerli atamalarla, `app/kurallar` H1–H8/S1–S8
+`dogrula` metotlarını kullanarak). Önce UYGULAMA_PLANI.md'deki Gün 5
+maddesini ve Backlog'daki demo veri stratejisi notlarını gözden geçir.

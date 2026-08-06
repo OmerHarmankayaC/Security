@@ -8,10 +8,10 @@ from datetime import date, time
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError, OperationalError
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.db import OturumYerel, engine
+from app.db import OturumYerel
 from app.models import (
     Atama,
     AtamaKaynagi,
@@ -23,16 +23,12 @@ from app.models import (
     VardiyaTipi,
     Yetkinlik,
 )
+from tests.conftest import pg_yoksa_atla
 
 
 @pytest.fixture
 def oturum() -> Session:
-    try:
-        with engine.connect():
-            pass
-    except OperationalError:
-        pytest.skip("Yerel PostgreSQL sunucusuna baglanilamadi")
-
+    pg_yoksa_atla()
     oturum = OturumYerel()
     try:
         yield oturum

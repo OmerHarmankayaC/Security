@@ -14,8 +14,16 @@ class Base(DeclarativeBase):
 
 
 def oturum_al() -> Generator[Session, None, None]:
+    """FastAPI bagimliligi: istek basariyla bitince islemi onaylar, hata
+    halinde geri alir. Servis katmani commit cagirmaz (SDD 3.2: 'Bir servis
+    metodunun baslattigi veritabani islemi ... ya butunuyle islenir ya da
+    butunuyle geri alinir')."""
     oturum = OturumYerel()
     try:
         yield oturum
+        oturum.commit()
+    except Exception:
+        oturum.rollback()
+        raise
     finally:
         oturum.close()
