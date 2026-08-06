@@ -94,7 +94,7 @@ def test_kucuk_ornek_uctan_uca_cozuluyor_ve_h_kurallarini_saglar() -> None:
     baglam, gunler = _kucuk_baglam()
     kurallar = _tum_kurallari_yukle()
 
-    model, x, baglam = model_kur(baglam, gunler, kurallar)
+    model, x, baglam, ham_terimler = model_kur(baglam, gunler, kurallar)
     sonuc = CozucuAdaptoru.coz(model, x, zaman_limiti_saniye=10, arama_iscisi_sayisi=1)
 
     assert sonuc.durum in ("optimal", "uygun"), f"Beklenmeyen durum: {sonuc.durum}"
@@ -221,7 +221,7 @@ def test_cozum_sonucu_atama_tablosuna_yaziliyor() -> None:
         )
 
         kurallar = _tum_kurallari_yukle()
-        model, x, baglam = model_kur(baglam, gunler, kurallar)
+        model, x, baglam, ham_terimler = model_kur(baglam, gunler, kurallar)
         sonuc = CozucuAdaptoru.coz(model, x, zaman_limiti_saniye=10, arama_iscisi_sayisi=1)
         assert sonuc.durum in ("optimal", "uygun")
 

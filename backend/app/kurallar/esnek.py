@@ -48,6 +48,7 @@ class S1TalepKarsilama(EsnekHedef):
                     eksik = model.new_int_var(0, gereken, f"s1_eksik_g{g}_v{v}_n{n}")
                     model.add(atanan_ifadesi + eksik >= gereken)
                     eksik_terimleri.append(eksik)
+                    baglam.kapsama_eksikleri[(g, v, n)] = eksik
         return sum(eksik_terimleri) if eksik_terimleri else 0
 
     def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:

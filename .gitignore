@@ -32,3 +32,6 @@ build/
 .vscode/
 .idea/
 *.log
+
+# MS Office lock files
+~$*

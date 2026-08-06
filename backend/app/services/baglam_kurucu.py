@@ -6,11 +6,6 @@ kural motorunun (app.kurallar) ihtiyac duydugu DB'den bagimsiz yapiya
 cevirir. Repository/servis katmani disina SQL sizdirmama ilkesiyle
 tutarli olarak, cagiran taraf (ör. on_kontrol/cozum servisleri) oturumu
 sagliyor; bu fonksiyon yalnizca okuma yapar.
-
-Not: SDD 5.2'deki on_kontrol(donem, tanimlar, musaitlikler) isitma
-penceresi almaz; bu yuzden burada yalnizca donem gunleri icin talep
-cozulur. Isitma penceresini de kapsayan zaman_ekseni, cozum isini
-yurutecek modul tarafindan (Sprint 2 Gun 8) ayrica kurulacak.
 """
 
 from datetime import date, timedelta
@@ -37,8 +32,25 @@ def donem_gunlerini_uret(baslangic: date, bitis: date) -> list[date]:
     return [baslangic + timedelta(days=i) for i in range(gun_sayisi)]
 
 
-def baglam_olustur(oturum: Session, donem: Donem) -> Baglam:
-    """Donem icin Baglam'i kurar (talep yalniz donem gunleri icin cozulur)."""
+def zaman_ekseni_olustur(donem: Donem, *, isitma_penceresi_gun: int = 7) -> list[date]:
+    """TD-5: isitma penceresi (donemden hemen once, varsayilan 7 gun) + donem gunleri,
+    ardisik takvim gunlerinden olusan tek bir liste olarak."""
+    isitma_baslangic = donem.baslangic_tarihi - timedelta(days=isitma_penceresi_gun)
+    isitma_bitis = donem.baslangic_tarihi - timedelta(days=1)
+    isitma_gunleri = (
+        donem_gunlerini_uret(isitma_baslangic, isitma_bitis) if isitma_penceresi_gun > 0 else []
+    )
+    return isitma_gunleri + donem_gunlerini_uret(donem.baslangic_tarihi, donem.bitis_tarihi)
+
+
+def baglam_olustur(oturum: Session, donem: Donem, *, isitma_penceresi_gun: int = 7) -> Baglam:
+    """Donem icin Baglam'i kurar.
+
+    Talep, isitma penceresini de kapsayan tam zaman ekseni icin cozulur
+    (model_kur'un karar degiskeni uretimi zaman_ekseni'nin tamami uzerinde
+    calisir); donem_baslangic/donem_bitis ise yalnizca donemi isaretler
+    (TD-6: adalet sayaclari isitma penceresini kapsamaz).
+    """
     vardiya_tipleri = {
         v.vardiya_tipi_id: VardiyaTipiBilgisi(
             v.vardiya_tipi_id, v.baslangic_saati, v.bitis_saati, float(v.sure_saat), v.gece_mi
@@ -87,9 +99,9 @@ def baglam_olustur(oturum: Session, donem: Donem) -> Baglam:
         .all()
     )
 
-    donem_gunleri = donem_gunlerini_uret(donem.baslangic_tarihi, donem.bitis_tarihi)
+    zaman_ekseni = zaman_ekseni_olustur(donem, isitma_penceresi_gun=isitma_penceresi_gun)
     talep_satirlari = oturum.execute(select(Talep)).scalars().all()
-    talep = talep_matrisini_coz(talep_satirlari, donem_gunleri, ozel_gunler)
+    talep = talep_matrisini_coz(talep_satirlari, zaman_ekseni, ozel_gunler)
 
     return Baglam(
         vardiya_tipleri=vardiya_tipleri,

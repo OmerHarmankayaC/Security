@@ -786,3 +786,118 @@ kontrolün yakalayamadığı açığın gerçekten S1 esnek hedefiyle ortaya
 `app/services/baglam_kurucu.py`'nin ısıtma penceresini henüz
 kurmadığını (bu oturumda bilerek ertelendi) hatırda tut — zaman_ekseni
 (ısıtma + dönem) artık burada kurulmalı.
+
+---
+
+## 2026-08-06 — Sprint 2, Gün 8: Çözüm İşi ve Asenkron Yürütme
+
+**Tamamlanan (kod):**
+- `app/services/baglam_kurucu.py` genişletildi: `zaman_ekseni_olustur()`
+  (ısıtma penceresi + dönem günleri birleşik liste) ve `baglam_olustur()`
+  artık talebi tüm `zaman_ekseni` üzerinden çözüyor (önceden yalnızca
+  dönem günleri) — `model_kur`'un değişken oluşturma döngüsü ısıtma
+  penceresindeki günleri de gördüğü için gerekliydi.
+- `app/kurallar/baglam.py`: `zaman_ekseni`, `y` (model kurarken dolan
+  toplama ifadeleri), `kapsama_eksikleri` (S1'in `modele_ekle`'sinin
+  doldurduğu, `(gün, vardiya_tipi_id, nokta_id) → eksik IntVar` sözlüğü)
+  eklendi.
+- `app/kurallar/esnek.py`: S1'in `modele_ekle`'si artık her talep
+  hücresi için bir `eksik` IntVar'ı `baglam.kapsama_eksikleri`'ne
+  yazıyor — Gün 8'in asıl kabul kriteri (kapsama açığının
+  raporlanması) bu değişkenler üzerinden çalışıyor.
+- `app/cozucu/model_kurucu.py`: `model_kur()` artık 4'lü demet
+  döndürüyor (`model, x, baglam, ham_terimler`) — `ham_terimler`,
+  kural kimliğine göre ağırlıksız ceza ifadeleri (ceza dökümü
+  raporlaması için).
+- `app/cozucu/adaptor.py`: `CozucuAdaptoru.coz()` artık
+  `ceza_terimleri`/`kapsama_degiskenleri` alıyor, `CozumSonucu`'na
+  `ceza_dokumu` (kural bazlı ağırlıksız ceza) ve `kapsama_eksikleri`
+  (yalnızca >0 olan hücreler) ekliyor.
+- `app/repositories/sonuc.py`: `CizelgeSurumuDeposu`
+  (`donem_icin_sonraki_surum_no`), `CozumIsiDeposu`, `AtamaDeposu`,
+  `KapsamaAcigiDeposu` eklendi.
+- `app/services/cozum_servisi.py` (yeni): SDD 5.4'ün durum makinesinin
+  birebir uygulaması. `CozumServisi.baslat()` işi `kuyrukta` durumunda
+  oluşturup commit ettikten sonra `multiprocessing.Process` ile ayrı
+  bir süreç başlatıp hemen dönüyor (SDD 3.4.4 — HTTP istek-yanit
+  döngüsünden bağımsız gerçek süreç ayrımı; systemd entegrasyonu
+  Sprint 3'te). `cozum_isini_calistir()` (ayrı süreçte, kendi DB
+  oturumuyla çalışır): `kuyrukta → on_kontrol` (yapısal engel varsa
+  `başarısız`, çözücüye hiç girmeden) `→ cozuluyor` (kurallar
+  yüklenir, `zaman_ekseni_olustur` + `baglam_olustur` + `model_kur`,
+  ara çözüm geri çağırmasıyla `en_iyi_ceza` her iyileşmede güncellenir)
+  `→ tamamlandı` (kapsama açığı yok) / `uyarılı` (kapsama açığı var,
+  `kapsama_acigi` tablosuna yazılır) / `başarısız` (çözücü zaman
+  limitinde çözüm bulamadı). Atamalar ve kapsama açığı tek bir DB
+  işleminde yazılıyor (SDD 5.4 — yarım kalmış bir çizelge yanıltıcı
+  olmasın diye).
+- `app/schemas/cozum.py` (yeni): `CozumBaslatIstek`, `CozumOku`.
+- `app/routers/cizelge.py`: `POST /api/cozum`, `GET /api/cozum/{id}`,
+  `POST /api/cozum/{id}/iptal` eklendi (iptal en iyi çaba — ayrı
+  süreçte fiilen çalışan CP-SAT aramasını zorla durdurmuyor, yalnızca
+  durumu işaretliyor; gerçek süreç izleme/sonlandırma Sprint 3'e
+  bırakıldı).
+- `tests/test_cozum_servisi.py` (yeni, 3 test, canlı DB gerektirir):
+  kadro yeterliyken `tamamlandı`/`uyarılı` + atamaların yazıldığını
+  doğrulayan test; ön kontrolde yapısal engel varsa (iki kişilik
+  kapalı bir yetkinlik havuzunun tamamı aynı günde izinli) çözücüye
+  hiç girmeden `başarısız` dönüp `hata_mesaji`'nin çakışma tarihini
+  içerdiğini ve hiç `Atama` yazılmadığını doğrulayan test (bu test iki
+  kez yeniden tasarlandı — ayrıntı aşağıda); bulunamayan dönemde
+  `baslat()`'ın `None` döndüğünü doğrulayan test.
+- Test geliştirirken ortaya çıkan iki gerçek (kod değil, test
+  izolasyonu) sorun çözüldü: (1) paylaşılan Docker Postgres'te başka
+  testlerin bıraktığı genel (tarihsiz) `Talep` satırları her hafta
+  içi güne uygulandığı için (SDD 4.2.1 semantiğine göre doğru davranış)
+  atama sayıları beklenenden fazla çıktı — düzeltme, test
+  assertion'larını kendi `nokta_id`'siyle filtrelemek oldu, tabloyu
+  boş varsaymamak. (2) "kesin kapsama açığı" senaryosu başta rastgele
+  başka testlerin ilgisiz personeliyle dolduruluyordu — düzeltme,
+  teste özel yeni bir `Yetkinlik` ile noktayı kapalı hale getirmek
+  oldu. Sonrasında bu senaryo beklenenin aksine `uyarılı` değil
+  `başarısız` döndü — kontrol edince bunun bir hata değil, tam olarak
+  SDD 5.2 Kontrol 4'ün (nokta bazlı müsaitlik) yakalaması gereken bir
+  durum olduğu anlaşıldı (tüm gün örtüşen izin = yapısal engel); test
+  buna göre yeniden adlandırılıp `başarısız` bekleyecek şekilde
+  düzeltildi.
+- Doğrulama: geçici Docker PostgreSQL'de tüm paket (87 test) iki kez
+  ardışık geçti.
+- `ruff check`, `ruff format --check` temiz.
+
+**Gün 8'in güncellenmiş kabul kriterinin manuel/uçtan uca doğrulaması
+(temizlenmiş demo veriyle, gerçek `uvicorn` sunucusu + gerçek Docker
+Postgres):**
+- Demo verisi `--reset` ile yeniden üretildi (44 personel, 6 nokta, 17
+  kural, 2 dönem — önceki test çalıştırmalarından kalan `kural`
+  satırlarıyla ilk denemede benzersizlik ihlaline takıldı, DB
+  `TRUNCATE ... CASCADE` ile temizlenip yeniden üretildi).
+- Sıkışık Dönem (`donem_id=2`) için `POST /api/cozum` (zaman limiti 90
+  sn) çağrıldı; iş anında `kuyrukta` durumuyla iş kimliği döndürdü.
+- Çözüm ayrı süreçte sürerken `/health`'e beş kez art arda istek
+  atıldı — hepsi ~30ms içinde `200 {"durum":"ok"}` döndürdü, aynı
+  aralıkta iş durumu `çözülüyor`e geçip `en_iyi_ceza` art arda
+  iyileşerek güncellendi (ara çözüm geri çağırması çalışıyor) — **API
+  çözüm sürerken tamamen yanıt veriyor.**
+- İş `uyarılı` durumuyla tamamlandı (`sure_saniye=90.06`, zaman
+  limitine ulaşıldı — 4 haftalık/44 kişilik ölçekte beklenen).
+  `kapsama_acigi` tablosu sorgulandı: **Vardiya Şefliği** noktasında,
+  tam olarak izin haftalarına denk gelen 2026-03-06 ile 2026-03-13
+  arasındaki 6 vardiya/gün hücresinde 1'er eksik raporlandı — **Gün
+  7'de ön kontrolün yapısal olarak yakalayamadığı haftalık/yerel
+  darboğaz, Gün 8'in çözücüsü tarafından S1'in `kapsama_eksikleri`
+  mekanizmasıyla doğru tespit edildi.** Bu, Gün 7'de kullanıcıyla
+  netleşen "asıl doğrulama Gün 8'e taşındı" kararının kanıtı.
+- Doğrulama sonrası: `uvicorn` süreci durduruldu, test verileri
+  `TRUNCATE` ile temizlendi, tüm paket (87 test) tekrar çalıştırılıp
+  temiz DB üzerinde de geçtiği doğrulandı, Docker test container'ı
+  (`vardiya-pg-test`) silindi (kalıcı bir servis değil).
+
+**Sapmalar / notlar:** Yok — Gün 8, Gün 7'de netleşen güncellenmiş
+kabul kriteriyle birebir tamamlandı.
+
+**Kalan / ertelenen:** Yok — Gün 8 kapsamındaki tüm maddeler
+tamamlandı. Ek Görev (S1–S8+S6b uyum testi genişletmesi + S4 birim
+düzeltmesi) hâlâ Gün 11 sonrası için planlı, henüz yapılmadı.
+
+**Sıradaki oturumun ilk işi:** Sprint 2, Gün 9 — Doğrulama Alt Sistemi.
+UYGULAMA_PLANI.md'deki Gün 9 maddesini takip et.

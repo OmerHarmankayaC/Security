@@ -19,13 +19,19 @@ def model_kur(
     zaman_ekseni: list[date],
     kurallar: list[Kural],
     isitma_penceresi_atamalari: list[AtamaKaydi] | None = None,
-) -> tuple[cp_model.CpModel, dict[XAnahtari, cp_model.IntVar], Baglam]:
+) -> tuple[
+    cp_model.CpModel, dict[XAnahtari, cp_model.IntVar], Baglam, dict[str, cp_model.LinearExprT]
+]:
     """SDD 5.3: model, x <- model_kur(donem, tanimlar, kurallar, isitma_penceresi).
 
     zaman_ekseni, isitma penceresi + donem gunlerinin ardisik takvim
     gunlerinden olusan birlesik listesidir (caller'in sorumlulugu, SDD
     TD-5). baglam onceden tanim/girdi/talep verisiyle kurulmus olmali;
     bu fonksiyon onun uzerine zaman_ekseni ve y alanlarini doldurur.
+
+    Dorduncu donus degeri, esnek hedeflerin (agirliksiz) ceza ifadelerini
+    kural kimligine gore tasir; SDD 5.4'teki 'cozum.hedef_bazinda_ceza()'
+    icin cozumden sonra CozucuAdaptoru'na verilir.
     """
     model = cp_model.CpModel()
     baglam.zaman_ekseni = list(zaman_ekseni)
@@ -65,10 +71,12 @@ def model_kur(
     baglam.y = y
 
     ceza_terimleri = []
+    ham_terimler: dict[str, cp_model.LinearExprT] = {}
     for kural in kurallar:
         terim = kural.modele_ekle(model, x, baglam)
         if terim is not None:
+            ham_terimler[kural.kimlik] = terim
             ceza_terimleri.append(kural.agirlik * terim)
     model.minimize(sum(ceza_terimleri) if ceza_terimleri else 0)
 
-    return model, x, baglam
+    return model, x, baglam, ham_terimler

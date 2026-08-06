@@ -90,6 +90,10 @@ class Baglam:
     # donem, zaman_ekseni, y)").
     zaman_ekseni: list[date] = field(default_factory=list)
     y: dict[tuple[int, date, int], Any] = field(default_factory=dict)
+    # S1TalepKarsilama.modele_ekle tarafindan doldurulur: (tarih, vardiya_tipi_id,
+    # nokta_id) -> eksik IntVar'i. Cozumden sonra kapsama_acigi tablosuna yazilacak
+    # degerleri okumak icin (SDD 5.4: 'cozum.eksik_degiskenleri').
+    kapsama_eksikleri: dict[tuple[date, int, int], Any] = field(default_factory=dict)
 
     def vardiya_araligi(self, tarih: date, vardiya_tipi_id: int) -> tuple[datetime, datetime]:
         """Vardiyanin mutlak baslangic/bitis zamani (TD-1: vardiya baslangic gunune yazilir)."""
