@@ -1,4 +1,4 @@
-"""S1-S8 dogrula/ceza testleri: elle kurulan ornek atama listeleriyle (Sprint 1 Gun 3).
+"""S1-S8 (+S6b) dogrula/ceza testleri: elle kurulan ornek atama listeleriyle (Sprint 1 Gun 3-4).
 
 Bu testler veritabani gerektirmez; Baglam ve AtamaKaydi elle olusturulur.
 """
@@ -15,6 +15,7 @@ from app.kurallar import (
     TercihKaydi,
     VardiyaTipiBilgisi,
     bul,
+    tum_kimlikler,
 )
 from app.kurallar.esnek import (
     S1TalepKarsilama,
@@ -22,6 +23,7 @@ from app.kurallar.esnek import (
     S3HaftaSonuAdaleti,
     S4ToplamSaatDengesi,
     S5TercihKarsilama,
+    S6bBinaTutarliligi,
     S6VardiyaDeseniTutarliligi,
     S7IzoleGun,
     S8DegisimMinimizasyonu,
@@ -204,7 +206,7 @@ def test_s5_atanmamis_gun_vardiya_tipi_tercihini_ihlal_etmez(baglam: Baglam) -> 
 
 
 def test_s6_vardiya_tipi_degisimi_ceza_uretir(baglam: Baglam) -> None:
-    kural = S6VardiyaDeseniTutarliligi(parametreler={}, agirlik=6)
+    kural = S6VardiyaDeseniTutarliligi(parametreler={}, agirlik=10)
     atamalar = [
         AtamaKaydi(1, date(2026, 1, 5), GUNDUZ, KAPI),
         AtamaKaydi(1, date(2026, 1, 6), AKSAM, KAPI),
@@ -214,8 +216,27 @@ def test_s6_vardiya_tipi_degisimi_ceza_uretir(baglam: Baglam) -> None:
     assert "vardiya tipi" in ihlaller[0].aciklama.lower()
 
 
-def test_s6_bina_degisimi_ceza_uretir(baglam: Baglam) -> None:
-    kural = S6VardiyaDeseniTutarliligi(parametreler={}, agirlik=6)
+def test_s6_bina_degisimini_degerlendirmez(baglam: Baglam) -> None:
+    """S6, yalniz vardiya tipi tutarliligina bakar; bina tutarliligi S6b'nin isidir."""
+    kural = S6VardiyaDeseniTutarliligi(parametreler={}, agirlik=10)
+    atamalar = [
+        AtamaKaydi(1, date(2026, 1, 5), GUNDUZ, KAPI_BINA_A),
+        AtamaKaydi(1, date(2026, 1, 6), GUNDUZ, KAPI_BINA_B),
+    ]
+    assert kural.dogrula(atamalar, baglam) == []
+
+
+def test_s6_tutarli_desen_ceza_uretmez(baglam: Baglam) -> None:
+    kural = S6VardiyaDeseniTutarliligi(parametreler={}, agirlik=10)
+    atamalar = [
+        AtamaKaydi(1, date(2026, 1, 5), GUNDUZ, KAPI_BINA_A),
+        AtamaKaydi(1, date(2026, 1, 6), GUNDUZ, KAPI_BINA_A),
+    ]
+    assert kural.dogrula(atamalar, baglam) == []
+
+
+def test_s6b_bina_degisimi_ceza_uretir(baglam: Baglam) -> None:
+    kural = S6bBinaTutarliligi(parametreler={}, agirlik=6)
     atamalar = [
         AtamaKaydi(1, date(2026, 1, 5), GUNDUZ, KAPI_BINA_A),
         AtamaKaydi(1, date(2026, 1, 6), GUNDUZ, KAPI_BINA_B),
@@ -225,10 +246,30 @@ def test_s6_bina_degisimi_ceza_uretir(baglam: Baglam) -> None:
     assert "bina" in ihlaller[0].aciklama.lower()
 
 
-def test_s6_tutarli_desen_ceza_uretmez(baglam: Baglam) -> None:
-    kural = S6VardiyaDeseniTutarliligi(parametreler={}, agirlik=6)
+def test_s6b_vardiya_tipi_degisimini_degerlendirmez(baglam: Baglam) -> None:
+    """S6b, yalniz bina tutarliligina bakar; vardiya tipi degisimi S6'nin isidir."""
+    kural = S6bBinaTutarliligi(parametreler={}, agirlik=6)
+    atamalar = [
+        AtamaKaydi(1, date(2026, 1, 5), GUNDUZ, KAPI),
+        AtamaKaydi(1, date(2026, 1, 6), AKSAM, KAPI),
+    ]
+    assert kural.dogrula(atamalar, baglam) == []
+
+
+def test_s6b_ayni_binada_ceza_uretmez(baglam: Baglam) -> None:
+    kural = S6bBinaTutarliligi(parametreler={}, agirlik=6)
     atamalar = [
         AtamaKaydi(1, date(2026, 1, 5), GUNDUZ, KAPI_BINA_A),
+        AtamaKaydi(1, date(2026, 1, 6), GUNDUZ, KAPI_BINA_A),
+    ]
+    assert kural.dogrula(atamalar, baglam) == []
+
+
+def test_s6b_tesis_geneli_noktalar_bina_degisimine_girmez(baglam: Baglam) -> None:
+    """Bina bilgisi bos olan (tesis geneli) noktalar arasi gecis bina degisimi sayilmaz."""
+    kural = S6bBinaTutarliligi(parametreler={}, agirlik=6)
+    atamalar = [
+        AtamaKaydi(1, date(2026, 1, 5), GUNDUZ, KAPI),  # bina_id yok
         AtamaKaydi(1, date(2026, 1, 6), GUNDUZ, KAPI_BINA_A),
     ]
     assert kural.dogrula(atamalar, baglam) == []
@@ -294,6 +335,12 @@ def test_esnek_kural_modele_ekle_henuz_uygulanmadi(baglam: Baglam) -> None:
         kural.modele_ekle(model=None, degiskenler=None, baglam=baglam)
 
 
-def test_kayit_defterinde_s1_s8_tamami_bulunur() -> None:
-    for kimlik in ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8"]:
+def test_kayit_defterinde_s1_s8_ve_s6b_tamami_bulunur() -> None:
+    for kimlik in ["S1", "S2", "S3", "S4", "S5", "S6", "S6b", "S7", "S8"]:
         assert bul(kimlik) is not None, f"{kimlik} kayit defterinde yok"
+
+
+def test_kayit_defterinde_on_yedi_kural_kayitli() -> None:
+    beklenen = {f"H{i}" for i in range(1, 9)} | {f"S{i}" for i in range(1, 9)} | {"S6b"}
+    assert set(tum_kimlikler()) == beklenen
+    assert len(beklenen) == 17

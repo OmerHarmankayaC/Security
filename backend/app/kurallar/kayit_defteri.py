@@ -25,6 +25,10 @@ def bul(kimlik: str) -> type[Kural] | None:
     return _kayit_defteri.get(kimlik)
 
 
+def tum_kimlikler() -> list[str]:
+    return sorted(_kayit_defteri)
+
+
 class KuralSatiri(Protocol):
     """kural tablosu satirinin (SDD 4.2.3) kurallari_yukle icin gerekli alanlari."""
 

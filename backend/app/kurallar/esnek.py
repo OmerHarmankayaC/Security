@@ -134,49 +134,70 @@ class S5TercihKarsilama(EsnekHedef):
 
 @kayitli("S6")
 class S6VardiyaDeseniTutarliligi(EsnekHedef):
-    """Ardisik gunlerde vardiya tipi veya bina degisimi (tesis geneli noktalar haric)."""
+    """Ardisik gunlerde vardiya tipi degisimi. Bina tutarliligi S6b'de ayri degerlendirilir."""
 
     def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
-        gunluk: dict[int, dict[date, AtamaKaydi]] = defaultdict(dict)
-        for a in atamalar:
-            gunluk[a.personel_id][a.tarih] = a
+        return [
+            Ihlal(
+                kural_kimlik=self.kimlik,
+                personel_id=personel_id,
+                tarih=yarin.tarih,
+                ceza=1,
+                aciklama="Ardisik gunde vardiya tipi degisti",
+            )
+            for personel_id, bugun, yarin in _ardisik_gun_ciftleri(atamalar)
+            if bugun.vardiya_tipi_id != yarin.vardiya_tipi_id
+        ]
 
+
+@kayitli("S6b")
+class S6bBinaTutarliligi(EsnekHedef):
+    """Ardisik gunlerde farkli binada gorevlendirme (tesis geneli noktalar haric).
+
+    SDD 4.2.3'teki kural tablosu kural basina tek bir agirlik sutunu icerir; S6'nin
+    formulasyonundaki iki ayri agirlik (w6, w6b) bu yuzden iki ayri kural kaydina
+    bolunmustur (bkz. PROGRESS.md, Sprint 1 Gun 3/4).
+    """
+
+    def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
         ihlaller: list[Ihlal] = []
-        for personel_id, gun_map in gunluk.items():
-            for gun in sorted(gun_map):
-                sonraki_gun = gun + timedelta(days=1)
-                if sonraki_gun not in gun_map:
-                    continue
-                bugun, yarin = gun_map[gun], gun_map[sonraki_gun]
-                if bugun.vardiya_tipi_id != yarin.vardiya_tipi_id:
-                    ihlaller.append(
-                        Ihlal(
-                            kural_kimlik=self.kimlik,
-                            personel_id=personel_id,
-                            tarih=sonraki_gun,
-                            ceza=1,
-                            aciklama="Ardisik gunde vardiya tipi degisti",
-                        )
+        for personel_id, bugun, yarin in _ardisik_gun_ciftleri(atamalar):
+            bugun_nokta = baglam.gorev_noktalari.get(bugun.nokta_id)
+            yarin_nokta = baglam.gorev_noktalari.get(yarin.nokta_id)
+            if (
+                bugun_nokta is not None
+                and yarin_nokta is not None
+                and bugun_nokta.bina_id is not None
+                and yarin_nokta.bina_id is not None
+                and bugun_nokta.bina_id != yarin_nokta.bina_id
+            ):
+                ihlaller.append(
+                    Ihlal(
+                        kural_kimlik=self.kimlik,
+                        personel_id=personel_id,
+                        tarih=yarin.tarih,
+                        ceza=1,
+                        aciklama="Ardisik gunde bina degisti",
                     )
-                bugun_nokta = baglam.gorev_noktalari.get(bugun.nokta_id)
-                yarin_nokta = baglam.gorev_noktalari.get(yarin.nokta_id)
-                if (
-                    bugun_nokta is not None
-                    and yarin_nokta is not None
-                    and bugun_nokta.bina_id is not None
-                    and yarin_nokta.bina_id is not None
-                    and bugun_nokta.bina_id != yarin_nokta.bina_id
-                ):
-                    ihlaller.append(
-                        Ihlal(
-                            kural_kimlik=self.kimlik,
-                            personel_id=personel_id,
-                            tarih=sonraki_gun,
-                            ceza=1,
-                            aciklama="Ardisik gunde bina degisti",
-                        )
-                    )
+                )
         return ihlaller
+
+
+def _ardisik_gun_ciftleri(
+    atamalar: list[AtamaKaydi],
+) -> list[tuple[int, AtamaKaydi, AtamaKaydi]]:
+    """Her personelin ardisik iki gun calistigi (bugun, yarin) atama ciftleri (S6, S6b)."""
+    gunluk: dict[int, dict[date, AtamaKaydi]] = defaultdict(dict)
+    for a in atamalar:
+        gunluk[a.personel_id][a.tarih] = a
+
+    ciftler: list[tuple[int, AtamaKaydi, AtamaKaydi]] = []
+    for personel_id, gun_map in gunluk.items():
+        for gun in sorted(gun_map):
+            sonraki_gun = gun + timedelta(days=1)
+            if sonraki_gun in gun_map:
+                ciftler.append((personel_id, gun_map[gun], gun_map[sonraki_gun]))
+    return ciftler
 
 
 @kayitli("S7")
@@ -317,6 +338,7 @@ __all__ = [
     "S4ToplamSaatDengesi",
     "S5TercihKarsilama",
     "S6VardiyaDeseniTutarliligi",
+    "S6bBinaTutarliligi",
     "S7IzoleGun",
     "S8DegisimMinimizasyonu",
 ]

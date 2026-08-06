@@ -264,9 +264,40 @@ hazır.
   yer bulmalı; şema tek ağırlık sütunu içerdiği için bu noktada bir karar
   gerekecek (iki ayrı kural kaydı mı, yoksa `parametreler` JSONB alanında
   ikinci bir ağırlık mı). Şimdilik ilerlemeyi bloklamıyor, ama net.
+  **Güncelleme (2026-08-06, Gün 4 başlangıcı): bu karar netleşti, bkz.
+  aşağıdaki not.**
 - Bu iki nokta dışında kalan tüm formüller SRS 4.3'ten birebir.
 
 **Kalan / ertelenen:** Yok — Gün 3 kapsamındaki tüm maddeler tamamlandı.
+
+---
+
+## 2026-08-06 — Sprint 1 Gün 3 açık kararının çözümü: S6 → S6 + S6b
+
+Kullanıcı, Gün 3'te not düşülen w6/w6b açık kararını netleştirdi: **S6 iki
+ayrı kural kaydına bölünüyor**, `kural` tablosunun tek-ağırlık-sütunu
+kısıtına uyacak şekilde.
+
+- **S6 — Vardiya deseni tutarlılığı:** artık yalnızca ardışık günlerde
+  vardiya tipi değişimini değerlendiriyor. `agirlik = 10`.
+- **S6b — Bina tutarlılığı** (yeni kural): eskiden S6'nın içinde olan
+  bina_degisim mantığı buraya taşındı, ayrı `@kayitli("S6b")` ile kayıtlı.
+  `agirlik = 6`.
+- İkisi de artık ortak bir `_ardisik_gun_ciftleri()` yardımcı
+  fonksiyonundan (yeni, `app/kurallar/esnek.py`) beslenip kendi tek
+  kontrolünü yapıyor — kod tekrarı yerine ortak "ardışık gün çifti"
+  tarama mantığı paylaşılıyor.
+- `tests/test_kurallar_esnek.py`: S6 testleri ikiye ayrıldı; her sınıf
+  için ayrı ceza-üretir/ceza-üretmez senaryosu, artı S6'nın bina
+  değişimini, S6b'nin vardiya tipi değişimini görmezden geldiğini
+  doğrulayan iki çapraz test.
+- `app/kurallar/kayit_defteri.py`'ye `tum_kimlikler()` eklendi (kayıtlı
+  tüm kimliklerin sıralı listesi) ve kayıt defterinin tam olarak on yedi
+  kimlik içerdiğini (H1–H8, S1–S8, S6b) doğrulayan bir test yazıldı.
+- `ruff check`, `ruff format --check`, `pytest -q` temiz: 55 test (53
+  geçti, 2'si DB gerektirdiği için beklenen şekilde atlandı).
+
+**Kalan / ertelenen:** Yok.
 
 **Sıradaki oturumun ilk işi:** Sprint 1, Gün 4 — Tanım Yönetimi CRUD
 API'leri. SDD Ek B'deki uç noktalardan tanım yönetimi grubunu uygula:

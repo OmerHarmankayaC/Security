@@ -11,7 +11,7 @@ from app.kurallar.baglam import (
     TercihKaydi,
     VardiyaTipiBilgisi,
 )
-from app.kurallar.kayit_defteri import bul, kayitli, kurallari_yukle
+from app.kurallar.kayit_defteri import bul, kayitli, kurallari_yukle, tum_kimlikler
 from app.kurallar.temel import EsnekHedef, Ihlal, Kural, ZorunluKural
 
 __all__ = [
@@ -30,5 +30,6 @@ __all__ = [
     "esnek",
     "kayitli",
     "kurallari_yukle",
+    "tum_kimlikler",
     "zorunlu",
 ]
