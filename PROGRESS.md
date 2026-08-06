@@ -133,3 +133,74 @@ defterini yaz, SDD Ek A'daki H2 örneğini şablon alarak H1–H8'i uygula
 ama imza ve `dogrula` metodu tam çalışır olmalı). Önce SDD 5.1 ve Ek A'yı,
 SRS Bölüm 4.2 (H1–H8 tanımları, zaten bu oturumda okundu) ve
 `app/models/kural.py`'deki `Kural` tablosunu tekrar gözden geçir.
+
+---
+
+## 2026-08-06 — Sprint 1, Gün 2: Kural Arayüzü ve Zorunlu Kısıtlar (H1–H8)
+
+**Not:** Bu oturumdan itibaren git commit başlıkları ve açıklamaları
+İngilizce yazılıyor (kullanıcı talebi); dokümantasyon, kod tanımlayıcıları
+ve yorumlar Türkçe kalmaya devam ediyor.
+
+**Tamamlanan:**
+- SDD 5.1 (`kurallari_yukle` sözde kodu) ve Ek A (H2/S2 uygulama örnekleri)
+  ile SRS 3.3.5'teki kural parametre varsayılanları okundu:
+  H2 `asgari_dinlenme_saati=16`, H3 `azami_ardisik_gece=3`,
+  H4 `azami_ardisik_calisma_gunu=6`, H5 `azami_haftalik_saat=45`,
+  H6 `haftalik_asgari_izin_gunu=1`.
+- Yeni paket `app/kurallar/` — ORM'den bağımsız, kural motoruna özgü:
+  - `temel.py`: `Kural` ABC'si (`kimlik`, `tip`, `parametreler`, `agirlik`,
+    `modele_ekle`, `dogrula`), `ZorunluKural`/`EsnekHedef` alt sınıfları
+    (SDD 3.2.1, Ek A'daki `ZorunluKural`/`EsnekHedef` kalıbı), `Ihlal`
+    dataclass'ı.
+  - `kayit_defteri.py`: `@kayitli("H1")` sınıf dekoratörüyle kimlik→sınıf
+    kaydı, `bul()`, ve SDD 5.1'deki `kurallari_yukle()` sözde kodunun
+    birebir uygulaması (tanımsız kimlikte `ValueError`).
+  - `baglam.py`: `Baglam` — vardiya süresi/gece bayrağı, görev noktası
+    ön koşulu, personel yetkinlik/aktiflik, müsaitlik kayıtlarını taşıyan,
+    veritabanından bağımsız hafif bir çalışma zamanı yapısı. `saat_farki`,
+    `vardiya_araligi` (TD-1: gece yarısını aşan vardiya başlangıç gününe
+    yazılır), `musait_mi` (TD-4: tam_gun/öğleden önce/öğleden sonra dilim
+    kesişimi + personel aktiflik aralığı) ve `yetkin_mi` yardımcı
+    metotları.
+  - `yardimcilar.py`: H3/H4 için ortak "ardışık koşu" tarayıcısı,
+    H5/H6 için ortak "kayan 7 günlük pencere" tarayıcısı (aynı algoritma
+    iki kural çiftinde tekrar ettiği için ortak fonksiyona çıkarıldı).
+  - `zorunlu.py`: H1–H8'in tamamı, her biri `@kayitli("Hx")` ile kayıtlı.
+    `modele_ekle`, `ZorunluKural`'ın `NotImplementedError` fırlatan
+    varsayılanını kullanıyor (Sprint 2 Gün 6'da CP-SAT ile
+    tamamlanacak — plan buna açıkça izin veriyor); `dogrula` tamamı
+    çalışır durumda.
+- H6 formülasyon notu: SRS 4.2'de H6 "parametresizdir" deniyor ama
+  SRS 3.3.5'teki parametre tablosu `haftalik_asgari_izin_gunu` adında bir
+  parametre listeliyor (varsayılan 1, ki 7-1=6 ile SRS 4.2'deki `≤ 6`
+  formülüyle örtüşüyor). İki kaynak arasındaki bu küçük tutarsızlığı,
+  parametreyi kullanan ve varsayılanla aynı sonucu üreten yorumla
+  çözdüm (tasarımdan sapma değil, doküman içi küçük bir isim
+  tutarsızlığı).
+- `tests/test_kurallar_zorunlu.py`: H1–H8'in her biri için en az bir
+  ihlal-var ve bir ihlal-yok senaryosu, elle kurulan `Baglam`/`AtamaKaydi`
+  örnekleriyle (23 test) — veritabanı gerektirmez. Ayrıca kayıt
+  defterinin H1–H8'in tümünü içerdiğini, `kurallari_yukle`'nin doğru
+  nesne ürettiğini ve tanımsız kimlikte hata verdiğini, `modele_ekle`'nin
+  henüz `NotImplementedError` fırlattığını doğrulayan testler.
+- `ruff check`, `ruff format --check`, `pytest -q` temiz (toplam 24 test
+  geçti, 2 tanesi — Gün 1'den kalan DB testleri — canlı PostgreSQL
+  olmadığı için atlandı, beklenen davranış).
+
+**Sapmalar / notlar:**
+- H6 parametre adı tutarsızlığı yukarıda not edildi.
+- `modele_ekle` bu oturumda kasıtlı olarak `NotImplementedError` fırlatıyor
+  (plan buna izin veriyor); Sprint 2 Gün 6'da CP-SAT model nesnesiyle
+  gerçek kısıt ifadeleri eklenecek.
+
+**Kalan / ertelenen:** Yok — Gün 2 kapsamındaki tüm maddeler tamamlandı.
+
+**Sıradaki oturumun ilk işi:** Sprint 1, Gün 3 — Esnek Hedefler (S1–S8).
+SDD Ek A'daki S2 örneğini şablon alarak `app/kurallar/esnek.py` içinde
+S1–S8'i yaz (S1'in özel davranışına dikkat: SRS 4.3'te talep hem üst
+sınır/zorunlu hem alt sınır/esnek olarak formüle ediliyor — bu oturumda
+zaten okundu). Her esnek hedef için `dogrula`/ceza hesaplama birim testi
+ekle. Önce SRS 4.3 (S1–S8 tanımları) ve SDD Ek A'daki S2 örneğini tekrar
+gözden geçir; `EsnekHedef` taban sınıfı zaten `app/kurallar/temel.py`'de
+hazır.
