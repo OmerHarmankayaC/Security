@@ -117,10 +117,10 @@ class TanimServisi:
 
     def _yuk_gostergesi_hesapla(self, hucreler: list[Talep]) -> YukGostergesi:
         vardiya_tipleri = {v.vardiya_tipi_id: v for v in self.vardiya_tipi.tumunu_getir()}
-        azami_haftalik_saat = self._kural_parametresi(
+        azami_haftalik_saat = self.kural.parametre_getir(
             "H5", "azami_haftalik_saat", varsayilan=_VARSAYILAN_AZAMI_HAFTALIK_SAAT
         )
-        haftalik_asgari_izin_gunu = self._kural_parametresi(
+        haftalik_asgari_izin_gunu = self.kural.parametre_getir(
             "H6",
             "haftalik_asgari_izin_gunu",
             varsayilan=_VARSAYILAN_HAFTALIK_ASGARI_IZIN_GUNU,
@@ -131,9 +131,3 @@ class TanimServisi:
             azami_haftalik_saat=Decimal(azami_haftalik_saat),
             haftalik_asgari_izin_gunu=int(haftalik_asgari_izin_gunu),
         )
-
-    def _kural_parametresi(self, kimlik: str, anahtar: str, *, varsayilan: object) -> object:
-        kural = self.kural.kimlige_gore_bul(kimlik)
-        if kural is None or anahtar not in kural.parametreler:
-            return varsayilan
-        return kural.parametreler[anahtar]

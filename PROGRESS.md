@@ -663,11 +663,126 @@ Ayrıca üç not/karar:
    gibi bırakılacak; Gün 14'teki 40×28 referans performans testinde
    yavaş çıkarsa ilk bakılacak yer burası (henüz dokunulmadı).
 
-**Sıradaki oturumun ilk işi:** Sprint 2, Gün 7 — Ön Kontrol Alt Sistemi.
-SDD 5.2'deki dört kontrolü (dönem geneli kapasite, yetkinlik havuzu, gün
-bazlı, nokta bazlı) birebir uygula; `/api/on-kontrol` uç noktası. Sıkışık
-senaryo (Sprint 1 Gün 5'te üretilen demo veri — vardiya şefliği havuzunun
-5'i izinli) üzerinde çalıştırıp gerçekten anlamlı bulgular ürettiğini,
-rahat senaryoda hiç bulgu vermediğini doğrula. Önce SDD 5.2'yi ve demo
-veri betiğindeki iki dönemin (`_RAHAT_BASLANGIC`, `_SIKISIK_BASLANGIC`)
-tarih aralıklarını gözden geçir.
+---
+
+## 2026-08-06 — Sprint 2, Gün 7: Ön Kontrol Alt Sistemi
+
+**Önemli bulgu — sıkışık senaryo ön kontrolde hiç bulgu vermiyor:**
+SDD 5.2'deki dört kontrolü (SDD 5.3'ün yanına, `app/services/on_kontrol.py`)
+birebir uyguladıktan sonra Sprint 1 Gün 5'in demo verisiyle (rahat/sıkışık
+dönemler) canlı bir API çağrısıyla test ettim. **Rahat da sıkışık da sıfır
+bulgu üretti.** Sebebini araştırdım: dört kontrolün hiçbiri, "küçük bir
+yetkinlik havuzunun yalnızca belirli bir haftada eşzamanlı izin yüzünden
+yetersiz kalması" gibi zaman-pencereli/haftalık bir açığı yakalayacak
+şekilde tasarlanmamış — Kontrol 1/2 dönem genelini topluyor (yerel
+darboğaz, dönemin geri kalanındaki serbestlikle sayısal olarak örtülüyor),
+Kontrol 3/4 ise yalnızca anlık (gün/vardiya bazlı) yeterliliğe bakıyor,
+haftalık kümülatif yüke değil. SDD'nin kendi metni zaten bunu söylüyor
+("zaman yapısına bağlı kısıtlar bu aritmetikle yakalanamaz") — yani bir
+kodlama hatası değil, SDD 5.2'nin kasıtlı sınırının demo senaryosuyla
+karşılaşması. Bunu bir `AskUserQuestion` ile kullanıcıya ilettim; üç
+seçenek sundum (SDD'yi olduğu gibi bırakıp kabul kriterini gözden geçir /
+demo senaryoyu değiştir / beşinci bir kontrol ekle). **Kullanıcı birinci
+seçeneği onayladı.**
+
+**Kullanıcının paralel doküman güncellemesi:** Aynı yanıtta kullanıcı,
+`docs/SDD.docx` ve `docs/Backlog.docx`'un sürüm 1.2'ye güncellendiğini ve
+`docs/UYGULAMA_PLANI.md` adında geçici bir senkronizasyon kopyası
+bıraktığını bildirdi. Kontrol ettim: `docs/` klasöründeki dört referans
+belge gerçekten güncellenmiş haldeydi (dosya zaman damgaları bunu
+doğruluyordu). Değişiklikler:
+- **SDD 5.2, Kontrol 2 (yetkinlik havuzu) düzeltildi:** artık Kontrol
+  1'deki gibi kişi başına `MİN(musait_gun, azami_vardiya_sayisi)`
+  topluyor (önceden bireysel izni hiç hesaba katmıyordu — bu, benim de
+  bağımsız olarak fark ettiğim bir eksiklikti, kodda zaten "teorik;
+  bireysel izin dikkate alınmaz" diye not düşmüştüm).
+- **SDD 5.2'nin sonuna** bu sınırı somut örnekle (bizim sıkışık
+  senaryomuzla birebir örtüşen) açıklayan bir paragraf eklendi.
+- **Backlog'a B-14 eklendi:** "yetkinlik başına kayan haftalık pencere
+  kontrolü" — ertelenmiş, şimdi yapılmıyor.
+- **UYGULAMA_PLANI.md**: Gün 7'nin kabul kriteri "sıkışık senaryoda en az
+  bir bulgu olmalı" yerine "kapsam içindeyse doğru raporlanır, değilse
+  bulgusuzluk beklenen davranıştır" oldu; Gün 8'in kabul kriterine
+  sıkışık senaryonun çözülüp `kapsama_acigi`'nde doğru raporlandığının
+  doğrulanması eklendi. Ayrıca "Demo Veri Stratejisi" artık ayrı bir
+  başlık (benim kendi yazdığım sürümden biraz farklı ama aynı özü
+  taşıyan bir metinle).
+- Bu içerikleri kök `UYGULAMA_PLANI.md`'ye birleştirdim (kendi eklediğim
+  "Ek Görev — S1–S8+S6b Uyum Testi Genişletmesi" bölümünü koruyarak,
+  kullanıcının yeni kopyasında bu bölüm yoktu ama silinmesi istenmedi).
+  `docs/UYGULAMA_PLANI.md` staging kopyasını sildim — `docs/` yalnızca
+  dört referans belgeyi barındırıyor.
+- **Küçük gözlem (bloklamadı):** Kullanıcının yeni `UYGULAMA_PLANI.md`
+  kopyasında Gün 5'teki "SDD 3.3" / "SDD 3.3.4" referansları hâlâ
+  düzeltilmemiş (Gün 4'teki "SDD 3.3.6→SRS 3.3.6" düzeltmesiyle aynı
+  örüntü). Üçüncü kez karşıma çıktığı için burada not ediyorum, ayrıca
+  sormadım.
+
+**Tamamlanan (kod):**
+- **Gerçek bir hata buldum ve düzelttim:** `_azami_vardiya_donem`
+  içinde `Decimal * float` çarpımı — yalnızca gerçek DB verisiyle
+  (`VardiyaTipiBilgisi.sure_saat` orada `float`) test edince ortaya
+  çıktı, saf birim testlerinde (hepsi `int` sure_saat kullanıyordu)
+  görünmüyordu. Artık tutarlı biçimde `float` kullanılıyor.
+- `app/services/kadro_hesaplari.py`: `kisi_basina_azami_haftalik_vardiya`
+  — Gün 4'te `yuk_gostergesi.py` içine gömülü olan "H5/H6'dan kişi
+  başına azami haftalık vardiya" formülü buraya çıkarıldı; hem
+  `yuk_gostergesi.py` (asgari kadro) hem `on_kontrol.py`
+  (`azami_vardiya_sayisi(donem)`) artık aynı fonksiyonu kullanıyor.
+- `app/services/talep_cozucu.py`: SDD 4.2.1'deki istisna/genel talep
+  satırı çözümlemesini (önce tarihe özgü istisna aranır, yoksa gün
+  tipine göre genel satır kullanılır) somut bir gün listesi üzerinde
+  yapan `talep_matrisini_coz()`.
+- `app/services/baglam_kurucu.py`: bir `Donem` için veritabanından tam
+  bir `Baglam` kuran `baglam_olustur()` — SDD 5.2'nin imzasına sadık
+  kalarak (`on_kontrol(donem, tanimlar, musaitlikler)`, ısıtma penceresi
+  almıyor) yalnızca dönem günleri için talep çözüyor; ısıtma penceresini
+  de kapsayan `zaman_ekseni` Gün 8'de (gerçek çözüm işi) ayrıca
+  kurulacak.
+- `app/services/on_kontrol.py`: SDD 5.2'nin (sürüm 1.2) dört kontrolünün
+  tamamı — `_donem_kapasitesi_kontrolu`, `_yetkinlik_havuzu_kontrolu`
+  (artık ikisi de aynı önceden-hesaplanmış `musait_gun_by_personel`
+  sözlüğünü paylaşıyor, kod tekrarı yok), `_gunluk_musaitlik_kontrolu`,
+  `_nokta_musaitlik_kontrolu`. `Bulgu` veri sınıfı ve `BulguTipi` enum'u.
+- `app/kurallar/baglam.py`'ye `gunde_musait_mi()` eklendi (gün bazlı,
+  herhangi bir vardiya için müsaitlik — Kontrol 3/4'ün "p, g gününde
+  müsait" ifadesinin karşılığı).
+- `app/repositories/kural.py`'ye `parametre_getir()` eklendi (H5/H6
+  parametrelerini okuyan, `TanimServisi` ve `OnKontrolServisi` arasında
+  paylaşılan tek metot — önceden ikisinde de aynı kod tekrarlanıyordu).
+- `app/repositories/sonuc.py` (yeni): `DonemDeposu`.
+- `app/services/on_kontrol_servisi.py`: `donem_id` alıp `Baglam`'ı kurup
+  `on_kontrol_yap`'ı çalıştıran servis katmanı.
+- `app/routers/cizelge.py` (yeni, SDD 3.2'deki `cizelge_router`):
+  `POST /api/on-kontrol`.
+- Testler: `tests/test_on_kontrol.py` (6 test, DB'siz — dört kontrolün
+  her biri için tetikleyen/tetiklemeyen senaryo, artı Kontrol 2'nin
+  bireysel izni artık hesaba kattığını doğrulayan özel bir test);
+  `tests/test_cizelge_api.py` (2 test, canlı DB — 404 ve kadro
+  yeterliyken boş bulgu listesi).
+- Doğrulama: geçici Docker PostgreSQL'de tüm paket (84 test) iki kez
+  ardışık geçti; demo verisiyle gerçek `curl` çağrısı (rahat + sıkışık,
+  ikisi de düzeltme sonrası hâlâ boş — beklenen).
+- `ruff check`, `ruff format --check` temiz.
+
+**Kalan / ertelenen:** Yok — Gün 7 kapsamındaki (kullanıcıyla birlikte
+netleşen) tüm maddeler tamamlandı. Beşinci bir ön kontrol (B-14)
+kasıtlı olarak yapılmadı.
+
+**Sıradaki oturumun ilk işi:** Sprint 2, Gün 8 — Çözüm İşi ve Asenkron
+Yürütme. SDD 5.4'teki durum makinesini (Şekil 5.1) uygula: kuyrukta →
+on_kontrol → cozuluyor → tamamlandı/uyarılı/başarısız/iptal. Çözüm
+işinin ayrı süreçte çalışması (basit `multiprocessing` yeterli, systemd
+Sprint 3'te). `/api/cozum`, `/api/cozum/{id}`, `/api/cozum/{id}/iptal`.
+Ara çözüm bildirimi: her iyileşen çözümde `en_iyi_ceza` güncellensin.
+**Güncellenmiş kabul kriteri (bkz. UYGULAMA_PLANI.md, kullanıcıyla Gün
+7'de netleşti):** çözüm isteği anında iş kimliği dönüyor, API bu sırada
+yanıt vermeye devam ediyor; **ayrıca sıkışık senaryo çözülüp
+`kapsama_acigi` tablosunda vardiya şefi havuzunun eksik kaldığı
+gün/vardiyaların doğru raporlandığı doğrulanmalı** — Gün 7'de ön
+kontrolün yakalayamadığı açığın gerçekten S1 esnek hedefiyle ortaya
+çıktığını kanıtlayan asıl test budur. Önce SDD 5.4'ü, `CizelgeSurumu`/
+`CozumIsi`/`KapsamaAcigi` modellerini (Sprint 1 Gün 1) ve
+`app/services/baglam_kurucu.py`'nin ısıtma penceresini henüz
+kurmadığını (bu oturumda bilerek ertelendi) hatırda tut — zaman_ekseni
+(ısıtma + dönem) artık burada kurulmalı.

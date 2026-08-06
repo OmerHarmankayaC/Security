@@ -11,6 +11,7 @@ from decimal import Decimal
 
 from app.models.tanim import GunTipi, Talep, VardiyaTipi
 from app.schemas.tanim import YukGostergesi
+from app.services.kadro_hesaplari import kisi_basina_azami_haftalik_vardiya
 
 # Gun tipinin haftada kac kez tekrarlandigi. Resmi tatil donemsel/tekildir,
 # her hafta tekrarlanmadigi icin haftalik yuke dahil edilmez.
@@ -69,14 +70,12 @@ def _asgari_kadro_hesapla(
     if haftalik_kisi_vardiya <= 0:
         return 0
 
-    gun_bazli_azami = 7 - haftalik_asgari_izin_gunu
     ortalama_sure = haftalik_kisi_saat / haftalik_kisi_vardiya if haftalik_kisi_saat > 0 else 0
-    if ortalama_sure > 0 and azami_haftalik_saat > 0:
-        saat_bazli_azami = int(azami_haftalik_saat / ortalama_sure)
-        kisi_basina_azami = min(saat_bazli_azami, gun_bazli_azami)
-    else:
-        kisi_basina_azami = gun_bazli_azami
-
+    kisi_basina_azami = kisi_basina_azami_haftalik_vardiya(
+        ortalama_sure,
+        azami_haftalik_saat=azami_haftalik_saat,
+        haftalik_asgari_izin_gunu=haftalik_asgari_izin_gunu,
+    )
     if kisi_basina_azami <= 0:
         return 0
     return -(-haftalik_kisi_vardiya // kisi_basina_azami)  # tavana yuvarlanan tam sayi bolme

@@ -145,6 +145,13 @@ class Baglam:
                     return False
         return True
 
+    def gunde_musait_mi(self, personel_id: int, tarih: date) -> bool:
+        """SDD 5.2 on_kontrol: 'p, g gununde musait' - en az bir vardiya tipi icin
+        musaitse gun musait sayilir (ozel_gun/nokta ayrimi yapilmaz, kaba bir kontroldur)."""
+        return any(
+            self.musait_mi(AtamaKaydi(personel_id, tarih, v, 0)) for v in self.vardiya_tipleri
+        )
+
     def yetkin_mi(self, personel_id: int, yetkinlik_id: int) -> bool:
         personel = self.personel.get(personel_id)
         return personel is not None and yetkinlik_id in personel.yetkinlikler

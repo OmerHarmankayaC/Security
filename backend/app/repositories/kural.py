@@ -1,6 +1,7 @@
 """Kural varligi icin depo katmani (SDD 4.2.3, 5.1)."""
 
 from collections.abc import Sequence
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -22,3 +23,10 @@ class KuralDeposu(TabanDepo[Kural]):
     def kimlige_gore_bul(self, kimlik: str) -> Kural | None:
         stmt = select(Kural).where(Kural.kimlik == kimlik)
         return self.oturum.execute(stmt).scalar_one_or_none()
+
+    def parametre_getir(self, kimlik: str, anahtar: str, *, varsayilan: Any) -> Any:
+        """DB'de satir yoksa veya parametre tanimli degilse SRS 3.3.5 varsayilanina duser."""
+        kural = self.kimlige_gore_bul(kimlik)
+        if kural is None or anahtar not in kural.parametreler:
+            return varsayilan
+        return kural.parametreler[anahtar]

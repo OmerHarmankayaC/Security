@@ -1,0 +1,233 @@
+"""SDD 5.2 FONKSIYON on_kontrol()'un birebir uygulamasi.
+
+Cozucu calistirilmadan once yapisal engelleri aritmetik olarak, saniyeler
+icinde tespit eder. Bu kontroller gerek sarttir, yeter sart degildir:
+hepsinin gecmesi cizelgenin cozulebilecegini garanti etmez (dinlenme
+suresi ve ardisiklik gibi zaman yapisina bagli kisitlar bu aritmetikle
+yakalanamaz); herhangi birinin basarisiz olmasi ise cozumun kesinlikle
+acik verecegini gosterir. Bulgu bir uyari degil, kesin bir teshistir;
+bulgusuzluk yalnizca bilinen engellerin bulunmadigi anlamina gelir.
+"""
+
+import enum
+from dataclasses import dataclass
+from datetime import date
+from decimal import Decimal
+
+from app.kurallar.baglam import AtamaKaydi, Baglam
+from app.services.kadro_hesaplari import kisi_basina_azami_haftalik_vardiya
+
+
+class BulguTipi(enum.StrEnum):
+    DONEM_KAPASITESI_YETERSIZ = "donem_kapasitesi_yetersiz"
+    YETKINLIK_HAVUZU_YETERSIZ = "yetkinlik_havuzu_yetersiz"
+    GUNLUK_PERSONEL_YETERSIZ = "gunluk_personel_yetersiz"
+    NOKTA_ICIN_UYGUN_PERSONEL_YOK = "nokta_icin_uygun_personel_yok"
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class Bulgu:
+    tip: BulguTipi
+    aciklama: str
+    eksik: int | None = None
+    yetkinlik_id: int | None = None
+    tarih: date | None = None
+    vardiya_tipi_id: int | None = None
+    nokta_id: int | None = None
+
+
+def on_kontrol_yap(
+    baglam: Baglam,
+    donem_gunleri: list[date],
+    *,
+    azami_haftalik_saat: Decimal,
+    haftalik_asgari_izin_gunu: int,
+) -> list[Bulgu]:
+    if not donem_gunleri:
+        return []
+
+    azami_vardiya_donem = _azami_vardiya_donem(
+        baglam,
+        donem_gunleri,
+        azami_haftalik_saat=azami_haftalik_saat,
+        haftalik_asgari_izin_gunu=haftalik_asgari_izin_gunu,
+    )
+    musait_gun_by_personel = {
+        p: sum(1 for g in donem_gunleri if baglam.gunde_musait_mi(p, g)) for p in baglam.personel
+    }
+
+    bulgular: list[Bulgu] = []
+    bulgular.extend(
+        _donem_kapasitesi_kontrolu(
+            baglam, donem_gunleri, azami_vardiya_donem, musait_gun_by_personel
+        )
+    )
+    bulgular.extend(
+        _yetkinlik_havuzu_kontrolu(
+            baglam, donem_gunleri, azami_vardiya_donem, musait_gun_by_personel
+        )
+    )
+    bulgular.extend(_gunluk_musaitlik_kontrolu(baglam, donem_gunleri))
+    bulgular.extend(_nokta_musaitlik_kontrolu(baglam, donem_gunleri))
+    return bulgular
+
+
+def _azami_vardiya_donem(
+    baglam: Baglam,
+    donem_gunleri: list[date],
+    *,
+    azami_haftalik_saat: Decimal,
+    haftalik_asgari_izin_gunu: int,
+) -> int:
+    """azami_vardiya_sayisi(donem) (SDD 5.2): kisi basina azami haftalik vardiyanin
+    donem uzunluguna (hafta cinsinden) olceklenmis hali."""
+    toplam_vardiya = 0
+    toplam_saat = 0.0
+    for g in donem_gunleri:
+        for v in baglam.vardiya_tipleri:
+            for n in baglam.gorev_noktalari:
+                gereken = baglam.gereken_sayi(g, v, n)
+                if gereken == 0:
+                    continue
+                toplam_vardiya += gereken
+                toplam_saat += gereken * baglam.sure_saat(v)
+    ortalama_sure = toplam_saat / toplam_vardiya if toplam_vardiya > 0 else 0.0
+    kisi_basina_hafta = kisi_basina_azami_haftalik_vardiya(
+        ortalama_sure,
+        azami_haftalik_saat=azami_haftalik_saat,
+        haftalik_asgari_izin_gunu=haftalik_asgari_izin_gunu,
+    )
+    donem_hafta_sayisi = Decimal(len(donem_gunleri)) / 7
+    return int(Decimal(kisi_basina_hafta) * donem_hafta_sayisi)
+
+
+def _donem_kapasitesi_kontrolu(
+    baglam: Baglam,
+    donem_gunleri: list[date],
+    azami_vardiya_donem: int,
+    musait_gun_by_personel: dict[int, int],
+) -> list[Bulgu]:
+    """1. Donem geneli kapasite."""
+    toplam_talep = sum(
+        baglam.gereken_sayi(g, v, n)
+        for g in donem_gunleri
+        for v in baglam.vardiya_tipleri
+        for n in baglam.gorev_noktalari
+    )
+    azami_kapasite = sum(
+        min(musait_gun, azami_vardiya_donem) for musait_gun in musait_gun_by_personel.values()
+    )
+
+    if azami_kapasite < toplam_talep:
+        eksik = toplam_talep - azami_kapasite
+        return [
+            Bulgu(
+                tip=BulguTipi.DONEM_KAPASITESI_YETERSIZ,
+                eksik=eksik,
+                aciklama=f"Dönem genelinde {eksik} vardiyalık kapasite açığı var",
+            )
+        ]
+    return []
+
+
+def _yetkinlik_havuzu_kontrolu(
+    baglam: Baglam,
+    donem_gunleri: list[date],
+    azami_vardiya_donem: int,
+    musait_gun_by_personel: dict[int, int],
+) -> list[Bulgu]:
+    """2. Yetkinlik havuzu kapasitesi (SDD surum 1.2: bireysel izin de hesaba katilir,
+    Kontrol 1'deki gibi kisi basina MIN(musait_gun, azami_vardiya_donem) toplanir).
+
+    Not (SDD 5.2, surum 1.2): bu kontrol dahi dönem genelini topladigi icin,
+    kucuk bir havuzun yalnizca belirli bir haftada yetersiz kalmasi (ör. eş
+    zamanli iki haftalik izin) donemin geri kalanindaki serbestlikle sayisal
+    olarak ortulup yakalanmayabilir - bilinçli bir sinir (Backlog B-14).
+    """
+    yetkinlikler = {
+        n.onkosul_yetkinlik_id
+        for n in baglam.gorev_noktalari.values()
+        if n.onkosul_yetkinlik_id is not None
+    }
+    bulgular: list[Bulgu] = []
+    for y in yetkinlikler:
+        y_talep = sum(
+            baglam.gereken_sayi(g, v, n_id)
+            for g in donem_gunleri
+            for v in baglam.vardiya_tipleri
+            for n_id, nokta in baglam.gorev_noktalari.items()
+            if nokta.onkosul_yetkinlik_id == y
+        )
+        y_kapasite = sum(
+            min(musait_gun_by_personel[p_id], azami_vardiya_donem)
+            for p_id, p in baglam.personel.items()
+            if y in p.yetkinlikler
+        )
+        if y_kapasite < y_talep:
+            eksik = y_talep - y_kapasite
+            bulgular.append(
+                Bulgu(
+                    tip=BulguTipi.YETKINLIK_HAVUZU_YETERSIZ,
+                    yetkinlik_id=y,
+                    eksik=eksik,
+                    aciklama=f"{y} nolu yetkinlik havuzunda {eksik} vardiyalık açık var",
+                )
+            )
+    return bulgular
+
+
+def _gunluk_musaitlik_kontrolu(baglam: Baglam, donem_gunleri: list[date]) -> list[Bulgu]:
+    """3. Gun bazli musaitlik."""
+    bulgular: list[Bulgu] = []
+    for g in donem_gunleri:
+        gun_talep = sum(
+            baglam.gereken_sayi(g, v, n)
+            for v in baglam.vardiya_tipleri
+            for n in baglam.gorev_noktalari
+        )
+        musait = sum(1 for p in baglam.personel if baglam.gunde_musait_mi(p, g))
+        if musait < gun_talep:
+            eksik = gun_talep - musait
+            bulgular.append(
+                Bulgu(
+                    tip=BulguTipi.GUNLUK_PERSONEL_YETERSIZ,
+                    tarih=g,
+                    eksik=eksik,
+                    aciklama=f"{g} günü {eksik} kişilik personel açığı var",
+                )
+            )
+    return bulgular
+
+
+def _nokta_musaitlik_kontrolu(baglam: Baglam, donem_gunleri: list[date]) -> list[Bulgu]:
+    """4. Nokta bazli musaitlik (yetkinlik dahil)."""
+    bulgular: list[Bulgu] = []
+    for g in donem_gunleri:
+        for v in baglam.vardiya_tipleri:
+            for n_id, nokta in baglam.gorev_noktalari.items():
+                talep = baglam.gereken_sayi(g, v, n_id)
+                if talep == 0:
+                    continue
+                uygun = sum(
+                    1
+                    for p in baglam.personel
+                    if baglam.musait_mi(AtamaKaydi(p, g, v, n_id))
+                    and (
+                        nokta.onkosul_yetkinlik_id is None
+                        or baglam.yetkin_mi(p, nokta.onkosul_yetkinlik_id)
+                    )
+                )
+                if uygun < talep:
+                    bulgular.append(
+                        Bulgu(
+                            tip=BulguTipi.NOKTA_ICIN_UYGUN_PERSONEL_YOK,
+                            tarih=g,
+                            vardiya_tipi_id=v,
+                            nokta_id=n_id,
+                            aciklama=(
+                                f"{g} günü {v} nolu vardiyada {n_id} nolu nokta için "
+                                f"uygun personel yok"
+                            ),
+                        )
+                    )
+    return bulgular

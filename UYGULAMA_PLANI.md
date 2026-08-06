@@ -111,22 +111,20 @@ Bu sprintin riski en yüksek olanı: kural kataloğu burada yanlış kurulursa S
 - Depo katmanı (repository) deseni: SQL yalnızca bu katmanda.
 - **Kabul:** Her uç nokta için mutlu yol testi; Postman/HTTPie ile personel + yetkinlik + görev noktası + talep zinciri elle kurulabiliyor.
 
-### Demo Veri Stratejisi
-"Rahat" ve "sıkışık" senaryolar, farklı kadro büyüklükleriyle değil, **aynı personel
-havuzu ve aynı talep matrisi üzerinde yalnızca izin/müsaitlik kayıtları farklı olan
-iki ayrı dönem** olarak kurulur. "Rahat" dönemde izin kaydı yoktur (kadro talebi
-rahatlıkla karşılar); "sıkışık" dönemde, SRS 3.3.6'nın anlattığı kırılganlık
-mekanizmasını birebir tekrarlayacak biçimde (örn. 5 kişilik bir havuzda tek bir
-iznin dahi kapanamayan boşluk doğurması), kritik bir yetkinlik havuzunun bir kısmı
-aynı tarih aralığında izinli gösterilir. Bu, "sıkışık (izinler girince kapsama açığı
-doğuran)" tanımıyla birebir örtüşür ve Gün 5'teki demo veri betiğinin uygulaması
-gereken yaklaşımdır.
-
 ### Gün 5 — Demo Veri Üreteci ve Sprint 1 Checkpoint
-- SRS 3.3'teki güvenlik personeli senaryosunu üreten bir betik: ~44 personel, üç yetkinlik dağılımı, SRS 3.3.4'teki talep matrisi.
-- İki senaryo (yukarıdaki "Demo Veri Stratejisi"): "rahat" (kadro yeterli) ve "sıkışık" (izinler girince kapsama açığı doğuran).
+- SDD 3.3'teki güvenlik personeli senaryosunu üreten bir betik: ~44 personel, üç yetkinlik dağılımı, SDD 3.3.4'teki talep matrisi.
+- İki senaryo (bu plandaki demo veri stratejisi, bkz. aşağıda "Demo Veri Stratejisi"): "rahat" (kadro yeterli) ve "sıkışık" (izinler girince kapsama açığı doğuran).
 - Çözücü-doğrulayıcı uyum testinin iskeletini kur (henüz gerçek çözücü yok, elle üretilmiş rastgele geçerli atamalarla test et).
 - **Kabul (Sprint 1 çıkışı):** Tanım yönetimi ekranından bağımsız olarak, API üzerinden tam bir personel/yetkinlik/nokta/talep kümesi kurulabiliyor; demo veri betiği tek komutla iki senaryoyu da veritabanına yazabiliyor; on altı kuralın `dogrula` tarafı test kapsamında.
+
+## Demo Veri Stratejisi
+
+İki senaryo, **aynı personel havuzu ve aynı talep matrisi** üzerinde, yalnızca müsaitlik/izin kayıtları farklı olacak biçimde üretilir — kadro büyüklüğü değişmez:
+
+- **Rahat senaryo:** kimse izinli değil, dönem sorunsuz çözülür.
+- **Sıkışık senaryo:** aynı dönemde, kırılgan bir yetkinlik havuzunun (SRS 3.3.6'da tanımlanan vardiya şefi havuzu gibi) bir kısmı izinli gösterilir; kalan kişi sayısı haftalık gereken sayının altına düşer.
+
+Bu ayrımın amacı, SRS 3.3.6'nın anlattığı kırılganlık mekanizmasını (küçük bir havuzda tek bir iznin kapatılamayan boşluk doğurması) somut veriyle göstermek ve S1'in esnek tanımının (kabul kriterindeki "eksik gün/vardiya/sayı gösterimi") gerçek bir örnekte çalıştığını kanıtlamaktır. Farklı kadro büyüklükleri denenmez; değişken yalnızca müsaitliktir.
 
 ---
 
@@ -139,17 +137,17 @@ gereken yaklaşımdır.
 - **Kabul:** Küçük bir örnek (5 personel, 3 gün) uçtan uca çözülüyor ve sonuç `atama` tablosuna yazılıyor.
 
 ### Gün 7 — Ön Kontrol Alt Sistemi
-- SDD 5.2'deki dört kontrolü birebir uygula: dönem geneli kapasite, yetkinlik havuzu, gün bazlı, nokta bazlı.
+- SDD 5.2'deki dört kontrolü birebir uygula: dönem geneli kapasite, yetkinlik havuzu (bireysel izni hesaba katarak — SDD sürüm 1.2'de düzeltildi), gün bazlı, nokta bazlı.
 - `/api/on-kontrol` uç noktası.
-- Sıkışık senaryo üzerinde çalıştırıp gerçekten anlamlı bulgular ürettiğini doğrula.
-- **Kabul:** Sıkışık senaryoda ön kontrol, çözücüyü çalıştırmadan en az bir yapısal engel buluyor; rahat senaryoda hiç bulgu vermiyor.
+- Rahat ve sıkışık senaryoların ikisinde de çalıştır ve sonucu SDD 5.2'nin "gerek koşul, yeter koşul değil" ilkesiyle karşılaştır.
+- **Kabul:** Rahat senaryoda hiç bulgu yok. Sıkışık senaryo, dört kontrolün kapsamına giren bir engel içeriyorsa o engel doğru raporlanıyor; içermiyorsa (mevcut sıkışık senaryomuzdaki gibi zaman-pencereli/haftalık bir açık, SDD 5.2'nin kendi sınırının dışında kalıyorsa) bulgusuzluk beklenen davranıştır — bu durumda gerçek açık Gün 8'deki çözücünün S1 esnek raporlamasıyla ortaya çıkmalı, bu da ayrıca doğrulanmalı. "Ön kontrol her açığı yakalar" diye bir kabul kriteri yoktur; bkz. Ürün Backlog'u B-14.
 
 ### Gün 8 — Çözüm İşi ve Asenkron Yürütme
 - SDD 5.4'teki durum makinesini uygula (Şekil 5.1): kuyrukta → on_kontrol → cozuluyor → tamamlandı/uyarılı/başarısız/iptal.
 - Çözüm işinin ayrı süreçte çalışması (SDD 3.4.4) — bu aşamada basit bir `multiprocessing` veya ayrı komutla tetiklenen süreç yeterli; systemd entegrasyonu Sprint 3'te.
 - `/api/cozum`, `/api/cozum/{id}`, `/api/cozum/{id}/iptal` uç noktaları.
 - Ara çözüm bildirimi: her iyileşen çözümde `en_iyi_ceza` güncellensin.
-- **Kabul:** Çözüm isteği anında iş kimliği döndürüyor; API bu sırada başka isteklere yanıt vermeye devam ediyor (elle test et: çözüm sürerken `/health`'i çağır).
+- **Kabul:** Çözüm isteği anında iş kimliği döndürüyor; API bu sırada başka isteklere yanıt vermeye devam ediyor (elle test et: çözüm sürerken `/health`'i çağır). Ayrıca: sıkışık senaryo çözülüp `kapsama_acigi` tablosunda vardiya şefi havuzunun eksik kaldığı gün/vardiyaların doğru raporlandığı doğrulanıyor — Gün 7'de ön kontrolün yakalayamadığı açığın buradan çıktığını kanıtlayan asıl kontrol budur.
 
 ### Gün 9 — Doğrulama Alt Sistemi
 - SDD 5.5'teki `degisikligi_dogrula` mantığını uygula: etkilenen pencere hesaplama (en geniş kapsamlı kural olan H5'in yedi günü), yalnızca o pencereyi değerlendirme.
