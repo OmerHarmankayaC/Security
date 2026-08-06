@@ -107,13 +107,24 @@ Bu sprintin riski en yüksek olanı: kural kataloğu burada yanlış kurulursa S
 
 ### Gün 4 — Tanım Yönetimi CRUD API'leri
 - SDD Ek B'deki uç noktalardan tanım yönetimi grubu: `/api/personel`, `/api/yetkinlik`, `/api/bina`, `/api/nokta`, `/api/vardiya-tipi`, `/api/talep`, `/api/kural`.
-- SRS FR-1.1–FR-1.14 gereksinimlerini karşıla; özellikle FR-1.9 (yük göstergesi hesaplaması — SDD 3.3.6'daki formülü kullan).
+- SRS FR-1.1–FR-1.14 gereksinimlerini karşıla; özellikle FR-1.9 (yük göstergesi hesaplaması — SRS 3.3.6'daki formülü kullan).
 - Depo katmanı (repository) deseni: SQL yalnızca bu katmanda.
 - **Kabul:** Her uç nokta için mutlu yol testi; Postman/HTTPie ile personel + yetkinlik + görev noktası + talep zinciri elle kurulabiliyor.
 
+### Demo Veri Stratejisi
+"Rahat" ve "sıkışık" senaryolar, farklı kadro büyüklükleriyle değil, **aynı personel
+havuzu ve aynı talep matrisi üzerinde yalnızca izin/müsaitlik kayıtları farklı olan
+iki ayrı dönem** olarak kurulur. "Rahat" dönemde izin kaydı yoktur (kadro talebi
+rahatlıkla karşılar); "sıkışık" dönemde, SRS 3.3.6'nın anlattığı kırılganlık
+mekanizmasını birebir tekrarlayacak biçimde (örn. 5 kişilik bir havuzda tek bir
+iznin dahi kapanamayan boşluk doğurması), kritik bir yetkinlik havuzunun bir kısmı
+aynı tarih aralığında izinli gösterilir. Bu, "sıkışık (izinler girince kapsama açığı
+doğuran)" tanımıyla birebir örtüşür ve Gün 5'teki demo veri betiğinin uygulaması
+gereken yaklaşımdır.
+
 ### Gün 5 — Demo Veri Üreteci ve Sprint 1 Checkpoint
-- SDD 3.3'teki güvenlik personeli senaryosunu üreten bir betik: ~44 personel, üç yetkinlik dağılımı, SDD 3.3.4'teki talep matrisi.
-- İki senaryo (Backlog'daki demo veri stratejisi): "rahat" (kadro yeterli) ve "sıkışık" (izinler girince kapsama açığı doğuran).
+- SRS 3.3'teki güvenlik personeli senaryosunu üreten bir betik: ~44 personel, üç yetkinlik dağılımı, SRS 3.3.4'teki talep matrisi.
+- İki senaryo (yukarıdaki "Demo Veri Stratejisi"): "rahat" (kadro yeterli) ve "sıkışık" (izinler girince kapsama açığı doğuran).
 - Çözücü-doğrulayıcı uyum testinin iskeletini kur (henüz gerçek çözücü yok, elle üretilmiş rastgele geçerli atamalarla test et).
 - **Kabul (Sprint 1 çıkışı):** Tanım yönetimi ekranından bağımsız olarak, API üzerinden tam bir personel/yetkinlik/nokta/talep kümesi kurulabiliyor; demo veri betiği tek komutla iki senaryoyu da veritabanına yazabiliyor; on altı kuralın `dogrula` tarafı test kapsamında.
 
@@ -155,6 +166,11 @@ Bu sprintin riski en yüksek olanı: kural kataloğu burada yanlış kurulursa S
 - SDD 5.6'daki `yeniden_coz` akışını uygula: taslak türetme, kilitli atamaların sabitlenmesi, S8'in taban atamaları.
 - Sürüm durumu geçişleri (taslak → çözüldü → yayınlandı → arşiv, SRS TD-8).
 - **Kabul (Sprint 2 çıkışı):** Rahat senaryo uçtan uca çözülüyor; sıkışık senaryo ön kontrolde doğru engelleri gösteriyor ve yine de bir çizelge üretip kapsama açığını raporluyor; yayınlanmış bir sürümden yeni izinle yeniden çözüm alınıp değişen atama sayısı görülebiliyor.
+
+### Ek Görev — S1–S8+S6b Uyum Testi Genişletmesi (Sprint 2 sonu, Gün 11'den sonra)
+- Gün 6'daki çözücü-doğrulayıcı uyum testi (`test_cozucu_uctan_uca.py`) şu ana kadar yalnızca H1–H8'i kapsıyor; bunu S1–S8+S6b'yi de içerecek şekilde genişlet — çözücünün ürettiği çizelgede, S-kurallarının `dogrula` tarafının hesapladığı ceza dökümüyle `modele_ekle`'nin amaç fonksiyonuna kattığı ceza tutarlı olmalı.
+- Bu genişletme sırasında Gün 6'da not düşülen S4 birim tutarsızlığını (`modele_ekle` dakika, `dogrula` saat biriminde ceza üretiyor) düzelt — ikisi aynı birimi kullanmalı.
+- **Kabul:** S1–S8+S6b'nin tamamı için, çözücü çıktısı üzerinde `dogrula`'nın hesapladığı toplam ceza ile `modele_ekle`'nin amaç fonksiyonuna kattığı (ağırlıksız) ceza birbiriyle tutarlı; S4 artık tek bir birimde raporlanıyor.
 
 ---
 

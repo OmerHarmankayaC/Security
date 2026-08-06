@@ -633,6 +633,36 @@ kullanım biçimini tek yapıda birleştiren bir yorum.
 
 **Kalan / ertelenen:** Yok — Gün 6 kapsamındaki tüm maddeler tamamlandı.
 
+---
+
+## 2026-08-06 — Gün 6 incelemesi ve UYGULAMA_PLANI.md düzeltmeleri
+
+Kullanıcı Gün 6'yı onayladı. Ayrıca, Gün 4 ve Gün 5'te bu oturumlarda
+tespit edilip doğrulanamayan iki doküman referansı UYGULAMA_PLANI.md'de
+düzeltildi (kullanıcı tarafından, plan dosyasının kendisinde):
+
+- Gün 4: "SDD 3.3.6" → "SRS 3.3.6" (tespitim doğruymuş).
+- Gün 5: "Backlog'daki demo veri stratejisi" referansı kaldırıldı; strateji
+  hiç yazılmamıştı. Şimdi UYGULAMA_PLANI.md'de doğrudan bir "Demo Veri
+  Stratejisi" başlığı altında tanımlı (Gün 5'te bulduğum yorum — aynı
+  roster, yalnızca izin farkı — doğrulandı ve kalıcı hale getirildi).
+
+Bu düzeltmeler bu oturumda dosyaya işlendi.
+
+Ayrıca üç not/karar:
+1. **Yeni görev eklendi** (UYGULAMA_PLANI.md, Sprint 2 sonu, Gün 11'den
+   sonra Gün 12'den önce): "S1–S8+S6b Uyum Testi Genişletmesi" —
+   `test_cozucu_uctan_uca.py`'deki uyum testi şu an yalnızca H1–H8'i
+   kapsıyor; S1–S8+S6b'nin çözücü çıktısı üzerinde `dogrula` ile
+   `modele_ekle`'nin amaç fonksiyonu katkısının tutarlı olduğu da
+   doğrulanmalı. Bu görev henüz yapılmadı, Gün 11'den sonra ele alınacak.
+2. Bu genişletme sırasında Gün 6'da not düşülen **S4 birim tutarsızlığı**
+   (`modele_ekle` dakika, `dogrula` saat) da düzeltilecek — henüz
+   düzeltilmedi.
+3. H2'nin `vardiya_ciftleri`/`gun_ciftleri` N² taraması şimdilik olduğu
+   gibi bırakılacak; Gün 14'teki 40×28 referans performans testinde
+   yavaş çıkarsa ilk bakılacak yer burası (henüz dokunulmadı).
+
 **Sıradaki oturumun ilk işi:** Sprint 2, Gün 7 — Ön Kontrol Alt Sistemi.
 SDD 5.2'deki dört kontrolü (dönem geneli kapasite, yetkinlik havuzu, gün
 bazlı, nokta bazlı) birebir uygula; `/api/on-kontrol` uç noktası. Sıkışık
