@@ -10,6 +10,8 @@ calismasini saglar.
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
+from itertools import product
+from typing import Any
 
 from app.models.girdi import MusaitlikDilimi, TercihTipi
 
@@ -83,6 +85,11 @@ class Baglam:
     tercihler: list[TercihKaydi] = field(default_factory=list)
     # Yalniz yeniden cozum dogrulamasinda dolu olur (S8); normalde None.
     onceki_atamalar: list[AtamaKaydi] | None = None
+    # Asagidaki iki alan yalniz model kurma sirasinda (model_kur) doldurulur;
+    # dogrula cagrilarinda bos kalir (SDD 5.3: "baglam <- Baglam(tanimlar,
+    # donem, zaman_ekseni, y)").
+    zaman_ekseni: list[date] = field(default_factory=list)
+    y: dict[tuple[int, date, int], Any] = field(default_factory=dict)
 
     def vardiya_araligi(self, tarih: date, vardiya_tipi_id: int) -> tuple[datetime, datetime]:
         """Vardiyanin mutlak baslangic/bitis zamani (TD-1: vardiya baslangic gunune yazilir)."""
@@ -95,15 +102,27 @@ class Baglam:
 
     def saat_farki(self, onceki: AtamaKaydi, sonraki: AtamaKaydi) -> float:
         """onceki vardiyanin bitisiyle sonraki vardiyanin baslangici arasindaki saat farki (H2)."""
-        _, onceki_bitis = self.vardiya_araligi(onceki.tarih, onceki.vardiya_tipi_id)
-        sonraki_baslangic, _ = self.vardiya_araligi(sonraki.tarih, sonraki.vardiya_tipi_id)
-        return (sonraki_baslangic - onceki_bitis).total_seconds() / 3600
+        return self.saat_farki_ham(
+            onceki.tarih, onceki.vardiya_tipi_id, sonraki.tarih, sonraki.vardiya_tipi_id
+        )
+
+    def saat_farki_ham(self, g1: date, v1: int, g2: date, v2: int) -> float:
+        """saat_farki'nin ham (gun, vardiya) argumanlariyla calisan hali; model kurarken
+        (Ek A H2 ornegi: `baglam.saat_farki(g1, v1, g2, v2)`) AtamaKaydi'ya ihtiyac duymadan
+        kullanilir."""
+        _, bitis1 = self.vardiya_araligi(g1, v1)
+        baslangic2, _ = self.vardiya_araligi(g2, v2)
+        return (baslangic2 - bitis1).total_seconds() / 3600
 
     def gece_mi(self, vardiya_tipi_id: int) -> bool:
         return self.vardiya_tipleri[vardiya_tipi_id].gece_mi
 
     def sure_saat(self, vardiya_tipi_id: int) -> float:
         return self.vardiya_tipleri[vardiya_tipi_id].sure_saat
+
+    def sure_dakika(self, vardiya_tipi_id: int) -> int:
+        """CP-SAT tamsayi katsayi gerektirdigi icin sure_saat'in dakika cinsinden tam sayisi."""
+        return int(self.vardiya_tipleri[vardiya_tipi_id].sure_saat * 60)
 
     def musait_mi(self, atama: AtamaKaydi) -> bool:
         """H7: aktiflik araligi disi veya musaitlik kaydiyla kesisme durumunda musait degildir."""
@@ -146,6 +165,31 @@ class Baglam:
         if self.donem_baslangic is None or self.donem_bitis is None:
             return True
         return self.donem_baslangic <= tarih <= self.donem_bitis
+
+    @property
+    def donem_gunleri(self) -> list[date]:
+        """Yalniz planlama donemi gunleri (isitma penceresi haric); esnek hedeflerin
+        cogu (S1-S7) TD-6'daki adalet ufku ilkesiyle tutarli olarak bu listeyi kullanir."""
+        if self.donem_baslangic is None or self.donem_bitis is None:
+            return list(self.zaman_ekseni)
+        return [g for g in self.zaman_ekseni if self.donem_baslangic <= g <= self.donem_bitis]
+
+    @property
+    def gece_vardiyalari(self) -> frozenset[int]:
+        return frozenset(v for v, vt in self.vardiya_tipleri.items() if vt.gece_mi)
+
+    @property
+    def vardiya_ciftleri(self) -> list[tuple[int, int]]:
+        """Model kurarken (H2) taranacak tum (v1, v2) vardiya tipi ciftleri (Ek A)."""
+        return list(product(self.vardiya_tipleri, self.vardiya_tipleri))
+
+    @property
+    def gun_ciftleri(self) -> list[tuple[date, date]]:
+        """Model kurarken (H2) taranacak tum (g1, g2) gun ciftleri (Ek A).
+
+        zaman_ekseni'nin ardisik takvim gunlerinden olusan sirali bir liste
+        oldugu varsayilir (model_kur bunu boyle kurar)."""
+        return list(product(self.zaman_ekseni, self.zaman_ekseni))
 
 
 def _gun_araligi(baslangic: date, bitis: date) -> Iterable[date]:

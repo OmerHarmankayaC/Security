@@ -1,0 +1,74 @@
+"""SDD 5.3 FONKSIYON model_kur()'un birebir uygulamasi.
+
+Model kurucu, kural katalogunu CP-SAT modeline donusturur. Kurallarin
+kendisi modele nasil ekleneceklerini bildigi icin bu fonksiyon kural
+tiplerinden habersizdir; yalnizca karar degiskenlerini olusturur ve
+kurallara sirayla devreder.
+"""
+
+from datetime import date
+
+from ortools.sat.python import cp_model
+
+from app.kurallar.baglam import AtamaKaydi, Baglam
+from app.kurallar.temel import Kural, XAnahtari
+
+
+def model_kur(
+    baglam: Baglam,
+    zaman_ekseni: list[date],
+    kurallar: list[Kural],
+    isitma_penceresi_atamalari: list[AtamaKaydi] | None = None,
+) -> tuple[cp_model.CpModel, dict[XAnahtari, cp_model.IntVar], Baglam]:
+    """SDD 5.3: model, x <- model_kur(donem, tanimlar, kurallar, isitma_penceresi).
+
+    zaman_ekseni, isitma penceresi + donem gunlerinin ardisik takvim
+    gunlerinden olusan birlesik listesidir (caller'in sorumlulugu, SDD
+    TD-5). baglam onceden tanim/girdi/talep verisiyle kurulmus olmali;
+    bu fonksiyon onun uzerine zaman_ekseni ve y alanlarini doldurur.
+    """
+    model = cp_model.CpModel()
+    baglam.zaman_ekseni = list(zaman_ekseni)
+
+    x: dict[XAnahtari, cp_model.IntVar] = {}
+    for p in baglam.personel:
+        for g in zaman_ekseni:
+            for v in baglam.vardiya_tipleri:
+                for n, nokta in baglam.gorev_noktalari.items():
+                    if baglam.gereken_sayi(g, v, n) == 0:
+                        continue
+                    if nokta.onkosul_yetkinlik_id is not None and not baglam.yetkin_mi(
+                        p, nokta.onkosul_yetkinlik_id
+                    ):
+                        continue
+                    if not baglam.musait_mi(AtamaKaydi(p, g, v, n)):
+                        continue
+                    x[(p, g, v, n)] = model.new_bool_var(f"x_p{p}_g{g}_v{v}_n{n}")
+
+    isitma_kumesi = {
+        (a.personel_id, a.tarih, a.vardiya_tipi_id, a.nokta_id)
+        for a in (isitma_penceresi_atamalari or [])
+    }
+    for anahtar in isitma_kumesi:
+        if anahtar in x:
+            model.add(x[anahtar] == 1)
+        # Anahtar x'te yoksa (ör. talep artik sifir), isitma penceresindeki
+        # bu tarihi gecmis, degistirilemez bir atama zaten sabitlenecek bir
+        # karar degiskeni gerektirmiyor demektir; sessizce atlanir.
+
+    y: dict[tuple[int, date, int], cp_model.LinearExprT] = {}
+    for p in baglam.personel:
+        for g in zaman_ekseni:
+            for v in baglam.vardiya_tipleri:
+                ilgili = [x[(p, g, v, n)] for n in baglam.gorev_noktalari if (p, g, v, n) in x]
+                y[(p, g, v)] = sum(ilgili) if ilgili else 0
+    baglam.y = y
+
+    ceza_terimleri = []
+    for kural in kurallar:
+        terim = kural.modele_ekle(model, x, baglam)
+        if terim is not None:
+            ceza_terimleri.append(kural.agirlik * terim)
+    model.minimize(sum(ceza_terimleri) if ceza_terimleri else 0)
+
+    return model, x, baglam

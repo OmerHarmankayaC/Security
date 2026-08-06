@@ -11,9 +11,11 @@ from collections.abc import Callable
 from datetime import date, timedelta
 from math import ceil, floor
 
+from ortools.sat.python import cp_model
+
 from app.kurallar.baglam import AtamaKaydi, Baglam
 from app.kurallar.kayit_defteri import kayitli
-from app.kurallar.temel import EsnekHedef, Ihlal
+from app.kurallar.temel import EsnekHedef, Ihlal, XAnahtari
 from app.kurallar.yardimcilar import calisilan_gunler
 from app.models.girdi import TercihTipi
 
@@ -21,6 +23,32 @@ from app.models.girdi import TercihTipi
 @kayitli("S1")
 class S1TalepKarsilama(EsnekHedef):
     """Nokta bazinda kapsama acigi: baskin agirlikli, alt sinir esnek hedef."""
+
+    def modele_ekle(
+        self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
+    ) -> cp_model.LinearExprT:
+        """SRS S1: ust sinir (kadro) zorunlu, alt sinir (kapsama) esnek — ikisi de burada
+        eklenir; ust sinir zorunlu olmasina ragmen model_kur onceden atlama kosuluyla
+        Σ_p x <= talep'i degil, talebi asan fazladan atama uretilmesini engellemez, o
+        yuzden bu kisit ayrica eklenir."""
+        eksik_terimleri: list[cp_model.IntVar] = []
+        for g in baglam.donem_gunleri:
+            for v in baglam.vardiya_tipleri:
+                for n in baglam.gorev_noktalari:
+                    gereken = baglam.gereken_sayi(g, v, n)
+                    if gereken == 0:
+                        continue
+                    ilgili = [
+                        degiskenler[(p, g, v, n)]
+                        for p in baglam.personel
+                        if (p, g, v, n) in degiskenler
+                    ]
+                    atanan_ifadesi = sum(ilgili) if ilgili else 0
+                    model.add(atanan_ifadesi <= gereken)
+                    eksik = model.new_int_var(0, gereken, f"s1_eksik_g{g}_v{v}_n{n}")
+                    model.add(atanan_ifadesi + eksik >= gereken)
+                    eksik_terimleri.append(eksik)
+        return sum(eksik_terimleri) if eksik_terimleri else 0
 
     def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
         atanan = Counter((a.tarih, a.vardiya_tipi_id, a.nokta_id) for a in atamalar)
@@ -46,6 +74,25 @@ class S1TalepKarsilama(EsnekHedef):
 class S2GeceAdaleti(EsnekHedef):
     """Kisi basina gece vardiyasi sayisinin donem hedefinden sapmasi (SDD Ek A ornegi)."""
 
+    def modele_ekle(
+        self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
+    ) -> cp_model.LinearExprT:
+        """SDD Ek A'daki S2 ornegiyle birebir."""
+        gunler = baglam.donem_gunleri
+        ust_sinir = len(gunler)
+        gece_sayisi = {
+            p: sum(baglam.y[(p, g, v)] for g in gunler for v in baglam.gece_vardiyalari)
+            for p in baglam.personel
+        }
+        if not gece_sayisi:
+            return 0
+        enb = model.new_int_var(0, ust_sinir, "s2_enb")
+        enk = model.new_int_var(0, ust_sinir, "s2_enk")
+        for p in baglam.personel:
+            model.add(gece_sayisi[p] <= enb)
+            model.add(gece_sayisi[p] >= enk)
+        return enb - enk
+
     def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
         return _adalet_sapmasi_ihlalleri(
             kural_kimlik=self.kimlik,
@@ -61,6 +108,25 @@ class S2GeceAdaleti(EsnekHedef):
 class S3HaftaSonuAdaleti(EsnekHedef):
     """Kisi basina hafta sonu/resmi tatil vardiyasi sayisinin hedeften sapmasi (TD-3)."""
 
+    def modele_ekle(
+        self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
+    ) -> cp_model.LinearExprT:
+        """S2 ile ayni formulasyon; gece[s] yerine hs[d] kullanilir (SRS S3)."""
+        hs_gunleri = [g for g in baglam.donem_gunleri if baglam.hafta_sonu_mu(g)]
+        ust_sinir = len(hs_gunleri) * max(len(baglam.vardiya_tipleri), 1)
+        hs_sayisi = {
+            p: sum(baglam.y[(p, g, v)] for g in hs_gunleri for v in baglam.vardiya_tipleri)
+            for p in baglam.personel
+        }
+        if not hs_sayisi:
+            return 0
+        enb = model.new_int_var(0, ust_sinir, "s3_enb")
+        enk = model.new_int_var(0, ust_sinir, "s3_enk")
+        for p in baglam.personel:
+            model.add(hs_sayisi[p] <= enb)
+            model.add(hs_sayisi[p] >= enk)
+        return enb - enk
+
     def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
         return _adalet_sapmasi_ihlalleri(
             kural_kimlik=self.kimlik,
@@ -74,7 +140,34 @@ class S3HaftaSonuAdaleti(EsnekHedef):
 
 @kayitli("S4")
 class S4ToplamSaatDengesi(EsnekHedef):
-    """Kisi basina toplam saatin, kisisel donemlik hedeften mutlak sapmasi."""
+    """Kisi basina toplam saatin, kisisel donemlik hedeften mutlak sapmasi.
+
+    Not: modele_ekle CP-SAT'in tamsayi kisiti geregi dakika biriminde hesaplar,
+    dogrula ise saat biriminde (bkz. asagidaki not, PROGRESS.md Sprint 2 Gun 6);
+    optimizasyon sonucunu etkilemez (60 ile sabit olcekleme), yalnizca raporlanan
+    ham ceza buyuklugu iki tarafta farkli birimde olur.
+    """
+
+    def modele_ekle(
+        self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
+    ) -> cp_model.LinearExprT:
+        donem_gun_sayisi = len(baglam.donem_gunleri)
+        azami_vardiya_dk = max((baglam.sure_dakika(v) for v in baglam.vardiya_tipleri), default=0)
+        ust_sinir = donem_gun_sayisi * azami_vardiya_dk
+        terimler: list[cp_model.IntVar] = []
+        for p, personel in baglam.personel.items():
+            saat_dk = sum(
+                baglam.sure_dakika(v) * baglam.y[(p, g, v)]
+                for g in baglam.donem_gunleri
+                for v in baglam.vardiya_tipleri
+            )
+            hedef_dk = round(float(personel.haftalik_hedef_saat) * 60 * donem_gun_sayisi / 7)
+            fark = model.new_int_var(-ust_sinir, ust_sinir, f"s4_fark_p{p}")
+            model.add(fark == saat_dk - hedef_dk)
+            mutlak = model.new_int_var(0, ust_sinir, f"s4_abs_p{p}")
+            model.add_abs_equality(mutlak, fark)
+            terimler.append(mutlak)
+        return sum(terimler) if terimler else 0
 
     def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
         donem_gun_sayisi = _donem_gun_sayisi(baglam)
@@ -106,6 +199,25 @@ class S4ToplamSaatDengesi(EsnekHedef):
 class S5TercihKarsilama(EsnekHedef):
     """Onaylanmis tercihlerin ihlal edilip edilmedigi (Baglam'a yalnizca onaylananlar girer)."""
 
+    def modele_ekle(
+        self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
+    ) -> cp_model.LinearExprT:
+        terimler = []
+        for tercih in baglam.tercihler:
+            if tercih.tip == TercihTipi.CALISMAMA:
+                ihlal = sum(
+                    baglam.y.get((tercih.personel_id, tercih.tarih, v), 0)
+                    for v in baglam.vardiya_tipleri
+                )
+            else:
+                ihlal = sum(
+                    baglam.y.get((tercih.personel_id, tercih.tarih, v), 0)
+                    for v in baglam.vardiya_tipleri
+                    if v != tercih.vardiya_tipi_id
+                )
+            terimler.append(ihlal)
+        return sum(terimler) if terimler else 0
+
     def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
         gunluk_atama: dict[tuple[int, date], AtamaKaydi] = {
             (a.personel_id, a.tarih): a for a in atamalar
@@ -136,6 +248,27 @@ class S5TercihKarsilama(EsnekHedef):
 class S6VardiyaDeseniTutarliligi(EsnekHedef):
     """Ardisik gunlerde vardiya tipi degisimi. Bina tutarliligi S6b'de ayri degerlendirilir."""
 
+    def modele_ekle(
+        self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
+    ) -> cp_model.LinearExprT:
+        """degisim[p,d] >= y[p,d,v1] + y[p,d+1,v2] - 1 (v1 != v2): amac fonksiyonunda
+        yalnizca pozitif katkili oldugu icin alt sinirlamak yeterlidir (minimize edilen
+        bir degisken, gereksiz yere yuksek tutulmaz)."""
+        gunler = baglam.donem_gunleri
+        terimler = []
+        for p in baglam.personel:
+            for g, g_sonraki in zip(gunler, gunler[1:], strict=False):
+                for v1 in baglam.vardiya_tipleri:
+                    for v2 in baglam.vardiya_tipleri:
+                        if v1 == v2:
+                            continue
+                        gosterge = model.new_bool_var(f"s6_p{p}_g{g}_{v1}_{v2}")
+                        model.add(
+                            gosterge >= baglam.y[(p, g, v1)] + baglam.y[(p, g_sonraki, v2)] - 1
+                        )
+                        terimler.append(gosterge)
+        return sum(terimler) if terimler else 0
+
     def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
         return [
             Ihlal(
@@ -158,6 +291,37 @@ class S6bBinaTutarliligi(EsnekHedef):
     formulasyonundaki iki ayri agirlik (w6, w6b) bu yuzden iki ayri kural kaydina
     bolunmustur (bkz. PROGRESS.md, Sprint 1 Gun 3/4).
     """
+
+    def modele_ekle(
+        self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
+    ) -> cp_model.LinearExprT:
+        """S6 ile ayni alt-sinirlama deseni; y yerine x kullanilir cunku bina bilgisi
+        noktaya (n) bagli olup y toplaminda kaybolur."""
+        gunler = baglam.donem_gunleri
+        terimler = []
+        for p in baglam.personel:
+            for g, g_sonraki in zip(gunler, gunler[1:], strict=False):
+                for v1 in baglam.vardiya_tipleri:
+                    for n1, nokta1 in baglam.gorev_noktalari.items():
+                        if (p, g, v1, n1) not in degiskenler or nokta1.bina_id is None:
+                            continue
+                        for v2 in baglam.vardiya_tipleri:
+                            for n2, nokta2 in baglam.gorev_noktalari.items():
+                                if (
+                                    (p, g_sonraki, v2, n2) not in degiskenler
+                                    or nokta2.bina_id is None
+                                    or nokta1.bina_id == nokta2.bina_id
+                                ):
+                                    continue
+                                gosterge = model.new_bool_var(f"s6b_p{p}_g{g}_{n1}_{n2}")
+                                model.add(
+                                    gosterge
+                                    >= degiskenler[(p, g, v1, n1)]
+                                    + degiskenler[(p, g_sonraki, v2, n2)]
+                                    - 1
+                                )
+                                terimler.append(gosterge)
+        return sum(terimler) if terimler else 0
 
     def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
         ihlaller: list[Ihlal] = []
@@ -203,6 +367,24 @@ def _ardisik_gun_ciftleri(
 @kayitli("S7")
 class S7IzoleGun(EsnekHedef):
     """Tek gunluk calisma bloklari ve tek gunluk izinler."""
+
+    def modele_ekle(
+        self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
+    ) -> cp_model.LinearExprT:
+        gunler = baglam.donem_gunleri
+        if len(gunler) < 3:
+            return 0
+        terimler = []
+        for p in baglam.personel:
+            calisti = {g: sum(baglam.y[(p, g, v)] for v in baglam.vardiya_tipleri) for g in gunler}
+            for i in range(1, len(gunler) - 1):
+                g, onceki, sonraki = gunler[i], gunler[i - 1], gunler[i + 1]
+                izole_calisma = model.new_bool_var(f"s7_calisma_p{p}_g{g}")
+                model.add(izole_calisma >= calisti[g] - calisti[onceki] - calisti[sonraki] + 1)
+                izole_izin = model.new_bool_var(f"s7_izin_p{p}_g{g}")
+                model.add(izole_izin >= -calisti[g] + calisti[onceki] + calisti[sonraki] - 1)
+                terimler.extend([izole_calisma, izole_izin])
+        return sum(terimler) if terimler else 0
 
     def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
         aralik = _bilinen_aralik(atamalar, baglam)
@@ -253,6 +435,26 @@ class S7IzoleGun(EsnekHedef):
 @kayitli("S8")
 class S8DegisimMinimizasyonu(EsnekHedef):
     """Yeniden cozumde onceki cizelgeden sapan her atama (yalniz baglam.onceki_atamalar doluysa)."""
+
+    def modele_ekle(
+        self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
+    ) -> cp_model.LinearExprT:
+        """Ceza: Σ|x[p,d,s,n] - x_onceki[p,d,s,n]| (SRS S8). x_onceki sabit (0/1)
+        oldugundan |x-onceki| = onceki ise (1-x), degilse x'tir; kilitli atamalar
+        model_kur'da zaten x=1 sabitlendigi icin bu terim onlar icin daima 0'dir."""
+        if baglam.onceki_atamalar is None:
+            return 0
+        onceki_kume = {
+            (a.personel_id, a.tarih, a.vardiya_tipi_id, a.nokta_id) for a in baglam.onceki_atamalar
+        }
+        terimler: list[cp_model.LinearExprT] = []
+        for anahtar, x_degiskeni in degiskenler.items():
+            terimler.append(1 - x_degiskeni if anahtar in onceki_kume else x_degiskeni)
+        # onceki cizelgede olup bu modelde artik karsiligi olmayan (talep/yetkinlik
+        # degismis) atamalar icin de bir birim ceza eklenir; onlar hicbir x'e denk
+        # gelmedigi icin yukaridaki dongude sayilmazlar.
+        kaybolanlar = sum(1 for anahtar in onceki_kume if anahtar not in degiskenler)
+        return sum(terimler) + kaybolanlar if terimler or kaybolanlar else 0
 
     def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
         if baglam.onceki_atamalar is None:

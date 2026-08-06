@@ -329,10 +329,29 @@ def test_s8_ayni_cizelgede_ceza_uretmez(baglam: Baglam) -> None:
     assert kural.dogrula(atamalar, baglam) == []
 
 
-def test_esnek_kural_modele_ekle_henuz_uygulanmadi(baglam: Baglam) -> None:
+def test_s1_modele_ekle_karsilanamayan_talep_icin_eksigi_zorunlu_kilar(baglam: Baglam) -> None:
+    """Talep 2, tek bir aday personel varken S1'in eksik degiskenini >=1'e zorladigini
+    ve fazla atamayi (ust sinir) engelledigini dogrular (Sprint 2 Gun 6)."""
+    from ortools.sat.python import cp_model
+
+    model = cp_model.CpModel()
+    gun = date(2026, 1, 5)
+    x1 = model.new_bool_var("x1")
+    degiskenler = {(1, gun, GUNDUZ, KAPI): x1}
+    baglam.zaman_ekseni = [gun]
+    baglam.donem_baslangic = gun
+    baglam.donem_bitis = gun
+    baglam.talep[(gun, GUNDUZ, KAPI)] = 2
+
     kural = S1TalepKarsilama(parametreler={})
-    with pytest.raises(NotImplementedError):
-        kural.modele_ekle(model=None, degiskenler=None, baglam=baglam)
+    terim = kural.modele_ekle(model, degiskenler, baglam)
+    model.add(x1 == 1)
+    model.minimize(terim)
+
+    cozucu = cp_model.CpSolver()
+    durum = cozucu.solve(model)
+    assert durum == cp_model.OPTIMAL
+    assert cozucu.objective_value == 1
 
 
 def test_kayit_defterinde_s1_s8_ve_s6b_tamami_bulunur() -> None:

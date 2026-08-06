@@ -530,3 +530,114 @@ A'daki H2/S2 sözde kod örneklerini ve `app/kurallar/temel.py`'deki
 `CezaTerimi`/`modele_ekle` imzasını tekrar gözden geçir. `ortools` sürüm
 notunu (Sprint 0'da 9.14.6206'ya çıkılmıştı) hatırda tut — SDD 5.3'teki
 sözde kodla bu sürümün gerçek Python API'si arasında fark çıkarsa not düş.
+
+---
+
+## 2026-08-06 — Sprint 2, Gün 6: Çözücü Adaptörü ve Model Kurma
+
+**Önemli mimari netleştirme (SDD Ek A'nın iki farklı `Baglam` kullanım
+biçimi):** Ek A'daki H2 örneği `baglam.saat_farki(g1, v1, g2, v2)`'yi dört
+ham argümanla, S2 örneği `y[p,g,v]`'yi doğrudan (parametre olarak
+geçirilmeden) kullanıyor. Bunu, `model_kur`'un kendi sözde kodundaki
+`baglam ← Baglam(tanımlar, donem, zaman_ekseni, y)` satırıyla birleştirip
+şöyle çözdüm: **tek bir `Baglam` sınıfı**, hem dogrula'nın (Sprint 1)
+somut-atama-listesi üzerinde çalışan yüzeyini hem de model kurmanın karar-
+değişkeni-üzerinde-enumerasyon yüzeyini taşıyor. `Baglam`'a eklenenler:
+`zaman_ekseni`, `y` (yalnız model kurarken dolar), `donem_gunleri`,
+`gece_vardiyalari`, `vardiya_ciftleri`, `gun_ciftleri`, `saat_farki_ham`,
+`sure_dakika`. Bu, "iki yorumlayıcı da aynı kural nesnesinden beslenir"
+ilkesini genişletilmiş biçimde koruyor — tasarımdan sapma değil, iki
+kullanım biçimini tek yapıda birleştiren bir yorum.
+
+**Tamamlanan:**
+- SDD 5.3 (`model_kur` sözde kodu) ve 5.4'ün (çözüm işi durum makinesi,
+  yalnızca sözlük/arayüz seviyesinde — tam iş orkestrasyonu Gün 8) ilgili
+  kısımları okundu.
+- `app/cozucu/model_kurucu.py`: `model_kur()`, SDD 5.3 ile birebir — üç
+  atlama koşuluyla (talep sıfır / yetkinlik yok / müsait değil) `x[p,g,v,n]`
+  BoolVar'ları, `y[p,g,v]` toplama ifadeleri, ısıtma penceresi
+  atamalarının sabitlenmesi, kurallara sırayla `modele_ekle` çağrısı ve
+  `kural.agirlik × terim` toplamının minimize edilmesi.
+- `app/cozucu/adaptor.py`: `CozucuAdaptoru.coz()` — dar arayüz (SDD 3.2):
+  zaman limiti, arama işçisi sayısı, ara çözüm geri çağırması
+  (`CpSolverSolutionCallback` alt sınıfı), sonucu `CozumSonucu` (durum,
+  atanan anahtarlar, toplam ceza, süre) olarak döndürür.
+- **H1–H8'in tamamına `modele_ekle` eklendi:**
+  - H1: günlük ≤1 atama (doğrudan toplam kısıtı).
+  - H2: Ek A'daki H2 örneğiyle birebir (`vardiya_ciftleri` × `gun_ciftleri`
+    taraması, `saat_farki_ham`).
+  - H3/H4/H5/H6: ortak bir `kayan_pencere_kisiti_ekle()` yardımcısına
+    (yeni, `yardimcilar.py`) çıkarıldı — dördü de "zaman ekseninin her
+    N-günlük penceresinde ağırlıklı y toplamı bir üst sınırı aşamaz"
+    örüntüsünün özel halleri. H5'in saat tavanı, CP-SAT'ın tamsayı katsayı
+    zorunluluğu yüzünden dakika biriminde uygulanıyor (`sure_dakika`).
+  - H7, H8: **bilerek boş** — SDD 5.3'ün kendi metni bunu açıkça söylüyor:
+    "değişken oluşturmadaki üç atlama koşulu... H7 ve H8 kısıtlarının
+    modele ayrıca eklenmesine gerek bırakmaz."
+- **S1–S8+S6b'nin tamamına `modele_ekle` eklendi**, hepsi SRS 4.3/4.4'teki
+  formüllerin doğrudan çevirisi:
+  - S1: alt sınır (`eksik` IntVar) + üst sınır (kadro, doğrudan `model.add`)
+    aynı metotta — SRS'in kendi formülasyonu böyle (zorunlu ve esnek
+    bileşen tek kural içinde).
+  - S2, S3: Ek A'daki S2 örneğiyle birebir (enb/enk aralık değişkenleri).
+  - S4: `add_abs_equality` ile mutlak sapma; dakika biriminde (bkz. birim
+    notu aşağıda).
+  - S5: onaylanmış tercihler üzerinden doğrudan toplam.
+  - S6, S6b: `gösterge ≥ y1 + y2 − 1` alt-sınırlama hilesiyle (amaç
+    fonksiyonunda yalnızca pozitif katkılı bir değişken için üst sınır
+    kısıtına gerek yok — çözücü onu zaten mümkün olduğunca düşük tutar).
+    S6b, bina bilgisi nokta düzeyinde olduğu için `y` yerine `x` kullanıyor.
+  - S7: aynı alt-sınırlama hilesiyle izole çalışma/izin göstergeleri.
+  - S8: `Σ|x-x_önceki|`, önceki değer sabit (0/1) olduğu için doğrudan
+    `x` veya `1-x` toplamına indirgeniyor.
+- **Kural arayüzü sadeleşti:** `ZorunluKural`/`EsnekHedef`'in
+  `NotImplementedError` fırlatan varsayılan `modele_ekle`'leri kaldırıldı
+  — artık her somut kural kendi gerçek uygulamasını taşıyor, `Kural` yine
+  tam soyut (ABC) kalıyor. Bu değişiklik iki eski testi bozdu
+  (`..._modele_ekle_henuz_uygulanmadi`); onları gerçek CP-SAT davranışını
+  doğrulayan testlere çevirdim (H1: iki değişkenin aynı anda 1 olması
+  `INFEASIBLE` veriyor mu; S1: karşılanamayan talepte `eksik` değişkeni
+  amaç fonksiyonunda doğru değere zorlanıyor mu).
+- **Sprint 2 Gün 6 kabul testi**
+  (`tests/test_cozucu_uctan_uca.py`): 5 personel, 3 gün, tek nokta —
+  `model_kur` → `CozucuAdaptoru.coz` → sonucun H1–H8 `dogrula`'dan sıfır
+  ihlalle geçtiği doğrulanıyor (Sprint 1 Gün 5'teki uyum testi iskeletinin
+  gerçek çözücüyle genişletilmiş hali). İkinci bir test, aynı senaryoyu
+  gerçek veritabanı kimlikleriyle kurup çözüp sonucu `atama` tablosuna
+  yazıyor ve geri okuyarak doğruluyor (kabul kriterindeki "sonuç atama
+  tablosuna yazılıyor" ifadesinin birebir karşılığı).
+- Doğrulama: geçici Docker PostgreSQL'de tüm paket (76 test) iki kez
+  ardışık geçti (idempotentlik için DB testinde `uuid` sonekli benzersiz
+  değerler kullanıldı — kural satırları test kapsamında kullanılmadığı
+  için o kısım testten çıkarıldı, ilk denemede tekrar çalıştırmada
+  `kural.kimlik` benzersizlik ihlaline takılmıştı). DB'siz ortamda 65 geçti
+  + 11 atlandı (beklenen).
+- `ruff check`, `ruff format --check` temiz.
+
+**Sapmalar / notlar:**
+- **S4 birim tutarsızlığı:** `modele_ekle` dakika, `dogrula` saat
+  biriminde ceza büyüklüğü üretiyor. Optimizasyon sonucunu etkilemiyor
+  (60 ile sabit ölçekleme), yalnızca ham ceza büyüklüğünün raporlanan
+  değeri iki tarafta farklı birimde. S-kuralları için henüz bir
+  çözücü-doğrulayıcı uyum testi yok (yalnız H-kuralları için var); böyle
+  bir test S-kurallarına genişletilirse bu birim farkı netleştirilmeli.
+- `vardiya_ciftleri`/`gun_ciftleri` (H2) tam N² taraması yapıyor;
+  küçük örneklerde sorun değil, Sprint 3 Gün 14'teki 40×28 referans
+  performans testinde yavaş çıkarsa optimize edilmesi gerekebilir (not
+  düşüldü, şimdilik dokunulmadı — doğruluk önce).
+- S6/S6b ve S7'nin `modele_ekle`'si yalnızca `donem_gunleri` (ısıtma
+  penceresini değil) kapsıyor; ısıtma penceresinden dönemin ilk gününe
+  geçişteki olası desen kırılması bu haliyle değerlendirilmiyor. Bilinçli
+  bir kapsam daraltması (zaman kısıtı), SDD'de bunun tersini söyleyen bir
+  ifade yok.
+
+**Kalan / ertelenen:** Yok — Gün 6 kapsamındaki tüm maddeler tamamlandı.
+
+**Sıradaki oturumun ilk işi:** Sprint 2, Gün 7 — Ön Kontrol Alt Sistemi.
+SDD 5.2'deki dört kontrolü (dönem geneli kapasite, yetkinlik havuzu, gün
+bazlı, nokta bazlı) birebir uygula; `/api/on-kontrol` uç noktası. Sıkışık
+senaryo (Sprint 1 Gün 5'te üretilen demo veri — vardiya şefliği havuzunun
+5'i izinli) üzerinde çalıştırıp gerçekten anlamlı bulgular ürettiğini,
+rahat senaryoda hiç bulgu vermediğini doğrula. Önce SDD 5.2'yi ve demo
+veri betiğindeki iki dönemin (`_RAHAT_BASLANGIC`, `_SIKISIK_BASLANGIC`)
+tarih aralıklarını gözden geçir.

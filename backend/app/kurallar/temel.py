@@ -5,10 +5,15 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any, ClassVar
 
+from ortools.sat.python import cp_model
+
 from app.models.kural import KuralTipi
 
-# CP-SAT ifadesi (ceza terimi); Sprint 2 Gun 6'da CozucuAdaptoru ile somutlasacak (SDD 5.3).
+# CP-SAT ifadesi (ceza terimi); model_kur bunu kural.agirlik ile carpip toplar (SDD 5.3).
 CezaTerimi = Any
+
+# x[p, g, v, n]: personel_id, tarih, vardiya_tipi_id, nokta_id -> CP-SAT BoolVar.
+XAnahtari = tuple[int, date, int, int]
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -39,7 +44,9 @@ class Kural(ABC):
         self.agirlik = agirlik
 
     @abstractmethod
-    def modele_ekle(self, model: Any, degiskenler: Any, baglam: Any) -> CezaTerimi | None: ...
+    def modele_ekle(
+        self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, Any], baglam: Any
+    ) -> CezaTerimi | None: ...
 
     @abstractmethod
     def dogrula(self, atamalar: Any, baglam: Any) -> list[Ihlal]: ...
@@ -48,16 +55,6 @@ class Kural(ABC):
 class ZorunluKural(Kural):
     tip: ClassVar[KuralTipi] = KuralTipi.ZORUNLU
 
-    def modele_ekle(self, model: Any, degiskenler: Any, baglam: Any) -> None:
-        raise NotImplementedError(
-            "CP-SAT model entegrasyonu Sprint 2 Gun 6'da tamamlanacak (SDD 5.3)"
-        )
-
 
 class EsnekHedef(Kural):
     tip: ClassVar[KuralTipi] = KuralTipi.ESNEK
-
-    def modele_ekle(self, model: Any, degiskenler: Any, baglam: Any) -> CezaTerimi:
-        raise NotImplementedError(
-            "CP-SAT model entegrasyonu Sprint 2 Gun 6'da tamamlanacak (SDD 5.3)"
-        )

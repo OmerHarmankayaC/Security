@@ -208,10 +208,29 @@ def test_h8_onkosulsuz_noktada_herkes_calisabilir(baglam: Baglam) -> None:
     assert kural.dogrula(atamalar, baglam) == []
 
 
-def test_zorunlu_kural_modele_ekle_henuz_uygulanmadi(baglam: Baglam) -> None:
+def test_h1_modele_ekle_ayni_gune_iki_atamayi_engeller(baglam: Baglam) -> None:
+    """H1'in gercek CP-SAT kisitinin, ayni gun icin iki degiskeni de 1 yapmayi
+    imkansiz kildigini dogrular (Sprint 2 Gun 6)."""
+    from ortools.sat.python import cp_model
+
+    model = cp_model.CpModel()
+    gun = date(2026, 1, 5)
+    x1 = model.new_bool_var("x1")
+    x2 = model.new_bool_var("x2")
+    degiskenler = {
+        (1, gun, GUNDUZ, KAPI): x1,
+        (1, gun, AKSAM, KAPI): x2,
+    }
+    baglam.zaman_ekseni = [gun]
+
     kural = H1GundeBirVardiya(parametreler={})
-    with pytest.raises(NotImplementedError):
-        kural.modele_ekle(model=None, degiskenler=None, baglam=baglam)
+    assert kural.modele_ekle(model, degiskenler, baglam) is None
+
+    model.add(x1 == 1)
+    model.add(x2 == 1)
+    cozucu = cp_model.CpSolver()
+    durum = cozucu.solve(model)
+    assert durum == cp_model.INFEASIBLE
 
 
 def test_kayit_defterinde_h1_h8_tamami_bulunur() -> None:

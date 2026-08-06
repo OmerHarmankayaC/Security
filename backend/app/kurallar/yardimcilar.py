@@ -1,8 +1,10 @@
-"""H1-H8 dogrula metotlarinin paylastigi kucuk yardimci fonksiyonlar."""
+"""H1-H8 dogrula ve modele_ekle metotlarinin paylastigi kucuk yardimci fonksiyonlar."""
 
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from datetime import date, timedelta
+
+from ortools.sat.python import cp_model
 
 from app.kurallar.baglam import AtamaKaydi, Baglam
 from app.kurallar.temel import Ihlal
@@ -106,11 +108,35 @@ def kayan_pencere_ihlalleri(
     return ihlaller
 
 
+def kayan_pencere_kisiti_ekle(
+    model: cp_model.CpModel,
+    baglam: Baglam,
+    *,
+    pencere_uzunlugu: int,
+    vardiyalar: Iterable[int],
+    agirlik_fn: Callable[[int], int],
+    ust_sinir: int,
+) -> None:
+    """H3, H4, H5, H6'nin ortak deseni: zaman_ekseninin her N-gunluk ardisik
+    penceresinde, verilen vardiya alt kumesi uzerinden agirlikli y toplami
+    bir ust siniri asamaz. zaman_ekseninin ardisik takvim gunlerinden olustugu
+    varsayilir (model_kur bunu boyle kurar).
+    """
+    gunler = baglam.zaman_ekseni
+    vardiyalar = list(vardiyalar)
+    for i in range(len(gunler) - pencere_uzunlugu + 1):
+        pencere = gunler[i : i + pencere_uzunlugu]
+        for p in baglam.personel:
+            toplam = sum(agirlik_fn(v) * baglam.y[(p, g, v)] for g in pencere for v in vardiyalar)
+            model.add(toplam <= ust_sinir)
+
+
 __all__ = [
     "ardisik_kosu_ihlalleri",
     "calisilan_gunler",
     "gece_calisilan_gunler",
     "gunluk_saat",
     "kayan_pencere_ihlalleri",
+    "kayan_pencere_kisiti_ekle",
     "personel_bazinda_sirali",
 ]
