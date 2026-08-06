@@ -24,6 +24,12 @@ class CizelgeSurumuDeposu(TabanDepo[CizelgeSurumu]):
         mevcut_en_buyuk = self.oturum.execute(stmt).scalar_one_or_none()
         return (mevcut_en_buyuk or 0) + 1
 
+    def listele(self, *, donem_id: int | None = None) -> Sequence[CizelgeSurumu]:
+        stmt = select(CizelgeSurumu)
+        if donem_id is not None:
+            stmt = stmt.where(CizelgeSurumu.donem_id == donem_id)
+        return self.oturum.execute(stmt.order_by(CizelgeSurumu.surum_no.desc())).scalars().all()
+
 
 class CozumIsiDeposu(TabanDepo[CozumIsi]):
     def __init__(self, oturum: Session) -> None:

@@ -280,6 +280,67 @@ def test_dogrula_yayinlanmis_surumde_409(istemci_kurulum: dict) -> None:
         oturum.close()
 
 
+def test_dogrula_cozuldu_surumde_duzenlenebilir(istemci_kurulum: dict) -> None:
+    """TD-8 (SRS): yalnizca 'yayinlandi' salt okunurdur. Bir cozum isi bitince
+    surum 'cozuldu' olur (bkz. cozum_servisi.py) ve kullanicinin bunun
+    uzerinde hala elle duzenleme yapabilmesi gerekir - Gun 10'da manuel
+    tarayici testinde bulunan bir regresyon (ilk yazimda yalnizca 'taslak'
+    izin veriliyordu, 'cozuldu' 409 donuyordu)."""
+    on_ek = istemci_kurulum["on_ek"]
+    gunduz_id, nokta_id = istemci_kurulum["gunduz_id"], istemci_kurulum["nokta_id"]
+    baslangic = date(2026, 7, 27)
+    bitis = baslangic + timedelta(days=6)
+    _donem_id, surum_id = _taslak_surum_olustur(on_ek, baslangic, bitis)
+
+    oturum = OturumYerel()
+    try:
+        surum = oturum.get(CizelgeSurumu, surum_id)
+        assert surum is not None
+        surum.durum = CizelgeSurumuDurumu.COZULDU
+        personel = Personel(
+            ad_soyad=f"Cozuldu Test-{on_ek}",
+            sicil_no=f"DOGRULA-COZULDU-{on_ek}",
+            haftalik_hedef_saat=40,
+            aktif_baslangic=date(2026, 1, 1),
+        )
+        oturum.add(personel)
+        oturum.commit()
+        personel_id = personel.personel_id
+    finally:
+        oturum.close()
+
+    oturum = OturumYerel()
+    try:
+        servis = DogrulamaServisi(oturum)
+        degisiklik = AtamaDegisikligi(
+            surum_id=surum_id,
+            personel_id=personel_id,
+            tarih=baslangic,
+            vardiya_tipi_id=gunduz_id,
+            nokta_id=nokta_id,
+        )
+        sonuc = servis.uygula(degisiklik)
+        assert sonuc is not None
+        assert sonuc.kabul_edilebilir is True
+        oturum.commit()
+    finally:
+        oturum.close()
+
+    oturum = OturumYerel()
+    try:
+        atamalar = (
+            oturum.execute(
+                select(Atama).where(Atama.surum_id == surum_id, Atama.personel_id == personel_id)
+            )
+            .scalars()
+            .all()
+        )
+        assert len(atamalar) == 1
+        assert atamalar[0].kaynak == AtamaKaynagi.MANUEL
+    finally:
+        oturum.close()
+
+
 def test_dogrula_bulunamayan_surumde_none_doner() -> None:
     pg_yoksa_atla()
     oturum = OturumYerel()

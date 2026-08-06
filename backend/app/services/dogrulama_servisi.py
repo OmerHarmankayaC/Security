@@ -30,7 +30,13 @@ _PENCERE_GUN = 7
 
 
 class SurumTaslakDegilError(Exception):
-    """FR-7.3: yayinlanmis bir surumun dogrudan duzenlenmesi engellenir."""
+    """FR-7.3/TD-8: yayinlanmis (veya arsiv) bir surumun dogrudan duzenlenmesi
+    engellenir. TD-8'e gore yalnizca 'yayinlandi' salt okunurdur - 'taslak' ve
+    'cozuldu' ikisi de duzenlenebilir (bir cozum isi bitince surum otomatik
+    'cozuldu' olur; kullanici bunun uzerinde elle degisiklik yapabilmelidir)."""
+
+
+_DUZENLENEBILIR_DURUMLAR = (CizelgeSurumuDurumu.TASLAK, CizelgeSurumuDurumu.COZULDU)
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,14 +64,14 @@ class DogrulamaServisi:
         self.atama = AtamaDeposu(oturum)
 
     def dogrula(self, degisiklik: AtamaDegisikligi) -> DogrulamaSonucu | None:
-        """Surum bulunamazsa None doner (404); taslak degilse
-        SurumTaslakDegilError firlatir (409)."""
+        """Surum bulunamazsa None doner (404); duzenlenebilir durumda degilse
+        (yayinlandi/arsiv) SurumTaslakDegilError firlatir (409)."""
         surum = self.surum.getir(degisiklik.surum_id)
         if surum is None:
             return None
-        if surum.durum != CizelgeSurumuDurumu.TASLAK:
+        if surum.durum not in _DUZENLENEBILIR_DURUMLAR:
             raise SurumTaslakDegilError(
-                f"Surum {surum.surum_id} taslak durumunda degil (durum={surum.durum})"
+                f"Surum {surum.surum_id} duzenlenebilir durumda degil (durum={surum.durum})"
             )
         donem = self.donem.getir(surum.donem_id)
         baglam = baglam_olustur(self.oturum, donem)
@@ -132,6 +138,29 @@ class DogrulamaServisi:
                 )
             )
         return sonuc
+
+    def kilit_ayarla(
+        self, surum_id: int, personel_id: int, tarih: date, kilitli: bool
+    ) -> Atama | None:
+        """FR-6.5: bir atamayi kilitler/kilidini acar.
+
+        Kural dogrulamasi gerektirmez - kilit atamanin kendisini degistirmez,
+        yalnizca yeniden cozumde (Gun 11, S8) sabitlenip sabitlenmeyecegini
+        belirler. Surum ya da atama bulunamazsa None doner (404); surum
+        taslak/cozuldu disindaysa SurumTaslakDegilError firlatir (409).
+        """
+        surum = self.surum.getir(surum_id)
+        if surum is None:
+            return None
+        if surum.durum not in _DUZENLENEBILIR_DURUMLAR:
+            raise SurumTaslakDegilError(
+                f"Surum {surum.surum_id} kilitlenebilir durumda degil (durum={surum.durum})"
+            )
+        atama = self.atama.tekil_getir(surum_id, personel_id, tarih)
+        if atama is None:
+            return None
+        atama.kilitli = kilitli
+        return atama
 
 
 def _cevir(atamalar: Sequence[Atama]) -> list[AtamaKaydi]:

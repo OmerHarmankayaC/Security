@@ -1,0 +1,58 @@
+.cozum-ayarlar {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+.cozum-ayarlar__buton-satiri {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.cozum-ilerleme__rakamlar {
+  display: flex;
+  gap: var(--sp-5);
+  margin-bottom: var(--sp-3);
+}
+
+.cozum-not {
+  font-size: 13px;
+  color: var(--ink-muted);
+  margin-top: var(--sp-2);
+}
+
+.ceza-dokumu {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.ceza-dokumu li {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--hairline);
+  font-size: 13px;
+}
+
+.ceza-dokumu li:last-child {
+  border-bottom: none;
+}
+
+.bulgu-listesi {
+  list-style: none;
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.bulgu-listesi li {
+  font-size: 13px;
+  color: var(--warn);
+}

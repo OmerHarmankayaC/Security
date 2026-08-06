@@ -1,0 +1,119 @@
+.card {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  padding: var(--sp-5);
+  box-sizing: border-box;
+}
+
+.card__label {
+  font-weight: 500;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ink-muted);
+  margin: 0 0 var(--sp-3);
+}
+
+.card__label--accent {
+  color: var(--accent);
+}
+
+.card__label--warn {
+  color: var(--warn);
+}
+
+.card--accent {
+  background: var(--accent-surface);
+  border-color: var(--accent);
+}
+
+.btn {
+  border: none;
+  padding: 10px 18px;
+  font: 500 13px/1 var(--font);
+  box-sizing: border-box;
+}
+
+.btn--birincil {
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn--ikincil {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--ink);
+}
+
+.btn--hayalet {
+  background: transparent;
+  color: var(--ink-muted);
+  border: 1px solid var(--hairline);
+}
+
+.rozet {
+  display: inline-block;
+  padding: 3px 8px;
+  font: 500 11px/1 var(--font);
+  letter-spacing: 0.04em;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.rozet--dolu {
+  background: var(--bg);
+  color: var(--ok);
+}
+
+.rozet--eksik {
+  background: var(--warn-surface);
+  color: var(--warn);
+}
+
+.rozet--kilitli {
+  background: var(--accent-surface);
+  color: var(--accent);
+}
+
+.rozet--notr {
+  background: var(--bg);
+  color: var(--ink-muted);
+}
+
+.buyuk-rakam {
+  font-weight: 300;
+  font-size: 32px;
+  line-height: 1.1;
+  color: var(--ink);
+  margin: 0;
+}
+
+.buyuk-rakam__etiket {
+  font-size: 13px;
+  color: var(--ink-muted);
+  margin-top: var(--sp-1);
+}
+
+.form-alani {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.form-alani label {
+  font-size: 13px;
+  color: var(--ink-muted);
+}
+
+.form-alani input,
+.form-alani select {
+  padding: 8px 10px;
+  border: 1px solid var(--hairline);
+  background: var(--surface);
+  color: var(--ink);
+  font: 13px/1 var(--font);
+}
+
+.hata-metni {
+  color: var(--accent);
+  font-size: 13px;
+}

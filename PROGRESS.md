@@ -1013,3 +1013,143 @@ eklenirse Gün 8'in sonunda not düşülen `/api/cozum/{id}/iptal`'in "en
 iyi çaba" sınırını (ayrı süreçteki CP-SAT aramasını fiilen
 öldürmüyor) kullanıcıya yansıtan bir not/tooltip eklenmesi
 düşünülmeli.
+
+---
+
+## 2026-08-06 — Sprint 2, Gün 10: Frontend — Çözüm ve Çizelge Ekranları
+
+**Tasarım kaynağı:** Kullanıcı bu oturumda `docs/tasarim/` klasörüne
+`TASARIM_REFERANSI.md` (renk/tipografi/boşluk tokenleri, sayfa iskeleti,
+bileşen tanımları) ve Figma'dan sekiz ekranın tam PNG dışa aktarımını
+ekledi. Renk/boşluk/font değerleri doğrudan referans dokümanından
+alındı; düzen/bileşen yerleşimi Çizelge ve Çözüm ekran görüntülerinden.
+Kullanıcının özellikle vurguladığı iki nokta uygulandı: (1) bölüm
+etiketleri `toLocaleUpperCase('tr-TR')` ile büyütülüyor (düz
+`.toUpperCase()` değil — `lib/metin.ts`); (2) metne göre otomatik
+genişleyen "Durum Rozeti" bileşenine sabit genişlik verildi (`Rozet`
+bileşeni, `genislik` prop'u, varsayılan 96px).
+
+**Kapsam:** Yalnızca Çizelge ve Çözüm ekranları işlevsel; kalan altı nav
+öğesi (Özet, Tanımlar, Müsaitlik, Tercihler, Analiz, Sürümler) ortak
+kabuk (sidebar/topbar) tutarlılığı için `PlaceholderEkrani` ile yer
+tutucu — Sprint 3'te doldurulacak.
+
+**Tamamlanan (backend — Gün 10'un ihtiyaç duyduğu, SDD Ek B'de zaten
+tanımlı ama henüz kodlanmamış okuma uç noktaları):**
+- `GET /api/donem`, `POST /api/donem`.
+- `GET /api/surum?donem_id=` (dönem seçiciye göre sürüm listesi).
+- `GET /api/surum/{id}/atama`, `GET /api/surum/{id}/kapsama-acigi`.
+- `POST /api/atama/kilit` (FR-6.5): mevcut bir atamanın `kilitli`
+  bayrağını değiştirir; kural doğrulaması gerektirmez (kilit atamanın
+  kendisini değiştirmez). `DogrulamaServisi.kilit_ayarla()`.
+- `app/repositories/sonuc.py`: `CizelgeSurumuDeposu.listele(donem_id=)`.
+- `app/schemas/surum.py` (yeni): `DonemOku/Olustur`, `CizelgeSurumuOku`,
+  `AtamaOku`, `KapsamaAcigiOku`, `AtamaKilitIstek`.
+
+**Gerçek bir tasarım hatası bulundu ve düzeltildi (TD-8 ihlali):**
+Gün 9'da yazılan `DogrulamaServisi.dogrula()`, düzenlemeye yalnızca
+`taslak` durumundaki sürümlerde izin veriyordu. Ancak bir çözüm işi
+bitince sürüm otomatik `cozuldu` durumuna geçiyor (`cozum_servisi.py`)
+— ve SRS TD-8 açıkça yalnızca `yayinlandi` durumunun salt okunur
+olduğunu söylüyor (`taslak` ve `cozuldu` ikisi de düzenlenebilir
+olmalı). Bu, tarayıcıda gerçek bir çözüm çalıştırıp sonucu düzenlemeye
+çalışırken ortaya çıktı ("Sürüm taslak durumunda değil" 409 hatası,
+beklenmiyordu). **Düzeltme:** `_DUZENLENEBILIR_DURUMLAR = (TASLAK,
+COZULDU)` sabiti eklendi, `dogrula()` ve `kilit_ayarla()` (ikincisi
+zaten Gün 10'da doğru yazılmıştı) artık aynı kontrolü paylaşıyor.
+Regresyon testi: `test_dogrula_cozuldu_surumde_duzenlenebilir`
+(`tests/test_dogrulama_servisi.py`).
+
+**Gerçek bir zaman damgası hatası bulundu ve düzeltildi:** Backend
+`baslangic_zamani`/`guncelleme_zamani` gibi alanları UTC olarak yazıyor
+(`datetime.now(UTC)`) ama DB sütunu saat dilimsiz olduğu için JSON'da
+ofsetsiz dönüyor (örn. `"2026-08-06T16:54:11"`). Bunu doğrudan
+`new Date(...)`'e vermek tarayıcıyı bunun YEREL saat olduğunu
+sanmaya itiyor; "Geçen Süre" sayacında `180:03` gibi anlamsız
+değerler olarak ortaya çıktı (tarayıcıda gerçek bir çözüm çalıştırınca
+fark edildi). **Düzeltme:** `lib/tarih.ts`'e `utcTarihiAyristir()`
+eklendi — ofset yoksa dizeye `Z` ekleyip UTC olduğunu açıkça belirtir;
+`zamanBicimle` ve Çözüm ekranının geçen süre hesaplayıcısı artık bunu
+kullanıyor. (Backend'i saat dilimli sütuna geçirmek daha büyük bir
+göç gerektirir, bu oturumun kapsamı dışında bırakıldı — not düşüldü.)
+
+**Tamamlanan (frontend):**
+- `@fontsource/inter` (kendi barındırılan, CDN yok — kurumsal/iç
+  dağıtımla tutarlı) + `src/index.css`: tüm renk/boşluk tokenleri CSS
+  değişkeni olarak.
+- `vite.config.ts`: dev sunucusunda `/api` → `http://127.0.0.1:8000`
+  proxy'si (`localhost` yerine `127.0.0.1` — `localhost`'un IPv6'ya
+  çözülmesi `uvicorn`'un yalnızca IPv4 dinlediği bu makinede "socket
+  hang up" hatasına yol açıyordu, tarayıcıda fark edilip düzeltildi).
+- `src/components/`: `AppShell` (sidebar + topbar, sekiz nav öğesi),
+  `nav.ts`, `ui.tsx` (`Buton` üç varyant, `Kart`, `KartEtiketi`,
+  `Rozet`, `BuyukRakam`) + karşılık gelen `.css` dosyaları — tamamı
+  tasarım tokenlerinden besleniyor.
+- `src/lib/metin.ts` (`buyukHarf`), `src/lib/tarih.ts` (gün listesi,
+  "PZT 3" biçimi, UTC-güvenli zaman ayrıştırma/biçimleme).
+- `src/api/types.ts` + `src/api/client.ts`: backend şemalarının TS
+  karşılıkları, tek bir `api` nesnesi altında tüm çağrılar; 409
+  gövdesini (`DogrulamaSonucuOku`) ayrıştıran `ApiHatasi`.
+- `src/screens/CizelgeEkrani.tsx`: dönem/sürüm seçici, personel×gün
+  ızgarası (yatay kaydırılabilir, `bos/dolu/eksik/kilitli` dört durum —
+  `eksik`, atamanın (tarih, vardiya_tipi, nokta) anahtarı bir
+  `kapsama_acigi` satırıyla eşleşince), hücre tıklanınca açılan "Atama
+  Düzenle" paneli (`/api/atama/dogrula` önizleme + `PUT /api/atama`
+  uygulama + `/api/atama/kilit` kilitleme, ihlal listesi ve ceza
+  değişimi gösterimi), "Yeniden Çöz" (Çözüm ekranına dönemi taşıyarak
+  geçer).
+- `src/screens/CozumEkrani.tsx`: Ayarlar kartı (dönem, zaman limiti, Ön
+  Kontrol, Çözümü Başlat), İlerleme kartı (yalnızca çalışırken —
+  `accent-surface`, 1,5 saniyede bir `GET /api/cozum/{id}` anketi,
+  canlı geçen süre/en iyi ceza; kapsama açığı sayısı yalnızca iş
+  bitince hesaplanabildiği için çalışırken "—" gösteriliyor — dürüst
+  bir sınır, backend'de canlı bir sayaç yok), Sonuç Özeti kartı (kural
+  bazlı ceza dökümü, kapsama açığı özeti, "Çizelgeyi Görüntüle").
+- `src/screens/PlaceholderEkrani.tsx`: kapsam dışı altı ekran için.
+- `.claude/launch.json` (yeni): `frontend-dev` önizleme yapılandırması.
+
+**Doğrulama (gerçek tarayıcı + gerçek backend + demo veri, uçtan uca):**
+- `npx tsc -b`, `npx oxlint`, `npm run build` temiz.
+- Backend: geçici Docker PostgreSQL'de tüm paket (93 test — 92 + Gün
+  10'da eklenen regresyon testi) iki kez ardışık geçti; `ruff
+  check`/`format` temiz.
+- Demo veri (`--reset`) ile gerçek `uvicorn` + Vite dev sunucusu
+  üzerinden: Ön Kontrol çalıştırıldı ("Yapısal bir engel bulunamadı"),
+  15 saniyelik gerçek bir çözüm baştan sona izlendi (Geçen Süre doğru
+  akıyor, iş "uyarılı tamamlandı" ile bitti, ceza dökümü + "231 kapsama
+  açığı bulundu" doğru gösterildi), "Çizelgeyi Görüntüle" yeni sürümü
+  (Sürüm 3) otomatik yükledi, ızgarada `eksik` hücreler doğru
+  işaretlendi. Bir hücre seçilip Doğrula/Uygula ile hem **kabul edilen**
+  (esnek ceza farkı gösterilen) hem **reddedilen** (H2 — "Onceki
+  vardiyayla arada yalnizca 0.0 saat var" mesajıyla, hiçbir şey
+  yazılmadığı DB'den doğrulandı) bir değişiklik uçtan uca test edildi.
+  Kilitleme aç/kapa döngüsü DB'den doğrulandı.
+- Doğrulama sonrası: Vite/uvicorn durduruldu, demo verisi `TRUNCATE`
+  ile temizlendi, tüm paket tekrar çalıştırılıp temiz DB'de de geçtiği
+  doğrulandı (93 test), Docker test container'ı silindi.
+
+**Sapmalar / notlar:**
+- Zaman damgası sütunlarının saat dilimsiz olması (yukarıda) bilinen
+  bir sınır olarak not edildi; düzeltme şimdilik yalnızca frontend
+  ayrıştırma katmanında (doğru ve yeterli, ama backend'in `TIMESTAMPTZ`
+  sütununa geçmesi daha temiz olurdu — Sprint 3'te değerlendirilebilir).
+- "Nokta Görünümü" butonu (Çizelge ekranı) kapsam dışı, devre dışı ve
+  ipucu metniyle işaretli bırakıldı — tasarım referansında var ama
+  UYGULAMA_PLANI'nda Gün 10 kapsamına girmiyor.
+
+**Kalan / ertelenen:** Yok — Gün 10 kapsamındaki tüm maddeler
+tamamlandı (kabul kriteri: "Bir çözüm baştan sona arayüzden
+başlatılabiliyor, ilerleme görülüyor, sonuç ızgarada görüntüleniyor,
+bir hücre elle değiştirilip doğrulama sonucu görülebiliyor" — hepsi
+gerçek tarayıcıda doğrulandı).
+
+**Sıradaki oturumun ilk işi:** Sprint 2, Gün 11 — Yeniden Çözme (S8) ve
+Sprint 2 Checkpoint. UYGULAMA_PLANI.md'deki Gün 11 maddesini takip et:
+SDD 5.6'daki `yeniden_coz` akışını uygula (taslak türetme, kilitli
+atamaların sabitlenmesi, S8'in taban atamaları), sürüm durum
+geçişlerini (taslak → çözüldü → yayınlandı → arşiv) tamamla (şu an
+yalnızca `cozum_servisi.py` içinde taslak→çözüldü geçişi var;
+yayınlama/arşivleme uç noktaları henüz yok). Ardından **Ek Görev**
+(S1–S8+S6b uyum testi genişletmesi + S4 birim düzeltmesi, Gün 11'den
+sonra Gün 12'den önce planlı) ele alınmalı — henüz yapılmadı, PROGRESS.md
+ve UYGULAMA_PLANI.md'de not düşülü.

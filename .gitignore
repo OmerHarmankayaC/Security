@@ -35,3 +35,6 @@ build/
 
 # MS Office lock files
 ~$*
+
+# Claude Code kisisel/yerel ayarlar (izin listesi vb.) - launch.json paylasilir
+.claude/settings.local.json

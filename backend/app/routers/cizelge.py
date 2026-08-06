@@ -1,20 +1,35 @@
 """Cizelgeleme uc noktalari (SDD 3.2: cizelge_router; SDD Ek B).
 
 /api/on-kontrol (Sprint 2 Gun 7), /api/cozum (Sprint 2 Gun 8), /api/atama
-(Sprint 2 Gun 9). /api/donem, /api/surum sonraki gunlerde eklenecek.
+(Sprint 2 Gun 9), /api/donem + /api/surum + /api/atama/kilit (Sprint 2 Gun 10 -
+Cizelge/Cozum ekranlarinin ihtiyac duydugu okuma uc noktalari ve kilitleme).
 """
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.db import oturum_al
 from app.models.sonuc import CozumIsiDurumu
-from app.repositories.sonuc import CozumIsiDeposu
+from app.repositories.sonuc import (
+    AtamaDeposu,
+    CizelgeSurumuDeposu,
+    CozumIsiDeposu,
+    DonemDeposu,
+    KapsamaAcigiDeposu,
+)
 from app.schemas.cozum import CozumBaslatIstek, CozumOku
 from app.schemas.dogrulama import AtamaDegisikligiIstek, DogrulamaSonucuOku, IhlalOku
 from app.schemas.on_kontrol import BulguOku, OnKontrolIstek, OnKontrolYaniti
+from app.schemas.surum import (
+    AtamaKilitIstek,
+    AtamaOku,
+    CizelgeSurumuOku,
+    DonemOku,
+    DonemOlustur,
+    KapsamaAcigiOku,
+)
 from app.services.cozum_servisi import CozumServisi
 from app.services.dogrulama_servisi import (
     AtamaDegisikligi,
@@ -128,3 +143,46 @@ def atama_guncelle(istek: AtamaDegisikligiIstek, oturum: Oturum) -> DogrulamaSon
     if not sonuc.kabul_edilebilir:
         raise HTTPException(status_code=409, detail=_sonucu_cevir(sonuc).model_dump(mode="json"))
     return _sonucu_cevir(sonuc)
+
+
+@router.post("/atama/kilit", response_model=AtamaOku)
+def atama_kilit_ayarla(istek: AtamaKilitIstek, oturum: Oturum) -> AtamaOku:
+    servis = DogrulamaServisi(oturum)
+    try:
+        atama = servis.kilit_ayarla(istek.surum_id, istek.personel_id, istek.tarih, istek.kilitli)
+    except SurumTaslakDegilError as hata:
+        raise HTTPException(status_code=409, detail=str(hata)) from hata
+    if atama is None:
+        raise HTTPException(status_code=404, detail="Cizelge surumu ya da atama bulunamadi")
+    return AtamaOku.model_validate(atama)
+
+
+# --- Donem / Surum okuma uc noktalari (SDD Ek B; cizelge/cozum ekranlarinin
+# donem secici + izgara + kapsama acigi ihtiyaci icin) -----------------------
+
+
+@router.get("/donem", response_model=list[DonemOku])
+def donem_listele(oturum: Oturum) -> list[DonemOku]:
+    return list(DonemDeposu(oturum).tumunu_getir())  # type: ignore[return-value]
+
+
+@router.post("/donem", response_model=DonemOku, status_code=201)
+def donem_olustur(veri: DonemOlustur, oturum: Oturum) -> DonemOku:
+    return DonemDeposu(oturum).olustur(**veri.model_dump())  # type: ignore[return-value]
+
+
+@router.get("/surum", response_model=list[CizelgeSurumuOku])
+def surum_listele(
+    oturum: Oturum, donem_id: Annotated[int | None, Query()] = None
+) -> list[CizelgeSurumuOku]:
+    return list(CizelgeSurumuDeposu(oturum).listele(donem_id=donem_id))  # type: ignore[return-value]
+
+
+@router.get("/surum/{surum_id}/atama", response_model=list[AtamaOku])
+def surum_atamalarini_getir(surum_id: int, oturum: Oturum) -> list[AtamaOku]:
+    return list(AtamaDeposu(oturum).surume_gore_getir(surum_id))  # type: ignore[return-value]
+
+
+@router.get("/surum/{surum_id}/kapsama-acigi", response_model=list[KapsamaAcigiOku])
+def surum_kapsama_acigini_getir(surum_id: int, oturum: Oturum) -> list[KapsamaAcigiOku]:
+    return list(KapsamaAcigiDeposu(oturum).surume_gore_getir(surum_id))  # type: ignore[return-value]
