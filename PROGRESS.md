@@ -2449,9 +2449,101 @@ sonunda temizlendi.
 
 **Kalan / ertelenen:** Yok.
 
-**Sıradaki oturumun ilk işi:** Sprint 3 Gün 14 — Uçtan Uca Deneyler ve
-Performans Ölçümü (Charter'daki kabul kriterleri için otomatik
-kontrol/betik: 40 personel × 28 gün < 60 sn, sıfır zorunlu kısıt
-ihlali, kişi başı gece sapması ≤1, çelişkili örnekte eksik gösterimi,
-manuel düzenleme <1 sn; çözücü-doğrulayıcı uyum testini büyük ölçekte
-çalıştır; kısa bir performans notu yaz).
+---
+
+## 2026-08-07 — Sprint 3 Gün 14: Uçtan Uca Deneyler ve Performans Ölçümü
+
+**Kapsam.** Planın Gün 14 maddesi Charter bölüm 5'teki altı kriterin
+BEŞİNİ sayar; altıncısı ("yeniden çözümde değişen atama sayısı
+raporlanır") ölçülmedi, çünkü raporlama yüzeyi Sürümler ekranının
+karşılaştırma işlevi (SDD 6.3.5) ve o ekran Gün 15'in işi. Bu, plana
+uyum; sessiz bir eksiltme değil (betiğin ve notun ikisinde de yazılı).
+
+**`scripts/kabul_olcumu.py` (yeni).** Beş kriteri ölçüp eşik/ölçülen/
+sonuç tablosu basan, hepsi geçerse 0 aksi hâlde 1 dönen betik.
+Kendi referans verisini kurar (temizler → kurar → ölçer, `demo_veri_uret.py
+--reset` ile aynı sözleşme). `--json` ile makine okunur çıktı verir.
+- **Referans örnek (40×28):** demo senaryosunun 44 kişilik kadrosu 40'a
+  YALNIZCA Güvenlik Görevi havuzu 28→24 çekilerek indirildi; kırılgan
+  iki havuz (VŞ 9, Müracaat 7) SRS 3.3.6'daki izin paylı asgarilerin
+  (7/6/23) üzerinde korundu.
+- **Referans donanım (SDD 3.4.2/3.4.3):** ölçüm makinesi 10 çekirdek,
+  referans 4. Arama işçisi sayısı referans değere (3) sabitlendi;
+  böylece çözücünün PARALELLİĞİ referans donanımla aynı. Çekirdek
+  BAŞINA hız farkı kalıyor — bu yüzden notta süreler "üst sınır değil
+  gösterge" olarak nitelendi, kesin doğrulama Gün 15'te gösterim
+  ortamında aynı betiğin çalıştırılmasına bırakıldı.
+
+**Sonuç: 4/5 geçti.**
+- **K1 (< 60 sn): 1,21 sn** — model kurma 0,51 + ilk uygun çözüm 0,70.
+  "Çözülür"ün ne olduğu açıkça tanımlandı: CP-SAT eniyileme yaptığından
+  60 sn'de eniyilik kanıtlanmıyor (durum *uygun*); kriterin işaret
+  ettiği süre ilk KULLANILABİLİR çizelgeye ulaşma süresi (Charter
+  bölüm 6: "limit dolduğunda o ana kadarki en iyi çözüm döndürülür").
+- **K2 (sıfır zorunlu ihlal): 0** — H1–H8 doğrulayıcıdan temiz.
+- **K3 (gece sapması ≤1): 4,60 → KALDI.** Aşağıda ayrıca.
+- **K4 (çelişkili örnekte eksik gösterimi): 31 açık hücre**, her kayıt
+  gün+vardiya+nokta+sayı taşıyor.
+- **K5 (manuel düzenleme < 1 sn): 0,036 sn** (en kötü, 5 ölçüm).
+
+**K3 — kalan kriter, tanım düzeyinde bir açık (uygulama hatası DEĞİL).**
+Önce çözücü yetersizliği mi diye bakıldı: aynı örnek 5 kat süreyle
+(300 sn) çözüldüğünde azami sapma DEĞİŞMEDİ (4,60). Betiğe eklenen
+"ulaşılabilirlik teşhisi" nedeni otomatik gösteriyor:
+- Müracaat görevlileri (7 kişi) yalnız Müracaat noktasında
+  görevlendirilebilir (H8); o noktanın dönem boyu gece işaretli talebi
+  40 kişi-vardiya → kişi başı tavan 5,71.
+- Kriterin sağlanması için her birinin ≥ 8,60−1 = 7,60 gece alması,
+  yani toplamda 7×7,60 = 53,2 > 40 olması gerekirdi. **Çelişki: hiçbir
+  çizelge bu örnekte K3'ü sağlayamaz.**
+- Kökeni iki tanımın birleşimi: (1) **TD-2** gece bayrağını "20:00–06:00
+  ile kesişim ≥ 4 saat" diye önerir; Akşam (16:00–24:00) tam 4 saat
+  kesiştiği için SINIRDA gece sayılır → üç vardiyanın ikisi gece, dönem
+  içi gece talebi 344 (toplamın %60'ı). (2) **S2** (SRS 4.3) hedefi
+  `gece talebi / |P|` ile BÜTÜN personele böler, gece çalışamayanlar da
+  paydada.
+- Akşam'ın bayrağı gündüze çevrilse bile kriter sağlanmıyor (hedef 2,80,
+  Müracaat'ın gece sayısı 0 → sapma 2,80): asıl bağlayıcı (2).
+- **Değiştirilmedi** — çözümü SRS'i etkiler. Üç seçenek notta gerekçe ve
+  ölçülen etkileriyle yazıldı; karar mentör/paydaşın.
+
+**`tests/test_cozucu_dogrulayici_uyumu_olcek.py` (yeni, 24 test).**
+Gün 14'ün "rastgele 20+ örnek" maddesi: 24 rastgele örnek (5–9 personel,
+5–10 gün, 1–2 nokta, değişken yetkinlik dağılımı) GERÇEK CP-SAT'la
+çözülüp H1–H8 doğrulayıcısından geçiriliyor — SDD 3.2.1'in "çözücünün
+geçerli saydığı çizelgede doğrulayıcının ihlal bulması bir yazılım
+hatasıdır" sözünün otomatik güvencesi. 24/24 temiz. Sabit tohum
+(20260814) ile başarısız bir örnek birebir yeniden üretilebilir.
+Sprint 1'den kalan `test_cozucu_dogrulayici_uyumu.py` (elle kurulan
+çizelgeler, çözücüsüz) yerinde bırakıldı; bu dosya onun yerine geçmiyor,
+üzerine çözücüyü ekliyor.
+
+**`docs/PERFORMANS_NOTU.md` (yeni).** Staj raporuna girecek not: ölçüm
+ortamı ve referans donanıma göre konumu, referans örneğin tanımı, beş
+kriterin sonuç tablosu, K3'ün kanıtı ve seçenekleri, uyum testi sonucu,
+yeniden üretme komutları. **Bu dosya dört kanonik dokümandan biri
+DEĞİL** — Gün 14'ün kendi çıktısı (kanonik dokümanlara elle
+dokunulmadı, bkz. Gün 13 Düzeltmeleri madde 0).
+
+**Doğrulama:** `ruff` temiz; tam paket **145 test** (121 + 24 yeni)
+geçiyor. Kabul betiği üç kez çalıştırıldı; K1/K2/K5 sonuçları
+değişmiyor, K3'ün sapması ve K4'ün açık hücre sayısı çalıştırmadan
+çalıştırmaya değişiyor (CP-SAT paralel aramada belirlenimsiz) — bu da
+notta yazıldı.
+
+**Sapmalar / notlar:**
+- K3 bilinçli olarak "kaldı" bırakıldı; Gün 14'ün kabul kriteri zaten
+  "geçmiyorsa hangi kriterin ne kadar açıkta olduğu net" diyor.
+- Ölçüm makinesi referans donanımdan güçlü; süreler gösterge
+  niteliğinde. Gösterim ortamı kurulunca (Gün 15) betik orada
+  yeniden çalıştırılmalı.
+
+**Kalan / ertelenen:** K3'ün tanım kararı (mentör/paydaş); Charter'ın
+altıncı kriteri Gün 15'te Sürümler ekranıyla ölçülebilir hâle gelecek.
+
+**Sıradaki oturumun ilk işi:** Sprint 3 Gün 15 — Dağıtım ve Kapanış
+(systemd servisleri + Caddy + PostgreSQL ile gösterim ortamı; Sürümler
+ekranı SDD 6.3.5; dört dokümanla kodun tutarlılığının son kontrolü;
+`sprint-3` etiketi). Gün 15'te ayrıca: kabul ölçümünü gerçek gösterim
+donanımında yeniden çalıştır ve `docs/PERFORMANS_NOTU.md`'yi o
+sonuçlarla güncelle.
