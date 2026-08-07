@@ -28,6 +28,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 06.08.2026 | 5.5'teki manuel düzenleme doğrulaması düzeltildi: dönem geneli agregasyona dayanan esnek hedefler (S2-S4) artık pencere yerine dönem geneli atama kümesiyle değerlendiriliyor; kural başına kapsam alanı (pencere / dönem geneli) tanımlandı | 1.3 |
 | Ömer HARMANKAYA | 07.08.2026 | Ek A'daki S2 örneği düzeltildi: aralık (en yüksek eksi en düşük) minimizasyonu yerine SRS bölüm 4'teki normatif formül (hedeften sapmaların toplamı) kullanılıyor; örnek ile normatif gereksinim arasındaki çelişki giderildi | 1.4 |
 | Ömer HARMANKAYA | 07.08.2026 | Ek A'daki S2 dogrula örneği hedefi atanan sayılardan değil talepten türetecek şekilde düzeltildi; kesirli hedeflerin tamsayıya ölçeklenmesi ve raporlamadan önce doğal birime geri çevrilmesi kuralı Ek A'ya eklendi; NFR-1 referans kadrosu üç dokümanda kırk personel olarak hizalandı | 1.5 |
+| Ömer HARMANKAYA | 07.08.2026 | Tercih tablosuna calisan_notu ve ret_gerekcesi alanları eklendi; çalışan arayüzü dört bölümden üçe indirildi ve tek sütunlu/mobil öncelikli düzen ile dönem görünümünün takvim sarmalı olarak sunulması yazıldı | 1.6 |
 
 
 
@@ -397,8 +398,14 @@ Bir gün için geçerli talep belirlenirken önce o tarihe özgü istisna satır
 | tip | ENUM | calismama \| vardiya_tipi_tercihi |
 | vardiya_tipi_id | INT (FK → vardiya_tipi), NULL | Vardiya tipi tercihlerinde istenen tip |
 | durum | ENUM | beklemede \| onaylandi \| reddedildi |
+| calisan_notu | TEXT, NULL | Çalışanın tercihi bildirirken girdiği isteğe bağlı gerekçe |
+| ret_gerekcesi | TEXT, NULL | Yöneticinin reddederken girdiği gerekçe (FR-3.4); çalışana gösterilir |
 
 Modele yalnızca onaylanmış tercihler girer (SRS S5). Reddedilen tercihler kayıtta kalır ve çalışana durum olarak gösterilir.
+
+Çalışanın notu ile yöneticinin ret gerekçesi ayrı alanlarda tutulur. Tek alanda birleştirilmeleri hâlinde metnin kime ait olduğu ve hangi aşamada yazıldığı belirsizleşir; ayrıca çalışan kendi notunu bildirim anında, yönetici gerekçesini onay aşamasında yazar.
+
+Tercihin karşılanma durumu bu tabloda saklanmaz; SRS TD-12 uyarınca okuma anında yayınlanmış çizelgeden türetilir ve üç değerlidir (karşılandı, karşılanmadı, henüz belirsiz).
 
 ### 4.2.3 Kural Varlığı
 
@@ -756,9 +763,11 @@ Yönetici arayüzü sekiz ekrandan oluşur. Ekranların sırası, tipik bir çiz
 
 
 
-Çalışan arayüzü üç bölümden oluşur: Vardiyalarım (yayınlanmış çizelgeden kişiye ait atamalar), Dönem Özetim (kişinin gece, hafta sonu ve toplam saat sayıları ile ekip ortalaması) ve Tercihlerim. Tercih bildirim formu ayrı bir sekme değildir; Tercihlerim'in bildirilen tercihler listesinin üstünde yer alır. Bu arayüzde hiçbir yazma işlemi çizelgeyi etkilemez; yalnızca tercih kaydı oluşturulur.
+Çalışan arayüzü üç bölümden oluşur: Vardiyalarım (yayınlanmış çizelgeden kişiye ait atamalar), Dönem Özetim (kişinin gece, hafta sonu ve toplam saat sayıları ile ekip ortalaması) ve Tercihlerim (tercih bildirim formu ile bildirilen tercihlerin durumu). Tercih bildirimi ayrı bir bölüm değildir; tek alanlık bir formdan ibaret olduğu için Tercihlerim listesinin üstünde yer alır. Bu arayüzde hiçbir yazma işlemi çizelgeyi etkilemez; yalnızca tercih kaydı oluşturulur.
 
-Çalışan arayüzü tek sütunludur, masaüstünde de ortalanmış tek sütun (~720px) olarak kalır — iki sütunlu geniş bir masaüstü düzeni yoktur, bu sayede mobil sürüm ayrı bir tasarım gerektirmez (NFR-7). Dönem görünümü takvim gibi yedi sütuna sarmalıdır (bkz. FR-9.3); yan menü yoktur, koyu bir üst çubuk ve altında üç sekme kullanılır. Kimlik doğrulama yoktur (Backlog B-05); panele kişiye özel bağlantıyla girilir.
+Arayüz tek sütunlu ve mobil önceliklidir; masaüstünde de ortalanmış tek sütun olarak sunulur. Panelin üç hedefi de düşük bilgi yoğunluğuna sahiptir ve geniş bir düzen, boşluğu doldurmak için yapay bileşen gerektirir. Tek sütun ayrıca NFR-7'deki mobil kullanılabilirlik gereksinimini ayrı bir tasarım turu olmadan karşılar.
+
+Vardiyalarım bölümünde dönem görünümü takvim düzeninde, yedi sütuna sarmalanarak sunulur; bir haftalık dönemde tek satır, dört haftalıkta dört satır oluşur. Yatay tek şerit düzeni uzun dönemlerde hem masaüstünde hem mobilde kırılır.
 
 ## 6.2 Ekran Görselleri
 

@@ -26,6 +26,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 05.08.2026 | Görev noktası boyutu eklendi (TD-10, TD-11); H1, H8, S1, S6 ve S8 yeniden yazıldı; uygulama alanı olarak güvenlik personeli tanımlandı (bölüm 3.3) | 1.1 |
 | Ömer HARMANKAYA | 07.08.2026 | Görev noktaları tesis geneli üç noktaya indirildi ve planlama dönemi varsayılanı bir haftaya çekildi (bölüm 3.3); S4'ün hedefi kişisel sözleşme saatinden talebin orantılı payına çevrildi (hedef ulaşılamaz olduğunda ceza sabite dönüşüyor ve ayırt ediciliğini kaybediyordu); S6b'nin mevcut uygulama alanında etkisiz kaldığı belirtildi | 1.2 |
 | Ömer HARMANKAYA | 07.08.2026 | NFR-1'in referans kadrosu otuzdan kırk personele çıkarıldı; Proje Tanım Dokümanı ve Yazılım Tasarım Dokümanı ile arasındaki üçlü tutarsızlık giderildi | 1.3 |
+| Ömer HARMANKAYA | 07.08.2026 | Çalışan paneli boşlukları kapatıldı: tercih kaydına çalışan notu ve ret gerekçesi alanları eklendi (FR-3.4), karşılanma durumu TD-12 olarak türetilmiş ve üç değerli biçimde tanımlandı (FR-3.6, FR-9.6), FR-9.4'ün karşılaştırma tabanı ve değişim türleri netleştirildi, FR-9.3'teki aylık görünüm dönem görünümüne çevrildi | 1.4 |
 
 
 
@@ -126,7 +127,7 @@ Sistem bağımsız bir web uygulamasıdır ve mevcut bir kurum sisteminin parça
 | Gün Tipi | Hafta içi, hafta sonu, resmî tatil |
 | Talep | Gün tipi veya tekil tarih, vardiya tipi, görev noktası, gereken personel sayısı |
 | Müsaitlik Kaydı | Personel, başlangıç tarihi, bitiş tarihi, dilim (tam gün / öğleden önce / öğleden sonra), tip (yıllık izin, rapor, eğitim, mazeret) |
-| Tercih | Personel, tarih veya tarih aralığı, tip (çalışmama, vardiya tipi tercihi), durum (beklemede, onaylandı, reddedildi) |
+| Tercih | Personel, tarih veya tarih aralığı, tip (çalışmama, vardiya tipi tercihi), durum (beklemede, onaylandı, reddedildi), çalışanın isteğe bağlı notu, yöneticinin ret gerekçesi |
 | Kural | Kimlik, tip (zorunlu / esnek), parametreler, ağırlık (esnekse), aktiflik |
 | Dönem | Başlangıç tarihi, bitiş tarihi, tercih son bildirim tarihi |
 | Çizelge Sürümü | Dönem, sürüm numarası, durum, oluşturma zamanı, çözüm süresi, ceza dökümü |
@@ -198,15 +199,13 @@ Bu tanımın gerekçesi eşleme ile sayma arasındaki farktır. Yetkinlik gereks
 
 Personel belirli bir binaya bağlı değildir; tek havuz olarak değerlendirilir ve tesisteki bütün noktalara atanabilir. Aynı personelin gün aşırı bina değiştirmesi zorunlu kısıtla engellenmez, S6 kapsamında esnek biçimde cezalandırılır. Bu tercihin nedeni, kadronun daraldığı dönemlerde bina değişiminin kapsama açığını kapatan tek hamle olabilmesidir.
 
-### TD-12 — Karşılanma durumu (Çalışan Paneli)
+### TD-12 — Tercihin karşılanma durumu
 
-Bir tercihin karşılanma durumu saklanmaz; Tercihlerim listesi her okunduğunda, o tercihin dönemi için yayınlanmış çizelgeden yeniden türetilir. Üç değerlidir:
+Bir tercihin karşılanıp karşılanmadığı, onay durumundan ayrı bir bilgidir (FR-3.6) ve saklanmaz; okuma anında yayınlanmış çizelgeden türetilir. Saklanması hâlinde çizelge yeniden çözüldüğünde değer bayatlar ve iki kaynak arasında tutarsızlık doğar.
 
-- Çalışmama tercihi: ilgili günde atama yoksa karşılandı, atama varsa karşılanmadı.
-- Vardiya tipi tercihi: ilgili günde atama var ve tipi istenenle aynıysa karşılandı; aksi hâlde (atama yok veya tipi farklı) karşılanmadı.
-- İlgili dönem için henüz yayınlanmış bir çizelge sürümü yoksa durum "karşılanmadı" değil "henüz belirsiz"dir — ikili bir işaret kullanılırsa çizelge üretilmeden önce bütün tercihler reddedilmiş gibi görünür.
+Türetme yalnızca onaylanmış tercihler için yapılır ve tercihin tipine göre değişir. Çalışmama tercihi, ilgili günde o personele hiçbir atama yapılmamışsa karşılanmış sayılır. Vardiya tipi tercihi ise ilgili günde atama bulunması ve atanan vardiya tipinin istenen tiple aynı olması hâlinde karşılanmış sayılır.
 
-Karşılanma durumu, tercihin onay durumuyla (beklemede/onaylandı/reddedildi, bkz. FR-3.4) ayrı bir bilgidir; ikisi de arayüzde ayrı ayrı gösterilir.
+Değer ikili değil üç durumludur. Dönem için yayınlanmış bir çizelge sürümü henüz yoksa sonuç "karşılanmadı" değil "henüz belirsiz"dir; bu ayrım kullanıcı arayüzünde de korunmalıdır, aksi hâlde çizelge üretilmeden önce bütün tercihler reddedilmiş gibi görünür.
 
 ## 3.3 Uygulama Alanı: Güvenlik Personeli
 
@@ -572,7 +571,7 @@ Ağırlıkların tamamı kullanıcı tarafından ayarlanabilir. Sistem hangi hed
 | FR-3.1 | Sistem, personelin belirli bir günde çalışmama tercihini kaydetmesine imkân vermelidir. | Yüksek |
 | FR-3.2 | Sistem, personelin belirli bir vardiya tipine yönelik tercihini kaydetmesine imkân vermelidir. | Orta |
 | FR-3.3 | Sistem, dönem bazında tercih son bildirim tarihi tanımlanmasına imkân vermeli ve bu tarihten sonra yeni tercih kabul etmemelidir. | Yüksek |
-| FR-3.4 | Sistem, yöneticinin tercihleri onaylamasına veya gerekçeyle reddetmesine imkân vermelidir. | Yüksek |
+| FR-3.4 | Sistem, yöneticinin tercihleri onaylamasına veya gerekçeyle reddetmesine imkân vermelidir; ret gerekçesi tercih kaydında saklanır ve çalışana gösterilir. | Yüksek |
 | FR-3.5 | Sistem, yalnızca onaylanmış tercihleri çözücü modeline dahil etmelidir. | Zorunlu |
 | FR-3.6 | Sistem, onaylanmış bir tercihin çizelgede karşılanıp karşılanmadığını onay durumundan ayrı bir bilgi olarak göstermelidir. | Yüksek |
 
@@ -649,8 +648,8 @@ Ağırlıkların tamamı kullanıcı tarafından ayarlanabilir. Sistem hangi hed
 | --- | --- | --- |
 | FR-9.1 | Sistem, personelin yalnızca kendi çizelgesini görüntülemesine imkân vermelidir. | Yüksek |
 | FR-9.2 | Sistem, personele yalnızca yayınlanmış durumdaki çizelge sürümünü göstermelidir. | Zorunlu |
-| FR-9.3 | Sistem, personelin çizelgesini dönem görünümünde (takvim gibi, yedi sütuna sarmalı) ve liste görünümünde sunmalı, sıradaki vardiyayı öne çıkarmalıdır. | Yüksek |
-| FR-9.4 | Sistem, yeni yayınlanan sürümde önceki sürüme göre değişen günleri işaretlemelidir. | Yüksek |
+| FR-9.3 | Sistem, personelin çizelgesini dönem görünümünde (dönem uzunluğu ne ise o kadar) ve liste görünümünde sunmalı, sıradaki vardiyayı öne çıkarmalıdır. | Yüksek |
+| FR-9.4 | Sistem, yayınlanmış çizelgede, aynı dönemde en son arşive alınmış sürüme göre değişen günleri işaretlemelidir. Değişim üç biçimde ayrışır: eklendi, kaldırıldı, değişti (vardiya tipi veya görev noktası farklı). Dönemin ilk yayınında karşılaştırma tabanı bulunmadığından hiçbir gün işaretlenmez. | Yüksek |
 | FR-9.5 | Sistem, personelin dönem içindeki gece, hafta sonu ve toplam saat sayısını ekip ortalamasıyla birlikte göstermelidir. | Orta |
 | FR-9.6 | Sistem, personelin tercih bildirmesine ve bildirdiği tercihlerin durumunu görmesine imkân vermelidir. | Yüksek |
 
