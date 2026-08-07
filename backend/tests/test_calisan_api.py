@@ -18,7 +18,7 @@ from app.db import OturumYerel
 from app.main import app
 from app.models.girdi import Tercih, TercihDurumu, TercihTipi
 from app.models.sonuc import Atama, AtamaKaynagi, CizelgeSurumu, CizelgeSurumuDurumu, Donem
-from app.models.tanim import GorevNoktasi, Personel, VardiyaTipi
+from app.models.tanim import GorevNoktasi, GunTipi, Personel, Talep, VardiyaTipi
 from app.services.calisan_baglantisi import anahtar_uret
 from tests.conftest import pg_yoksa_atla
 
@@ -159,6 +159,36 @@ def senaryo() -> dict[str, int]:
         )
         oturum.add(personel)
         oturum.flush()
+
+        # Talep satirlari: Donem Ozetim'in ekip ortalamasi AnalizServisi'nden
+        # gelir ve o da SRS S2/S3'teki UYGUN HAVUZU (P_gece / P_hs) talepten
+        # turetir - talep tanimlanmazsa havuz bos kalir ve gece/hafta sonu
+        # metrikleri hic uretilmez. Senaryo bu yuzden gercek bir talep tasir.
+        oturum.add_all(
+            [
+                Talep(
+                    nokta_id=nokta.nokta_id,
+                    vardiya_tipi_id=gunduz.vardiya_tipi_id,
+                    gun_tipi=GunTipi.HAFTA_ICI,
+                    tarih=None,
+                    gereken_sayi=1,
+                ),
+                Talep(
+                    nokta_id=nokta.nokta_id,
+                    vardiya_tipi_id=gece.vardiya_tipi_id,
+                    gun_tipi=GunTipi.HAFTA_ICI,
+                    tarih=None,
+                    gereken_sayi=1,
+                ),
+                Talep(
+                    nokta_id=nokta.nokta_id,
+                    vardiya_tipi_id=gece.vardiya_tipi_id,
+                    gun_tipi=GunTipi.HAFTA_SONU,
+                    tarih=None,
+                    gereken_sayi=1,
+                ),
+            ]
+        )
 
         donem = Donem(
             baslangic_tarihi=BUGUN - timedelta(days=3),

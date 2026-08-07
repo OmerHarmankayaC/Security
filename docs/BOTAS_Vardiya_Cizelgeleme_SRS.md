@@ -27,6 +27,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 07.08.2026 | Görev noktaları tesis geneli üç noktaya indirildi ve planlama dönemi varsayılanı bir haftaya çekildi (bölüm 3.3); S4'ün hedefi kişisel sözleşme saatinden talebin orantılı payına çevrildi (hedef ulaşılamaz olduğunda ceza sabite dönüşüyor ve ayırt ediciliğini kaybediyordu); S6b'nin mevcut uygulama alanında etkisiz kaldığı belirtildi | 1.2 |
 | Ömer HARMANKAYA | 07.08.2026 | NFR-1'in referans kadrosu otuzdan kırk personele çıkarıldı; Proje Tanım Dokümanı ve Yazılım Tasarım Dokümanı ile arasındaki üçlü tutarsızlık giderildi | 1.3 |
 | Ömer HARMANKAYA | 07.08.2026 | Çalışan paneli boşlukları kapatıldı: tercih kaydına çalışan notu ve ret gerekçesi alanları eklendi (FR-3.4), karşılanma durumu TD-12 olarak türetilmiş ve üç değerli biçimde tanımlandı (FR-3.6, FR-9.6), FR-9.4'ün karşılaştırma tabanı ve değişim türleri netleştirildi, FR-9.3'teki aylık görünüm dönem görünümüne çevrildi | 1.4 |
+| Ömer HARMANKAYA | 07.08.2026 | S2 ve S3'ün hedefi bütün personel yerine uygun havuz (P_gece, P_hs) üzerinden hesaplanacak biçimde düzeltildi; yetkinliği gereği gece veya hafta sonu talebi bulunan hiçbir noktada çalışamayan personel paydaya dahil edildiğinde hedef ulaşılamaz hâle geliyor ve ayırt ediciliğini kaybediyordu | 1.5 |
 
 
 
@@ -432,26 +433,36 @@ Ağırlık w1, diğer tüm ağırlıkların toplamından belirgin biçimde büy�
 
 ### S2 — Gece adaleti
 
-Kişi başına düşen gece vardiyası sayısının hedeften sapması cezalandırılır.
+Gece vardiyası yükü, bu yükü üstlenebilecek personel arasında dengeli dağıtılır. Kişi başına düşen gece sayısının hedeften sapması cezalandırılır.
 
 ```
 gece_sayisi[p] = Σ_{d ∈ dönem} Σ_{s: gece[s]=1} y[p,d,s]
-hedef_gece = ( Σ_{d,s: gece[s]=1} talep[d,s] ) / |P|
-sapma[p] ≥ gece_sayisi[p] − ⌊hedef_gece⌋
-sapma[p] ≥ ⌈hedef_gece⌉ − gece_sayisi[p]
-Ceza:  w2 · Σ_p sapma[p]
+P_gece = { p ∈ P : p, gece talebi bulunan en az bir
+                   görev noktasının ön koşulunu karşılıyor }
+hedef_gece = ( Σ_{d,s,n: gece[s]=1} talep[d,s,n] ) / |P_gece|
+∀p ∈ P_gece :
+    sapma[p] ≥ gece_sayisi[p] − ⌊hedef_gece⌋
+    sapma[p] ≥ ⌈hedef_gece⌉ − gece_sayisi[p]
+Ceza:  w2 · Σ_{p ∈ P_gece} sapma[p]
 ```
+
+Hedefin bütün personele değil yalnızca uygun havuza bölünmesi zorunludur. Yetkinliği gereği gece talebi bulunan hiçbir noktada çalışamayan personel (H8), gece sayısı sıfır olduğu için paydaya dahil edildiğinde kalıcı biçimde "hedefin altında" görünür; bu sapma hiçbir çizelgeyle kapatılamaz, dolayısıyla hedef ayırt ediciliğini kaybeder ve kabul kriteri sağlanamaz hâle gelir. Adalet, yükü paylaşabilecekler arasında paylaştırmaktır; paylaşamayan personel ölçümün dışındadır.
 
 Sayım yalnızca planlama dönemini kapsar; ısıtma penceresi dahil edilmez (TD-6).
 
 ### S3 — Hafta sonu adaleti
 
-Kişi başına düşen hafta sonu ve resmî tatil vardiyası sayısının hedeften sapması cezalandırılır. Formülasyon S2 ile aynıdır; gece[s] yerine hs[d] kullanılır (TD-3).
+Kişi başına düşen hafta sonu ve resmî tatil vardiyası sayısının hedeften sapması cezalandırılır. Formülasyon S2 ile aynıdır; gece[s] yerine hs[d] kullanılır (TD-3) ve uygun havuz aynı mantıkla belirlenir.
 
 ```
 hs_sayisi[p] = Σ_{d: hs[d]=1} Σ_s y[p,d,s]
-Ceza:  w3 · Σ_p sapma_hs[p]
+P_hs = { p ∈ P : p, hafta sonu talebi bulunan en az bir
+                 görev noktasının ön koşulunu karşılıyor }
+hedef_hs = ( Σ_{d,s,n: hs[d]=1} talep[d,s,n] ) / |P_hs|
+Ceza:  w3 · Σ_{p ∈ P_hs} sapma_hs[p]
 ```
+
+Uygun havuz kısıtlaması burada da geçerlidir ve aynı gerekçeye dayanır: yalnızca hafta içi talebi bulunan bir noktada çalışabilen personel, hafta sonu adaleti ölçümünün dışındadır.
 
 ### S4 — Toplam saat dengesi
 

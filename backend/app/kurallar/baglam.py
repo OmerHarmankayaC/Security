@@ -7,7 +7,7 @@ birim testlerinin veritabani gerektirmeden elle kurulan ornekler uzerinde
 calismasini saglar.
 """
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from itertools import product
@@ -188,6 +188,43 @@ class Baglam:
     @property
     def gece_vardiyalari(self) -> frozenset[int]:
         return frozenset(v for v, vt in self.vardiya_tipleri.items() if vt.gece_mi)
+
+    def uygun_havuz(self, talep_uygun_mu: Callable[[tuple[date, int, int]], bool]) -> set[int]:
+        """SRS S2/S3'teki P_gece / P_hs: ilgili talebi bulunan EN AZ BIR gorev
+        noktasinin on kosulunu (H8) karsilayan personel.
+
+        Neden gerekli: yetkinligi geregi o talebin bulundugu hicbir noktada
+        calisamayan personel, sayisi hicbir cizelgede sifirdan yukari
+        cikamayacagi icin paydaya dahil edildiginde KALICI olarak "hedefin
+        altinda" gorunur. Bu sapma hicbir cizelgeyle kapatilamaz; hedef
+        ayirt ediciligini kaybeder ve kabul kriteri saglanamaz hale gelir
+        (SRS 1.5'te S2/S3 bu yuzden duzeltildi). Adalet, yuku
+        paylasabilecekler arasinda paylastirmaktir.
+
+        Cozucu (modele_ekle), dogrulayici (dogrula) ve Analiz servisi (SDD
+        5.7) ayni tabani kullanmak zorunda oldugu icin tanim burada, tek
+        yerde durur.
+        """
+        uygun_noktalar = {
+            nokta_id
+            for (tarih, vardiya_tipi_id, nokta_id), gereken in self.talep.items()
+            if gereken > 0
+            and self.donem_icinde(tarih)
+            and talep_uygun_mu((tarih, vardiya_tipi_id, nokta_id))
+        }
+        havuz: set[int] = set()
+        for personel_id, bilgi in self.personel.items():
+            for nokta_id in uygun_noktalar:
+                nokta = self.gorev_noktalari.get(nokta_id)
+                if nokta is None:
+                    continue
+                if (
+                    nokta.onkosul_yetkinlik_id is None
+                    or nokta.onkosul_yetkinlik_id in bilgi.yetkinlikler
+                ):
+                    havuz.add(personel_id)
+                    break
+        return havuz
 
     @property
     def vardiya_ciftleri(self) -> list[tuple[int, int]]:

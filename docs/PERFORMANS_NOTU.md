@@ -1,6 +1,6 @@
 # Performans ve Kabul Kriteri Notu
 
-**Tarih:** 07.08.2026 · **Kapsam:** Sprint 3 Gün 14 · **Sürüm:** 1.0
+**Tarih:** 07.08.2026 · **Kapsam:** Sprint 3 Gün 14 · **Sürüm:** 1.1
 
 Bu not, Proje Tanım Dokümanı bölüm 5'teki kabul kriterlerinin ölçüm
 sonuçlarını içerir. Ölçümler `backend/scripts/kabul_olcumu.py` ile
@@ -37,7 +37,8 @@ doğrulama, gösterim ortamı kurulduğunda (Gün 15) aynı betiğin orada
 **Belirlenimsizlik.** CP-SAT paralel aramada belirlenimsizdir; aynı
 örnek farklı çalıştırmalarda farklı (eşit iyilikte) çözümler verebilir.
 K3'ün ölçülen sapması ve K4'ün açık hücre sayısı çalıştırmadan
-çalıştırmaya değişir; K1/K2/K5 sonuçları değişmez.
+çalıştırmaya bir miktar değişir (K3 için gözlenen aralık 0,5–0,7; K4 için
+19–21 açık hücre); geçme/kalma sonucu ve K1/K2/K5 değerleri değişmez.
 
 ## 2. Referans örnek
 
@@ -61,13 +62,13 @@ havuz (Vardiya Şefi, Müracaat) olduğu gibi korunmuştur.
 
 | Kriter | Eşik | Ölçülen | Sonuç |
 |---|---|---|---|
-| **K1** 40×28 referans örnek < 60 sn | < 60,0 sn | **1,21 sn** | ✅ geçti |
+| **K1** 40×28 referans örnek < 60 sn | < 60,0 sn | **1,12 sn** | ✅ geçti |
 | **K2** Zorunlu kısıt ihlali sıfır | 0 ihlal | **0 ihlal** | ✅ geçti |
-| **K3** Kişi başına gece sayısı hedeften en fazla 1 sapar | ≤ 1,0 | **4,60** | ❌ kaldı |
-| **K4** Çelişkili örnekte gün/vardiya/eksik sayısı gösterilir | ≥ 1 açık, üç bilgi de dolu | **31 açık hücre** | ✅ geçti |
-| **K5** Manuel düzenleme doğrulaması < 1 sn | < 1,000 sn | **0,036 sn** | ✅ geçti |
+| **K3** Kişi başına gece sayısı hedeften en fazla 1 sapar | ≤ 1,0 | **0,61** | ✅ geçti |
+| **K4** Çelişkili örnekte gün/vardiya/eksik sayısı gösterilir | ≥ 1 açık, üç bilgi de dolu | **21 açık hücre** | ✅ geçti |
+| **K5** Manuel düzenleme doğrulaması < 1 sn | < 1,000 sn | **0,038 sn** | ✅ geçti |
 
-**4/5 kriter geçti.**
+**5/5 kriter geçti.**
 
 Charter'ın altıncı kriteri ("yeniden çözümde değişen atama sayısı
 raporlanır") bu turda ölçülmemiştir: raporlama yüzeyi Sürümler
@@ -78,9 +79,9 @@ işidir. Uygulama Planı'nın Gün 14 maddesi de beş kriter sayar.
 
 | Aşama | Süre |
 |---|---|
-| Model kurma | 0,51 sn |
-| İlk uygun çözüme ulaşma (çözücü içi) | 0,70 sn |
-| **Kullanıcının beklediği toplam** | **1,21 sn** |
+| Model kurma | 0,50 sn |
+| İlk uygun çözüme ulaşma (çözücü içi) | 0,62 sn |
+| **Kullanıcının beklediği toplam** | **1,12 sn** |
 | Zaman limitine kadar iyileştirme | 60,06 sn |
 
 **"Çözülür" ne demektir.** CP-SAT bir eniyileme problemi çözer ve zaman
@@ -88,84 +89,79 @@ limiti dolana kadar çözümü iyileştirmeye devam eder; 60 saniyede
 eniyilik kanıtlanmaz (durum: *uygun*). Kriterin işaret ettiği süre, ilk
 **kullanılabilir** çizelgeye ulaşma süresidir — Charter bölüm 6'nın
 önlem cümlesi de bunu söyler: "limit dolduğunda o ana kadarki en iyi
-çözüm döndürülür". Bu okumayla ölçülen 1,21 saniye, 60 saniyelik eşiğin
+çözüm döndürülür". Bu okumayla ölçülen 1,12 saniye, 60 saniyelik eşiğin
 yaklaşık 50 kat altındadır. Referans donanımın daha yavaş çekirdekleri
 bu payı daraltır ama kapatması beklenmez.
 
-### K3 — Gece adaleti (kalan kriter)
+### K3 — Gece adaleti
 
-Ölçülen azami sapma **4,60** (eşik 1,0). Gözlenen aralık 4–12 gece,
-hedef 8,60.
+Ölçülen azami sapma **0,61** (eşik 1,0). Uygun havuzda gözlenen aralık
+3–4 gece, hedef 3,39; banttan çıkan kimse yok.
 
-**Bu bir çözücü yetersizliği değildir.** Aynı örnek 5 kat uzun süreyle
-(300 sn) çözüldüğünde azami sapma **değişmemiştir** (4,60). Betiğin
-ürettiği ulaşılabilirlik teşhisi nedeni gösterir:
+Bu kriter ilk ölçümde **4,60** ile kalmıştı. Kalmanın nedeni çözücü
+değildi — aynı örnek beş kat uzun süreyle (300 sn) çözüldüğünde sapma
+değişmemişti. İki ayrı hata birleşiyordu; ikisi de düzeltildi.
 
-| Havuz | Ulaşabildiği gece talebi | Kişi başı tavan |
+**(1) Veri hatası — demo üreteci SRS 3.3.1'i eziyordu.** SRS 3.3.1'in
+vardiya tipi tablosu Akşam vardiyasını açıkça `gece_mi = Hayır` olarak
+tanımlar. TD-2'nin "20:00–06:00 ile kesişim ≥ 4 saat" kuralı ise bir
+**öneridir**; TD-2'nin kendi metni bayrağın "hesaplanan değil tanımlanan
+bir alan" olduğunu söyler. Demo üreteci öneriyi otomatik uygulayıp
+tanımlı değeri eziyordu: Akşam (16:00–24:00) pencereyle **tam 4 saat**
+kesiştiği için eşiği sınırda karşılayıp gece işaretleniyor, üç
+vardiyanın ikisi gece sayılıyor ve dönem içi gece talebi 344 kişi-vardiyaya
+(toplamın %60'ı) çıkıyordu. Üreteçler artık bayrakları SRS 3.3.1'den
+birebir alır; öneri kuralı yalnızca kullanıcı **yeni** bir vardiya tipi
+tanımlarken alanı ön-doldurur ve tanımlı bir değeri asla ezmez.
+Düzeltmeden sonra gece talebi 112 kişi-vardiyaya indi.
+
+**(2) Formül hatası — S2/S3'ün paydası (SRS 1.5'te düzeltildi).** Hedef,
+gece talebini **bütün** personele bölüyordu. Müracaat görevlileri H8
+gereği yalnız Müracaat noktasında çalışabilir ve o noktanın gece talebi
+sıfırdır; bu yedi kişi hiçbir çizelgede gece alamaz, ama paydada
+sayıldıkları için kalıcı olarak "hedefin altında" görünüp sapmayı
+şişiriyorlardı. Yeni tanım hedefi **uygun havuza** böler:
+
+```
+P_gece = { p ∈ P : p, gece talebi bulunan en az bir noktanın
+                   ön koşulunu karşılıyor }
+hedef_gece = ( Σ_{d,s,n: gece[s]=1} talep[d,s,n] ) / |P_gece|
+Ceza:  w2 · Σ_{p ∈ P_gece} sapma[p]
+```
+
+Havuz dışındaki personel bu hedefin ölçümüne hiç girmez. S3 için aynısı
+`P_hs` ile geçerlidir.
+
+Referans örnekte sonuç:
+
+| | İlk ölçüm | Düzeltmeden sonra |
 |---|---|---|
-| 24 kişilik (Güvenlik Görevi) | 248 | 10,33 |
-| 9 kişilik (Vardiya Şefi) | 304 | 33,78 |
-| **7 kişilik (Müracaat)** | **40** | **5,71** ← ulaşılamaz |
+| Dönem içi gece talebi | 344 kişi-vardiya | **112** |
+| Payda | 40 (bütün personel) | **33 (P_gece)** |
+| Hedef | 8,60 gece | **3,39 gece** |
+| Gözlenen aralık | 4–12 gece | **3–4 gece** |
+| Azami sapma | 4,60 | **0,61** ✅ |
 
-**Kanıt.** Müracaat görevlileri yalnızca Müracaat noktasında
-görevlendirilebilir (H8); bu noktanın gece işaretli talebi dönem boyunca
-toplam 40 kişi-vardiyadır. Yedi kişinin gece sayıları toplamı 40'ı
-aşamaz. Kriterin sağlanması için her birinin en az 8,60 − 1 = 7,60 gece
-alması gerekirdi; bu da toplamda 7 × 7,60 = 53,2 > 40 demektir. Çelişki.
-**Hiçbir çizelge bu örnekte K3'ü sağlayamaz**, ek çözücü süresi sonucu
-değiştirmez.
+Ölçüm dışında kalan 7 kişi (Müracaat), görev noktalarında gece talebi
+bulunmadığı için havuza girmez. Betiğin ulaşılabilirlik teşhisi artık
+"her havuz hedefe erişebiliyor" raporlar.
 
-**Kökeni: iki tanımın birleşimi.**
-
-1. **TD-2** gece bayrağını "20:00–06:00 aralığıyla kesişim ≥ 4 saat"
-   kuralıyla önerir. Akşam vardiyası (16:00–24:00) bu pencereyle **tam 4
-   saat** kesişir, yani eşiği sınırda karşılar ve gece olarak
-   işaretlenir. Sonuçta üç vardiyanın **ikisi** gece sayılır: dönem içi
-   gece talebi 344 kişi-vardiya (toplam 576'nın %60'ı).
-2. **S2** (SRS 4.3) hedefi `toplam gece talebi / |P|` olarak, yani
-   **bütün personele** bölerek tanımlar — yetkinliği gereği gece
-   çalışamayan personel de paydadadır.
-
-Bu ikisi birleşince, gece işaretli işin çoğuna yapısal olarak
-erişemeyen bir havuz (Müracaat) hedefi kaçınılmaz olarak ıskalar.
-
-**Not:** Akşam vardiyasının bayrağı gündüze çevrilse bile kriter
-sağlanmaz. O durumda gece talebi 112, hedef 2,80 olur; Müracaat
-noktasının gece talebi sıfır olduğundan Müracaat görevlilerinin gece
-sayısı 0'dır ve sapma 2,80 > 1 kalır. Yani asıl bağlayıcı olan (2)
-numaralı tanımdır.
-
-**Bu bir uygulama hatası değil, tanım düzeyinde bir açıktır** ve
-çözümü SRS'i etkiler; bu nedenle bu turda **değiştirilmemiştir**.
-Karar için üç seçenek not edilmiştir:
-
-- **(a)** K3/NFR-9'un kapsamını "gece çalışabilen personel" ile
-  sınırlamak (S2'nin paydasını değiştirmek). Tek başına yetmez:
-  mevcut çizelge bu ölçüte göre yeniden değerlendirildiğinde (33 kişi,
-  hedef 344/33 = 10,42) azami sapma **1,58** çıkar — 1,0'ın hâlâ
-  üstünde. *Bu bir yeniden çözüm ölçümü değil, eldeki çözümün farklı
-  ölçütle yeniden değerlendirilmesidir; payda değişirse çözücü farklı
-  bir çizelge üretir ve sapma bir miktar düşebilir.*
-- **(b)** TD-2'nin eşiğini "> 4 saat" yapmak, böylece Akşam gündüz
-  sayılır. Tek başına yeterli değildir (yukarıdaki not).
-- **(c)** Kriteri, yapısal olarak erişilebilir hedefe göre yeniden
-  ifade etmek (örneğin havuz bazında adalet).
-
-Seçim mentör/paydaş kararıdır; karar verildiğinde önce ilgili doküman,
-sonra kod güncellenmelidir (Uygulama Planı, "Mentör Görüşmesi Sonrası
-Güncelleme Protokolü").
+**Havuz tanımı tek yerde durur** (`Baglam.uygun_havuz`): çözücü
+(`modele_ekle`), doğrulayıcı (`dogrula`), Analiz servisi (SDD 5.7) ve bu
+ölçüm betiği aynı tabanı kullanır. Aksi hâlde iki yerde iki farklı
+"ortalama" görünürdü.
 
 ### K4 — Çelişkili örnek
 
 Çelişkili örnek, SRS 3.3.6'daki kırılganlık mekanizmasını doğrudan
 kurar: 9 kişilik Vardiya Şefi havuzunun 5'i dönem boyunca izinlidir;
 kalan 4 kişi, haftada 21 vardiya gerektiren tek noktayı H5/H6 tavanını
-aşmadan dolduramaz. Sistem 31 açık hücre raporlamıştır ve her kayıt
+aşmadan dolduramaz. Sistem 21 açık hücre raporlamıştır ve her kayıt
 kriterin istediği üç bilgiyi de taşır — örnek:
 
 ```
-2026-06-04 / Gece  / Vardiya Şefliği -> 1 kisi eksik
-2026-06-05 / Akşam / Vardiya Şefliği -> 1 kisi eksik
+2026-06-05 / Gece   / Vardiya Şefliği -> 1 kisi eksik
+2026-06-06 / Gündüz / Vardiya Şefliği -> 1 kisi eksik
 ```
 
 Bu, S1'in esnek hedef olarak tanımlanmasının (SRS 5.5) beklenen
@@ -175,8 +171,8 @@ davranışıdır: kadro daraldığında çözüm reddedilmez, açık gösterilir
 
 28 günlük gerçek bir sürüm üzerinde, dönem geneli kapsamlı kuralları
 (S2–S4, SDD 5.5) da tetikleyen bir vardiya tipi değişikliği beş kez
-doğrulanmıştır: en iyi 0,029 sn, ortanca 0,030 sn, en kötü 0,036 sn.
-Eşiğin (1 sn) yaklaşık 28 kat altındadır.
+doğrulanmıştır: en iyi 0,031 sn, ortanca 0,032 sn, en kötü 0,038 sn.
+Eşiğin (1 sn) yaklaşık 26 kat altındadır.
 
 ## 4. Çözücü–doğrulayıcı uyumu
 

@@ -54,13 +54,23 @@ class KaldirilanGunOku(BaseModel):
 
 
 class DonemOzetiOku(BaseModel):
-    """FR-9.5: ekip ortalamasi, AnalizServisi'nin butun personel uzerindeki
-    hesabinin ortalamasidir - tek tek diger personelin verisi disari cikmaz."""
+    """FR-9.5: ekip ortalamasi, AnalizServisi'nin hesabinin ortalamasidir -
+    tek tek diger personelin verisi disari cikmaz.
+
+    Gece ve hafta sonu ortalamalari UYGUN HAVUZ (SRS S2/S3'teki P_gece, P_hs)
+    uzerinden hesaplanir (SDD 5.7 surum 1.7). Bu havuzun DISINDAKI bir
+    calisan icin karsilastirma anlamsizdir: yetkinligi geregi o vardiyalari
+    hic alamaz, dolayisiyla kendi sayisi kalici olarak 0 ve "ortalamanin
+    altinda" gorunur. Bu yuzden havuz uyeligi ayrica tasinir ve arayuz,
+    havuz disindaki calisana o karsilastirmayi hic gostermez.
+    """
 
     gece_sayisi: int
     ekip_ortalama_gece: float
+    gece_havuzunda: bool
     hafta_sonu_sayisi: int
     ekip_ortalama_hafta_sonu: float
+    hafta_sonu_havuzunda: bool
     toplam_saat: float
     ekip_ortalama_saat: float
 

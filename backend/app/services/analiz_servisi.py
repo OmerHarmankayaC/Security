@@ -14,7 +14,7 @@ from collections.abc import Sequence
 from sqlalchemy.orm import Session
 
 from app.kurallar.baglam import AtamaKaydi
-from app.kurallar.esnek import S6bBinaTutarliligi
+from app.kurallar.esnek import S4_OLCEK, S6bBinaTutarliligi, s4_hedef_paylari_x10
 from app.models.girdi import TercihTipi
 from app.models.sonuc import Atama
 from app.models.tanim import Personel
@@ -85,6 +85,15 @@ class AnalizServisi:
                 hs_sayac[a.personel_id] += 1
             saat_toplam[a.personel_id] += baglam.sure_saat(a.vardiya_tipi_id)
 
+        # SDD 5.7 (surum 1.7): gece ve hafta sonu metrikleri UYGUN HAVUZ
+        # (SRS S2/S3'teki P_gece, P_hs) uzerinden raporlanir - yetkinligi
+        # geregi o talebin bulundugu hicbir noktada calisamayan personel
+        # olcume dahil edilmez, aksi halde kalici olarak ortalamanin altinda
+        # gorunur. Havuz tanimi Baglam.uygun_havuz'da tek yerde durur;
+        # cozucu, dogrulayici ve Analiz ayni tabani kullanir.
+        gece_havuzu = baglam.uygun_havuz(lambda anahtar: baglam.gece_mi(anahtar[1]))
+        hs_havuzu = baglam.uygun_havuz(lambda anahtar: baglam.hafta_sonu_mu(anahtar[0]))
+
         kisi_basina_gece = [
             KisiSayisiOku(
                 personel_id=p.personel_id,
@@ -92,21 +101,28 @@ class AnalizServisi:
                 sayi=gece_sayac.get(p.personel_id, 0),
             )
             for p in personel_satirlari
+            if p.personel_id in gece_havuzu
         ]
         kisi_basina_hafta_sonu = [
             KisiSayisiOku(
                 personel_id=p.personel_id, ad_soyad=p.ad_soyad, sayi=hs_sayac.get(p.personel_id, 0)
             )
             for p in personel_satirlari
+            if p.personel_id in hs_havuzu
         ]
 
-        # Kisisel hedef saat: sozlesme (haftalik_hedef_saat) donem uzunluguna
-        # oranli - S4'un artik optimize ettigi talep-payi DEGIL (bkz.
-        # PROGRESS.md Ek Gorev): Analiz, personelin kendi sozlesmesine gore
-        # ne durumda oldugunu gosterir, cozucunun neyi hedeflediğini degil.
+        # SDD 5.7 (surum 1.7): saat dagiliminin tabani kisisel SOZLESME saati
+        # degil, SRS S4'teki ADIL PAY (pay[p]). Sozlesme saati taban alindiginda
+        # H5+H6 kisi basina azami vardiya sayisini sinirladigi icin kadro asgari
+        # gereksinimin uzerindeyken hic kimse hedefine ulasamiyor, tablo butun
+        # satirlarda ayni yonde sapma gosterip hicbir ayrim uretmiyordu.
+        # Hesap S4'un kendi fonksiyonundan gelir - kural iki ayri yerde
+        # kodlanmaz (SDD 2.4); S4_OLCEK onda bir saat oldugundan dogal birime
+        # geri cevrilir (SDD Ek A, "Kesirli hedeflerin tamsayiya olceklenmesi").
+        paylar_x10 = s4_hedef_paylari_x10(baglam, donem_gun_sayisi)
         saat_dagilimi: list[SaatDengesiOku] = []
         for p in personel_satirlari:
-            hedef = float(p.haftalik_hedef_saat) * donem_gun_sayisi / 7
+            hedef = paylar_x10.get(p.personel_id, 0) / S4_OLCEK
             toplam = saat_toplam.get(p.personel_id, 0.0)
             saat_dagilimi.append(
                 SaatDengesiOku(

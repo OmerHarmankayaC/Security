@@ -29,6 +29,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 07.08.2026 | Ek A'daki S2 örneği düzeltildi: aralık (en yüksek eksi en düşük) minimizasyonu yerine SRS bölüm 4'teki normatif formül (hedeften sapmaların toplamı) kullanılıyor; örnek ile normatif gereksinim arasındaki çelişki giderildi | 1.4 |
 | Ömer HARMANKAYA | 07.08.2026 | Ek A'daki S2 dogrula örneği hedefi atanan sayılardan değil talepten türetecek şekilde düzeltildi; kesirli hedeflerin tamsayıya ölçeklenmesi ve raporlamadan önce doğal birime geri çevrilmesi kuralı Ek A'ya eklendi; NFR-1 referans kadrosu üç dokümanda kırk personel olarak hizalandı | 1.5 |
 | Ömer HARMANKAYA | 07.08.2026 | Tercih tablosuna calisan_notu ve ret_gerekcesi alanları eklendi; çalışan arayüzü dört bölümden üçe indirildi ve tek sütunlu/mobil öncelikli düzen ile dönem görünümünün takvim sarmalı olarak sunulması yazıldı | 1.6 |
+| Ömer HARMANKAYA | 07.08.2026 | 5.7'deki saat dağılımı metriğinin tabanı sözleşme saatinden adil paya (S4'teki pay[p]) çevrildi; gece ve hafta sonu ortalamaları SRS S2/S3'teki uygun havuz üzerinden hesaplanacak biçimde hizalandı | 1.7 |
 
 
 
@@ -733,14 +734,16 @@ Analiz servisi, bir çizelge sürümü üzerinden aşağıdaki metrikleri hesapl
 | Kapsama oranı | Karşılanan talep toplamının toplam talebe oranı; kapsama açığı tablosundan türetilir |
 | Kişi başına gece sayısı | Gece bayrağı taşıyan vardiyalardaki atama sayısı, personel bazında |
 | Kişi başına hafta sonu sayısı | Hafta sonu ve resmî tatil günlerindeki atama sayısı, personel bazında |
-| Saat dağılımı | Personel başına toplam çalışma saati ile kişisel hedef saat arasındaki sapma |
+| Saat dağılımı | Personel başına toplam çalışma saati ile o personele düşen adil pay arasındaki sapma (SRS S4'teki pay[p]) |
 | Tercih karşılama oranı | Onaylanmış tercihlerden karşılananların oranı |
 | Ceza dökümü | Toplam ceza puanının S1…S8 hedefleri arasındaki dağılımı |
 | Bina değişim sayısı | Ardışık günlerde farklı binalarda görevlendirilme sayısı, personel bazında |
 
 
 
-Gece ve hafta sonu metriklerinde kişi başına düşen değerin ekip ortalamasından sapması ayrıca hesaplanır ve kabul kriterindeki bir birimlik sapma sınırıyla karşılaştırılır.
+Saat dağılımı metriğinin tabanı, personelin sözleşmesindeki haftalık hedef saat değil, SRS bölüm 4'teki S4 formülasyonunda tanımlanan adil paydır. Sözleşme saati taban alındığında, haftalık saat tavanı ve asgari izin günü kuralları kişi başına azami vardiya sayısını sınırladığı için kadro asgari gereksinimin üzerinde olduğunda hiçbir personel hedefine ulaşamaz; tablo bütün satırlarda aynı yönde sapma gösterir ve hiçbir ayrım üretmez. Adil pay tabanında sapma iki yönlü olabildiğinden metrik "kim payından fazla, kim az aldı" sorusunu yanıtlar ve yöneticinin üzerine işlem yapabileceği tek biçim budur.
+
+Gece ve hafta sonu metriklerinde kişi başına düşen değerin ekip ortalamasından sapması ayrıca hesaplanır ve kabul kriterindeki bir birimlik sapma sınırıyla karşılaştırılır. Bu iki metrikte ortalama ve sapma, SRS S2 ve S3'te tanımlanan uygun havuz (P_gece, P_hs) üzerinden hesaplanır; yetkinliği gereği gece veya hafta sonu talebi bulunan hiçbir noktada çalışamayan personel ölçüme dahil edilmez. Aksi hâlde bu personel kalıcı olarak ortalamanın altında görünür ve kabul kriteri hiçbir çizelgeyle sağlanamaz.
 
 # 6. Kullanıcı Arayüzü Tasarımı
 

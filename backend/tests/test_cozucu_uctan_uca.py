@@ -28,7 +28,7 @@ from app.kurallar import (
     TercihKaydi,
     VardiyaTipiBilgisi,
 )
-from app.kurallar.esnek import _S4_OLCEK
+from app.kurallar.esnek import S4_OLCEK
 from app.kurallar.kayit_defteri import bul
 from app.models.girdi import TercihTipi
 from app.models.sonuc import Atama, AtamaKaynagi, CizelgeSurumu, Donem
@@ -272,7 +272,7 @@ def _esnek_uyum_baglami() -> tuple[Baglam, list[date], list[AtamaKaydi]]:
     Personel 4'un hedef saati (20) digerlerinden (40) farkli birakildi: S4'un
     pay[p] payi boylece kasitli olarak kesirli cikar (144 toplam talep saati,
     140 toplam hedef saati - 40/140 ve 20/140 kesirleri tam bolunmez) ve
-    _S4_OLCEK'in olcekleyip geri cevirme adimi (SDD Ek A "Kesirli hedeflerin
+    S4_OLCEK'in olcekleyip geri cevirme adimi (SDD Ek A "Kesirli hedeflerin
     tamsayiya olceklenmesi") gercekten test edilir; esit hedeflerle bu adim hic
     calismadan da (kazara) uyum testinden gecebilirdi."""
     vardiya_tipleri = {
@@ -334,14 +334,14 @@ def test_esnek_hedefler_cozucu_dogrulayici_uyumu() -> None:
     urettigi ham ceza (cozucunun kendi hesabi) ile dogrula'nin bagimsizca
     urettigi ceza toplami her esnek hedef icin birebir esit olmalidir.
 
-    S4 istisnasi: modele_ekle CP-SAT'in tamsayi kisiti geregi _S4_OLCEK (onda
+    S4 istisnasi: modele_ekle CP-SAT'in tamsayi kisiti geregi S4_OLCEK (onda
     bir saat) ile olcup son adimda dogal birime (saat) yarim-yukari yuvarlayarak
     geri cevirir (SDD Ek A "Kesirli hedeflerin tamsayiya olceklenmesi"); dogrula
     ise kesirli cezayi hic yuvarlamadan (onda bir saat hassasiyetinde) dondurur -
     bu ikisi ancak ayni yuvarlama uygulandiginda birebir esitlenir, cunku ozetin
     (7 vs 6.7 gibi) tam sayiya yuvarlanmasi dogrula'nin PAYLASTIRILMAMIS toplamiyla
     aritmetik olarak ayni sey degildir. Bu yuzden S4 icin dogrula_toplami'nin
-    _S4_OLCEK ile yeniden tam sayiya cevrilip aynen modele_ekle'deki gibi
+    S4_OLCEK ile yeniden tam sayiya cevrilip aynen modele_ekle'deki gibi
     yarim-yukari yuvarlanmasi gerekir - test bu donusumu yeniden uygulayarak
     hem yuvarlamanin yapildigini hem DOGRU yapildigini kanitlar."""
     baglam, gunler, _ = _esnek_uyum_baglami()
@@ -366,10 +366,10 @@ def test_esnek_hedefler_cozucu_dogrulayici_uyumu() -> None:
         dogrula_toplami = sum(ihlal.ceza for ihlal in kural.dogrula(atamalar, baglam))
         if kimlik == "S4":
             # dogrula'nin onda-bir-saat hassasiyetli (kesirli) toplamini
-            # modele_ekle'nin kendi ic olceginde (_S4_OLCEK) yeniden tam sayiya
+            # modele_ekle'nin kendi ic olceginde (S4_OLCEK) yeniden tam sayiya
             # cevirip ayni yarim-yukari kuraliyla yuvarla (bkz. yukaridaki not).
-            toplam_x10 = round(dogrula_toplami * _S4_OLCEK)
-            dogrula_toplami = (toplam_x10 + _S4_OLCEK // 2) // _S4_OLCEK
+            toplam_x10 = round(dogrula_toplami * S4_OLCEK)
+            dogrula_toplami = (toplam_x10 + S4_OLCEK // 2) // S4_OLCEK
         assert sonuc.ceza_dokumu[kimlik] == dogrula_toplami, (
             f"{kimlik}: cozucunun ham cezasi ({sonuc.ceza_dokumu[kimlik]}) "
             f"dogrulayicinin hesapladigi toplamdan ({dogrula_toplami}) farkli"

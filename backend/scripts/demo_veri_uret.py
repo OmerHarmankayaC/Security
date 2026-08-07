@@ -52,12 +52,23 @@ from app.services.ornek_senaryo import (
     PERSONEL_GRUPLARI,
     talep_satirlarini_olustur,
 )
-from app.services.vardiya_hesaplari import gece_mi_oner, sure_saat_hesapla
+from app.services.vardiya_hesaplari import sure_saat_hesapla
 
-_VARDIYA_SAATLERI = {
-    "Gece": (time(0, 0), time(8, 0)),
-    "Gündüz": (time(8, 0), time(16, 0)),
-    "Akşam": (time(16, 0), time(0, 0)),
+# SRS 3.3.1'deki vardiya tipi tablosu BIREBIR: (baslangic, bitis, gece_mi).
+#
+# gece_mi degeri buradan gelir, gece_mi_oner()'den DEGIL. TD-2: bayrak
+# "hesaplanan degil TANIMLANAN bir alandir"; oneri kurali (20:00-06:00 ile
+# kesisim >= 4 saat) yalnizca kullanici YENI bir vardiya tipi tanimlarken
+# alani on-doldurmak icindir ve tanimli bir degeri ezemez. Aksam vardiyasi
+# (16:00-24:00) oneri esigini SINIRDA karsiladigi icin (tam 4 saat) otomatik
+# uygulandiginda gece isaretleniyor ve SRS 3.3.1'in acik "Hayir" degerini
+# eziyordu; sonucta uc vardiyanin ikisi gece sayilip donem ici gece talebi
+# toplamin %60'ina cikiyor, S2'nin hedefi bozuluyordu (bkz. PROGRESS.md,
+# Gun 14 K3 bulgusu).
+_VARDIYA_TANIMLARI: dict[str, tuple[time, time, bool]] = {
+    "Gece": (time(0, 0), time(8, 0), True),
+    "Gündüz": (time(8, 0), time(16, 0), False),
+    "Akşam": (time(16, 0), time(0, 0), False),
 }
 
 _KURAL_TANIMLARI: list[dict] = [
@@ -166,13 +177,13 @@ def _her_seyi_temizle(oturum: Session) -> None:
 
 def _vardiya_tiplerini_olustur(oturum: Session) -> dict[str, VardiyaTipi]:
     vardiyalar: dict[str, VardiyaTipi] = {}
-    for ad, (baslangic, bitis) in _VARDIYA_SAATLERI.items():
+    for ad, (baslangic, bitis, gece_mi) in _VARDIYA_TANIMLARI.items():
         vardiya = VardiyaTipi(
             ad=ad,
             baslangic_saati=baslangic,
             bitis_saati=bitis,
             sure_saat=sure_saat_hesapla(baslangic, bitis),
-            gece_mi=gece_mi_oner(baslangic, bitis),
+            gece_mi=gece_mi,
         )
         oturum.add(vardiya)
         vardiyalar[ad] = vardiya

@@ -279,8 +279,13 @@ export interface KaldirilanGun {
 export interface DonemOzeti {
   gece_sayisi: number
   ekip_ortalama_gece: number
+  // SRS S2/S3'teki uygun havuz (P_gece / P_hs) üyeliği. Havuz dışındaki
+  // çalışan o vardiyaları yetkinliği gereği hiç alamaz; karşılaştırma
+  // anlamsız olduğu için gösterilmez (SDD 5.7).
+  gece_havuzunda: boolean
   hafta_sonu_sayisi: number
   ekip_ortalama_hafta_sonu: number
+  hafta_sonu_havuzunda: boolean
   toplam_saat: number
   ekip_ortalama_saat: number
 }

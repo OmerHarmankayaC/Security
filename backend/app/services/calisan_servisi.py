@@ -189,10 +189,16 @@ class CalisanServisi:
         if analiz is None:
             return None
 
-        gece = next((k.sayi for k in analiz.kisi_basina_gece if k.personel_id == personel_id), 0)
-        hs = next(
-            (k.sayi for k in analiz.kisi_basina_hafta_sonu if k.personel_id == personel_id), 0
+        # analiz.kisi_basina_* artik yalniz uygun havuzu (P_gece / P_hs) tasir
+        # (SDD 5.7 surum 1.7); listede olmamak "havuz disinda" demektir.
+        gece_kaydi = next(
+            (k for k in analiz.kisi_basina_gece if k.personel_id == personel_id), None
         )
+        hs_kaydi = next(
+            (k for k in analiz.kisi_basina_hafta_sonu if k.personel_id == personel_id), None
+        )
+        gece = gece_kaydi.sayi if gece_kaydi is not None else 0
+        hs = hs_kaydi.sayi if hs_kaydi is not None else 0
         saat = next((s for s in analiz.saat_dagilimi if s.personel_id == personel_id), None)
 
         ekip_gece = (
@@ -214,8 +220,10 @@ class CalisanServisi:
         return DonemOzetiOku(
             gece_sayisi=gece,
             ekip_ortalama_gece=ekip_gece,
+            gece_havuzunda=gece_kaydi is not None,
             hafta_sonu_sayisi=hs,
             ekip_ortalama_hafta_sonu=ekip_hs,
+            hafta_sonu_havuzunda=hs_kaydi is not None,
             toplam_saat=saat.toplam_saat if saat is not None else 0.0,
             ekip_ortalama_saat=ekip_saat,
         )

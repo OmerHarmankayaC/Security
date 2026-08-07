@@ -91,22 +91,45 @@ export function DonemOzetimEkrani({ veri }: Props) {
   }
 
   const { ozet } = veri
+  // SDD 5.7: uygun havuz (P_gece / P_hs) dışındaki çalışan o vardiyaları
+  // yetkinliği gereği hiç alamaz; "ekip ortalamasının altındasın" demek
+  // yanıltıcı olur — o metrik hiç gösterilmez.
+  const cumleler = [
+    ozet.gece_havuzunda
+      ? `gecede ${karsilastirmaMetni(ozet.gece_sayisi, ozet.ekip_ortalama_gece, 'gece')}`
+      : null,
+    ozet.hafta_sonu_havuzunda
+      ? `hafta sonunda ${karsilastirmaMetni(ozet.hafta_sonu_sayisi, ozet.ekip_ortalama_hafta_sonu, 'vardiya')}`
+      : null,
+    `toplam saatte ${karsilastirmaMetni(ozet.toplam_saat, ozet.ekip_ortalama_saat, 'saat')}`,
+  ].filter(Boolean)
+
   return (
     <>
       <div>
         <p className="m-0 font-condensed text-[10px] tracking-[0.14em] text-ink-muted">
           {donemAraligiBicimle(veri.donem_baslangic_tarihi, veri.donem_bitis_tarihi)} DÖNEMİ
         </p>
-        <p className="m-0 mt-1 text-sm text-ink">
-          Bu dönemde {karsilastirmaMetni(ozet.gece_sayisi, ozet.ekip_ortalama_gece, 'gece')},{' '}
-          hafta sonunda {karsilastirmaMetni(ozet.hafta_sonu_sayisi, ozet.ekip_ortalama_hafta_sonu, 'vardiya')} ve
-          {' '}toplam saatte {karsilastirmaMetni(ozet.toplam_saat, ozet.ekip_ortalama_saat, 'saat')}.
-        </p>
+        <p className="m-0 mt-1 text-sm text-ink">Bu dönemde {cumleler.join(', ')}.</p>
       </div>
 
-      <MetrikKarti etiket="Gece Vardiyası" birim="vardiya" sen={ozet.gece_sayisi} ekip={ozet.ekip_ortalama_gece} ondalik={1} />
-      <MetrikKarti etiket="Hafta Sonu" birim="vardiya" sen={ozet.hafta_sonu_sayisi} ekip={ozet.ekip_ortalama_hafta_sonu} ondalik={1} />
+      {ozet.gece_havuzunda && (
+        <MetrikKarti etiket="Gece Vardiyası" birim="vardiya" sen={ozet.gece_sayisi} ekip={ozet.ekip_ortalama_gece} ondalik={1} />
+      )}
+      {ozet.hafta_sonu_havuzunda && (
+        <MetrikKarti etiket="Hafta Sonu" birim="vardiya" sen={ozet.hafta_sonu_sayisi} ekip={ozet.ekip_ortalama_hafta_sonu} ondalik={1} />
+      )}
       <MetrikKarti etiket="Toplam Saat" birim="saat" sen={ozet.toplam_saat} ekip={ozet.ekip_ortalama_saat} ondalik={1} />
+
+      {(!ozet.gece_havuzunda || !ozet.hafta_sonu_havuzunda) && (
+        <p className="m-0 text-sm text-ink-muted">
+          {!ozet.gece_havuzunda && !ozet.hafta_sonu_havuzunda
+            ? 'Görev noktanda gece ve hafta sonu vardiyası bulunmadığı için bu iki karşılaştırma gösterilmiyor.'
+            : !ozet.gece_havuzunda
+              ? 'Görev noktanda gece vardiyası bulunmadığı için gece karşılaştırması gösterilmiyor.'
+              : 'Görev noktanda hafta sonu vardiyası bulunmadığı için hafta sonu karşılaştırması gösterilmiyor.'}
+        </p>
+      )}
 
       <p className="m-0 rounded-sm bg-sunken px-4 py-3 text-sm text-ink-muted">
         Sayılar yalnızca yayınlanmış çizelgeden hesaplanır. Yönetici üzerinde çalıştığı taslak buraya

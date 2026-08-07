@@ -2541,9 +2541,105 @@ notta yazıldı.
 **Kalan / ertelenen:** K3'ün tanım kararı (mentör/paydaş); Charter'ın
 altıncı kriteri Gün 15'te Sürümler ekranıyla ölçülebilir hâle gelecek.
 
-**Sıradaki oturumun ilk işi:** Sprint 3 Gün 15 — Dağıtım ve Kapanış
-(systemd servisleri + Caddy + PostgreSQL ile gösterim ortamı; Sürümler
-ekranı SDD 6.3.5; dört dokümanla kodun tutarlılığının son kontrolü;
-`sprint-3` etiketi). Gün 15'te ayrıca: kabul ölçümünü gerçek gösterim
-donanımında yeniden çalıştır ve `docs/PERFORMANS_NOTU.md`'yi o
-sonuçlarla güncelle.
+---
+
+## 2026-08-07 — Gün 14 Düzeltmeleri: K3 kapandı (5/5)
+
+Kanonik dokümanlar SRS 1.5 / SDD 1.7'ye güncellendi (kaynaktan; `docs/`
+elle düzenlenmedi). Gözden geçirmede üç düzeltme istendi; üçü de yapıldı
+ve **K3 artık geçiyor**.
+
+**1. VERİ HATASI — demo üreteci SRS 3.3.1'i eziyordu.** SRS 3.3.1'in
+vardiya tipi tablosu Akşam'ı açıkça `gece_mi = Hayır` tanımlıyor; TD-2'nin
+"20:00–06:00 ile kesişim ≥ 4 saat" kuralı ise bir ÖNERİ (TD-2: bayrak
+"hesaplanan değil TANIMLANAN bir alandır"). `demo_veri_uret.py` ve
+`kabul_olcumu.py` öneriyi otomatik uygulayıp tanımlı değeri eziyordu:
+Akşam (16:00–24:00) pencereyle TAM 4 saat kesiştiği için eşiği sınırda
+karşılayıp gece işaretleniyordu. İkisi de artık bayrakları SRS 3.3.1'den
+birebir alıyor (`_VARDIYA_TANIMLARI`, üçlü: başlangıç, bitiş, gece_mi).
+Dönem içi gece talebi **344 → 112** kişi-vardiya.
+- Öneri kuralının API'deki kullanımı zaten doğruydu ve dokunulmadı:
+  `VardiyaTipiOlustur.gece_mi` isteğe bağlı, verilirse kullanılıyor,
+  verilmezse `gece_mi_oner` ön-dolduruyor — TD-2'nin "nihai değeri
+  kullanıcı belirler" cümlesiyle uyumlu.
+
+**2. FORMÜL HATASI — S2/S3'ün paydası (SRS 1.5).** Hedef artık uygun
+havuza bölünüyor:
+- `Baglam.uygun_havuz(talep_uygun_mu)` (yeni): ilgili talebi bulunan en
+  az bir noktanın ön koşulunu (H8) karşılayan personel. **Tanım tek
+  yerde**, çünkü dört tüketicisi var ve ayrışırlarsa iki farklı
+  "ortalama" görünür: `modele_ekle`, `dogrula`, `AnalizServisi` ve
+  `kabul_olcumu.py`.
+- `_adalet_sapmasi_terimi` ve `_adalet_sapmasi_ihlalleri` ikisi de
+  paydayı ve ceza toplamını havuza indirdi; uyum testi korundu (24
+  rastgele örnek + `test_cozucu_uctan_uca.py`'deki sayısal eşitlik
+  testi geçiyor).
+- **Ölçüm betiğinin kendi K3 hesabı da eski paydayı kullanıyordu** —
+  düzeltilmeseydi kod doğru olduğu hâlde kriter kalmaya devam ederdi.
+  Betik artık `Baglam.uygun_havuz`'u çağırıyor, kendi tanımını
+  uydurmuyor. Ulaşılabilirlik teşhisi de yalnız havuz içini gruplandırıyor
+  (havuz dışını "ulaşılamaz" diye raporlamak yanlış alarm olurdu).
+
+**3. ANALİZ METRİĞİ (SDD 1.7).**
+- Saat dağılımının tabanı sözleşme saatinden **S4'teki adil paya**
+  (`pay[p]`) çevrildi. Hesap S4'ün kendi fonksiyonundan geliyor — kural
+  iki ayrı yerde kodlanmaz (SDD 2.4); `_S4_OLCEK`/`_s4_hedef_paylari_x10`
+  bu yüzden `S4_OLCEK`/`s4_hedef_paylari_x10` olarak dışa açıldı.
+  Kazanç `test_analiz_api.py`'de görünür hâle geldi: eski tabanda iki
+  personel 0 ve −32 veriyordu (ikisi de ≤ 0, tablo "kim payından fazla
+  aldı"yı yanıtlayamıyordu); yeni tabanda +12 ve −20, yani **iki yönlü**.
+- Gece/hafta sonu metrikleri ve ortalamaları uygun havuz üzerinden
+  hesaplanıyor; havuz dışındaki personel listelerden çıkarıldı.
+- **Bulunan bir uç durum:** Çalışan Paneli'nin "Dönem Özetim"i ekip
+  ortalamasını Analiz'den alıyor. Havuz dışındaki bir çalışan (Müracaat)
+  kendi panelini açtığında kendi gecesi 0, ekip ortalaması 3,39
+  görünüyordu — SDD 5.7'nin tam da kaçınmak istediği yanıltıcı çerçeve.
+  `DonemOzetiOku`'ya `gece_havuzunda` / `hafta_sonu_havuzunda` eklendi;
+  arayüz havuz dışındaki çalışana o karşılaştırmayı hiç göstermiyor,
+  yerine nedenini yazan bir satır çıkıyor.
+
+**K3 yeniden ölçüldü — sonuç 5/5:**
+
+| | İlk ölçüm | Düzeltmeden sonra |
+|---|---|---|
+| Gece talebi | 344 | **112** |
+| Payda | 40 (tüm personel) | **33 (P_gece)** |
+| Hedef | 8,60 | **3,39** |
+| Gözlenen aralık | 4–12 | **3–4** |
+| Azami sapma | 4,60 ❌ | **0,61** ✅ |
+
+K1 1,12 sn · K2 0 ihlal · K3 0,61 · K4 21 açık hücre · K5 0,038 sn.
+
+**Testler:** 152 (145 + 7 yeni). `tests/test_uygun_havuz.py` (yeni, 7
+test) havuz mantığını doğrudan kilitliyor: gece talebi olmayan noktanın
+personeli havuz dışında; talebi olan noktanınki içeride; `gereken_sayi=0`
+olan satır havuza sokmaz; dönem dışı (ısıtma penceresi) talep havuza
+sokmaz (TD-6); hafta sonu havuzu aynı mantıkla; ön koşulsuz nokta
+herkesi alır; hiç gece talebi yoksa havuz boş (bölme hatası yok).
+İki mevcut test beklentileri meşru değiştiği için güncellendi
+(`test_analiz_api` adil pay tabanı, `test_calisan_api` fikstürüne gerçek
+talep eklendi — talep yoksa havuz boş kalıyor).
+
+**Hata kalıbı notu.** Kullanıcının uyarısı kayda geçti: aynı kalıp dört
+kez tekrarlandı (S4'ün ulaşılamaz sözleşme hedefi, Analiz'in saat
+dağılımı, S2/S3'ün paydası, ve bu turda ölçüm betiğinin kendi paydası).
+Belirti hep aynı: **metrik herkesi aynı yönde sapmış gösteriyor ve
+hiçbir ayrım üretmiyor.** Bundan sonra bir adalet/denge metriği
+eklerken ilk soru "bu hedefe herkes ulaşabilir mi" olacak.
+`tests/test_uygun_havuz.py`'nin docstring'i bu kalıbı açıkça anlatıyor.
+
+**Sapmalar / notlar:**
+- **SDD Ek A'daki S2 sözde kodu hâlâ eski paydayı gösteriyor**
+  (`hedef ← toplam / SAY(baglam.personel)`), oysa Ek A kendini "SRS
+  bölüm 4'teki S2 formülasyonunun birebir karşılığı" diye tanımlıyor.
+  SRS 1.5 normatif kabul edilip o uygulandı; `docs/` elle
+  düzenlenmediği için kaynak dokümanda güncellenmesi gerekiyor.
+
+**Kalan / ertelenen:** Yok (K3 kapandı). Charter'ın altıncı kriteri
+Sürümler/Karşılaştır ekranıyla ölçülecek.
+
+**Sıradaki oturumun ilk işi:** Sürümler ekranı (SDD 6.3.5) — sürüm
+listesi, karşılaştır, yayınla, taslak türet; ardından Charter'ın altıncı
+kriterini (yeniden çözümde değişen atama sayısı) ölç. Dağıtım
+(systemd/Caddy/PostgreSQL) kullanıcı talimatıyla BEKLETİLİYOR: her şey
+karara bağlandıktan sonra sunucuya çıkılacak.

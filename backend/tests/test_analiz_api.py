@@ -210,14 +210,24 @@ def test_analiz_metrikleri_dogru_hesaplanir(istemci: TestClient) -> None:
     assert hs_map[p1_id] == 0
     assert hs_map[p2_id] == 1
 
+    # Saat dagiliminin tabani SDD 5.7 (surum 1.7) ile SOZLESME saatinden
+    # ADIL PAYA (SRS S4'teki pay[p]) cevrildi. Bu senaryoda donem ici toplam
+    # talep 7 kisi-vardiya x 8 saat = 56 saat; iki personelin de haftalik
+    # hedefi 40 oldugundan pay esit bolusulur: 56/2 = 28 saat.
+    #
+    # Asil kazanc, sapmanin artik IKI YONLU olmasi: eski tabanda P1 0, P2 -32
+    # veriyordu (ikisi de <= 0, tablo "kim payindan fazla aldi" sorusunu
+    # yanitlayamiyordu); yeni tabanda P1 +12 (payindan fazla), P2 -20
+    # (payindan az) - metrik gercekten dengesizligi olcuyor.
     saat_map = {s["personel_id"]: s for s in govde["saat_dagilimi"]}
+    assert saat_map[p1_id]["hedef_saat"] == pytest.approx(28.0)
+    assert saat_map[p2_id]["hedef_saat"] == pytest.approx(28.0)
     assert saat_map[p1_id]["toplam_saat"] == pytest.approx(40.0)
-    assert saat_map[p1_id]["hedef_saat"] == pytest.approx(40.0)
-    assert saat_map[p1_id]["sapma"] == pytest.approx(0.0)
+    assert saat_map[p1_id]["sapma"] == pytest.approx(12.0)
     assert saat_map[p2_id]["toplam_saat"] == pytest.approx(8.0)
-    assert saat_map[p2_id]["sapma"] == pytest.approx(8.0 - 40.0)
+    assert saat_map[p2_id]["sapma"] == pytest.approx(-20.0)
 
-    # En dengesiz: P2, |8-40|=32 > P1'in |0|.
+    # En dengesiz: P2, |−20| > P1'in |+12|.
     assert govde["en_dengesiz_personel_id"] == p2_id
 
     # Tercih: P1'in calismama tercihi PER 10'da, ama P1 o gun calisiyor -> karsilanmadi.
