@@ -8,7 +8,7 @@ from datetime import date, time
 
 from sqlalchemy.orm import Session
 
-from app.models.girdi import TercihTipi
+from app.models.girdi import TercihDurumu, TercihTipi
 from app.models.sonuc import Atama, CizelgeSurumu
 from app.repositories.girdi import TercihDeposu
 from app.repositories.sonuc import AtamaDeposu, CizelgeSurumuDeposu, DonemDeposu
@@ -19,6 +19,7 @@ from app.schemas.calisan import (
     CalisanTercihOku,
     CalisanTercihOlustur,
     DonemOzetiOku,
+    KaldirilanGunOku,
     VardiyalarimOku,
     VardiyamOku,
 )
@@ -63,6 +64,7 @@ class CalisanServisi:
             yayinlanmis_surum_var=False,
             yayin_zamani=None,
             vardiyalar=[],
+            kaldirilan_gunler=[],
             siradaki=None,
             ozet=None,
         )
@@ -81,7 +83,11 @@ class CalisanServisi:
                 }
             )
 
-        vardiyalar = self._vardiyalari_olustur(donem.donem_id, yayinlanan, personel_id)
+        vardiyalar, kaldirilan_gunler = self._vardiyalari_olustur(
+            donem.donem_id, yayinlanan, personel_id
+        )
+        # "Siradaki" yalniz gercek vardiyalardan secilir; kaldirilan bir gun
+        # calisanin artik gitmeyecegi bir vardiyadir, one cikarilamaz.
         siradaki = next((v for v in vardiyalar if v.tarih >= bugun), None)
 
         return VardiyalarimOku(
@@ -96,16 +102,25 @@ class CalisanServisi:
             yayinlanmis_surum_var=True,
             yayin_zamani=yayinlanan.yayin_zamani,
             vardiyalar=vardiyalar,
+            kaldirilan_gunler=kaldirilan_gunler,
             siradaki=siradaki,
             ozet=self._donem_ozeti(personel_id, yayinlanan.surum_id),
         )
 
     def _vardiyalari_olustur(
         self, donem_id: int, yayinlanan: CizelgeSurumu, personel_id: int
-    ) -> list[VardiyamOku]:
+    ) -> tuple[list[VardiyamOku], list[KaldirilanGunOku]]:
         """FR-9.3/FR-9.4: yayinlanmis surumdeki atamalar, en son ARSIV
-        surumune gore 'eklendi'/'degisti' isaretli (karsilastirma tabani
-        yoksa - ilk yayin - hicbir gun isaretlenmez)."""
+        surumune gore UC turde isaretlenmis olarak.
+
+        Donen ikili: (vardiyalar, kaldirilan_gunler).
+          - eklendi : gun yalniz yayinlanmis surumde var
+          - degisti : ikisinde de var, vardiya tipi veya gorev noktasi farkli
+          - kaldirildi : gun yalniz arsiv surumunde var -> AYRI listede
+            (bkz. KaldirilanGunOku: bu bir vardiya degil, yoklugudur)
+        Karsilastirma tabani yoksa (donemin ilk yayini) hicbir gun isaretlenmez
+        ve kaldirilan gun listesi bostur.
+        """
         vardiya_tipleri = {v.vardiya_tipi_id: v for v in self.vardiya_tipi.tumunu_getir()}
         noktalar = {n.nokta_id: n for n in self.nokta.tumunu_getir()}
 
@@ -119,8 +134,10 @@ class CalisanServisi:
                 )
             }
 
-        sonuc: list[VardiyamOku] = []
+        vardiyalar: list[VardiyamOku] = []
+        yayinlanan_tarihler: set[date] = set()
         for a in self.atama.surume_ve_personele_gore_getir(yayinlanan.surum_id, personel_id):
+            yayinlanan_tarihler.add(a.tarih)
             vt = vardiya_tipleri.get(a.vardiya_tipi_id)
             nk = noktalar.get(a.nokta_id)
             degisim_tipi = None
@@ -130,7 +147,7 @@ class CalisanServisi:
                     degisim_tipi = "eklendi"
                 elif onceki.vardiya_tipi_id != a.vardiya_tipi_id or onceki.nokta_id != a.nokta_id:
                     degisim_tipi = "degisti"
-            sonuc.append(
+            vardiyalar.append(
                 VardiyamOku(
                     tarih=a.tarih,
                     vardiya_tipi_id=a.vardiya_tipi_id,
@@ -143,7 +160,25 @@ class CalisanServisi:
                     degisim_tipi=degisim_tipi,
                 )
             )
-        return sonuc
+
+        # Kaldirilan gunler: arsivde olup yayinlanmis surumde olmayan tarihler.
+        kaldirilan_gunler: list[KaldirilanGunOku] = []
+        for tarih, onceki in sorted(onceki_atamalar.items()):
+            if tarih in yayinlanan_tarihler:
+                continue
+            vt = vardiya_tipleri.get(onceki.vardiya_tipi_id)
+            nk = noktalar.get(onceki.nokta_id)
+            kaldirilan_gunler.append(
+                KaldirilanGunOku(
+                    tarih=tarih,
+                    onceki_vardiya_tipi_ad=vt.ad if vt is not None else "?",
+                    onceki_baslangic_saati=vt.baslangic_saati if vt is not None else time(0, 0),
+                    onceki_bitis_saati=vt.bitis_saati if vt is not None else time(0, 0),
+                    onceki_gece_mi=vt.gece_mi if vt is not None else False,
+                    onceki_nokta_ad=nk.ad if nk is not None else "?",
+                )
+            )
+        return vardiyalar, kaldirilan_gunler
 
     def _donem_ozeti(self, personel_id: int, surum_id: int) -> DonemOzetiOku | None:
         """FR-9.5: AnalizServisi'nin (SDD 5.7) mevcut hesaplarinin yeniden
@@ -197,13 +232,15 @@ class CalisanServisi:
 
         sonuc: list[CalisanTercihOku] = []
         for t in self.tercih.personele_gore_getir(personel_id):
-            if t.donem_id not in surum_onbellek:
-                surum_onbellek[t.donem_id] = self.surum.yayinlanan_getir(t.donem_id)
-            yayinlanan = surum_onbellek[t.donem_id]
-
-            karsilanma = self._karsilanma_durumu(
-                t.tip, t.tarih, t.vardiya_tipi_id, personel_id, yayinlanan
-            )
+            # TD-12: turetme YALNIZ onaylanmis tercihler icin yapilir; bekleyen
+            # ya da reddedilmis bir tercihte karsilanma bilgisi tanimsizdir.
+            karsilanma: str | None = None
+            if t.durum == TercihDurumu.ONAYLANDI:
+                if t.donem_id not in surum_onbellek:
+                    surum_onbellek[t.donem_id] = self.surum.yayinlanan_getir(t.donem_id)
+                karsilanma = self._karsilanma_durumu(
+                    t.tip, t.tarih, t.vardiya_tipi_id, personel_id, surum_onbellek[t.donem_id]
+                )
 
             vt = vardiya_tipleri.get(t.vardiya_tipi_id) if t.vardiya_tipi_id is not None else None
             sonuc.append(
@@ -292,5 +329,7 @@ class CalisanServisi:
             calisan_notu=kayit.calisan_notu,
             durum=kayit.durum,
             ret_gerekcesi=kayit.ret_gerekcesi,
-            karsilanma="henuz_belirsiz",
+            # Yeni bildirilen tercih BEKLEMEDE dogar; TD-12 geregi karsilanma
+            # yalniz onaylanmislar icin turetilir, dolayisiyla burada tanimsiz.
+            karsilanma=None,
         )

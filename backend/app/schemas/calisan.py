@@ -13,6 +13,8 @@ from pydantic import BaseModel
 
 from app.models.girdi import TercihDurumu, TercihTipi
 
+# FR-9.4'un uc degisim turunden ikisi; ucuncusu ("kaldirildi") bir vardiya
+# uzerinde tasinamaz, cunku o gun artik vardiya YOKTUR - bkz. KaldirilanGunOku.
 DegisimTipi = Literal["eklendi", "degisti"]
 KarsilanmaDurumu = Literal["karsilandi", "karsilanmadi", "henuz_belirsiz"]
 
@@ -29,6 +31,26 @@ class VardiyamOku(BaseModel):
     # FR-9.4: karsilastirma tabani (en son arsivlenen surum) yoksa hicbir
     # gun isaretlenmez - bu alan o zaman hep None'dir.
     degisim_tipi: DegisimTipi | None
+
+
+class KaldirilanGunOku(BaseModel):
+    """FR-9.4'un ucuncu degisim turu: karsilastirma tabaninda (en son arsiv)
+    o gun bir atama VARDI, yayinlanmis surumde YOK.
+
+    Ayri bir tip olmasinin nedeni, bunun bir vardiya degil bir vardiyanin
+    YOKLUGU olmasidir. `vardiyalar` listesine karistirilsaydi, o listeden
+    beslenen her sey (vardiya sayisi, "siradaki vardiyan", donem izgarasinin
+    dolu hucreleri) calisana artik sahip olmadigi bir vardiyayi varmis gibi
+    gosterirdi. Alanlar bu yuzden `onceki_` on ekiyle adlandirilmistir:
+    tasidiklari, calisanin ELINDEN ALINAN vardiyanin bilgisidir.
+    """
+
+    tarih: date
+    onceki_vardiya_tipi_ad: str
+    onceki_baslangic_saati: time
+    onceki_bitis_saati: time
+    onceki_gece_mi: bool
+    onceki_nokta_ad: str
 
 
 class DonemOzetiOku(BaseModel):
@@ -55,6 +77,8 @@ class VardiyalarimOku(BaseModel):
     yayinlanmis_surum_var: bool
     yayin_zamani: datetime | None
     vardiyalar: list[VardiyamOku]
+    # FR-9.4 ucuncu tur; `vardiyalar`dan ayri tutulur (bkz. KaldirilanGunOku).
+    kaldirilan_gunler: list[KaldirilanGunOku]
     siradaki: VardiyamOku | None
     ozet: DonemOzetiOku | None
 
@@ -75,7 +99,12 @@ class CalisanTercihOku(BaseModel):
     calisan_notu: str | None
     durum: TercihDurumu
     ret_gerekcesi: str | None
-    karsilanma: KarsilanmaDurumu
+    # TD-12: "Turetme yalnizca onaylanmis tercihler icin yapilir." Bekleyen ya
+    # da reddedilmis bir tercihte karsilanma diye bir bilgi YOKTUR (reddedilen
+    # tercih zaten modele girmez, FR-3.5) - o durumda None doner ve arayuz
+    # karsilanma satirini hic gostermez. "karsilanmadi" yazmak yaniltici
+    # olurdu: reddedilen bir tercihin karsilanmamasi bir sonuc degil, tanim.
+    karsilanma: KarsilanmaDurumu | None
 
 
 class CalisanTercihListesiOku(BaseModel):

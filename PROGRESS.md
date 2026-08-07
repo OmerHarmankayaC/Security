@@ -2336,6 +2336,119 @@ görünümü, sıradaki vardiya, üç türde değişen gün, gece/hafta sonu/saa
 karşılaştırması, tercih bildirme, onay+karşılanma durumu ayrı ayrı,
 ret gerekçesi, personel izolasyonu) tamamlandı.
 
+---
+
+## 2026-08-07 — Sprint 3 Gün 13 Düzeltmeleri (gözden geçirme sonrası)
+
+Gün 13 onaylandı; gözden geçirmede iki düzeltme istendi, kanonik
+dokümanlar (SRS 1.4 / SDD 1.6) kaynaktan gelen sürümleriyle değiştirildi
+ve bu sürümler bir üçüncü uyumsuzluğu ortaya çıkardı.
+
+**0. Kanonik dokümanlar (ayrı commit).** Gün 13'te elle yazdığım TD-12 /
+FR-9.3 / SDD 6.1 düzenlemeleri kaynaktan üretilmiş sürümlerle
+değiştirildi (`docs: sync canonical SRS 1.4 and SDD 1.6`). **Bundan
+sonra `docs/` altındaki dört doküman elle DÜZENLENMEMELİ** — kaynağı
+kullanıcıda, elle düzenleme ayrışma doğurur. Değişmesi gereken bir şey
+olursa koda değil, buraya not düşülüp kullanıcıya söylenecek.
+
+**1. FR-9.4'ün üçüncü türü: "kaldırıldı".** Gün 13'te yalnız eklendi/
+değişti vardı; vardiyası ALINAN çalışan hiçbir işaret görmüyordu.
+- `KaldirilanGunOku` şeması **ayrı bir tip** olarak eklendi ve
+  `VardiyalarimOku.kaldirilan_gunler` alanında taşınıyor —
+  `vardiyalar` listesine karıştırılmadı, çünkü bu bir vardiya değil bir
+  vardiyanın YOKLUĞU: o listeden beslenen her şey (vardiya sayısı,
+  "sıradaki vardiyan", ızgaranın dolu hücreleri) çalışana artık sahip
+  olmadığı bir vardiyayı varmış gibi gösterirdi. Alanlar `onceki_` ön
+  ekli (taşıdıkları, elinden alınan vardiyanın bilgisi).
+- `_vardiyalari_olustur` artık `(vardiyalar, kaldirilan_gunler)` ikilisi
+  döndürüyor; kaldırılanlar "arşivde var, yayınlanmışta yok" farkından.
+- **Doğrulandı:** "sıradaki" kaldırılan günü seçmiyor, Dönem Özetim
+  sayıları (yalnız yayınlanmış sürümden) etkilenmiyor.
+- Arayüz: ızgarada boş hücrenin altına ince teal işaret + listede üstü
+  çizili, soluk, "KALDIRILDI" rozetli kendi satırı (tarih sırasına
+  gerçek vardiyalarla birlikte yerleşiyor).
+- **Ek tutarsızlık giderildi:** efsanede "Değişti" yazıyordu ama
+  ızgarada hiçbir değişim türü işaretli değildi. Artık üç tür de
+  ızgarada aynı ince işareti alıyor (hangisi olduğu listedeki rozetten
+  okunuyor), efsane "Değişen gün" oldu.
+
+**2. Bağlantı kapısı artık kişiye özel (FR-9.1).** Gün 13'teki tek
+ortak anahtar, URL'deki `personel_id`'yi değiştiren herkese başkasının
+çizelgesini açıyordu — kabul kriterinin "başka bir personelin verisine
+erişemiyor" maddesi karşılanmıyordu.
+- `app/services/calisan_baglantisi.py` (yeni):
+  `anahtar = HMAC-SHA256(sunucu_sırrı, personel_id)`, ilk 32 onaltılık
+  karakter. Ek tablo yok (anahtar saklanmıyor, her istekte yeniden
+  türetiliyor), mevcut config sırrı korunuyor.
+- Doğrulama `hmac.compare_digest` ile **sabit zamanda** — düz `==` ilk
+  farklı karakterde döneceğinden anahtar zamanlama üzerinden karakter
+  karakter tahmin edilebilirdi.
+- Router'da anahtar doğrulaması personelin varlığına BAKILMADAN önce
+  yapılıyor: 403/404 farkından geçerli personel kimlikleri sayılamasın.
+- `scripts/calisan_baglantisi_uret.py` (yeni): türetilmiş anahtar elle
+  hesaplanamayacağı için bağlantıyı dağıtmanın yolu bu betik.
+- `.env.example`'a sırrın dağıtımda mutlaka değiştirilmesi ve
+  değiştirilirse eski bağlantıların geçersizleşeceği uyarısı eklendi.
+- **Hâlâ kimlik doğrulama DEĞİLDİR** (B-05 duruyor): bağlantı taşıyıcı
+  belirteç gibi davranır, süresizdir, iptal edilemez, sunucu sırrı
+  sızarsa bütün anahtarlar üretilebilir. Sınırlar modül docstring'ine
+  yazıldı.
+
+**3. TD-12 uyumsuzluğu (kanonik dokümandan çıktı).** Kanonik TD-12:
+*"Türetme yalnızca onaylanmış tercihler için yapılır."* Gün 13'te
+karşılanma her tercih için türetiliyordu; ekranda "REDDEDİLDİ +
+KARŞILANMADI" yan yana çıkıyordu — yanıltıcı, çünkü reddedilen tercih
+zaten modele girmez (FR-3.5), karşılanmaması bir sonuç değil tanım.
+Artık `karsilanma` bekleyen/reddedilmiş tercihlerde `None` ve arayüz o
+satırı hiç göstermiyor.
+
+**4. Izgara dört haftalık dönemde bozuktu (bulunan hata).** Başlıklar
+`gunler.map` ile üretiliyordu: 7 günlük dönemde doğru, ama 28 günlük
+dönemde 28 başlık basıp SDD 6.1'in "dört haftalıkta dört satır"
+kuralını bozuyordu. Başlıklar sabit yedi güne çevrildi, dönem
+pazartesiden başlamıyorsa baştaki/sondaki boş hücreler eklendi.
+
+**5. Liste mobilde kırpılıyordu (bulunan hata).** Satırlar tek satır ve
+sabit genişlikliydi; 375px'te nokta adı ve rozet kesiliyordu (sayfa
+yatay kaymıyordu, o yüzden Gün 13'te fark edilmemişti — `li` düzeyinde
+ölçünce çıktı). Mobil mockup zaten iki satırlı bir düzen gösteriyordu;
+satır tek bir duyarlı `ListeSatiri` bileşenine indirildi (mobilde
+yığılır, `sm`'den itibaren tek satır). İki dal (vardiya/kaldırıldı)
+arasındaki tekrar da böylece kalktı.
+
+**Testler:** 121 test (113 + 8 yeni). Yeni: `test_calisan_baglantisi.py`
+(6 test — anahtar kişiye özel, kararlı, sırra bağlı, yalnız kendi
+anahtarını kabul ediyor, bağlantı biçimi `main.tsx`'in ayrıştırdığı
+yola uyuyor) ve `test_calisan_api.py`'ye eklenen "bir personelin
+anahtarı başkasının verisini açmaz" (üç uç nokta için de 403),
+"kaldırıldı" senaryosu, "ilk yayında hiçbir gün işaretlenmez", TD-12'nin
+beş durumu (henüz belirsiz / karşılandı / karşılanmadı / beklemede→null
+/ reddedildi→null). `ruff` temiz, `tsc`/`oxlint`/`build` temiz.
+
+**Doğrulama:** Gerçek uvicorn + vite ile, **dört haftalık** bir demo
+dönemi (03-30 Ağu 2026, bir arşiv + bir yayınlanmış sürüm) üzerinde
+tarayıcıda gezildi: ızgara 4×7 sarmalandı, altı değişen gün (1 değişti,
+4 eklendi, 1 kaldırıldı) hem ızgarada işaretli hem listede doğru rozetli
+göründü, kaldırılan gün üstü çizili kendi satırında ve kronolojik yerinde
+durdu, "sıradaki" kaldırılan günü atladı, vardiya sayacı (9) kaldırılanı
+saymadı, alt not "6 günün değişti" dedi. Tercihlerim'de dört tercihin
+karşılanma satırı TD-12'ye göre çıktı/çıkmadı. İzolasyon `curl` ile
+doğrulandı: başkasının kimliği + kendi anahtarı → 403, eski paylaşımlı
+anahtar → 403. Mobilde (375px) taşan satır sayısı 10'dan 0'a düştü,
+masaüstünde tek satır düzeni korundu; konsol hatası yok. Demo verisi
+sonunda temizlendi.
+
+**Sapmalar / notlar:**
+- HMAC kapısı SDD'de tanımlı bir mekanizma değil; B-05'in "kişiye özel
+  bağlantı" ifadesini gerçekleyen bir uygulama detayı olarak eklendi.
+  Kanonik dokümanlara işlenmesi isteniyorsa **kaynak dokümanda**
+  yapılmalı (bkz. madde 0) — ben `docs/`'u elle düzenlemedim.
+- Bağlantıyı yönetici arayüzünden kopyalama alanı EKLENMEDİ; bu bir ürün
+  kararı, sorulmadan eklenmedi. Şimdilik dağıtım yolu betik.
+- "Güncel dönem" tek dönem varsayımı (Gün 13 notu) duruyor.
+
+**Kalan / ertelenen:** Yok.
+
 **Sıradaki oturumun ilk işi:** Sprint 3 Gün 14 — Uçtan Uca Deneyler ve
 Performans Ölçümü (Charter'daki kabul kriterleri için otomatik
 kontrol/betik: 40 personel × 28 gün < 60 sn, sıfır zorunlu kısıt

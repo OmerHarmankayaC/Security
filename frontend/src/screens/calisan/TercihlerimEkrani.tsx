@@ -190,7 +190,10 @@ export function TercihlerimEkrani({ personelId, anahtar }: Props) {
           <ul className="m-0 flex list-none flex-col p-0">
             {liste.tercihler.map((t) => {
               const durum = DURUM_ROZET[t.durum]
-              const karsilanma = KARSILANMA_METNI[t.karsilanma]
+              // TD-12: karşılanma yalnızca onaylanmış tercihler için türetilir;
+              // aksi hâlde null gelir ve satır hiç gösterilmez ("REDDEDİLDİ +
+              // KARŞILANMADI" yan yana yazmak yanıltıcı olurdu).
+              const karsilanma = t.karsilanma ? KARSILANMA_METNI[t.karsilanma] : null
               return (
                 <li key={t.tercih_id} className="flex flex-col gap-1 border-t border-rule py-3 first:border-none">
                   <div className="flex items-center gap-3">
@@ -204,15 +207,17 @@ export function TercihlerimEkrani({ personelId, anahtar }: Props) {
                       </Rozet>
                     )}
                   </div>
-                  <div className="ml-[92px] flex items-center gap-1.5 text-xs">
-                    <span className={cn('size-1.5 rounded-full', karsilanma.renk)} />
-                    <span className="font-condensed tracking-[0.08em] text-ink-muted">
-                      {buyukHarf(karsilanma.etiket)}
-                    </span>
-                    {t.karsilanma === 'henuz_belirsiz' && (
-                      <span className="text-ink-muted">· çizelge henüz yayınlanmadı</span>
-                    )}
-                  </div>
+                  {karsilanma && (
+                    <div className="ml-[92px] flex items-center gap-1.5 text-xs">
+                      <span className={cn('size-1.5 rounded-full', karsilanma.renk)} />
+                      <span className="font-condensed tracking-[0.08em] text-ink-muted">
+                        {buyukHarf(karsilanma.etiket)}
+                      </span>
+                      {t.karsilanma === 'henuz_belirsiz' && (
+                        <span className="text-ink-muted">· çizelge henüz yayınlanmadı</span>
+                      )}
+                    </div>
+                  )}
                   {t.durum === 'reddedildi' && t.ret_gerekcesi && (
                     <p className="ml-[92px] m-0 text-xs text-ink-muted">Gerekçe: {t.ret_gerekcesi}</p>
                   )}

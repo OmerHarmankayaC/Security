@@ -247,6 +247,8 @@ export interface Analiz {
 
 // --- Çalışan Paneli (SDD 6.1, Ek B; SRS FR-9.x) -----------------------------
 
+// FR-9.4'ün üç değişim türünden ikisi; üçüncüsü ("kaldırıldı") bir vardiya
+// üzerinde taşınamaz, çünkü o gün artık vardiya yoktur — bkz. KaldirilanGun.
 export type DegisimTipi = 'eklendi' | 'degisti'
 export type KarsilanmaDurumu = 'karsilandi' | 'karsilanmadi' | 'henuz_belirsiz'
 
@@ -260,6 +262,18 @@ export interface Vardiyam {
   nokta_id: number
   nokta_ad: string
   degisim_tipi: DegisimTipi | null
+}
+
+// FR-9.4 üçüncü tür: arşiv sürümünde o gün atama vardı, yayınlanmışta yok.
+// `Vardiyam` listesine karıştırılmaz — vardiya sayısı, "sıradaki vardiyan" ve
+// dönem ızgarasının dolu hücreleri yalnızca gerçek vardiyalardan beslenir.
+export interface KaldirilanGun {
+  tarih: string
+  onceki_vardiya_tipi_ad: string
+  onceki_baslangic_saati: string
+  onceki_bitis_saati: string
+  onceki_gece_mi: boolean
+  onceki_nokta_ad: string
 }
 
 export interface DonemOzeti {
@@ -283,6 +297,7 @@ export interface Vardiyalarim {
   yayinlanmis_surum_var: boolean
   yayin_zamani: string | null
   vardiyalar: Vardiyam[]
+  kaldirilan_gunler: KaldirilanGun[]
   siradaki: Vardiyam | null
   ozet: DonemOzeti | null
 }
@@ -303,7 +318,9 @@ export interface CalisanTercih {
   calisan_notu: string | null
   durum: TercihDurumu
   ret_gerekcesi: string | null
-  karsilanma: KarsilanmaDurumu
+  // TD-12: karşılanma yalnızca ONAYLANMIŞ tercihler için türetilir; bekleyen
+  // ya da reddedilmiş bir tercihte tanımsızdır (null) ve gösterilmez.
+  karsilanma: KarsilanmaDurumu | null
 }
 
 export interface CalisanTercihListesi {
