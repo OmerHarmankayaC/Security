@@ -6,10 +6,17 @@ havuzu, SRS 3.3.4'teki talep matrisi ve 16+1 kuralla (H1-H8, S1-S8, S6b)
 veritabanina yazar. Ayni havuz ve talep uzerinde iki donem uretilir:
 
   - "Rahat Donem": izin kaydi yok, kadro talebi rahatlikla karsiliyor.
-  - "Sikisik Donem": Vardiya Sefligi havuzunun (9 kisi) 5'i ayni iki hafta
-    icin yillik izne cikariliyor; SRS 3.3.6'nin anlattigi uzere 5 kisilik
-    bir havuz zaten tek bir iznin altinda ezildigi icin bu, kapanamayan bir
-    kapsama acigi doguruyor (5 vardiya sefinden yalniz 4'u kaliyor).
+    Bir hafta uzunlugunda (SRS 3.3'teki yeni varsayilan donem uzunlugu).
+  - "Sikisik Donem": dort hafta (28 gun) uzunlugunda - bu uzunluk kasitli,
+    bkz. _SIKISIK_DONEM_UZUNLUGU_GUN sabiti. Vardiya Sefligi havuzunun
+    (9 kisi) 5'i, donemin YALNIZCA ilk iki haftasi icin yillik izne
+    cikariliyor; SRS 3.3.6'nin anlattigi uzere 5 kisilik teorik asgari
+    havuzun altina inildiginde (9-5=4 < 5) kapanamayan bir kapsama acigi
+    doguruyor (haftalik gereken 21 vardiyaya karsi kalan 4 kisinin H5/H6
+    tavaniyla sinirli azami HAFTALIK kapasitesi 20'de kaliyor) - ama bu
+    acik donem genelinin (4 hafta) yalnizca yarisinda oldugu icin donem
+    toplamlarina bakan on_kontrol'u (SDD 5.2) atlatir, yalnizca cozucunun
+    kapsama_acigi'yla ortaya cikar (Sprint 2 Gun 7/8, Backlog B-14).
 
 Kullanim:
     python scripts/demo_veri_uret.py [--reset]
@@ -99,9 +106,23 @@ _KURAL_TANIMLARI: list[dict] = [
     {"kimlik": "S8", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 8},
 ]
 
-_RAHAT_BASLANGIC = date(2026, 2, 2)
-_SIKISIK_BASLANGIC = date(2026, 3, 2)
-_DONEM_UZUNLUGU_GUN = 28  # dort hafta
+_RAHAT_BASLANGIC = date(2026, 2, 2)  # Pazartesi
+_SIKISIK_BASLANGIC = date(2026, 3, 2)  # Pazartesi
+# SRS 3.3: planlama donemi varsayilan olarak bir haftadir (kullanici
+# istedigi uzunluga cikarabilir - bu bir kisit degil, YENI donem
+# olusturmanin baslangic degeri). Rahat senaryo bu varsayilanla uyumlu
+# basit bir ornek oldugu icin 7 gune indirildi.
+_RAHAT_DONEM_UZUNLUGU_GUN = 7
+# Sikisik senaryonun 28 gun (dort hafta) olmasi KASITLIDIR, varsayilanla
+# tutarsizlik degildir: senaryonun tasidigi bilgi, acigin donem icinde
+# SEYRELMESI - yani on_kontrol'un (SDD 5.2) donem geneli toplamlara bakarak
+# bu haftalik/yerel darbogazi KACIRMASI, yalnizca cozucunun kapsama_acigi'yla
+# ortaya cikmasidir (bkz. Sprint 2 Gun 7/8, PROGRESS.md, Backlog B-14).
+# Donem 7 gune inseydi izin donemin tamamini kaplar, on_kontrol acigi
+# dogrudan yakalayip isi cozucu hic calismadan basarisiz bitirirdi -
+# senaryo varlik nedenini kaybederdi. Sikisik senaryo bu yuzden ayri ve
+# daha uzun bir sabit kullanir.
+_SIKISIK_DONEM_UZUNLUGU_GUN = 28
 
 
 def _mevcut_demo_verisi_var_mi(oturum: Session) -> bool:
@@ -156,20 +177,13 @@ def _yetkinlikleri_olustur(oturum: Session) -> dict[str, Yetkinlik]:
     return yetkinlikler
 
 
-def _binalari_olustur(oturum: Session) -> dict[str, Bina]:
-    binalar = {ad: Bina(ad=ad) for ad in ("Bina A", "Bina B")}
-    oturum.add_all(binalar.values())
-    oturum.flush()
-    return binalar
-
-
-def _noktalari_olustur(
-    oturum: Session, binalar: dict[str, Bina], yetkinlikler: dict[str, Yetkinlik]
-) -> list[GorevNoktasi]:
+def _noktalari_olustur(oturum: Session, yetkinlikler: dict[str, Yetkinlik]) -> list[GorevNoktasi]:
+    """SRS 3.3.3 (surum 1.1): bina ayrimi kalkti, tum noktalar tesis geneli
+    (bina_id=None) - bu senaryoda Bina tablosuna hic satir yazilmaz."""
     noktalar = [
         GorevNoktasi(
             ad=tanim.ad,
-            bina_id=binalar[tanim.bina_adi].bina_id if tanim.bina_adi else None,
+            bina_id=None,
             onkosul_yetkinlik_id=yetkinlikler[tanim.onkosul_yetkinlik].yetkinlik_id,
         )
         for tanim in NOKTA_TANIMLARI
@@ -227,22 +241,28 @@ def _donemleri_ve_izinleri_olustur(
 ) -> None:
     rahat = Donem(
         baslangic_tarihi=_RAHAT_BASLANGIC,
-        bitis_tarihi=_RAHAT_BASLANGIC + timedelta(days=_DONEM_UZUNLUGU_GUN - 1),
+        bitis_tarihi=_RAHAT_BASLANGIC + timedelta(days=_RAHAT_DONEM_UZUNLUGU_GUN - 1),
         tercih_son_tarihi=_RAHAT_BASLANGIC - timedelta(days=7),
     )
     sikisik = Donem(
         baslangic_tarihi=_SIKISIK_BASLANGIC,
-        bitis_tarihi=_SIKISIK_BASLANGIC + timedelta(days=_DONEM_UZUNLUGU_GUN - 1),
+        bitis_tarihi=_SIKISIK_BASLANGIC + timedelta(days=_SIKISIK_DONEM_UZUNLUGU_GUN - 1),
         tercih_son_tarihi=_SIKISIK_BASLANGIC - timedelta(days=7),
     )
     oturum.add_all([rahat, sikisik])
     oturum.flush()
 
-    # SRS 3.3.6: 5 kisilik vardiya sefi havuzunda tek bir iznin dahi
-    # kapanamayan bir bosluk doguracagi anlatiliyor; burada 9 kisilik
-    # havuzun 5'i (kalan 4 < gereken 5) iki haftaligina izne cikariliyor.
+    # SRS 3.3.6: vardiya sefligi havuzunun teorik asgarisi 5 kisidir ("Izin
+    # Payiyla" 9'a olceklenmesinin nedeni tam bu payi karsilamak, bkz.
+    # PersonelGrubuTanimi docstring'i); 9 kisilik demo havuzunun 5'ini
+    # (kalan 4 < teorik asgari 5) iki haftaligina izne cikarmak, H5/H6
+    # tavaniyla sinirli azami HAFTALIK kapasiteyi (4x5=20) haftalik
+    # gerekenin (21) altinda birakarak kapanamayan bir kapsama acigi
+    # dogurur - izin suresi bilerek donemin (28 gun) TAMAMINDAN KISA
+    # tutulur ki acik donem geneli toplamlarda seyrelsin (bkz. yukaridaki
+    # _SIKISIK_DONEM_UZUNLUGU_GUN notu).
     vardiya_sefleri = personel_gruplari["VS"]
-    izinli_sure = timedelta(days=13)
+    izinli_sure = timedelta(days=13)  # iki hafta
     for personel in vardiya_sefleri[:5]:
         oturum.add(
             Musaitlik(
@@ -271,8 +291,7 @@ def uret(*, sifirla: bool) -> None:
 
         vardiyalar = _vardiya_tiplerini_olustur(oturum)
         yetkinlikler = _yetkinlikleri_olustur(oturum)
-        binalar = _binalari_olustur(oturum)
-        noktalar = _noktalari_olustur(oturum, binalar, yetkinlikler)
+        noktalar = _noktalari_olustur(oturum, yetkinlikler)
         _talebi_olustur(oturum, noktalar, vardiyalar)
         _kurallari_olustur(oturum)
         personel_gruplari = _personeli_olustur(oturum, yetkinlikler)

@@ -1360,3 +1360,79 @@ verdiği için Ek Görev'e henüz geçilmedi, sıradaki oturumda ele alınmalı.
 verdiği ek görevi (bkz. bir sonraki PROGRESS.md kaydı — nokta/talep veri
 modeli sadeleştirmesi) bitir, sonra Ek Görev'e (S1–S8+S6b uyum testi
 genişletmesi) geç, ardından Sprint 3 Gün 12'ye (Analiz Servisi ve Ekranı).
+
+---
+
+## 2026-08-07 — Ek görev: Görev noktası/talep matrisi sadeleştirmesi
+
+Kullanıcı `docs/` klasöründeki Charter/SRS/Backlog'u güncelledi (SDD'ye
+dokunulmadı — şema değişmiyor, yalnızca demo/tanım verisi). Özet: Kapı ve
+Kontrol Odası tek bir "Güvenlik" noktasında birleşti (kontrol odasındaki
+personel zaten ayrı bir meslek grubu değil, aynı Güvenlik Görevi
+yetkinliğine sahipti), bina ayrımı (Bina A/Bina B) tamamen kaldırıldı —
+Müracaat da artık bina ayrımsız tek nokta. Yeni nokta listesi (üçe indi):
+Vardiya Şefliği, Güvenlik, Müracaat — üçü de tesis geneli (`bina_id`
+NULL). Yeni talep matrisi (SRS 3.3.4, tablo): hafta içi gündüz/akşam
+Şef 1 + Güvenlik 7 + Müracaat 2 (toplam 10); gece/hafta sonu/tatil
+Şef 1 + Güvenlik 3 + Müracaat 0 (toplam 4). **Kadro büyüklüğü sayıları
+değişmedi** (36 kişi "İzin Payıyla" havuz: 7 şef, 6 müracaat, 23
+güvenlik; haftalık 144 kişi-vardiya) — Kontrol Odası zaten ayrı bir
+yetkinlik değildi. Ayrıca planlama dönemi varsayılan uzunluğu 28 günden
+1 haftaya düştü (kısıt değil, yalnızca yeni dönem oluşturmanın başlangıç
+değeri).
+
+**Tamamlanan (kod):**
+- `app/services/ornek_senaryo.py`: `NOKTA_TANIMLARI` altıdan üçe indi
+  (hepsi `bina_adi=None`), `BINA_A`/`BINA_B` sabitleri kaldırıldı,
+  `TALEP_DEGERLERI` yeni tabloyla değiştirildi ((1,1,1)/(7,7,3)/(2,2,0)) —
+  sütun toplamları (10/10/4) eskisiyle birebir aynı olduğu için
+  `PERSONEL_GRUPLARI` (7→9, 6→7, 23→28 ölçeklemesi) **değişmedi**.
+- `scripts/demo_veri_uret.py`: `_binalari_olustur()` kaldırıldı (bu
+  senaryoda artık hiç Bina satırı yazılmıyor — `Bina` tablosu
+  `_her_seyi_temizle`'de temizlik için hâlâ referans alınıyor),
+  `_noktalari_olustur()` artık `bina_id=None` sabit veriyor. Dönem
+  uzunluğu iki ayrı sabite bölündü: `_RAHAT_DONEM_UZUNLUGU_GUN = 7`
+  (yeni varsayılanla uyumlu) ve `_SIKISIK_DONEM_UZUNLUGU_GUN = 28`
+  (bilerek korundu — bkz. aşağıdaki tasarım kararı).
+- `tests/test_yuk_gostergesi.py`: eski `KAPI_A` sabiti (artık geçersiz
+  bir yorum taşıyordu) `ORNEK_NOKTA_ID`'ye yeniden adlandırıldı.
+- Frontend: `frontend/src/` içinde "Kapı"/"Kontrol Odası"/"Bina A/B"
+  sabit metni aranıp **bulunamadı** — Çizelge ekranı nokta adlarını
+  `/api/nokta`'dan dinamik okuyor (Gün 10), hiçbir değişiklik gerekmedi.
+
+**Tasarım kararı (kullanıcıyla netleşti — bkz. AskUserQuestion):**
+Sıkışık dönemi de 7 güne indirmek denendiğinde izin haftası dönemin
+TAMAMINI kaplıyor, bu da Gün 7/8'de özenle kurulan senaryoyu bozuyordu:
+dönem geneli toplam artık haftalık toplamla aynı olduğu için
+`on_kontrol` (Kontrol 1/2) açığı doğrudan yakalayıp işi çözücü hiç
+çalışmadan `başarısız` ile bitiriyordu — oysa senaryonun bütün amacı
+tam tersiydi (bkz. Backlog B-14, SDD 5.2 sınır notu). **Karar:** Rahat
+senaryo 7 güne indi; Sıkışık senaryo bilerek 28 gün / 2 haftalık izin
+olarak kaldı (kodda bunun kasıtlı olduğunu açıklayan bir yorum var, ki
+ileride "tutarsızlık" sanılıp "düzeltilmeye" çalışılmasın). Vardiya
+Şefliği havuzunun 9 kişiden 5'i (kalan 4 < teorik asgari 5) hâlâ
+donemin ilk iki haftası için izinli.
+
+**Doğrulama:**
+- `ruff check`/`format` temiz.
+- Tüm paket (98 test) temiz veritabanında geçti; `test_yuk_gostergesi.py`
+  hâlâ SRS 3.3.6'nın 144/1.152/29 sayılarını birebir üretiyor (sütun
+  toplamları korunduğu için beklenen).
+- Demo veri yeniden üretildi ("3 gorev noktasi" çıktısı doğrulandı),
+  gerçek `uvicorn` ile uçtan uca: Rahat dönem artık 2026-02-02—02-08 (7
+  gün); Sıkışık dönem 2026-03-02—03-29 (28 gün, değişmedi). Sıkışık
+  dönemde `/api/on-kontrol` hâlâ boş bulgu döndürdü (açığı kaçırıyor,
+  beklenen), gerçek bir çözüm (`uyarılı` sonuçlandı) `kapsama_acigi`'nde
+  tam olarak Vardiya Şefliği (nokta_id=1) için, izin penceresi içindeki
+  4 gün/vardiyada 1'er eksik raporladı — Gün 7/8'in "ön kontrol kaçırır,
+  çözücü yakalar" anlatısı birebir korundu.
+
+**Kalan / ertelenen:** Yok — bu ek görevin kapsamındaki tüm maddeler
+tamamlandı.
+
+**Sıradaki oturumun ilk işi:** Ek Görev — S1–S8+S6b Uyum Testi
+Genişletmesi (Sprint 2 sonu, UYGULAMA_PLANI.md'de Gün 11'den sonra Gün
+12'den önce planlı, henüz yapılmadı): `test_cozucu_uctan_uca.py`'deki
+uyum testini S1–S8+S6b'yi de kapsayacak şekilde genişlet, bu sırada S4
+birim tutarsızlığını (`modele_ekle` dakika, `dogrula` saat) düzelt.
+Ardından Sprint 3 Gün 12'ye (Analiz Servisi ve Ekranı) geç.

@@ -11,7 +11,9 @@ from app.services.ornek_senaryo import AKSAM, GECE, GUNDUZ, talep_satirlarini_ol
 from app.services.yuk_gostergesi import yuk_gostergesi_hesapla
 
 _VARDIYA_ID = {GECE: 1, GUNDUZ: 2, AKSAM: 3}
-KAPI_A = 2  # NOKTA_TANIMLARI[2] (0-tabanli index) -- bkz. app/services/ornek_senaryo.py
+ORNEK_NOKTA_ID = (
+    2  # NOKTA_TANIMLARI[2] (0-tabanli index) = Muracaat -- bkz. app/services/ornek_senaryo.py
+)
 
 
 def _vardiya_tipleri() -> dict[int, VardiyaTipi]:
@@ -66,7 +68,7 @@ def test_tekil_tarih_istisnasi_haftalik_yuke_girmez() -> None:
     hucreler = [
         Talep(
             talep_id=1,
-            nokta_id=KAPI_A,
+            nokta_id=ORNEK_NOKTA_ID,
             vardiya_tipi_id=GUNDUZ,
             gun_tipi=GunTipi.HAFTA_ICI,
             tarih=date(2026, 3, 1),  # tekil istisna
@@ -83,7 +85,7 @@ def test_resmi_tatil_haftalik_yuke_girmez() -> None:
     hucreler = [
         Talep(
             talep_id=1,
-            nokta_id=KAPI_A,
+            nokta_id=ORNEK_NOKTA_ID,
             vardiya_tipi_id=GUNDUZ,
             gun_tipi=GunTipi.RESMI_TATIL,
             tarih=None,

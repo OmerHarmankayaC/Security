@@ -17,9 +17,6 @@ GECE = "Gece"
 GUNDUZ = "Gündüz"
 AKSAM = "Akşam"
 
-BINA_A = "Bina A"
-BINA_B = "Bina B"
-
 
 @dataclass(frozen=True, slots=True)
 class NoktaTanimi:
@@ -28,26 +25,26 @@ class NoktaTanimi:
     onkosul_yetkinlik: str
 
 
-# SRS 3.3.3 — Gorev Noktalari. Sira, TALEP_DEGERLERI ile index uzerinden eslenir.
+# SRS 3.3.3 — Gorev Noktalari (surum 1.1: bina ayrimi kaldirildi, kapi ve kontrol
+# odasi tek bir "Guvenlik" noktasinda birlesti — kontrol odasindaki personel zaten
+# ayri bir meslek grubu degil, ayni yetkinlige sahip bir guvenlik gorevlisiydi).
+# Sira, TALEP_DEGERLERI ile index uzerinden eslenir.
 NOKTA_TANIMLARI: tuple[NoktaTanimi, ...] = (
     NoktaTanimi("Vardiya Şefliği", None, VARDIYA_SEFI),
-    NoktaTanimi("Kontrol Odası", BINA_A, GUVENLIK_GOREVI),
-    NoktaTanimi("Kapı", BINA_A, GUVENLIK_GOREVI),
-    NoktaTanimi("Kapı", BINA_B, GUVENLIK_GOREVI),
-    NoktaTanimi("Müracaat", BINA_A, MURACAAT_GOREVLISI),
-    NoktaTanimi("Müracaat", BINA_B, MURACAAT_GOREVLISI),
+    NoktaTanimi("Güvenlik", None, GUVENLIK_GOREVI),
+    NoktaTanimi("Müracaat", None, MURACAAT_GOREVLISI),
 )
 
 # SRS 3.3.4 — Talep Matrisi: (hafta_ici_gunduz, hafta_ici_aksam, gece/hafta_sonu/tatil).
 # Ucuncu deger; hafta ici gece VE hafta sonu/resmi tatildeki her uc vardiya icin ortaktir
 # ("Hafta sonu ve resmi tatillerde uc vardiyanin tamami azaltilmis kadroyla calisir").
+# Guvenlik talebi, onceki surumde ayri satirlar olan kapi ve kontrol odasi
+# taleplerinin toplamidir; toplam kisi sayisi degismemistir, yalnizca
+# noktanin kendisi birlesmistir.
 TALEP_DEGERLERI: tuple[tuple[int, int, int], ...] = (
     (1, 1, 1),  # Vardiya Şefliği
-    (1, 1, 1),  # Kontrol Odası
-    (3, 3, 1),  # Kapı (Bina A)
-    (3, 3, 1),  # Kapı (Bina B)
-    (1, 1, 0),  # Müracaat (Bina A)
-    (1, 1, 0),  # Müracaat (Bina B)
+    (7, 7, 3),  # Güvenlik
+    (2, 2, 0),  # Müracaat
 )
 
 
