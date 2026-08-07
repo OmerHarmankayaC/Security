@@ -39,12 +39,15 @@ class TercihOlustur(BaseModel):
     tarih: date
     tip: TercihTipi
     vardiya_tipi_id: int | None = None
+    calisan_notu: str | None = None
 
 
 class TercihGuncelle(BaseModel):
-    """Yalniz durum degisir (FR-3.4: yonetici onaylar veya reddeder)."""
+    """Durum degisir (FR-3.4: yonetici onaylar veya reddeder); reddederken
+    ret_gerekcesi de ayni istekte girilebilir (calisana gosterilir)."""
 
     durum: TercihDurumu
+    ret_gerekcesi: str | None = None
 
 
 class TercihOku(BaseModel):
@@ -57,3 +60,5 @@ class TercihOku(BaseModel):
     tip: TercihTipi
     vardiya_tipi_id: int | None
     durum: TercihDurumu
+    calisan_notu: str | None
+    ret_gerekcesi: str | None

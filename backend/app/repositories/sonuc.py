@@ -21,6 +21,51 @@ class DonemDeposu(TabanDepo[Donem]):
     def __init__(self, oturum: Session) -> None:
         super().__init__(oturum, Donem)
 
+    def guncel_donemi_bul(self, bugun: date) -> Donem | None:
+        """Calisan Paneli (SDD 6.1): 'bugun' tarihini iceren donem; yoksa en
+        yakin gelecek donem; o da yoksa en son gecmis donem."""
+        icinde = (
+            self.oturum.execute(
+                select(Donem).where(Donem.baslangic_tarihi <= bugun, Donem.bitis_tarihi >= bugun)
+            )
+            .scalars()
+            .first()
+        )
+        if icinde is not None:
+            return icinde
+        gelecek = (
+            self.oturum.execute(
+                select(Donem)
+                .where(Donem.baslangic_tarihi > bugun)
+                .order_by(Donem.baslangic_tarihi.asc())
+            )
+            .scalars()
+            .first()
+        )
+        if gelecek is not None:
+            return gelecek
+        return (
+            self.oturum.execute(
+                select(Donem).where(Donem.bitis_tarihi < bugun).order_by(Donem.bitis_tarihi.desc())
+            )
+            .scalars()
+            .first()
+        )
+
+    def tarihi_iceren_donemi_bul(self, tarih: date) -> Donem | None:
+        stmt = select(Donem).where(Donem.baslangic_tarihi <= tarih, Donem.bitis_tarihi >= tarih)
+        return self.oturum.execute(stmt).scalars().first()
+
+    def tercihe_acik_donemi_bul(self, bugun: date) -> Donem | None:
+        """Tercih bildirimine hala acik (tercih_son_tarihi >= bugun), baslangici
+        en yakin donem (SDD 6.1: Tercihlerim'deki 'bildirim X'te kapanıyor' bandı)."""
+        stmt = (
+            select(Donem)
+            .where(Donem.tercih_son_tarihi >= bugun)
+            .order_by(Donem.baslangic_tarihi.asc())
+        )
+        return self.oturum.execute(stmt).scalars().first()
+
 
 class CizelgeSurumuDeposu(TabanDepo[CizelgeSurumu]):
     def __init__(self, oturum: Session) -> None:
@@ -74,6 +119,28 @@ class CizelgeSurumuDeposu(TabanDepo[CizelgeSurumu]):
         surum.yayin_zamani = datetime.now(UTC)
         return surum
 
+    def yayinlanan_getir(self, donem_id: int) -> CizelgeSurumu | None:
+        """Calisan Paneli (FR-9.2): calisana yalniz YAYINLANDI durumundaki
+        surum gosterilir; bir donemde en fazla bir tanesi bu durumda olabilir."""
+        stmt = select(CizelgeSurumu).where(
+            CizelgeSurumu.donem_id == donem_id,
+            CizelgeSurumu.durum == CizelgeSurumuDurumu.YAYINLANDI,
+        )
+        return self.oturum.execute(stmt).scalars().first()
+
+    def en_son_arsivlenen_getir(self, donem_id: int) -> CizelgeSurumu | None:
+        """FR-9.4: 'degisen gunler' karsilastirma tabani - ayni donemde en son
+        ARSIV durumuna gecmis surum (yayin_zamani'na gore en yenisi)."""
+        stmt = (
+            select(CizelgeSurumu)
+            .where(
+                CizelgeSurumu.donem_id == donem_id,
+                CizelgeSurumu.durum == CizelgeSurumuDurumu.ARSIV,
+            )
+            .order_by(CizelgeSurumu.yayin_zamani.desc())
+        )
+        return self.oturum.execute(stmt).scalars().first()
+
 
 class CozumIsiDeposu(TabanDepo[CozumIsi]):
     def __init__(self, oturum: Session) -> None:
@@ -106,6 +173,16 @@ class AtamaDeposu(TabanDepo[Atama]):
         atama kumesi (degistirilen gunun +-7 gunluk penceresi)."""
         stmt = select(Atama).where(
             Atama.surum_id == surum_id, Atama.tarih >= baslangic, Atama.tarih <= bitis
+        )
+        return self.oturum.execute(stmt).scalars().all()
+
+    def surume_ve_personele_gore_getir(self, surum_id: int, personel_id: int) -> Sequence[Atama]:
+        """Calisan Paneli — Vardiyalarim (SDD 6.1): bir surumdeki, tek bir
+        personele ait atamalar, tarihe gore sirali."""
+        stmt = (
+            select(Atama)
+            .where(Atama.surum_id == surum_id, Atama.personel_id == personel_id)
+            .order_by(Atama.tarih)
         )
         return self.oturum.execute(stmt).scalars().all()
 

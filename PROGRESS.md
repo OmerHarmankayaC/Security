@@ -2185,6 +2185,160 @@ sıkıştırılmıştı, bu artık ayrı). Ara İş'ten devreden not (Özet'in
 (yedi metrik, `/api/analiz/{surum_id}`, CSV dışa aktarma, Özet'in
 Toplam Ceza kutusu) tamamlandı.
 
-**Sıradaki oturumun ilk işi:** Sprint 3 Gün 13 — Çalışan Paneli (SDD
-6.1'deki dört bölüm: Vardiyalarım, Dönem özetim, Tercih bildirimi,
-Tercihlerim).
+---
+
+## 2026-08-07 — Sprint 3 Gün 13: Çalışan Paneli
+
+**Tasarım görselleri:** Oturum başında `docs/tasarim/` altında Çalışan
+Paneli PNG'leri bulunamadı (yalnızca Kontrol Odası ekranları vardı);
+kullanıcıya soruldu, altı PNG (Vardiyalarım/Dönem Özetim/Tercihlerim ×
+Masaüstü+Mobil) az sonra eklendi ve incelendi. `TASARIM_REFERANSI.md`
+(sürüm 3) hâlâ yalnızca Kontrol Odası'nı kapsıyor — Çalışan Paneli için
+ayrı bir referans dokümanı yok, kararlar doğrudan PNG'lerden ve
+kullanıcının oturum başı talimatındaki yazılı kararlardan çıkarıldı.
+
+**Doküman senkronizasyonu:** Kullanıcı SRS 1.4/SDD 1.6'nın TD-12 ve
+güncellenmiş FR-9.3/SDD 6.1 içerdiğini belirtti, ama `docs/`'taki
+kopyalar bunları içermiyordu (yeniden indirilecek bir kaynak URL'i
+verilmemişti). Sessizce sapmak yerine dokümanlar bizzat güncellendi:
+`SRS` TD-12 (karşılanma durumu, üç değerli) eklendi, FR-9.3 "aylık" ->
+"dönem görünümü" oldu; `SDD` 6.1 dört bölümden üçe indirildi (Tercih
+bildirimi artık ayrı sekme değil, Tercihlerim'in üstünde) ve tek
+sütun/yan menüsüz/B-05 notları eklendi.
+
+**Şema:** Alembic göçü `a1c3f7e9b2d4`: `tercih` tablosuna
+`calisan_notu` (çalışanın gerekçesi) ve `ret_gerekcesi` (yöneticinin
+ret gerekçesi, FR-3.4) — ayrı alanlar, farklı kişi farklı aşamada
+yazıyor. `TercihOlustur`/`TercihGuncelle`/`TercihOku` şemaları buna
+göre genişletildi; admin `PUT /api/tercih/{id}` artık `ret_gerekcesi`yi
+aynı istekte kabul ediyor (`TercihlerEkrani.tsx`'e küçük bir "Ret
+gerekçesi" girişi eklendi, reddet akışını test etmek için gerekliydi).
+
+**Backend — `app/services/calisan_servisi.py` (yeni):**
+- `vardiyalarim(personel_id)`: "güncel dönem" `DonemDeposu.
+  guncel_donemi_bul` ile bulunuyor (bugünü kapsayan dönem; yoksa en
+  yakın gelecek; o da yoksa en son geçmiş — personelden bağımsız, tek
+  bir "aktif dönem" varsayımına dayanır). O dönemin YAYINLANDI
+  sürümünden (FR-9.2, `CizelgeSurumuDeposu.yayinlanan_getir`) kişiye
+  ait atamalar okunuyor.
+- **Değişen günler (FR-9.4):** karşılaştırma tabanı aynı dönemdeki EN
+  SON ARSIV sürümü (`en_son_arsivlenen_getir`, `yayin_zamani`'na göre).
+  Üç tür: atama yalnız yeni sürümde -> `eklendi`; ikisinde de var ama
+  vardiya tipi/nokta farklı -> `degisti`; aynıysa `null`. Karşılaştırma
+  tabanı yoksa (dönemin ilk yayını) hiçbir gün işaretlenmez.
+- **Dönem Özetim (FR-9.5):** `AnalizServisi.hesapla`nın (Gün 12)
+  doğrudan yeniden kullanımı — yeniden yazılmadı. Ama servis
+  `/api/analiz/{surum_id}` gibi TÜM personelin ad+sayılarını dışarı
+  vermiyor: `CalisanServisi._donem_ozeti` yalnızca istenen personelin
+  kendi değerini ve tek bir ekip ortalaması sayısını (`ekip_ortalama_*`)
+  çıkarıp döndürüyor — SDD 6.1 kabul kriteri "başka bir personelin
+  verisine erişemiyor" bunu gerektiriyordu, `/api/analiz` doğrudan
+  reuse edilseydi (client'tan çağrılsaydı) her personelin gece/hafta
+  sonu/saat kırılımı adıyla karşı tarafa görünür olurdu.
+- **Karşılanma durumu (SRS TD-12):** `_karsilanma_durumu` — SAKLANMAZ,
+  `tercihlerim` her çağrıldığında ilgili tercihin `donem_id`'sinin
+  YAYINLANDI sürümünden (yoksa `henuz_belirsiz`) türetilir. Üç değer
+  ayrıntısı için TD-12'ye bkz.
+- `tercih_bildir`: SDD Ek B'nin `/api/calisan/tercih` POST'u.
+  `donem_id` istemciden gelmiyor (çalışan ekranında dönem seçici yok,
+  yalnızca "Gün" tarihi var) — `DonemDeposu.tarihi_iceren_donemi_bul`
+  ile tarihten türetiliyor; tarih hiçbir dönemin içine düşmüyorsa veya
+  o dönemin `tercih_son_tarihi` geçmişse `TercihDonemiBulunamadiError`
+  (router 400'e çeviriyor).
+- **"Kişiye özel bağlantı" (Backlog B-05, kimlik doğrulama yok):**
+  `app/config.py`'de zaten tanımlı ama hiç kullanılmayan
+  `calisan_paneli_baglanti_anahtari` ayarı fark edildi ve bu amaç için
+  kullanıldı — üç `/api/calisan/*` uç noktası da `anahtar` sorgu
+  parametresini bekliyor, uyuşmazsa 403. Bu GERÇEK bir yetkilendirme
+  DEĞİLDİR (herkese aynı anahtar) — yalnızca personel_id'nin rastgele
+  denenmesini zorlaştıran, giriş ekranı gerektirmeyen bir bağlantı
+  parametresi. Kullanıcıya sorulmadı (talimat açıkça "giriş ekranı
+  yapma" dedi, bu çözüm o kısıtı ihlal etmiyor ve zaten var olan bir
+  ayarı hayata geçiriyor) ama PROGRESS'e not düşülüyor — istenirse
+  kaldırılabilir.
+- Yeni depo metotları: `DonemDeposu.guncel_donemi_bul/
+  tarihi_iceren_donemi_bul/tercihe_acik_donemi_bul`,
+  `CizelgeSurumuDeposu.yayinlanan_getir/en_son_arsivlenen_getir`,
+  `AtamaDeposu.surume_ve_personele_gore_getir`,
+  `TercihDeposu.personele_gore_getir`.
+- `app/routers/calisan.py` (yeni): `GET /api/calisan/vardiyalarim`,
+  `GET`+`POST /api/calisan/tercih`, `main.py`'ye kaydedildi.
+- **Bulunan ve düzeltilen bir bağımsız hata:**
+  `scripts/demo_veri_uret.py`'deki `_her_seyi_temizle` `Tercih`'i hiç
+  silmiyordu ve `Donem`'i `Tercih`'ten ÖNCE siliyordu — FK ihlali
+  riski, yalnızca bugüne kadar hiçbir test/betik aynı anda hem `Donem`
+  hem `Tercih` satırı bırakmadığı için görünmüyordu. Bu oturumun testi
+  (`test_calisan_api.py`) tam olarak bunu yaptığında `test_agirlik_
+  kalibrasyonu.py` FK hatasıyla patladı; düzeltme: `Tercih` listeye
+  eklendi, `Donem`'den önce siliniyor.
+
+**Backend testleri:** `tests/test_calisan_api.py` (yeni, 6 test): 404/
+403 yolları, değişen günlerin üç türe ayrıldığı elle kurulmuş bir
+senaryo (+ Dönem Özetim'in ekip ortalamasının doğru hesabı),
+yayınlanmamış sürümde boş liste, TD-12'nin üç karşılanma değeri
+(henüz_belirsiz/karşılanmadı/karşılandı) elle kurulmuş iki-dönemli bir
+senaryoda, tercih bildirme mutlu yol + dönem-dışı tarihte 400. Tam
+paket 113 test (107 + 6), `ruff check`/`format` temiz.
+
+**Frontend:**
+- `src/CalisanApp.tsx` + `src/components/CalisanShell.tsx` (yeni): ayrı
+  bir kabuk — Kontrol Odası'nın koyu yan menüsü yok, koyu üst çubuk +
+  altında üç sekme, tek sütun (~720px, masaüstünde de ortalanmış).
+  Router kütüphanesi eklenmedi (SDD'de tanımsız bir teknik karar
+  olurdu); `main.tsx` `window.location.pathname`'i elle ayrıştırıyor:
+  `/calisan/{personel_id}?anahtar=...` -> `CalisanApp`, aksi hâlde
+  mevcut admin `App`.
+- `src/screens/calisan/`: `VardiyalarimEkrani.tsx` (sıradaki vardiya
+  kartı — kendi vardiya renginde, kontrast için metin rengi de vardiya
+  tipine göre değişiyor; 7 sütunlu dönem görünümü ızgarası; vardiya
+  listesi, değişen günler teal sol-kenarlıkla işaretli), `DonemOzetimEkrani.tsx`
+  (üç metrik kartı, SEN/EKİP ORT. çubukları), `TercihlerimEkrani.tsx`
+  (tercih bildirme formu + bildirilen tercihler listesi, karşılanma
+  durumu nokta+etiketle, reddedilmişse gerekçe).
+- `lib/tarih.ts`'e `tarihUzunBicim`/`gunEtiketi`/`gunFarki` eklendi;
+  `lib/vardiyaRenk.ts` (yeni) — `CizelgeEkrani.tsx`'teki vardiya renk
+  kodlama mantığının paylaşılan hali (gündüz/akşam/gece).
+- `api/client.ts`+`api/types.ts`: `calisanVardiyalarim`/
+  `calisanTercihlerim`/`calisanTercihBildir`; `Tercih` tipine
+  `calisan_notu`/`ret_gerekcesi` eklendi; `tercihDurumGuncelle` artık
+  isteğe bağlı `retGerekcesi` alıyor.
+
+**Doğrulama:**
+- `ruff check`/`format`, tam backend paketi (113 test) temiz veritabanında
+  geçti; `tsc -b --noEmit`, `oxlint`, `npm run build` temiz.
+- Gerçek `uvicorn`+`vite` ile (bu oturumdaki iki port zaten başka bir
+  oturumun sunucularınca kullanıldığından, geçici olarak ayrı portlarda
+  ikinci bir çift başlatıldı, doğrulama bitince kapatıldı) tarayıcıda
+  uçtan uca gezildi: elle kurulmuş bir demo senaryosunda (H. Aydın,
+  03-09 Ağu dönemi, bir ARŞİV + bir YAYINLANDI sürüm) Vardiyalarım
+  ekranı sıradaki vardiyayı doğru vurguladı, 7 günlük ızgara ve vardiya
+  listesi "eklendi" işaretlerini doğru gösterdi; Dönem Özetim üç
+  metriği SEN/EKİP ORT. çubuklarıyla gösterdi; Tercihlerim'de mevcut
+  üç tercihin karşılanma durumları (karşılandı/karşılanmadı/gerekçeli
+  ret) mockup'la birebir eşleşti, yeni bir tercih gönderildi ve hem
+  Tercihlerim listesinde hem admin'in Tercihler > Bekleyen sekmesinde
+  gerçek zamanlı göründü. Demo/test verisi doğrulama sonunda temizlendi.
+
+**Sapmalar / notlar:**
+- Yukarıdaki doküman senkronizasyonu, "kişiye özel bağlantı" anahtarının
+  kullanımı ve `demo_veri_uret.py` düzeltmesi kayda değer sapmalar/ek
+  işler; hepsi yukarıda gerekçeleriyle not edildi.
+- "Güncel dönem" tek bir dönem varsayımına dayanıyor (aynı anda
+  birbiriyle çakışan iki dönem olmaz); gerçek kullanımda dönemler ardışık
+  planlandığından bu makul, ama test verisinde (aynı anda "bugünü"
+  kapsayan birden fazla dönem oluşabiliyor) bu varsayım ihlal edilirse
+  `guncel_donemi_bul` hangi dönemi döndüreceğini garanti etmez —
+  bilinen, küçük bir sınır.
+
+**Kalan / ertelenen:** Yok — SDD 6.1'in üç bölümü (Vardiyalarım, Dönem
+Özetim, Tercihlerim) ve kabul kriterindeki tüm maddeler (dönem+liste
+görünümü, sıradaki vardiya, üç türde değişen gün, gece/hafta sonu/saat
+karşılaştırması, tercih bildirme, onay+karşılanma durumu ayrı ayrı,
+ret gerekçesi, personel izolasyonu) tamamlandı.
+
+**Sıradaki oturumun ilk işi:** Sprint 3 Gün 14 — Uçtan Uca Deneyler ve
+Performans Ölçümü (Charter'daki kabul kriterleri için otomatik
+kontrol/betik: 40 personel × 28 gün < 60 sn, sıfır zorunlu kısıt
+ihlali, kişi başı gece sapması ≤1, çelişkili örnekte eksik gösterimi,
+manuel düzenleme <1 sn; çözücü-doğrulayıcı uyum testini büyük ölçekte
+çalıştır; kısa bir performans notu yaz).

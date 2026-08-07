@@ -211,6 +211,8 @@ export interface Tercih {
   tip: TercihTipi
   vardiya_tipi_id: number | null
   durum: TercihDurumu
+  calisan_notu: string | null
+  ret_gerekcesi: string | null
 }
 
 // --- Analiz (FR-8.x, SDD 5.7) -----------------------------------------------
@@ -241,4 +243,70 @@ export interface Analiz {
   bina_degisim_sayisi: KisiSayisi[]
   ceza_dokumu: Record<string, number> | null
   toplam_ceza: number | null
+}
+
+// --- Çalışan Paneli (SDD 6.1, Ek B; SRS FR-9.x) -----------------------------
+
+export type DegisimTipi = 'eklendi' | 'degisti'
+export type KarsilanmaDurumu = 'karsilandi' | 'karsilanmadi' | 'henuz_belirsiz'
+
+export interface Vardiyam {
+  tarih: string
+  vardiya_tipi_id: number
+  vardiya_tipi_ad: string
+  baslangic_saati: string
+  bitis_saati: string
+  gece_mi: boolean
+  nokta_id: number
+  nokta_ad: string
+  degisim_tipi: DegisimTipi | null
+}
+
+export interface DonemOzeti {
+  gece_sayisi: number
+  ekip_ortalama_gece: number
+  hafta_sonu_sayisi: number
+  ekip_ortalama_hafta_sonu: number
+  toplam_saat: number
+  ekip_ortalama_saat: number
+}
+
+export interface Vardiyalarim {
+  personel_id: number
+  ad_soyad: string
+  sicil_no: string
+  yetkinlikler: string[]
+  donem_id: number | null
+  donem_baslangic_tarihi: string | null
+  donem_bitis_tarihi: string | null
+  surum_id: number | null
+  yayinlanmis_surum_var: boolean
+  yayin_zamani: string | null
+  vardiyalar: Vardiyam[]
+  siradaki: Vardiyam | null
+  ozet: DonemOzeti | null
+}
+
+export interface AcikDonem {
+  donem_id: number
+  baslangic_tarihi: string
+  bitis_tarihi: string
+  tercih_son_tarihi: string
+}
+
+export interface CalisanTercih {
+  tercih_id: number
+  tarih: string
+  tip: TercihTipi
+  vardiya_tipi_id: number | null
+  vardiya_tipi_ad: string | null
+  calisan_notu: string | null
+  durum: TercihDurumu
+  ret_gerekcesi: string | null
+  karsilanma: KarsilanmaDurumu
+}
+
+export interface CalisanTercihListesi {
+  acik_donem: AcikDonem | null
+  tercihler: CalisanTercih[]
 }

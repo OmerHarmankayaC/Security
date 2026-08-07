@@ -1,4 +1,27 @@
 const GUN_KISALTMALARI = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt']
+const GUN_TAM_ADLARI = [
+  'Pazar',
+  'Pazartesi',
+  'Salı',
+  'Çarşamba',
+  'Perşembe',
+  'Cuma',
+  'Cumartesi',
+]
+const AY_TAM_ADLARI = [
+  'Ocak',
+  'Şubat',
+  'Mart',
+  'Nisan',
+  'Mayıs',
+  'Haziran',
+  'Temmuz',
+  'Ağustos',
+  'Eylül',
+  'Ekim',
+  'Kasım',
+  'Aralık',
+]
 const AY_KISALTMALARI = [
   'Oca',
   'Şub',
@@ -53,6 +76,28 @@ export function donemAraligiBicimle(baslangicIso: string, bitisIso: string): str
 export function gunKisaltmasiVeNumarasi(iso: string): string {
   const tarih = isoAyristir(iso)
   return `${GUN_KISALTMALARI[tarih.getDay()]} ${tarih.getDate()}`.toLocaleUpperCase('tr-TR')
+}
+
+// Çalışan Paneli — Vardiyalarım (SDD 6.1): "03 Ağustos Pazartesi".
+export function tarihUzunBicim(iso: string): string {
+  const tarih = isoAyristir(iso)
+  return `${String(tarih.getDate()).padStart(2, '0')} ${AY_TAM_ADLARI[tarih.getMonth()]} ${GUN_TAM_ADLARI[tarih.getDay()]}`
+}
+
+// "Bugün" / "Yarın" / tam gün adı ("Çarşamba") — Vardiyalarım listesi ve
+// sıradaki vardiya kartı bugunIso'ya göre kıyaslar.
+export function gunEtiketi(iso: string, bugunIso: string): string {
+  if (iso === bugunIso) return 'Bugün'
+  const yarin = new Date(isoAyristir(bugunIso))
+  yarin.setDate(yarin.getDate() + 1)
+  if (iso === isoBicimle(yarin)) return 'Yarın'
+  return GUN_TAM_ADLARI[isoAyristir(iso).getDay()] ?? ''
+}
+
+// İki ISO tarih arasındaki tam gün farkı (b - a), negatif olabilir.
+export function gunFarki(aIso: string, bIso: string): number {
+  const MS_GUN = 86_400_000
+  return Math.round((isoAyristir(bIso).getTime() - isoAyristir(aIso).getTime()) / MS_GUN)
 }
 
 // Backend zaman damgalarini (olusturma/guncelleme/baslangic_zamani) UTC olarak

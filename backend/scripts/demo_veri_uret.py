@@ -35,7 +35,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.db import OturumYerel
-from app.models.girdi import Musaitlik, MusaitlikDilimi, MusaitlikTipi
+from app.models.girdi import Musaitlik, MusaitlikDilimi, MusaitlikTipi, Tercih
 from app.models.kural import Kural, KuralTipi
 from app.models.sonuc import Atama, CizelgeSurumu, CozumIsi, Donem, KapsamaAcigi
 from app.models.tanim import (
@@ -149,6 +149,7 @@ def _her_seyi_temizle(oturum: Session) -> None:
         Atama,
         CizelgeSurumu,
         Musaitlik,
+        Tercih,
         Donem,
         Talep,
         PersonelYetkinlik,

@@ -54,6 +54,8 @@ class Tercih(Base, ZamanDamgasiKarisimi):
     tip: Mapped[TercihTipi]
     vardiya_tipi_id: Mapped[int | None] = mapped_column(ForeignKey("vardiya_tipi.vardiya_tipi_id"))
     durum: Mapped[TercihDurumu] = mapped_column(default=TercihDurumu.BEKLEMEDE)
+    calisan_notu: Mapped[str | None] = mapped_column(default=None)
+    ret_gerekcesi: Mapped[str | None] = mapped_column(default=None)
 
 
 __all__ = [

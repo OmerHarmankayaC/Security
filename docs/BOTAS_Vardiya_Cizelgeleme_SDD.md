@@ -756,7 +756,9 @@ Yönetici arayüzü sekiz ekrandan oluşur. Ekranların sırası, tipik bir çiz
 
 
 
-Çalışan arayüzü dört bölümden oluşur: Vardiyalarım (yayınlanmış çizelgeden kişiye ait atamalar), Dönem özetim (kişinin gece, hafta sonu ve toplam saat sayıları ile ekip ortalaması), Tercih bildirimi ve Tercihlerim (bildirilen tercihlerin durumu). Bu arayüzde hiçbir yazma işlemi çizelgeyi etkilemez; yalnızca tercih kaydı oluşturulur.
+Çalışan arayüzü üç bölümden oluşur: Vardiyalarım (yayınlanmış çizelgeden kişiye ait atamalar), Dönem Özetim (kişinin gece, hafta sonu ve toplam saat sayıları ile ekip ortalaması) ve Tercihlerim. Tercih bildirim formu ayrı bir sekme değildir; Tercihlerim'in bildirilen tercihler listesinin üstünde yer alır. Bu arayüzde hiçbir yazma işlemi çizelgeyi etkilemez; yalnızca tercih kaydı oluşturulur.
+
+Çalışan arayüzü tek sütunludur, masaüstünde de ortalanmış tek sütun (~720px) olarak kalır — iki sütunlu geniş bir masaüstü düzeni yoktur, bu sayede mobil sürüm ayrı bir tasarım gerektirmez (NFR-7). Dönem görünümü takvim gibi yedi sütuna sarmalıdır (bkz. FR-9.3); yan menü yoktur, koyu bir üst çubuk ve altında üç sekme kullanılır. Kimlik doğrulama yoktur (Backlog B-05); panele kişiye özel bağlantıyla girilir.
 
 ## 6.2 Ekran Görselleri
 

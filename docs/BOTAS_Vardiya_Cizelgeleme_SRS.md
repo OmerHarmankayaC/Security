@@ -198,6 +198,16 @@ Bu tanımın gerekçesi eşleme ile sayma arasındaki farktır. Yetkinlik gereks
 
 Personel belirli bir binaya bağlı değildir; tek havuz olarak değerlendirilir ve tesisteki bütün noktalara atanabilir. Aynı personelin gün aşırı bina değiştirmesi zorunlu kısıtla engellenmez, S6 kapsamında esnek biçimde cezalandırılır. Bu tercihin nedeni, kadronun daraldığı dönemlerde bina değişiminin kapsama açığını kapatan tek hamle olabilmesidir.
 
+### TD-12 — Karşılanma durumu (Çalışan Paneli)
+
+Bir tercihin karşılanma durumu saklanmaz; Tercihlerim listesi her okunduğunda, o tercihin dönemi için yayınlanmış çizelgeden yeniden türetilir. Üç değerlidir:
+
+- Çalışmama tercihi: ilgili günde atama yoksa karşılandı, atama varsa karşılanmadı.
+- Vardiya tipi tercihi: ilgili günde atama var ve tipi istenenle aynıysa karşılandı; aksi hâlde (atama yok veya tipi farklı) karşılanmadı.
+- İlgili dönem için henüz yayınlanmış bir çizelge sürümü yoksa durum "karşılanmadı" değil "henüz belirsiz"dir — ikili bir işaret kullanılırsa çizelge üretilmeden önce bütün tercihler reddedilmiş gibi görünür.
+
+Karşılanma durumu, tercihin onay durumuyla (beklemede/onaylandı/reddedildi, bkz. FR-3.4) ayrı bir bilgidir; ikisi de arayüzde ayrı ayrı gösterilir.
+
 ## 3.3 Uygulama Alanı: Güvenlik Personeli
 
 Bu bölüm, bölüm 3.1 ve 3.2'de tanımlanan yapının ilk uygulama alanına ait somut değerlerini içerir. Buradaki hiçbir değer koda gömülü değildir; tamamı bölüm 5.1'deki tanım yönetimi gereksinimleri aracılığıyla düzenlenebilen veridir. Değerler mevcut işleyişten alınmış varsayımlara dayanmakta olup mentör görüşmesinde teyit edilecektir.
@@ -639,7 +649,7 @@ Ağırlıkların tamamı kullanıcı tarafından ayarlanabilir. Sistem hangi hed
 | --- | --- | --- |
 | FR-9.1 | Sistem, personelin yalnızca kendi çizelgesini görüntülemesine imkân vermelidir. | Yüksek |
 | FR-9.2 | Sistem, personele yalnızca yayınlanmış durumdaki çizelge sürümünü göstermelidir. | Zorunlu |
-| FR-9.3 | Sistem, personelin çizelgesini aylık ve liste görünümünde sunmalı, sıradaki vardiyayı öne çıkarmalıdır. | Yüksek |
+| FR-9.3 | Sistem, personelin çizelgesini dönem görünümünde (takvim gibi, yedi sütuna sarmalı) ve liste görünümünde sunmalı, sıradaki vardiyayı öne çıkarmalıdır. | Yüksek |
 | FR-9.4 | Sistem, yeni yayınlanan sürümde önceki sürüme göre değişen günleri işaretlemelidir. | Yüksek |
 | FR-9.5 | Sistem, personelin dönem içindeki gece, hafta sonu ve toplam saat sayısını ekip ortalamasıyla birlikte göstermelidir. | Orta |
 | FR-9.6 | Sistem, personelin tercih bildirmesine ve bildirdiği tercihlerin durumunu görmesine imkân vermelidir. | Yüksek |

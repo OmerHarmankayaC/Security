@@ -3,6 +3,7 @@ import type {
   Atama,
   AtamaDegisikligiIstek,
   Bina,
+  CalisanTercihListesi,
   CizelgeSurumu,
   CozumIsi,
   Donem,
@@ -19,6 +20,7 @@ import type {
   Tercih,
   TercihDurumu,
   TercihTipi,
+  Vardiyalarim,
   VardiyaTipi,
   Yetkinlik,
 } from './types'
@@ -142,9 +144,32 @@ export const api = {
     tip: TercihTipi
     vardiya_tipi_id?: number | null
   }) => gonder<Tercih>('/api/tercih', govde),
-  tercihDurumGuncelle: (tercihId: number, durum: TercihDurumu) =>
-    gonder<Tercih>(`/api/tercih/${tercihId}`, { durum }, 'PUT'),
+  tercihDurumGuncelle: (tercihId: number, durum: TercihDurumu, retGerekcesi?: string) =>
+    gonder<Tercih>(
+      `/api/tercih/${tercihId}`,
+      { durum, ...(retGerekcesi ? { ret_gerekcesi: retGerekcesi } : {}) },
+      'PUT',
+    ),
 
   // --- Analiz (FR-8.x) ---------------------------------------------------
   analizGetir: (surumId: number) => istek<Analiz>(`/api/analiz/${surumId}`),
+
+  // --- Çalışan Paneli (SDD 6.1, Ek B; SRS FR-9.x) -------------------------
+  calisanVardiyalarim: (personelId: number, anahtar: string) =>
+    istek<Vardiyalarim>(
+      `/api/calisan/vardiyalarim?personel_id=${personelId}&anahtar=${encodeURIComponent(anahtar)}`,
+    ),
+  calisanTercihlerim: (personelId: number, anahtar: string) =>
+    istek<CalisanTercihListesi>(
+      `/api/calisan/tercih?personel_id=${personelId}&anahtar=${encodeURIComponent(anahtar)}`,
+    ),
+  calisanTercihBildir: (
+    personelId: number,
+    anahtar: string,
+    govde: { tarih: string; tip: TercihTipi; vardiya_tipi_id?: number | null; calisan_notu?: string | null },
+  ) =>
+    gonder(
+      `/api/calisan/tercih?personel_id=${personelId}&anahtar=${encodeURIComponent(anahtar)}`,
+      govde,
+    ),
 }

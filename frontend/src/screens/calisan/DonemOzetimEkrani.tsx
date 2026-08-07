@@ -1,0 +1,117 @@
+import type { Vardiyalarim } from '@/api/types'
+import { Kart, KartEtiketi, Rozet } from '@/components/app-ui'
+import { donemAraligiBicimle } from '@/lib/tarih'
+
+interface Props {
+  veri: Vardiyalarim
+}
+
+const ESIK = 0.5
+
+function karsilastirmaMetni(sen: number, ekip: number, birim: string): string {
+  const fark = sen - ekip
+  if (Math.abs(fark) < ESIK) return `ortalamaya yakınsın`
+  return fark > 0
+    ? `ekip ortalamasının ${Math.abs(fark).toFixed(1)} ${birim} üzerindesin`
+    : `ekip ortalamasının ${Math.abs(fark).toFixed(1)} ${birim} altındasın`
+}
+
+function MetrikKarti({
+  etiket,
+  birim,
+  sen,
+  ekip,
+  ondalik = 0,
+}: {
+  etiket: string
+  birim: string
+  sen: number
+  ekip: number
+  ondalik?: number
+}) {
+  const fark = sen - ekip
+  const maks = Math.max(sen, ekip, 1)
+  return (
+    <Kart>
+      <div className="mb-4 flex items-center justify-between">
+        <KartEtiketi>{etiket}</KartEtiketi>
+        {Math.abs(fark) >= ESIK && (
+          <Rozet varyant={fark > 0 ? 'kilitli' : 'notr'} genislik={150}>
+            {fark > 0 ? 'Ortalamanın Üstünde' : 'Ortalamanın Altında'}
+          </Rozet>
+        )}
+      </div>
+      <p className="m-0 font-mono text-3xl font-semibold text-ink">
+        {sen.toFixed(ondalik)} <span className="text-base font-normal text-ink-muted">{birim}</span>
+      </p>
+      <div className="mt-4 flex flex-col gap-2">
+        <BarSatiri etiket="SEN" deger={sen} maks={maks} renk="bg-accent" ondalik={ondalik} />
+        <BarSatiri etiket="EKİP ORT." deger={ekip} maks={maks} renk="bg-rule-strong" ondalik={ondalik} />
+      </div>
+    </Kart>
+  )
+}
+
+function BarSatiri({
+  etiket,
+  deger,
+  maks,
+  renk,
+  ondalik,
+}: {
+  etiket: string
+  deger: number
+  maks: number
+  renk: string
+  ondalik: number
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="w-20 shrink-0 font-condensed text-[10px] tracking-[0.1em] text-ink-muted">{etiket}</span>
+      <div className="h-2.5 flex-1 rounded-xs bg-sunken">
+        <div
+          className={`h-full rounded-xs ${renk}`}
+          style={{ width: `${Math.min(100, (deger / maks) * 100)}%` }}
+        />
+      </div>
+      <span className="w-10 shrink-0 text-right font-mono text-sm text-ink">{deger.toFixed(ondalik)}</span>
+    </div>
+  )
+}
+
+export function DonemOzetimEkrani({ veri }: Props) {
+  if (!veri.ozet || !veri.donem_baslangic_tarihi || !veri.donem_bitis_tarihi) {
+    return (
+      <Kart>
+        <p className="m-0 text-sm text-ink-muted">
+          Bu dönem için henüz yayınlanmış bir çizelge yok, özet hesaplanamıyor.
+        </p>
+      </Kart>
+    )
+  }
+
+  const { ozet } = veri
+  return (
+    <>
+      <div>
+        <p className="m-0 font-condensed text-[10px] tracking-[0.14em] text-ink-muted">
+          {donemAraligiBicimle(veri.donem_baslangic_tarihi, veri.donem_bitis_tarihi)} DÖNEMİ
+        </p>
+        <p className="m-0 mt-1 text-sm text-ink">
+          Bu dönemde {karsilastirmaMetni(ozet.gece_sayisi, ozet.ekip_ortalama_gece, 'gece')},{' '}
+          hafta sonunda {karsilastirmaMetni(ozet.hafta_sonu_sayisi, ozet.ekip_ortalama_hafta_sonu, 'vardiya')} ve
+          {' '}toplam saatte {karsilastirmaMetni(ozet.toplam_saat, ozet.ekip_ortalama_saat, 'saat')}.
+        </p>
+      </div>
+
+      <MetrikKarti etiket="Gece Vardiyası" birim="vardiya" sen={ozet.gece_sayisi} ekip={ozet.ekip_ortalama_gece} ondalik={1} />
+      <MetrikKarti etiket="Hafta Sonu" birim="vardiya" sen={ozet.hafta_sonu_sayisi} ekip={ozet.ekip_ortalama_hafta_sonu} ondalik={1} />
+      <MetrikKarti etiket="Toplam Saat" birim="saat" sen={ozet.toplam_saat} ekip={ozet.ekip_ortalama_saat} ondalik={1} />
+
+      <p className="m-0 rounded-sm bg-sunken px-4 py-3 text-sm text-ink-muted">
+        Sayılar yalnızca yayınlanmış çizelgeden hesaplanır. Yönetici üzerinde çalıştığı taslak buraya
+        yansımaz.
+      </p>
+    </>
+  )
+}

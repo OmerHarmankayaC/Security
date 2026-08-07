@@ -2,9 +2,30 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
+import { CalisanApp } from './CalisanApp.tsx'
+
+// Çalışan Paneli, kimlik doğrulama YOK (Backlog B-05) — "kişiye özel
+// bağlantı" ile girilir: /calisan/{personel_id}?anahtar=... Bir router
+// kütüphanesi eklemeden (SDD'de tanımlanmayan bir teknik karar), yönetici
+// App'iyle aynı basit "hangi bileşeni render edeceğine burada karar ver"
+// deseni kullanılır.
+function kokBileseni() {
+  const parcalar = window.location.pathname.split('/').filter(Boolean)
+  if (parcalar[0] === 'calisan') {
+    const personelId = Number(parcalar[1])
+    const anahtar = new URLSearchParams(window.location.search).get('anahtar') ?? ''
+    if (Number.isFinite(personelId) && personelId > 0 && anahtar) {
+      return <CalisanApp personelId={personelId} anahtar={anahtar} />
+    }
+    return (
+      <div className="flex min-h-svh items-center justify-center bg-canvas px-6 text-center">
+        <p className="text-sm text-ink-muted">Bu bağlantı geçersiz.</p>
+      </div>
+    )
+  }
+  return <App />
+}
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
+  <StrictMode>{kokBileseni()}</StrictMode>,
 )

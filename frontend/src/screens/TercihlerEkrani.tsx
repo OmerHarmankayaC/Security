@@ -3,6 +3,7 @@ import { api } from '../api/client'
 import type { Personel, Tercih, TercihDurumu, VardiyaTipi } from '../api/types'
 import { AppShell, type NavOgesi } from '../components/AppShell'
 import { Buton, Kart } from '../components/app-ui'
+import { Input } from '@/components/ui/input'
 import { cn } from '../lib/utils'
 import { gunKisaltmasiVeNumarasi } from '../lib/tarih'
 
@@ -29,6 +30,7 @@ export function TercihlerEkrani({ ekranSec }: Props) {
   const [sekme, setSekme] = useState<TercihDurumu>('beklemede')
   const [hata, setHata] = useState<string | null>(null)
   const [islenenId, setIslenenId] = useState<number | null>(null)
+  const [retGerekceler, setRetGerekceler] = useState<Record<number, string>>({})
 
   const yukle = () => {
     Promise.all([api.tercihListele(), api.personelListele(), api.vardiyaTipiListele()])
@@ -55,7 +57,11 @@ export function TercihlerEkrani({ ekranSec }: Props) {
     setIslenenId(tercihId)
     setHata(null)
     try {
-      await api.tercihDurumGuncelle(tercihId, durum)
+      await api.tercihDurumGuncelle(tercihId, durum, retGerekceler[tercihId]?.trim() || undefined)
+      setRetGerekceler((r) => {
+        const { [tercihId]: _silinen, ...kalan } = r
+        return kalan
+      })
       yukle()
     } catch (e) {
       setHata(e instanceof Error ? e.message : 'Tercih güncellenemedi')
@@ -120,7 +126,15 @@ export function TercihlerEkrani({ ekranSec }: Props) {
                   </span>
                   <p className="m-0 flex-1 text-sm text-ink">{tercihAciklamasi(t, vardiyaMap)}</p>
                   {sekme === 'beklemede' && (
-                    <div className="flex shrink-0 gap-2">
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Input
+                        placeholder="Ret gerekçesi (isteğe bağlı)"
+                        value={retGerekceler[t.tercih_id] ?? ''}
+                        onChange={(e) =>
+                          setRetGerekceler((r) => ({ ...r, [t.tercih_id]: e.target.value }))
+                        }
+                        className="h-8 w-48 rounded-sm border-rule text-sm"
+                      />
                       <Buton
                         varyant="ikincil"
                         disabled={islenenId === t.tercih_id}
