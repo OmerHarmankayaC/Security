@@ -2084,3 +2084,107 @@ sözleşmesi değişmedi — hepsi sağlandı).
 Ekranı (SDD 5.7'deki yedi metrik; Özet ekranının eksik "Toplam Ceza"
 dilimi ve basitleştirilmiş "Kapsama %" hesaplaması de o zaman gerçek
 Analiz endpoint'ine bağlanabilir).
+
+---
+
+## 2026-08-07 — Sprint 3 Gün 12: Analiz Servisi ve Ekranı
+
+SDD 5.7'deki yedi metrik uygulandı, dedike `analiz_router` (SDD 3.2'nin
+öngördüğü dördüncü router — şimdiye kadar `tanim`/`cizelge` içine
+sıkıştırılmıştı, bu artık ayrı). Ara İş'ten devreden not (Özet'in
+"Toplam Ceza" kutusu) da bu turda kapatıldı.
+
+**Backend:**
+- `app/repositories/sonuc.py`: `CozumIsiDeposu.surume_gore_en_son(surum_id)`
+  eklendi — bir sürümün (yeniden çözümle birden fazla olabilecek) çözüm
+  işlerinden en sonuncusu, ceza dökümü/toplam ceza kaynağı.
+- `app/schemas/analiz.py`, `app/services/analiz_servisi.py` (yeni):
+  `AnalizServisi.hesapla(surum_id)` yedi metriği hesaplıyor:
+  - **Kapsama oranı:** `baglam.talep`'in dönem içi toplamından (TD-6:
+    ısıtma penceresi hariç — `baglam.talep` tam zaman ekseni için
+    çözüldüğünden burada açıkça filtrelendi) kapsama açığı tablosundaki
+    toplam eksiğin çıkarılmasıyla; SDD 5.7'nin "kapsama açığı
+    tablosundan türetilir" ifadesiyle birebir.
+  - **Kişi başına gece/hafta sonu sayısı, saat dağılımı:** dönem içi
+    atamalar üzerinden `Baglam`'ın zaten var olan
+    `gece_mi`/`hafta_sonu_mu`/`sure_saat` yardımcılarıyla. Saat
+    dağılımının "kişisel hedef saat"i bilinçli olarak **S4'ün artık
+    optimize ettiği talep-payı değil**, sözleşme (`haftalik_hedef_saat`)
+    dönem uzunluğuna oranlı hali — Analiz, çözücünün neyi hedeflediğini
+    değil personelin sözleşmesine göre nerede durduğunu gösterir (bkz.
+    PROGRESS.md Ek Görev, S4 yeniden tanımı).
+  - **En dengesiz personel:** saat dağılımındaki `|sapma|` en büyük kişi
+    (dokümanda kesin tanım verilmemiş bir metrik; en doğal, saat
+    dengesi tablosuyla tutarlı yorum seçildi).
+  - **Bina değişim sayısı:** `S6bBinaTutarliligi.dogrula()`'nın
+    doğrudan yeniden kullanımı — kural iki ayrı yerde kodlanmaz (SDD
+    2.4). Mevcut senaryoda tüm noktalar tesis geneli olduğundan (bkz.
+    Ek Görev) her zaman boş liste döner; bina'ya bağlı bir nokta
+    tanımlanırsa kendiliğinden çalışır.
+  - **Tercih karşılama oranı:** `baglam.tercihler` zaten yalnız o
+    dönemin onaylanmış tercihlerini taşıyor (bkz. `baglam_kurucu.py`),
+    ayrı bir sorgu gerekmedi.
+  - **Ceza dökümü / toplam ceza:** `cozum_isi.surume_gore_en_son`
+    üzerinden — Ara İş'te ertelenen kutu, plandaki notun dediği gibi
+    ayrı bir router açılmadan buradan besleniyor.
+- `app/routers/analiz.py` (yeni): `GET /api/analiz/{surum_id}`,
+  `main.py`'ye kaydedildi.
+- `tests/test_analiz_api.py` (yeni, 2 test): 404 yolu + elle kurulmuş
+  küçük bir senaryoda (2 personel, 7 gün, 1 kapsama açığı, 1 karşılanmamış
+  tercih) yedi metriğin tümü elle hesaplanıp doğrulandı. **Bulunan bir
+  test-izolasyon deseni:** `baglam.talep` ve `personel_satirlari` sorguları
+  tüm tabloyu tarar (Talep SDD 4.2.1 gereği dönem-agnostik bir tanım
+  varlığı; saat_dagilimi/en_dengesiz de SDD 5.7 gereği TÜM personeli
+  kapsar) — test ilk yazıldığında başka bir oturumdan kalan demo verisiyle
+  yanlış toplamlar üretti, `tests/test_agirlik_kalibrasyonu.py`'deki
+  aynı TRUNCATE deseniyle düzeltildi.
+
+**Frontend:**
+- `AnalizEkrani.tsx` (yeni): Dönem/Sürüm seçici + dört metrik dilimi
+  (Dönem Kapsaması, Tercih Karşılama, En Dengesiz, Toplam Ceza), Gece
+  ve Hafta Sonu Dağılımı (kişi başına yığılmış çubuk — gece koyu,
+  hafta sonu teal, referans mockup'taki gibi), Saat Dengesi tablosu
+  (yalnız sapması olanlar listelenir), Ceza Dökümü (Çözüm ekranındaki
+  aynı yatay çubuk deseni), Bina Değişim Sayısı (yalnız değişim varsa
+  gösterilir). "Dışa Aktar (CSV)" butonu SRS 7.2'deki birebir sütun
+  sırasıyla (`sicil, ad, tarih, vardiya_tipi, gece_mi, hafta_sonu_mu,
+  sure_saat`) tarayıcıda dosya indiriyor.
+- `OzetEkrani.tsx`: eski `atama_sayisi/(atama_sayisi+eksik)` yaklaşıklığı
+  kaldırıldı, gerçek `api.analizGetir()` kullanılıyor; beşinci dilim
+  "Toplam Ceza" eklendi — mockup'taki beş dilimin (Kapsama/Eksik
+  Hücre/Toplam Ceza/Bekleyen Tercih/Sürüm Durumu) tamamı artık gerçek.
+- `App.tsx`'e `Analiz` case'i eklendi (Çizelge/Çözüm ile aynı
+  donemId/donemIdSec paylaşımı).
+
+**Doğrulama:**
+- `ruff check`/`format`, tam backend paketi (107 test — 105 + yeni 2)
+  temiz veritabanında geçti.
+- `tsc -b --noEmit`, `oxlint`, `npm run build` temiz.
+- Gerçek `uvicorn` + demo veriyle Rahat dönem çözüldü
+  (`ceza_dokumu={S1:0,S2:46,S3:44,S4:152,S5:0,S6:22,S7:1,S8:0}`,
+  `en_iyi_ceza=1058`); `/api/analiz/{surum_id}` doğrudan `curl` ile
+  bu değerlerle birebir eşleşti. Tarayıcıda Analiz ekranı gezildi:
+  metrik dilimleri, gece/hafta sonu çubukları, saat dengesi tablosu
+  (44 personelin tamamı, hepsi hedefin altında — beklenen, Rahat
+  dönem 44 kişiye 144 kişi-vardiyalık talep dağıtıyor), ceza dökümü
+  hepsi gerçek veriyle doğru göründü; konsol hatası yok. Özet ekranı
+  aynı sürüm için Kapsama %100 ve Toplam Ceza 1058 gösterdi.
+
+**Sapmalar / notlar:**
+- CSV dışa aktarmanın gerçek dosya indirmesi (Blob/URL.createObjectURL)
+  headless tarayıcı ortamında otomatik doğrulanamadı; buton tıklamasının
+  konsol hatası üretmediği ve `csvOlustur`'un birim mantığının doğru
+  olduğu (SRS 7.2 sütunlarıyla birebir) kontrol edildi, dosya indirme
+  akışının kendisi elle test edilmedi.
+- "En dengesiz personel" tanımı SDD/SRS'te açıkça verilmemiş; en büyük
+  mutlak saat sapması olarak yorumlandı (Saat Dengesi tablosuyla
+  tutarlı). Başka bir tanım (ör. gece+hafta sonu toplamı) istenirse
+  küçük bir değişiklik.
+
+**Kalan / ertelenen:** Yok — Gün 12'nin kapsamındaki tüm maddeler
+(yedi metrik, `/api/analiz/{surum_id}`, CSV dışa aktarma, Özet'in
+Toplam Ceza kutusu) tamamlandı.
+
+**Sıradaki oturumun ilk işi:** Sprint 3 Gün 13 — Çalışan Paneli (SDD
+6.1'deki dört bölüm: Vardiyalarım, Dönem özetim, Tercih bildirimi,
+Tercihlerim).

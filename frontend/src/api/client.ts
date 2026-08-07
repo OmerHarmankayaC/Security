@@ -1,4 +1,5 @@
 import type {
+  Analiz,
   Atama,
   AtamaDegisikligiIstek,
   Bina,
@@ -143,4 +144,7 @@ export const api = {
   }) => gonder<Tercih>('/api/tercih', govde),
   tercihDurumGuncelle: (tercihId: number, durum: TercihDurumu) =>
     gonder<Tercih>(`/api/tercih/${tercihId}`, { durum }, 'PUT'),
+
+  // --- Analiz (FR-8.x) ---------------------------------------------------
+  analizGetir: (surumId: number) => istek<Analiz>(`/api/analiz/${surumId}`),
 }

@@ -79,6 +79,13 @@ class CozumIsiDeposu(TabanDepo[CozumIsi]):
     def __init__(self, oturum: Session) -> None:
         super().__init__(oturum, CozumIsi)
 
+    def surume_gore_en_son(self, surum_id: int) -> CozumIsi | None:
+        """Bir surumun (yeniden calistirma ile birden fazla olabilecek) cozum
+        islerinden en sonuncusu - Analiz servisinin ceza dokumu/toplam ceza
+        kaynagi (SDD 5.7, Gun 12 notu: cozum_isi.surum_id iliskisi)."""
+        stmt = select(CozumIsi).where(CozumIsi.surum_id == surum_id).order_by(CozumIsi.is_id.desc())
+        return self.oturum.execute(stmt).scalars().first()
+
 
 class AtamaDeposu(TabanDepo[Atama]):
     def __init__(self, oturum: Session) -> None:

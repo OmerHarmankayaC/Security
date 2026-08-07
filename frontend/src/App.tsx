@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { NavOgesi } from './components/AppShell'
+import { AnalizEkrani } from './screens/AnalizEkrani'
 import { CizelgeEkrani } from './screens/CizelgeEkrani'
 import { CozumEkrani } from './screens/CozumEkrani'
 import { MusaitlikEkrani } from './screens/MusaitlikEkrani'
@@ -37,6 +38,8 @@ function App() {
       )
     case 'Çözüm':
       return <CozumEkrani ekranSec={setEkran} donemId={donemId} donemIdSec={setDonemId} />
+    case 'Analiz':
+      return <AnalizEkrani ekranSec={setEkran} donemId={donemId} donemIdSec={setDonemId} />
     default:
       return <PlaceholderEkrani ekran={ekran} ekranSec={setEkran} />
   }

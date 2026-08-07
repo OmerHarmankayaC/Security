@@ -212,3 +212,33 @@ export interface Tercih {
   vardiya_tipi_id: number | null
   durum: TercihDurumu
 }
+
+// --- Analiz (FR-8.x, SDD 5.7) -----------------------------------------------
+
+export interface KisiSayisi {
+  personel_id: number
+  ad_soyad: string
+  sayi: number
+}
+
+export interface SaatDengesi {
+  personel_id: number
+  ad_soyad: string
+  toplam_saat: number
+  hedef_saat: number
+  sapma: number
+}
+
+export interface Analiz {
+  surum_id: number
+  kapsama_orani: number
+  kisi_basina_gece: KisiSayisi[]
+  kisi_basina_hafta_sonu: KisiSayisi[]
+  saat_dagilimi: SaatDengesi[]
+  en_dengesiz_personel_id: number | null
+  en_dengesiz_ad_soyad: string | null
+  tercih_karsilama_orani: number | null
+  bina_degisim_sayisi: KisiSayisi[]
+  ceza_dokumu: Record<string, number> | null
+  toplam_ceza: number | null
+}

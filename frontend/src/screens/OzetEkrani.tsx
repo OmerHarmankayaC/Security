@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api/client'
 import type {
+  Analiz,
   CizelgeSurumu,
   GorevNoktasi,
   KapsamaAcigi,
@@ -34,7 +35,7 @@ const MUSAITLIK_TIP_METNI: Record<string, string> = {
 export function OzetEkrani({ ekranSec }: Props) {
   const [surumler, setSurumler] = useState<CizelgeSurumu[]>([])
   const [kapsamaAcigi, setKapsamaAcigi] = useState<KapsamaAcigi[]>([])
-  const [atamaSayisi, setAtamaSayisi] = useState<number>(0)
+  const [analiz, setAnaliz] = useState<Analiz | null>(null)
   const [personelListesi, setPersonelListesi] = useState<Personel[]>([])
   const [noktalar, setNoktalar] = useState<GorevNoktasi[]>([])
   const [vardiyaTipleri, setVardiyaTipleri] = useState<VardiyaTipi[]>([])
@@ -69,13 +70,13 @@ export function OzetEkrani({ ekranSec }: Props) {
   useEffect(() => {
     if (!sonSurum) {
       setKapsamaAcigi([])
-      setAtamaSayisi(0)
+      setAnaliz(null)
       return
     }
-    Promise.all([api.surumKapsamaAcigi(sonSurum.surum_id), api.surumAtamalari(sonSurum.surum_id)])
+    Promise.all([api.surumKapsamaAcigi(sonSurum.surum_id), api.analizGetir(sonSurum.surum_id)])
       .then(([k, a]) => {
         setKapsamaAcigi(k)
-        setAtamaSayisi(a.length)
+        setAnaliz(a)
       })
       .catch((e) => setHata(e instanceof Error ? e.message : 'Sürüm verisi yüklenemedi'))
   }, [sonSurum])
@@ -91,8 +92,7 @@ export function OzetEkrani({ ekranSec }: Props) {
   )
 
   const toplamEksik = kapsamaAcigi.reduce((toplam, k) => toplam + k.eksik_sayi, 0)
-  const kapsamaOrani =
-    atamaSayisi + toplamEksik > 0 ? Math.round((atamaSayisi / (atamaSayisi + toplamEksik)) * 100) : 100
+  const kapsamaOrani = analiz ? Math.round(analiz.kapsama_orani * 100) : null
 
   const bekleyenTercihSayisi = tercihler.filter((t) => t.durum === 'beklemede').length
 
@@ -106,15 +106,23 @@ export function OzetEkrani({ ekranSec }: Props) {
     <AppShell aktifEkran="Özet" ekranSec={ekranSec} baslik="Özet">
       {hata && <p className="text-sm text-signal">{hata}</p>}
 
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-5 gap-4">
         <Kart>
           <KartEtiketi>kapsama</KartEtiketi>
-          <Sayi className="text-2xl font-semibold text-accent">%{kapsamaOrani}</Sayi>
+          <Sayi className="text-2xl font-semibold text-accent">
+            {kapsamaOrani === null ? '—' : `%${kapsamaOrani}`}
+          </Sayi>
         </Kart>
         <Kart>
           <KartEtiketi renk={toplamEksik > 0 ? 'warn' : undefined}>eksik hücre</KartEtiketi>
           <Sayi className={`text-2xl font-semibold ${toplamEksik > 0 ? 'text-signal' : 'text-ink'}`}>
             {kapsamaAcigi.length}
+          </Sayi>
+        </Kart>
+        <Kart>
+          <KartEtiketi>toplam ceza</KartEtiketi>
+          <Sayi className="text-2xl font-semibold text-ink">
+            {analiz?.toplam_ceza != null ? analiz.toplam_ceza.toFixed(0) : '—'}
           </Sayi>
         </Kart>
         <Kart>
