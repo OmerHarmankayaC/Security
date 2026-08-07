@@ -11,9 +11,9 @@ import type {
   VardiyaTipi,
 } from '../api/types'
 import { AppShell, type NavOgesi } from '../components/AppShell'
-import { Buton, Kart, KartEtiketi } from '../components/ui'
+import { Buton, Kart, KartEtiketi } from '../components/app-ui'
+import { cn } from '../lib/utils'
 import { gunKisaltmasiVeNumarasi, gunlerListesi, zamanBicimle } from '../lib/tarih'
-import './Cizelge.css'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -29,6 +29,16 @@ const SURUM_DURUM_METNI: Record<string, string> = {
   cozuldu: 'Çözüldü',
   yayinlandi: 'Yayınlandı',
   arsiv: 'Arşiv',
+}
+
+const SECIM_SINIFI =
+  'h-8 rounded-md border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50'
+
+const HUCRE_DURUM_SINIFI: Record<string, string> = {
+  bos: 'border-transparent bg-transparent',
+  dolu: 'border-border bg-card',
+  eksik: 'border-amber-700 bg-amber-100 font-medium text-amber-700',
+  kilitli: 'border-primary bg-accent font-medium text-primary',
 }
 
 interface SeciliHucre {
@@ -246,11 +256,14 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
     >
       <Kart>
         <KartEtiketi>seçim</KartEtiketi>
-        <div className="cizelge-secim">
-          <div className="form-alani">
-            <label htmlFor="donem-sec">Dönem</label>
+        <div className="flex flex-wrap items-end gap-6">
+          <div className="flex flex-col gap-1">
+            <label htmlFor="donem-sec" className="text-sm text-muted-foreground">
+              Dönem
+            </label>
             <select
               id="donem-sec"
+              className={SECIM_SINIFI}
               value={donemId ?? ''}
               onChange={(e) => donemIdSec(e.target.value ? Number(e.target.value) : null)}
             >
@@ -261,10 +274,13 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
               ))}
             </select>
           </div>
-          <div className="form-alani">
-            <label htmlFor="surum-sec">Sürüm</label>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="surum-sec" className="text-sm text-muted-foreground">
+              Sürüm
+            </label>
             <select
               id="surum-sec"
+              className={SECIM_SINIFI}
               value={surumId ?? ''}
               onChange={(e) => setSurumId(e.target.value ? Number(e.target.value) : null)}
             >
@@ -278,7 +294,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
         </div>
       </Kart>
 
-      {hata && <p className="hata-metni">{hata}</p>}
+      {hata && <p className="text-sm text-destructive">{hata}</p>}
 
       <Kart>
         {yukleniyor ? (
@@ -286,20 +302,27 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
         ) : izgaraPersonelleri.length === 0 ? (
           <p>Bu sürümde henüz atama yok.</p>
         ) : (
-          <div className="cizelge-izgara-sarici">
-            <table className="cizelge-izgara">
+          <div className="overflow-x-auto">
+            <table className="w-max min-w-full border-collapse">
               <thead>
                 <tr>
-                  <th className="cizelge-izgara__personel-basligi" />
+                  <th className="p-2" />
                   {gunler.map((gun) => (
-                    <th key={gun}>{gunKisaltmasiVeNumarasi(gun)}</th>
+                    <th
+                      key={gun}
+                      className="whitespace-nowrap p-2 text-center text-xs font-medium text-muted-foreground"
+                    >
+                      {gunKisaltmasiVeNumarasi(gun)}
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {izgaraPersonelleri.map((p) => (
                   <tr key={p.personel_id}>
-                    <td className="cizelge-izgara__personel">{p.ad_soyad}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right text-sm text-foreground">
+                      {p.ad_soyad}
+                    </td>
                     {gunler.map((gun) => {
                       const atama = atamaBul(p.personel_id, gun)
                       const kapsama = atama ? kapsamaBul(atama) : undefined
@@ -307,10 +330,14 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                       const seciliMi =
                         seciliHucre?.personelId === p.personel_id && seciliHucre?.tarih === gun
                       return (
-                        <td key={gun}>
+                        <td key={gun} className="p-0">
                           <button
                             type="button"
-                            className={`hucre hucre--${durum} ${seciliMi ? 'hucre--secili' : ''}`}
+                            className={cn(
+                              'box-border h-11 w-24 rounded-md border p-1 text-center text-xs',
+                              HUCRE_DURUM_SINIFI[durum],
+                              seciliMi && 'outline-2 outline-offset-[-2px] outline-foreground',
+                            )}
                             onClick={() => hucreSec(p.personel_id, gun)}
                           >
                             {atama && (
@@ -337,15 +364,18 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
       {seciliHucre && seciliPersonel && (
         <Kart>
           <KartEtiketi>atama düzenle</KartEtiketi>
-          <div className="duzenle-panel">
-            <p>
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-foreground">
               {seciliPersonel.ad_soyad} — {gunKisaltmasiVeNumarasi(seciliHucre.tarih)}
             </p>
-            <div className="duzenle-panel__satir">
-              <div className="form-alani">
-                <label htmlFor="vardiya-sec">Vardiya</label>
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="flex flex-col gap-1">
+                <label htmlFor="vardiya-sec" className="text-sm text-muted-foreground">
+                  Vardiya
+                </label>
                 <select
                   id="vardiya-sec"
+                  className={SECIM_SINIFI}
                   value={seciliVardiyaTipiId}
                   onChange={(e) => setSeciliVardiyaTipiId(e.target.value)}
                 >
@@ -357,10 +387,13 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                   ))}
                 </select>
               </div>
-              <div className="form-alani">
-                <label htmlFor="nokta-sec">Görev Noktası</label>
+              <div className="flex flex-col gap-1">
+                <label htmlFor="nokta-sec" className="text-sm text-muted-foreground">
+                  Görev Noktası
+                </label>
                 <select
                   id="nokta-sec"
+                  className={SECIM_SINIFI}
                   value={seciliNoktaId}
                   onChange={(e) => setSeciliNoktaId(e.target.value)}
                   disabled={seciliVardiyaTipiId === BOSALT_DEGERI}
@@ -386,20 +419,20 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
               )}
             </div>
 
-            {panelHata && <p className="hata-metni">{panelHata}</p>}
+            {panelHata && <p className="text-sm text-destructive">{panelHata}</p>}
 
             {dogrulamaSonucu && (
               <div>
-                <p>
+                <p className="text-sm text-foreground">
                   {dogrulamaSonucu.kabul_edilebilir
                     ? 'Kabul edilebilir.'
                     : 'Zorunlu kısıt ihlali — reddedildi.'}{' '}
                   Esnek hedef ceza değişimi: {dogrulamaSonucu.ceza_degisimi.toFixed(2)}
                 </p>
                 {dogrulamaSonucu.zorunlu_ihlaller.length > 0 && (
-                  <ul className="ihlal-listesi">
+                  <ul className="m-0 mt-1 flex list-none flex-col gap-1 p-0">
                     {dogrulamaSonucu.zorunlu_ihlaller.map((ihlal, i) => (
-                      <li key={i}>
+                      <li key={i} className="text-sm text-destructive">
                         {ihlal.kural_kimlik} — {ihlal.aciklama}
                       </li>
                     ))}

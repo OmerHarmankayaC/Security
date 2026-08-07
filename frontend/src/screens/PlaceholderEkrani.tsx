@@ -1,5 +1,5 @@
 import { AppShell, type NavOgesi } from '../components/AppShell'
-import { Kart, KartEtiketi } from '../components/ui'
+import { Kart, KartEtiketi } from '../components/app-ui'
 
 interface Props {
   ekran: NavOgesi

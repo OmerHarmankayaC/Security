@@ -1,110 +1,112 @@
-# Tasarım Referansı — Figma'dan Frontend'e
+# Tasarım Referansı — Figma'dan Frontend'e (Sürüm 2)
 
-Bu doküman, `https://www.figma.com/design/Ny6877QGaMQxsY0ENextV7` adresindeki
-tasarımın React'e dökülürken ihtiyaç duyulacak kesin değerlerini içerir.
-Görsel referans için aynı klasördeki PNG dışa aktarımlarına bakılmalı — bu
-doküman onların tamamlayıcısı, yerine geçeni değil.
+Bu doküman **sürüm 2** — önceki "teknik rapor / laboratuvar defteri"
+estetiğinden (tuğla kırmızısı, sıfır köşe yarıçapı, ince ayraçlar)
+**standart SaaS admin paneli** estetiğine geçildi (mavi vurgu, yuvarlak
+köşeler, yumuşak gölgeler). Gün 10'da kurulan Çizelge ve Çözüm ekranları
+bu referansa göre yeniden temalandırılmalı.
 
-## Estetik yönelim
+Kaynak: `https://www.figma.com/design/Ny6877QGaMQxsY0ENextV7`
 
-"Teknik rapor / laboratuvar defteri" — Inter Light başlıklar, ince ayraç
-çizgileri, tuğla kırmızısı vurgu, sıfır köşe yarıçapı (hiçbir yerde
-`border-radius` yok, tek istisna: Özet ekranındaki küçük durum noktaları,
-onlar da yalnızca çok küçük bir görsel ayrıntı).
+## Renk Tokenleri (değişti)
 
-## Renk Tokenleri
+| Token | Eski | Yeni | Kullanım |
+|---|---|---|---|
+| `bg` | `#FAFAF8` | `#F9FAFB` | Sayfa arka planı |
+| `surface` | `#FFFFFF` | `#FFFFFF` | Kart/panel arka planı (değişmedi) |
+| `ink` | `#1A1A18` | `#111827` | Ana metin |
+| `ink-muted` | `#6B6B66` | `#6B7280` | İkincil metin, etiketler |
+| `hairline` | `#DEDEDA` | `#E5E7EB` | Kenarlıklar (artık gölgeyle birlikte kullanılıyor, tek başına değil) |
+| `accent` | `#B3462B` (tuğla kırmızısı) | **`#2563EB`** (mavi) | Vurgu — aktif nav, birincil buton, kilitli rozet |
+| `accent-surface` | `#F5E6E0` | `#EFF6FF` | Vurgu arka planı |
+| `warn` | `#B38A2B` | `#B45309` | Uyarı — eksik/gece rozeti |
+| `warn-surface` | `#F5EFDD` | `#FEF3C7` | Uyarı arka planı |
+| `ok` | `#3E6B4F` | `#15803D` | Olumlu durum |
 
-| Token | Hex | Kullanım |
-|---|---|---|
-| `bg` | `#FAFAF8` | Sayfa arka planı |
-| `surface` | `#FFFFFF` | Kart/panel arka planı |
-| `ink` | `#1A1A18` | Ana metin |
-| `ink-muted` | `#6B6B66` | İkincil metin, etiketler |
-| `hairline` | `#DEDEDA` | Kenarlıklar, ayraç çizgileri (1px) |
-| `accent` | `#B3462B` | Vurgu — aktif nav, birincil buton, kilitli rozet |
-| `accent-surface` | `#F5E6E0` | Vurgu arka planı (aktif nav, ilerleme kartı) |
-| `warn` | `#B38A2B` | Uyarı — eksik/gece rozeti |
-| `warn-surface` | `#F5EFDD` | Uyarı arka planı |
-| `ok` | `#3E6B4F` | Olumlu durum (dolu rozet metni) |
+Bu değerler standart Tailwind renk paletine (`blue-600`, `gray-50/200/500/900`,
+`amber-700/100`, `green-700`) karşılık gelecek şekilde seçildi — Tailwind
+kurulumunda doğrudan bu isimlerle eşleştirilebilir.
+
+## Köşe Yarıçapı (yeni)
+
+Artık sıfır değil — standart ölçek kullanılır:
+
+| Bileşen | Yarıçap |
+|---|---|
+| Kartlar/paneller | 8px |
+| Buton, girdi, nav öğesi, çizelge hücresi | 6px |
+| Durum rozeti | tam yuvarlak (pill, `border-radius: 9999px`) |
+
+## Gölge (yeni)
+
+Kartlar artık yalnızca 1px kenarlıkla değil, hafif bir gölgeyle ayrılıyor:
+
+```css
+box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+```
+
+shadcn/ui'daki `shadow-sm` ile birebir aynı. Kenarlık (`hairline`) hâlâ
+var ama artık ikincil — gölge birincil ayraç.
 
 ## Tipografi
 
-Font ailesi: **Inter**. Kullanılan ağırlıklar: Light, Regular, Medium.
+Font ailesi hâlâ **Inter**, ama **Light ağırlığı bırakıldı** — standart
+SaaS panellerinde "Light" başlıklar nadir görülür, kararsız/kırılgan
+hissettirir. Bunun yerine:
 
-| Kullanım | Ağırlık | Boyut | Satır yüksekliği |
-|---|---|---|---|
-| Wordmark (sidebar üstü) | Light | 17px | — |
-| Ekran başlığı (topbar h1) | Regular | 20px | %130 |
-| Bölüm etiketi (kart başlıkları, KÜÇÜK HARF) | Medium | 11px | harf aralığı %3–6 |
-| Gövde metni | Regular | 13px | %145 |
-| Büyük rakam (istatistik kartları) | Light | 26–36px | — |
+| Kullanım | Ağırlık | Boyut |
+|---|---|---|
+| Wordmark (sidebar üstü) | Semibold | 16px |
+| Ekran başlığı (topbar h1) | Semibold | 18–20px |
+| Bölüm etiketi (kart başlıkları) | Medium | 11–12px, KÜÇÜK HARF, hafif harf aralığı |
+| Gövde metni | Regular | 13–14px |
+| Büyük rakam (istatistik kartları) | Semibold | 24–32px (Light değil — daha vurgulu, standart dashboard hissi) |
 
-Bölüm etiketleri her zaman büyük harfle yazılır ve Türkçe'de
-`toLocaleUpperCase('tr-TR')` ile büyütülmelidir — düz `.toUpperCase()`
-kullanmayın, "İ"/"ı" harflerini yanlış çevirir (bu hata tasarım
-dosyasında bir kez yaşandı ve düzeltildi).
+Bölüm etiketleri Türkçe büyütülürken hâlâ `toLocaleUpperCase('tr-TR')`
+kullanılmalı — bu kural değişmedi.
 
-## Boşluk Ölçeği
+## Bileşen Kütüphanesi: shadcn/ui + Tailwind
 
-`4 / 8 / 16 / 24 / 40` px — bunun dışında değer kullanılmamalı.
-Kart iç boşluğu (padding) genelde 32px, hücre/satır arası 16px.
+Bundan sonra elle CSS yazmak yerine **shadcn/ui** kullanılacak. Kurulum:
 
-## Sayfa İskeleti (tüm sekiz ekranda ortak)
+```
+npm install -D tailwindcss postcss autoprefixer
+npx tailwindcss init -p
+npx shadcn@latest init
+```
 
-- Toplam genişlik 1440px, yükseklik 900px (masaüstü referansı)
-- Sol sidebar: 260px sabit genişlik, `surface` arka plan, sağında 1px `hairline` kenarlık
-  - Üstte wordmark ("Vardiya Çizelgeleme"), altında 24px boşluk
-  - Sekiz nav öğesi, dikey sıralı, 4px aralıkla: Özet, Tanımlar, Müsaitlik, Tercihler, Çizelge, Çözüm, Analiz, Sürümler
-  - Aktif öğe: `accent-surface` arka plan + `accent` metin + Medium ağırlık
-  - Pasif öğe: şeffaf arka plan + `ink-muted` metin + Regular ağırlık
-- Üst çubuk (topbar): 88px yükseklik, `surface` arka plan, altında 1px `hairline`, 40px yatay padding
-  - Sol: ekran başlığı (bazen alt satırda ikincil bilgi, örn. "Taslak · Son güncelleme...")
-  - Sağ: varsa aksiyon butonları
-- İçerik alanı: 40px yatay / 32px dikey padding, kartlar arası 24px boşluk
+`tailwind.config.js`'te yukarıdaki renk tokenleri CSS değişkeni olarak
+tanımlanmalı (shadcn'in kendi `init` sihirbazı bunu zaten soruyor —
+"Base color: Blue" seçilmeli).
 
-## Bileşenler
+Kullanılacak shadcn bileşenleri (mevcut elle yazılmış karşılıkları):
 
-**Buton** — üç varyant, hepsi köşesiz, 10px dikey / 18px yatay padding, 13px Medium metin:
-- `birincil`: `accent` arka plan, beyaz metin, kenarlıksız
-- `ikincil`: şeffaf arka plan, `ink` metin, 1px `ink` kenarlık
-- `hayalet`: şeffaf arka plan, `ink-muted` metin, 1px `hairline` kenarlık
+| Elle yazılmış (Gün 10) | shadcn karşılığı |
+|---|---|
+| `Buton` (üç varyant) | `Button` (`variant="default"`, `"outline"`, `"ghost"`) |
+| `Kart` | `Card`, `CardHeader`, `CardContent` |
+| `KartEtiketi` | `CardTitle` (uppercase + tracking için `className` override) |
+| `Rozet` | `Badge` (`variant="default"`, `"secondary"`, `"outline"` — renk eşlemesi için `className` override gerekebilir) |
+| `BuyukRakam` | Hazır bileşen yok, `<span className="text-3xl font-semibold">` yeterli |
+| Metin girişi | `Input` |
+| Nav öğesi | shadcn'in hazır bir nav bileşeni yok; mevcut `nav.ts` yapısı korunabilir, yalnızca sınıflar (rounded-md, hover state) shadcn diline uyarlanır |
 
-**Durum Rozeti** — üç varyant, 3px dikey / 8px yatay padding, 11px Medium metin, %4 harf aralığı, KÜÇÜK HARF:
-- `dolu`: `bg` arka plan, `ok` metin
-- `eksik`: `warn-surface` arka plan, `warn` metin
-- `kilitli`: `accent-surface` arka plan, `accent` metin
+**Sabit genişlik notu hâlâ geçerli:** Sürümler ekranındaki `Rozet`
+bileşeni (veya shadcn `Badge`) metne göre otomatik genişliyor; yan yana
+gelen alanları kaydırmaması için hâlâ sabit genişlik (`w-[150px]` gibi)
+verilmesi gerekiyor — bu, kütüphane değişse de geçerliliğini koruyan bir
+düzen kuralıdır.
 
-Not: Sürümler ekranında bu bileşen metne göre otomatik genişlediği için
-farklı uzunluktaki etiketler (`TASLAK` / `YAYINLANDI` / `ARŞİV`) satırları
-kaydırabilir — React'te bu rozete **sabit genişlik** (örn. 150px) vermek
-gerekiyor, aksi halde yan yana gelen alanlar hizasız görünür.
+## Sayfa İskeleti
 
-**Tablo satırı** — sabit 32–40px yükseklik (yoğun tablolarda 28px), her
-hücre sabit genişlik, dikey ortalanmış metin. Başlık satırı 11px Medium,
-`ink-muted`, KÜÇÜK HARF; veri satırı 13–14px Regular/Medium, `ink`.
+Genel yapı (sidebar 260px + topbar 88px + içerik) değişmedi. Değişen:
+kartlar artık `rounded-lg shadow-sm` (veya shadcn `Card`'ın varsayılanı),
+kenarlık artık `border-gray-200` (ince, ikincil).
 
-**Çizelge hücresi** — 96×44px, dört durum: `bos` (kenarlıksız), `dolu`
-(`surface` arka plan + `hairline` kenarlık), `eksik` (`warn-surface` +
-`warn` kenarlık), `kilitli` (`accent-surface` + `accent` kenarlık).
+## Ekran başına notlar (değişmeyenler)
 
-## Ekran başına notlar
-
-- **Çizelge:** satırlar personel, sütunlar gün (kısaltma + tarih, örn.
-  "PZT 3"). Hücreler yukarıdaki dört durumu kullanır.
-- **Çözüm:** üç kart dikey sıralı — Ayarlar (dönem seçici + zaman limiti
-  girişi + Ön Kontrol/Çözümü Başlat butonları), İlerleme (`accent-surface`
-  arka plan, üç büyük rakam: geçen süre / en iyi ceza / kapsama açığı +
-  Durdur butonu), Sonuç Özeti (kural bazlı ceza dökümü listesi).
-- **Tanımlar:** yedi sekme (Personel, Yetkinlik, Bina, Görev Noktası,
-  Vardiya Tipi, Talep, Kural). Talep sekmesinde ayrıca "Yük Göstergesi"
-  kartı (`accent-surface` arka plan) — dört büyük rakam. Kural sekmesinde
-  iki ayrı tablo (Zorunlu Kısıtlar H1-H8, Esnek Hedefler S1-S8+S6b),
-  28px satır yüksekliği (diğer tablolardan daha sıkışık, on altı satır
-  sığdırmak için).
-- **Analiz:** üstte dört metrik kartı, altında çubuk grafikli ceza
-  dökümü tablosu (çubuk: `hairline` kenarlıklı track + `accent` dolgu,
-  genişlik yüzdeyle orantılı).
-- **Sürümler:** her sürüm bir kart, yatay sıralı alanlar (rozet + Sürüm +
-  Tarih + Toplam Ceza + Kapsama Açığı), her alan sabit genişlik
-  (110/190/130/150px) — hizalama için zorunlu, yukarıdaki rozet notuna
-  bakın.
+Çizelge hücresi dört durumu (`bos/dolu/eksik/kilitli`), Çözüm'ün üç
+kartı, Tanımlar'ın yedi sekmesi, Analiz'in çubuk grafiği — yapısal
+düzenleri aynı kaldı, yalnızca görsel dil değişti. Önceki sürümdeki
+"Ekran başına notlar" bölümü hâlâ geçerli, yalnızca renk/köşe/gölge
+değerlerini bu dokümandaki yeni tokenlerle değiştirin.

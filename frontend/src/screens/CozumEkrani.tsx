@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
 import type { CozumIsi, Donem, OnKontrolBulgu } from '../api/types'
 import { AppShell, type NavOgesi } from '../components/AppShell'
-import { Buton, BuyukRakam, Kart, KartEtiketi } from '../components/ui'
+import { Buton, BuyukRakam, Kart, KartEtiketi } from '../components/app-ui'
+import { Input } from '@/components/ui/input'
 import { utcTarihiAyristir } from '../lib/tarih'
-import './Cozum.css'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -23,6 +23,9 @@ const DURUM_METNI: Record<string, string> = {
   basarisiz: 'Başarısız',
   iptal: 'İptal Edildi',
 }
+
+const SECIM_SINIFI =
+  'h-8 rounded-md border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50'
 
 function gecenSureSaniye(baslangicIso: string): number {
   return Math.max(0, Math.floor((Date.now() - utcTarihiAyristir(baslangicIso).getTime()) / 1000))
@@ -134,11 +137,14 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
     <AppShell aktifEkran="Çözüm" ekranSec={ekranSec} baslik="Çözüm">
       <Kart>
         <KartEtiketi>çözüm ayarları</KartEtiketi>
-        <div className="cozum-ayarlar">
-          <div className="form-alani">
-            <label htmlFor="donem-sec">Dönem</label>
+        <div className="flex flex-wrap items-end gap-6">
+          <div className="flex flex-col gap-1">
+            <label htmlFor="donem-sec" className="text-sm text-muted-foreground">
+              Dönem
+            </label>
             <select
               id="donem-sec"
+              className={SECIM_SINIFI}
               value={donemId ?? ''}
               onChange={(e) => donemIdSec(e.target.value ? Number(e.target.value) : null)}
             >
@@ -149,17 +155,20 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
               ))}
             </select>
           </div>
-          <div className="form-alani">
-            <label htmlFor="zaman-limiti">Zaman Limiti (saniye)</label>
-            <input
+          <div className="flex flex-col gap-1">
+            <label htmlFor="zaman-limiti" className="text-sm text-muted-foreground">
+              Zaman Limiti (saniye)
+            </label>
+            <Input
               id="zaman-limiti"
               type="number"
               min={1}
+              className="w-32"
               value={zamanLimiti}
               onChange={(e) => setZamanLimiti(Number(e.target.value))}
             />
           </div>
-          <div className="cozum-ayarlar__buton-satiri">
+          <div className="flex gap-2">
             <Buton
               varyant="ikincil"
               onClick={onKontrolCalistir}
@@ -178,13 +187,15 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
         </div>
 
         {bulgular && (
-          <div>
+          <div className="mt-4">
             {bulgular.length === 0 ? (
-              <p className="cozum-not">Yapısal bir engel bulunamadı.</p>
+              <p className="text-sm text-muted-foreground">Yapısal bir engel bulunamadı.</p>
             ) : (
-              <ul className="bulgu-listesi">
+              <ul className="m-0 flex list-none flex-col gap-1 p-0">
                 {bulgular.map((b, i) => (
-                  <li key={i}>{b.aciklama}</li>
+                  <li key={i} className="text-sm text-amber-700">
+                    {b.aciklama}
+                  </li>
                 ))}
               </ul>
             )}
@@ -192,12 +203,12 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
         )}
       </Kart>
 
-      {hata && <p className="hata-metni">{hata}</p>}
+      {hata && <p className="text-sm text-destructive">{hata}</p>}
 
       {isKaydi && calisiyorMu && (
         <Kart vurgulu>
           <KartEtiketi renk="accent">{DURUM_METNI[isKaydi.durum] ?? isKaydi.durum}</KartEtiketi>
-          <div className="cozum-ilerleme__rakamlar">
+          <div className="mb-4 flex gap-10">
             <BuyukRakam deger={sureBicimle(gecenSure)} etiket="Geçen Süre" />
             <BuyukRakam
               deger={isKaydi.en_iyi_ceza !== null ? isKaydi.en_iyi_ceza : '—'}
@@ -208,7 +219,7 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
           <Buton varyant="hayalet" onClick={durdur}>
             Durdur
           </Buton>
-          <p className="cozum-not">
+          <p className="mt-2 text-sm text-muted-foreground">
             Durdur, işi "iptal" olarak işaretler; ayrı süreçte fiilen çalışan arama en iyi çaba
             ile sonlanır, süre limitine kadar arka planda devam edebilir.
           </p>
@@ -220,13 +231,16 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
           <KartEtiketi renk={isKaydi.durum === 'tamamlandi' ? undefined : 'warn'}>
             sonuç özeti — {DURUM_METNI[isKaydi.durum] ?? isKaydi.durum}
           </KartEtiketi>
-          {isKaydi.hata_mesaji && <p className="hata-metni">{isKaydi.hata_mesaji}</p>}
+          {isKaydi.hata_mesaji && <p className="text-sm text-destructive">{isKaydi.hata_mesaji}</p>}
           {isKaydi.ceza_dokumu && (
-            <ul className="ceza-dokumu">
+            <ul className="m-0 flex list-none flex-col gap-2 p-0">
               {Object.entries(isKaydi.ceza_dokumu)
                 .sort(([a], [b]) => a.localeCompare(b))
                 .map(([kimlik, deger]) => (
-                  <li key={kimlik}>
+                  <li
+                    key={kimlik}
+                    className="flex justify-between border-b border-border py-2 text-sm last:border-none"
+                  >
                     <span>{kimlik}</span>
                     <span>{deger}</span>
                   </li>
@@ -234,13 +248,13 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
             </ul>
           )}
           {kapsamaSayisi !== null && kapsamaSayisi > 0 && (
-            <p className="cozum-not">
+            <p className="mt-2 text-sm text-muted-foreground">
               {kapsamaSayisi} kapsama açığı bulundu → Çizelge ekranında ilgili hücreler
               işaretlendi.
             </p>
           )}
           {donem && (
-            <Buton varyant="hayalet" onClick={() => ekranSec('Çizelge')}>
+            <Buton varyant="hayalet" className="mt-4" onClick={() => ekranSec('Çizelge')}>
               Çizelgeyi Görüntüle
             </Buton>
           )}

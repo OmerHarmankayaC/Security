@@ -1153,3 +1153,105 @@ yayınlama/arşivleme uç noktaları henüz yok). Ardından **Ek Görev**
 (S1–S8+S6b uyum testi genişletmesi + S4 birim düzeltmesi, Gün 11'den
 sonra Gün 12'den önce planlı) ele alınmalı — henüz yapılmadı, PROGRESS.md
 ve UYGULAMA_PLANI.md'de not düşülü.
+
+---
+
+## 2026-08-07 — Ara oturum: Tasarım referansı sürüm 2 → shadcn/ui geçişi
+
+Kullanıcı `docs/tasarim/TASARIM_REFERANSI.md`'yi sürüm 2'ye güncelledi
+(üzerine yazarak): estetik "teknik rapor" görünümünden standart SaaS
+admin paneline geçti — tuğla kırmızısı vurgu → mavi (`#2563EB`), sıfır
+köşe yarıçapı → standart ölçek (kart 8px, buton/girdi 6px, rozet tam
+yuvarlak), kenarlık-only ayraç → gölge (`shadow-sm`) + ikincil kenarlık,
+Inter Light → Semibold/Medium/Regular. Aynı zamanda **elle CSS yerine
+shadcn/ui + Tailwind** kullanılmasına karar verildi. Bu, Gün 10'da
+tamamlanmış Çizelge/Çözüm ekranlarının **işlevselliğine dokunmayan, salt
+görsel bir refactor**; API çağrıları, state yönetimi, doğrulama akışı
+birebir korundu.
+
+**Kurulum:**
+- Tailwind v4 (`tailwindcss` + `@tailwindcss/vite`) — `npm install
+  tailwindcss @tailwindcss/vite`, `vite.config.ts`'e `tailwindcss()`
+  eklentisi + `@` path alias (`tsconfig.json`/`tsconfig.app.json`'a da
+  `paths` eklendi; `baseUrl` TS 6'da kullanımdan kaldırıldığı için
+  atlandı).
+- `npx shadcn@latest init` bu ortamda **interaktif olmadan çalışmadı**
+  (yeni CLI sürümü "Base color: Blue" yerine kürate edilmiş "preset"
+  seçimi istiyor — `-p nova` ile geçildi, `-b radix` ile bileşen
+  kütüphanesi seçildi). Sihirbazın ürettiği `src/index.css` kendi
+  nötr/gri temasını (oklch tabanlı, Geist fontu) benim tokenlerimin
+  üzerine yazdı — **elle tamamen yeniden yazıldı**: `--primary:
+  #2563eb` dahil tüm shadcn CSS değişkenleri TASARIM_REFERANSI.md'deki
+  hex değerleriyle birebir eşlendi, radius zinciri (`--radius-md/lg/xl`)
+  Tailwind'in calc tabanlı hesaplamasına güvenmek yerine doğrudan
+  sabitlendi (6px/6px/8px) çünkü Button/Input `rounded-lg`, Card
+  `rounded-xl` kullanıyor — iki farklı token, iki farklı px hedefi.
+  `npx shadcn@latest add button card badge input label` ile beş
+  bileşen `src/components/ui/` altına kopyalandı (bunlar artık bizim
+  kodumuz, elle düzenlenebilir/düzenlendi).
+- `Card`'a `shadow-sm` + `border-border` eklendi (varsayılan `radix-nova`
+  stili yalnızca `ring-1 ring-foreground/10` kullanıyordu, referans
+  dokümanının "gölge birincil ayraç" ilkesiyle uyumlu değildi).
+
+**Bileşen eşlemesi** (`src/components/app-ui.tsx`, yeni — eski
+`components/ui.tsx`'in yerini alıyor): `Buton`/`Kart`/`KartEtiketi`/
+`Rozet`/`BuyukRakam` **aynı Türkçe prop adlarıyla** korundu, böylece
+`CizelgeEkrani.tsx`/`CozumEkrani.tsx`'in JSX'i değişmeden yalnızca
+import satırı değişti (refactor, yeniden yazma değil — kullanıcının
+talimatına birebir uyuldu). İçeride shadcn `Button`/`Card`/`Badge`
+sarmalanıyor: `varyant="birincil"|"ikincil"|"hayalet"` →
+`variant="default"|"outline"|"ghost"`. `Kart` iç boşluğu shadcn'in
+varsayılanı (16px) yerine referans dokümanındaki 32px'e
+(`[--card-spacing:--spacing(8)]`) sabitlendi. `Metin Girişi` → shadcn
+`Input` (yalnızca Çözüm ekranının zaman limiti alanında; `<select>`
+elemanları için hazır bir shadcn bileşeni önerilmediğinden — tabloda
+yalnızca "Metin girişi → Input" var — native `<select>` Input'un görsel
+diliyle eşleşen Tailwind sınıflarıyla elle stillendirildi). Nav öğesi
+`nav.ts` yapısı korunarak `AppShell.tsx` içinde `rounded-md` + hover
+durumlarıyla yeniden yazıldı.
+
+**Sabit genişlik kuralı** (kullanıcının özellikle vurguladığı nokta):
+`Rozet` bileşeni shadcn `Badge`'i sarmalarken `genislik` prop'unu
+(varsayılan 96px, inline `style={{ width }}`) korudu — kütüphane
+değişse de düzen kuralı aynen taşındı. Rozet şu an hiçbir ekranda
+kullanılmıyor (Sürümler ekranı henüz yok) ama bileşen kütüphanesinde
+hazır duruyor.
+
+**Gerçek bir hata bulundu ve düzeltildi (tarayıcıda, bu geçiş
+sırasında):** `KartEtiketi`/`Rozet`'in eski uygulaması
+`buyukHarf(String(children))` kullanıyordu. JSX'te metin+ifade karışımı
+(`sonuç özeti — {durum}` gibi) React'e **ayrı children** olarak gelir;
+`String(['a', 'b'])` bunları virgülle birleştirir (`"a,b"`) —
+tarayıcıda "SONUÇ ÖZETİ — ,UYARILI TAMAMLANDI" gibi sahte bir virgül
+olarak ortaya çıktı. Bu, Gün 10'daki elle yazılmış `ui.tsx`'te de
+**aynı şekilde mevcuttu** ama o oturumda bu spesifik çok-child
+senaryosuyla (ekran başlığı + değişken) karşılaşılmamıştı — bu geçiş
+sırasında gerçek bir çözüm çalıştırılıp Sonuç Özeti kartı görülünce
+fark edildi. **Düzeltme:** `Children.toArray(children).join('')`
+kullanan bir `duzMetneCevir()` yardımcı fonksiyonu eklendi.
+
+**Doğrulama:** `npx tsc -b`, `npx oxlint` (yalnızca shadcn'in kendi
+üretilmiş `button.tsx`/`badge.tsx` dosyalarında beklenen/standart iki
+uyarı — `variants` sabitini bileşenle aynı dosyadan export etmekten
+kaynaklanıyor, shadcn'in kendi kalıbı, dokunulmadı), `npm run build`
+temiz. Gerçek tarayıcıda (1440×900) hem Çizelge (mavi aktif nav, 6px
+buton/select köşeleri, `eksik` hücrelerin amber-100/amber-700 rengi,
+`Yeniden Çöz`'ün mavi birincil buton stili) hem Çözüm (İlerleme
+kartının artık mavi `accent`/`accent-surface` olması, Sonuç Özeti
+tablosu) yeniden doğrulandı — sonuç görsel olarak referans
+ekranlarındaki mavi/yuvarlak/gölgeli dile birebir uyuyor. Backend'e hiç
+dokunulmadı; `pytest -q` (93 test) değişmeden geçti.
+
+**Sapmalar / notlar:**
+- `docs/tasarim/`'daki sekiz ekran PNG'si de kullanıcı tarafından
+  yenilendi (muhtemelen v2 renk paletiyle yeniden dışa aktarıldı);
+  yalnızca Çizelge/Çözüm görselleri bu oturumda referans alındı, diğer
+  altısı henüz uygulanmadı (Sprint 3 kapsamı).
+- Depoda bu oturumda `docs/BOTAS_Vardiya_Cizelgeleme_Backlog.docx`,
+  `..._ProjectCharter.docx`, `..._SRS.docx` dosyalarının da yerel
+  olarak değiştiği (`git status`) görüldü — bu oturumun kapsamıyla
+  ilgisiz ve içeriği bu oturumda incelenmedi, bu yüzden commit'e dahil
+  edilmedi. Kullanıcı bu değişiklikleri ayrıca ele almalı/bilgilendirmeli.
+
+**Kalan / ertelenen:** Yok — bu ara oturumun kapsamı (görsel geçiş)
+tamamlandı. Sıradaki iş Gün 11 (yukarıdaki not hâlâ geçerli, değişmedi).

@@ -1,34 +1,79 @@
-@import '@fontsource/inter/300.css';
+@import 'tailwindcss';
 @import '@fontsource/inter/400.css';
 @import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
 
+/* Tasarım Referansı (sürüm 2): standart SaaS admin paneli estetiği —
+   mavi vurgu, yuvarlak köşeler, yumuşak gölge. shadcn/ui bileşenleri
+   (src/components/ui/) bu değişkenleri kullanır; kesin hex değerleri
+   docs/tasarim/TASARIM_REFERANSI.md'deki tokenlerle birebir eşleşir. */
 :root {
-  --bg: #fafaf8;
-  --surface: #ffffff;
-  --ink: #1a1a18;
-  --ink-muted: #6b6b66;
-  --hairline: #dededa;
-  --accent: #b3462b;
-  --accent-surface: #f5e6e0;
-  --warn: #b38a2b;
-  --warn-surface: #f5efdd;
-  --ok: #3e6b4f;
+  --background: #f9fafb; /* gray-50 */
+  --foreground: #111827; /* gray-900 */
+  --card: #ffffff;
+  --card-foreground: #111827;
+  --popover: #ffffff;
+  --popover-foreground: #111827;
+  --primary: #2563eb; /* blue-600 */
+  --primary-foreground: #ffffff;
+  --secondary: #f3f4f6; /* gray-100 */
+  --secondary-foreground: #111827;
+  --muted: #f3f4f6; /* gray-100 */
+  --muted-foreground: #6b7280; /* gray-500 */
+  --accent: #eff6ff; /* blue-50 */
+  --accent-foreground: #2563eb;
+  --destructive: #dc2626; /* red-600 */
+  --destructive-foreground: #ffffff;
+  --border: #e5e7eb; /* gray-200 */
+  --input: #e5e7eb;
+  --ring: #2563eb;
 
-  --sp-1: 4px;
-  --sp-2: 8px;
-  --sp-3: 16px;
-  --sp-4: 24px;
-  --sp-5: 40px;
+  /* Köşe yarıçapı: kartlar 8px, buton/girdi 6px, rozet tam yuvarlak
+     (bkz. TASARIM_REFERANSI.md) — Tailwind'in calc tabanlı radius
+     zincirine güvenmek yerine her adım doğrudan sabitlendi. */
+  --radius-xs: 4px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 6px;
+  --radius-xl: 8px;
+  --radius-2xl: 10px;
+  --radius-3xl: 12px;
+  --radius-4xl: 9999px;
 
-  --font: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-sans:
+    'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
 
   color-scheme: light;
-  color: var(--ink);
-  background: var(--bg);
+  color: var(--foreground);
+  background: var(--background);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --font-sans: var(--font-sans);
+  --font-heading: var(--font-sans);
 }
 
 * {
@@ -37,9 +82,11 @@
 
 body {
   margin: 0;
-  font: 13px/145% var(--font);
-  color: var(--ink);
-  background: var(--bg);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 145%;
+  color: var(--foreground);
+  background: var(--background);
 }
 
 #root {
@@ -49,14 +96,5 @@ body {
 button,
 input,
 select {
-  font-family: var(--font);
-}
-
-button {
-  cursor: pointer;
-}
-
-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
+  font-family: var(--font-sans);
 }
