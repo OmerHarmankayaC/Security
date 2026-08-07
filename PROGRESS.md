@@ -1436,3 +1436,125 @@ Genişletmesi (Sprint 2 sonu, UYGULAMA_PLANI.md'de Gün 11'den sonra Gün
 uyum testini S1–S8+S6b'yi de kapsayacak şekilde genişlet, bu sırada S4
 birim tutarsızlığını (`modele_ekle` dakika, `dogrula` saat) düzelt.
 Ardından Sprint 3 Gün 12'ye (Analiz Servisi ve Ekranı) geç.
+
+---
+
+## 2026-08-07 — Ek görev: S1–S8+S6b uyum testi + S4 birim + S2/S3/S7 formül düzeltmeleri
+
+Bu oturum iki turdur ertelenen Ek Görev'i tamamladı. Kapsam, S4'ün
+birim düzeltmesiyle sınırlı başlayıp, uyum testini gerçekten yazarken
+iki ayrı önceden var olan formül hatası ortaya çıktı; ikisi de kullanıcıya
+`AskUserQuestion` ile sorulup onaylandıktan sonra düzeltildi (SDD/SRS'ten
+sessizce sapmama kuralı gereği).
+
+**1. S4 birim düzeltmesi (asıl talep edilen madde):**
+- `app/kurallar/esnek.py` `S4ToplamSaatDengesi.modele_ekle`: dakika
+  yerine saat kullanacak şekilde değiştirildi (`sure_dakika`/`*60` →
+  `round(sure_saat)`), `dogrula` ile aynı birim. Vardiya süreleri
+  pratikte zaten tam saat olduğundan yuvarlama etkisiz; CP-SAT'ın
+  tamsayı zorunluluğu için gerekli (H5'teki dakika yaklaşımıyla aynı
+  gerekçe, ama artık dogrula ile aynı ölçekte).
+
+**2. S2/S3'ün modele_ekle'si SRS'e uymuyordu (kullanıcı onayıyla düzeltildi):**
+- Uyum testini yazarken S2/S3 için `ham_terim ≠ dogrula toplamı` çıktı.
+  Araştırma: `modele_ekle` SDD Ek A'nın eski S2 örneğini birebir alıp
+  aralık (`enb − enk`, dağılımın en yüksek/en düşük ucu) minimize
+  ediyordu; `dogrula` ise SRS 4.3'ün normatif formülünü (`sapma[p] =
+  max(sayı−taban, tavan−sayı, 0)`, kişi başına toplanır) uyguluyordu —
+  ikisi cebirsel olarak eşit değil (karşı örnek: sayılar=[1,1,4],
+  ortalama=2 → dogrula toplamı=4, aralık=3).
+- Kullanıcı SRS'i otorite kabul edip SDD Ek A'nın örneğinin hatalı
+  olduğunu belirtti; `docs/BOTAS_Vardiya_Cizelgeleme_SDD.docx` sürüm
+  1.4'e kullanıcı tarafından bu oturumdan önce güncellenmişti (Ek A'daki
+  S2 örneği artık SRS formülüyle uyumlu — revizyon notu dosyada mevcut).
+  SRS docx'ten S2/S3 4.3 metni bağımsızca okunup doğrulandı.
+- Düzeltme: `S2GeceAdaleti`/`S3HaftaSonuAdaleti.modele_ekle` artık
+  `enb`/`enk` yerine SRS formülünü birebir uyguluyor — yeni ortak
+  yardımcı `_adalet_sapmasi_terimi` (mevcut `_adalet_sapmasi_ihlalleri`
+  ile aynı taban/tavan hesabı, CP-SAT tarafında kişi başına bir `sapma`
+  IntVar'ı `sapma ≥ sayı−taban`, `sapma ≥ tavan−sayı` kısıtlarıyla).
+  `dogrula`'ya dokunulmadı (zaten doğruydu).
+- **Beklenen etki:** S2/S3 ceza büyüklükleri büyüdü (aralıktan toplam
+  sapmaya geçiş) — bu doğru ve beklenen; ağırlıkların (w2=5, w3=5, demo
+  kural tablosunda) bu yeni ölçekte hâlâ makul olup olmadığı aşağıdaki
+  doğrulamada gözlemlendi, ayarlama ayrı bir konuşmaya bırakıldı.
+
+**3. S7'de bağımsız, daha ciddi bir formül hatası bulundu (kullanıcı onayıyla düzeltildi):**
+- Uyum testi S7 için ham=10, dogrula=2 üretti. `izole_calisma`
+  göstergesinin alt sınır eşitsizliğinde fazladan bir `+1` vardı:
+  `izole_calisma ≥ calisti[g] − calisti[onceki] − calisti[sonraki] + 1`.
+  Üç literalin AND'i için doğru genel form `z ≥ a+b+c−2`; burada
+  a=calisti[g], b=1−calisti[onceki], c=1−calisti[sonraki] olduğundan
+  sabit **0** olmalı (+1 değil) — `izole_izin`'in eşitsizliği (ters
+  işaretli literallerle sabiti −1) zaten doğruydu, S7 kendi içinde
+  tutarsızdı.
+- Etkisi sanılandan büyük: gerçekten izole bir çalışma gününde (g=1,
+  komşular 0) hatalı sabit `izole_calisma ≥ 2` üretiyordu — bool
+  değişken üst sınırı (1) aşıldığından bu kombinasyon modelde
+  **imkânsız** hale geliyordu (yalnızca yanlış sayım değil, örtük bir
+  zorunlu kısıt). Ayrıca tamamen boş bir günde veya bir çalışma
+  bloğunun son gününde de (calisti[g]=0 durumları) sabit yine 1'e
+  çıkıp gereksiz ceza üretiyordu — muhtemelen önceki oturumlarda
+  gözlenen anormal büyük S7 değerlerinin kaynağı buydu.
+- Düzeltme: fazladan `+1` kaldırıldı, doğru türetme kod içinde yorum
+  olarak bırakıldı (ileride yanlış yeniden türetilmesini önlemek için).
+
+**4. Uyum testi (`test_cozucu_uctan_uca.py::test_esnek_hedefler_cozucu_dogrulayici_uyumu`):**
+- Yeni bir senaryo (`_esnek_uyum_baglami`): 4 personel, 2 nokta (ayrı
+  binalarda, S6b için), tam 7 günlük dönem (S2/S3/S4'ün taban/tavan ve
+  `donem_gun_sayisi/7` hesaplarının tam sayı kalması, dolayısıyla
+  yuvarlama kaynaklı sahte uyuşmazlık riskinin sıfırlanması için
+  bilerek 7 gün), onaylı tercihler (S5) ve önceki bir çizelge (S8).
+  `model_kur` → `CozucuAdaptoru.coz(..., ceza_terimleri=ham_terimler)`
+  ile çözülüyor, `durum == "optimal"` doğrulanıyor (gosterge/sapma gibi
+  yalnızca alt sınırlı yardımcı değişkenlerin kendi minimuma
+  zorlandığından emin olmak için — "uygun" ama optimal-olmayan bir
+  çözümde bu garanti yok), sonra S1–S8+S6b'nin her biri için
+  `sonuc.ceza_dokumu[kimlik] == dogrula(atamalar, baglam)`'daki
+  `ceza` toplamı **birebir eşitlikle** karşılaştırılıyor (SDD 3.2.1'in
+  "çözücü ile doğrulayıcı aynı kuralı ifade eder" güvencesinin esnek
+  hedeflere genişletilmiş hali).
+- İlk çalıştırmada S2/S3/S7 başarısız oldu (yukarıdaki bulgular);
+  üçü de düzeltildikten sonra 9 kuralın tamamı (S1, S2, S3, S4, S5,
+  S6, S6b, S7, S8) birebir eşitlikle geçiyor.
+
+**Doğrulama:**
+- `ruff check`/`format` temiz.
+- Tam paket (99 test — 98 + yeni uyum testi) temiz veritabanında geçti
+  (~6,6 saniye; DB test kirliliği bu oturumda da bir kez daha
+  `TRUNCATE` ile giderildi — bkz. Gün 11'in aynı notu, hâlâ tekrarlayan
+  bir bakım işi).
+- Gerçek `uvicorn` + temiz demo veriyle (44 personel, 2 dönem) her iki
+  dönem de baştan çözüldü. Rahat dönem (`optimal`, 13 sn):
+  `S1=0, S2=90, S3=64, S4=608, S5=0, S6=0, S6b=0, S7=0, S8=0` — hepsi
+  makul, karşılaştırılabilir büyüklükte (eski S4'ün 60 kata varan
+  şişkinliği yok). Sıkışık dönem (`uyarılı`, 90 sn zaman limitinde
+  durdu, beklenen — bkz. Gün 7/8): `S1=2, S2=97, S3=59, S4=2448, S5=0,
+  S6=0, S6b=0, S7=29, S8=0`; S1=2 önceden bilinen Vardiya Şefliği
+  açığıyla tutarlı.
+
+**Sapmalar / notlar:**
+- **Ağırlık ayarlaması bilerek bu oturuma alınmadı.** S2/S3'ün büyüklük
+  ölçeği değişti (aralıktan toplam sapmaya), S4'ün ölçeği düzeldi (60
+  kat küçüldü) — demo kural tablosundaki `w2=5, w3=5, w4=3` gibi
+  ağırlıkların yeni ölçekte hâlâ isabetli olup olmadığı ayrıca
+  değerlendirilmeli (kullanıcıyla bu oturumun sonunda ayrı konuşulacak
+  dendi). Şimdilik hiçbir ağırlık değeri değiştirilmedi.
+- `docs/BOTAS_Vardiya_Cizelgeleme_SDD.docx` bu oturumdan önce kullanıcı
+  tarafından sürüm 1.4'e güncellenmişti (Ek A'daki S2 örneği düzeltildi);
+  bu oturumda dosyaya dokunulmadı, yalnızca doğrulama amacıyla okundu.
+  Henüz commit edilmemiş durumda (git status'ta `modified`) —
+  kullanıcı elle commit edecek.
+- `docs/BOTAS_Vardiya_Cizelgeleme_Charter/SRS/Backlog.docx` hijyen
+  maddesi bu oturumdan önce zaten commit edilmişti (bkz. `2ec635d`),
+  bu oturumda ayrıca yapılacak bir şey kalmamıştı.
+
+**Kalan / ertelenen:**
+- Ağırlık ayarlaması (S2/S3/S4'ün yeni ölçeğine göre `w2`/`w3`/`w4`
+  gözden geçirmesi) — ayrı bir konuşma/oturum bekliyor.
+- `docs/BOTAS_Vardiya_Cizelgeleme_SDD.docx`'in commit'i kullanıcının
+  elle yapacağı bir iş (bu oturumda dokunulmadı, GİT kuralı gereği).
+
+**Sıradaki oturumun ilk işi:** Ağırlık ayarlaması konuşulup karara
+bağlanırsa onu uygula; sonra Sprint 3 Gün 12'ye (Analiz Servisi ve
+Ekranı) geç.

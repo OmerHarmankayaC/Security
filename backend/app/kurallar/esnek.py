@@ -73,7 +73,7 @@ class S1TalepKarsilama(EsnekHedef):
 
 @kayitli("S2")
 class S2GeceAdaleti(EsnekHedef):
-    """Kisi basina gece vardiyasi sayisinin donem hedefinden sapmasi (SDD Ek A ornegi).
+    """Kisi basina gece vardiyasi sayisinin donem hedefinden sapmasi (SRS 4.3 S2).
 
     SDD 5.5 (surum 1.3): donem geneli kapsamli - taban/tavan donem genelindeki
     en dusuk/en yuksek degerden turedigi icin pencereyle sinirlandirilamaz.
@@ -84,21 +84,23 @@ class S2GeceAdaleti(EsnekHedef):
     def modele_ekle(
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
     ) -> cp_model.LinearExprT:
-        """SDD Ek A'daki S2 ornegiyle birebir."""
+        """SRS 4.3 S2'nin dogrudan cevirisi (SDD Ek A'nin eski araligi minimize
+        eden ornegi normatif SRS formuluyle celisiyordu, sdd.docx surum 1.4'te
+        duzeltildi): hedef_gece = talep/|P|, sapma[p] = max(sayi-taban, tavan-sayi, 0)."""
         gunler = baglam.donem_gunleri
         ust_sinir = len(gunler)
         gece_sayisi = {
             p: sum(baglam.y[(p, g, v)] for g in gunler for v in baglam.gece_vardiyalari)
             for p in baglam.personel
         }
-        if not gece_sayisi:
-            return 0
-        enb = model.new_int_var(0, ust_sinir, "s2_enb")
-        enk = model.new_int_var(0, ust_sinir, "s2_enk")
-        for p in baglam.personel:
-            model.add(gece_sayisi[p] <= enb)
-            model.add(gece_sayisi[p] >= enk)
-        return enb - enk
+        return _adalet_sapmasi_terimi(
+            model=model,
+            baglam=baglam,
+            sayilar=gece_sayisi,
+            ust_sinir=ust_sinir,
+            talep_uygun_mu=lambda anahtar: baglam.gece_mi(anahtar[1]),
+            degisken_onek="s2_sapma",
+        )
 
     def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
         return _adalet_sapmasi_ihlalleri(
@@ -130,14 +132,14 @@ class S3HaftaSonuAdaleti(EsnekHedef):
             p: sum(baglam.y[(p, g, v)] for g in hs_gunleri for v in baglam.vardiya_tipleri)
             for p in baglam.personel
         }
-        if not hs_sayisi:
-            return 0
-        enb = model.new_int_var(0, ust_sinir, "s3_enb")
-        enk = model.new_int_var(0, ust_sinir, "s3_enk")
-        for p in baglam.personel:
-            model.add(hs_sayisi[p] <= enb)
-            model.add(hs_sayisi[p] >= enk)
-        return enb - enk
+        return _adalet_sapmasi_terimi(
+            model=model,
+            baglam=baglam,
+            sayilar=hs_sayisi,
+            ust_sinir=ust_sinir,
+            talep_uygun_mu=lambda anahtar: baglam.hafta_sonu_mu(anahtar[0]),
+            degisken_onek="s3_sapma",
+        )
 
     def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
         return _adalet_sapmasi_ihlalleri(
@@ -154,10 +156,11 @@ class S3HaftaSonuAdaleti(EsnekHedef):
 class S4ToplamSaatDengesi(EsnekHedef):
     """Kisi basina toplam saatin, kisisel donemlik hedeften mutlak sapmasi.
 
-    Not: modele_ekle CP-SAT'in tamsayi kisiti geregi dakika biriminde hesaplar,
-    dogrula ise saat biriminde (bkz. asagidaki not, PROGRESS.md Sprint 2 Gun 6);
-    optimizasyon sonucunu etkilemez (60 ile sabit olcekleme), yalnizca raporlanan
-    ham ceza buyuklugu iki tarafta farkli birimde olur.
+    Not: modele_ekle CP-SAT'in tamsayi kisiti geregi vardiya surelerini saate
+    yuvarlar (SRS/dogrula ile ayni birim - bkz. PROGRESS.md Ek Gorev); pratikte
+    vardiya sureleri zaten tam saat oldugundan yuvarlama etkisizdir. Daha once
+    (Sprint 2 Gun 6-11) dakika biriminde hesaplaniyordu, bu da raporlanan ham
+    ceza buyuklugunu dogrula'nin sadece 60 katina cikariyordu.
 
     SDD 5.5 (surum 1.3): donem geneli kapsamli - kisinin donem toplam saatine
     baktigi icin pencereyle sinirlandirilamaz.
@@ -169,18 +172,20 @@ class S4ToplamSaatDengesi(EsnekHedef):
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
     ) -> cp_model.LinearExprT:
         donem_gun_sayisi = len(baglam.donem_gunleri)
-        azami_vardiya_dk = max((baglam.sure_dakika(v) for v in baglam.vardiya_tipleri), default=0)
-        ust_sinir = donem_gun_sayisi * azami_vardiya_dk
+        azami_vardiya_saat = max(
+            (round(baglam.sure_saat(v)) for v in baglam.vardiya_tipleri), default=0
+        )
+        ust_sinir = donem_gun_sayisi * azami_vardiya_saat
         terimler: list[cp_model.IntVar] = []
         for p, personel in baglam.personel.items():
-            saat_dk = sum(
-                baglam.sure_dakika(v) * baglam.y[(p, g, v)]
+            toplam_saat = sum(
+                round(baglam.sure_saat(v)) * baglam.y[(p, g, v)]
                 for g in baglam.donem_gunleri
                 for v in baglam.vardiya_tipleri
             )
-            hedef_dk = round(float(personel.haftalik_hedef_saat) * 60 * donem_gun_sayisi / 7)
+            hedef_saat = round(float(personel.haftalik_hedef_saat) * donem_gun_sayisi / 7)
             fark = model.new_int_var(-ust_sinir, ust_sinir, f"s4_fark_p{p}")
-            model.add(fark == saat_dk - hedef_dk)
+            model.add(fark == toplam_saat - hedef_saat)
             mutlak = model.new_int_var(0, ust_sinir, f"s4_abs_p{p}")
             model.add_abs_equality(mutlak, fark)
             terimler.append(mutlak)
@@ -396,8 +401,16 @@ class S7IzoleGun(EsnekHedef):
             calisti = {g: sum(baglam.y[(p, g, v)] for v in baglam.vardiya_tipleri) for g in gunler}
             for i in range(1, len(gunler) - 1):
                 g, onceki, sonraki = gunler[i], gunler[i - 1], gunler[i + 1]
+                # Uc bool literalin (a,b,c) AND'i icin genel alt sinir: z >= a+b+c-2.
+                # izole_calisma: a=calisti[g], b=1-calisti[onceki], c=1-calisti[sonraki]
+                #   => a+b+c-2 = calisti[g]-calisti[onceki]-calisti[sonraki] (sabit 0).
+                # izole_izin: a=1-calisti[g], b=calisti[onceki], c=calisti[sonraki]
+                #   => a+b+c-2 = -calisti[g]+calisti[onceki]+calisti[sonraki]-1 (sabit -1).
+                # Iki gostergenin literal isaretleri farkli oldugu icin sabitleri de
+                # farklidir - biri digerine kopyalanip +1 yazilirsa (onceki hata) bool
+                # ust siniri (1) asilir ve o kombinasyon modelde imkansiz hale gelir.
                 izole_calisma = model.new_bool_var(f"s7_calisma_p{p}_g{g}")
-                model.add(izole_calisma >= calisti[g] - calisti[onceki] - calisti[sonraki] + 1)
+                model.add(izole_calisma >= calisti[g] - calisti[onceki] - calisti[sonraki])
                 izole_izin = model.new_bool_var(f"s7_izin_p{p}_g{g}")
                 model.add(izole_izin >= -calisti[g] + calisti[onceki] + calisti[sonraki] - 1)
                 terimler.extend([izole_calisma, izole_izin])
@@ -508,6 +521,34 @@ def _bilinen_aralik(atamalar: list[AtamaKaydi], baglam: Baglam) -> tuple[date, d
     if not tarihler:
         return None
     return min(tarihler), max(tarihler)
+
+
+def _adalet_sapmasi_terimi(
+    *,
+    model: cp_model.CpModel,
+    baglam: Baglam,
+    sayilar: dict[int, cp_model.LinearExprT],
+    ust_sinir: int,
+    talep_uygun_mu: Callable[[tuple[date, int, int]], bool],
+    degisken_onek: str,
+) -> cp_model.LinearExprT:
+    """S2 ve S3'un modele_ekle'sinin ortak formulasyonu (SRS 4.3): _adalet_sapmasi_ihlalleri
+    ile ayni taban/tavan hesabi, CP-SAT tarafinda kisi basina bir sapma degiskeniyle."""
+    if not sayilar:
+        return 0
+    toplam_talep = sum(
+        gereken for anahtar, gereken in baglam.talep.items() if talep_uygun_mu(anahtar)
+    )
+    hedef = toplam_talep / len(baglam.personel)
+    taban, tavan = floor(hedef), ceil(hedef)
+
+    terimler: list[cp_model.IntVar] = []
+    for p, sayi in sayilar.items():
+        sapma = model.new_int_var(0, ust_sinir, f"{degisken_onek}_p{p}")
+        model.add(sapma >= sayi - taban)
+        model.add(sapma >= tavan - sayi)
+        terimler.append(sapma)
+    return sum(terimler) if terimler else 0
 
 
 def _adalet_sapmasi_ihlalleri(

@@ -2,6 +2,15 @@
 cozuluyor. Cozucu-dogrulayici uyum testini (Sprint 1 Gun 5) gercek CP-SAT
 ciktisiyla genisletir: cozucunun uygun buldugu bir cizelgede dogrulayici
 H1-H8 icin hicbir ihlal bulmamalidir (SDD 3.2.1).
+
+Ek Gorev (Sprint 2 sonu): ayni uyum guvencesi S1-S8+S6b'ye de genisletildi
+- modele_ekle'nin urettigi ham ceza terimi (ham_terimler[kimlik]) ile
+dogrula'nin bagimsizca hesapladigi ceza toplaminin BIREBIR ayni sayiyi
+uretmesi gerekir (SDD 3.2.1: "cozucu ile dogrulayicinin ayni kurali ifade
+ettigi... uyumu bir dogrulama testine baglar"). Bu, S4'un dakika/saat
+birim uyusmazligini ve S2/S3'un modele_ekle'sinin (eski) aralik
+minimizasyonuyla dogrula'nin normatif SRS 4.3 formulu arasindaki
+celismeyi ortaya cikaran testtir (bkz. PROGRESS.md, Ek Gorev).
 """
 
 import uuid
@@ -16,9 +25,11 @@ from app.kurallar import (
     Baglam,
     GorevNoktasiBilgisi,
     PersonelBilgisi,
+    TercihKaydi,
     VardiyaTipiBilgisi,
 )
 from app.kurallar.kayit_defteri import bul
+from app.models.girdi import TercihTipi
 from app.models.sonuc import Atama, AtamaKaynagi, CizelgeSurumu, Donem
 from app.models.tanim import GorevNoktasi as GorevNoktasiSatiri
 from app.models.tanim import GunTipi
@@ -246,3 +257,95 @@ def test_cozum_sonucu_atama_tablosuna_yaziliyor() -> None:
     finally:
         oturum.rollback()
         oturum.close()
+
+
+NOKTA_A, NOKTA_B = 1, 2
+
+
+def _esnek_uyum_baglami() -> tuple[Baglam, list[date], list[AtamaKaydi]]:
+    """S1-S8+S6b'nin hepsini tetikleyecek kucuk bir senaryo: iki nokta (ayri
+    binalarda, S6b icin), tam bir hafta (donem_gun_sayisi=7 - S2/S3/S4'un
+    taban/tavan ve hedef_saat hesaplarinin donem_gun_sayisi/7 boluminde tam
+    sayi kalmasi icin bilerek secildi, boylece dogrula'nin float sonucuyla
+    modele_ekle'nin tamsayi sonucu arasinda birim disi hicbir yuvarlama
+    farki olusmaz), onaylanmis tercihler (S5) ve bir onceki cizelge (S8)."""
+    vardiya_tipleri = {
+        GECE: VardiyaTipiBilgisi(GECE, time(0, 0), time(8, 0), 8, True),
+        GUNDUZ: VardiyaTipiBilgisi(GUNDUZ, time(8, 0), time(16, 0), 8, False),
+        AKSAM: VardiyaTipiBilgisi(AKSAM, time(16, 0), time(0, 0), 8, False),
+    }
+    gorev_noktalari = {
+        NOKTA_A: GorevNoktasiBilgisi(NOKTA_A, bina_id=10),
+        NOKTA_B: GorevNoktasiBilgisi(NOKTA_B, bina_id=20),
+    }
+    personel = {
+        p: PersonelBilgisi(p, date(2026, 1, 1), None, frozenset(), haftalik_hedef_saat=40)
+        for p in range(1, 5)
+    }
+    gunler = [date(2026, 2, 2) + timedelta(days=i) for i in range(7)]  # Pzt..Paz (hafta sonu dahil)
+
+    talep = {}
+    for i, gun in enumerate(gunler):
+        talep[(gun, GUNDUZ, NOKTA_A)] = 1
+        talep[(gun, AKSAM, NOKTA_B)] = 1
+        if i % 2 == 0:
+            talep[(gun, GECE, NOKTA_A)] = 1
+
+    tercihler = [
+        TercihKaydi(personel_id=1, tarih=gunler[0], tip=TercihTipi.CALISMAMA),
+        TercihKaydi(
+            personel_id=2,
+            tarih=gunler[2],
+            tip=TercihTipi.VARDIYA_TIPI_TERCIHI,
+            vardiya_tipi_id=AKSAM,
+        ),
+    ]
+
+    # S8 icin onceki cizelge: bu modeldeki karar degiskenleriyle kismen
+    # ortusen (fark uretecek), kismen kilitlenmemis serbest atamalar.
+    onceki_atamalar = [
+        AtamaKaydi(personel_id=3, tarih=gunler[0], vardiya_tipi_id=GUNDUZ, nokta_id=NOKTA_A),
+        AtamaKaydi(personel_id=4, tarih=gunler[1], vardiya_tipi_id=AKSAM, nokta_id=NOKTA_B),
+    ]
+
+    baglam = Baglam(
+        vardiya_tipleri=vardiya_tipleri,
+        gorev_noktalari=gorev_noktalari,
+        personel=personel,
+        talep=talep,
+        donem_baslangic=gunler[0],
+        donem_bitis=gunler[-1],
+        tercihler=tercihler,
+        onceki_atamalar=onceki_atamalar,
+    )
+    return baglam, gunler, onceki_atamalar
+
+
+def test_esnek_hedefler_cozucu_dogrulayici_uyumu() -> None:
+    """SDD 3.2.1'in uyum guvencesini S1-S8+S6b'ye genisletir: modele_ekle'nin
+    urettigi ham ceza (cozucunun kendi hesabi) ile dogrula'nin bagimsizca
+    urettigi ceza toplami her esnek hedef icin birebir esit olmalidir."""
+    baglam, gunler, _ = _esnek_uyum_baglami()
+    kurallar = _tum_kurallari_yukle()
+
+    model, x, baglam, ham_terimler = model_kur(baglam, gunler, kurallar)
+    sonuc = CozucuAdaptoru.coz(
+        model, x, zaman_limiti_saniye=30, arama_iscisi_sayisi=1, ceza_terimleri=ham_terimler
+    )
+
+    assert sonuc.durum == "optimal", f"Beklenmeyen durum: {sonuc.durum}"
+
+    atamalar = [
+        AtamaKaydi(personel_id=p, tarih=g, vardiya_tipi_id=v, nokta_id=n)
+        for (p, g, v, n) in sonuc.atanan_anahtarlar
+    ]
+
+    for kimlik in _S_AGIRLIKLARI:
+        sinif = bul(kimlik)
+        assert sinif is not None
+        kural = sinif(parametreler={})
+        dogrula_toplami = sum(ihlal.ceza for ihlal in kural.dogrula(atamalar, baglam))
+        assert sonuc.ceza_dokumu[kimlik] == dogrula_toplami, (
+            f"{kimlik}: cozucunun ham cezasi ({sonuc.ceza_dokumu[kimlik]}) "
+            f"dogrulayicinin hesapladigi toplamdan ({dogrula_toplami}) farkli"
+        )
