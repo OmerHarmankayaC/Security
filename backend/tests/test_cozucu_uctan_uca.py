@@ -28,6 +28,7 @@ from app.kurallar import (
     TercihKaydi,
     VardiyaTipiBilgisi,
 )
+from app.kurallar.esnek import _S4_OLCEK
 from app.kurallar.kayit_defteri import bul
 from app.models.girdi import TercihTipi
 from app.models.sonuc import Atama, AtamaKaynagi, CizelgeSurumu, Donem
@@ -264,11 +265,16 @@ NOKTA_A, NOKTA_B = 1, 2
 
 def _esnek_uyum_baglami() -> tuple[Baglam, list[date], list[AtamaKaydi]]:
     """S1-S8+S6b'nin hepsini tetikleyecek kucuk bir senaryo: iki nokta (ayri
-    binalarda, S6b icin), tam bir hafta (donem_gun_sayisi=7 - S2/S3/S4'un
-    taban/tavan ve hedef_saat hesaplarinin donem_gun_sayisi/7 boluminde tam
-    sayi kalmasi icin bilerek secildi, boylece dogrula'nin float sonucuyla
-    modele_ekle'nin tamsayi sonucu arasinda birim disi hicbir yuvarlama
-    farki olusmaz), onaylanmis tercihler (S5) ve bir onceki cizelge (S8)."""
+    binalarda, S6b icin), tam bir hafta (donem_gun_sayisi=7 - S2/S3'un taban/tavan
+    hesaplarinin donem_gun_sayisi/7 boluminde tam sayi kalmasi icin bilerek
+    secildi), onaylanmis tercihler (S5) ve bir onceki cizelge (S8).
+
+    Personel 4'un hedef saati (20) digerlerinden (40) farkli birakildi: S4'un
+    pay[p] payi boylece kasitli olarak kesirli cikar (144 toplam talep saati,
+    140 toplam hedef saati - 40/140 ve 20/140 kesirleri tam bolunmez) ve
+    _S4_OLCEK'in olcekleyip geri cevirme adimi (SDD Ek A "Kesirli hedeflerin
+    tamsayiya olceklenmesi") gercekten test edilir; esit hedeflerle bu adim hic
+    calismadan da (kazara) uyum testinden gecebilirdi."""
     vardiya_tipleri = {
         GECE: VardiyaTipiBilgisi(GECE, time(0, 0), time(8, 0), 8, True),
         GUNDUZ: VardiyaTipiBilgisi(GUNDUZ, time(8, 0), time(16, 0), 8, False),
@@ -279,7 +285,9 @@ def _esnek_uyum_baglami() -> tuple[Baglam, list[date], list[AtamaKaydi]]:
         NOKTA_B: GorevNoktasiBilgisi(NOKTA_B, bina_id=20),
     }
     personel = {
-        p: PersonelBilgisi(p, date(2026, 1, 1), None, frozenset(), haftalik_hedef_saat=40)
+        p: PersonelBilgisi(
+            p, date(2026, 1, 1), None, frozenset(), haftalik_hedef_saat=(20 if p == 4 else 40)
+        )
         for p in range(1, 5)
     }
     gunler = [date(2026, 2, 2) + timedelta(days=i) for i in range(7)]  # Pzt..Paz (hafta sonu dahil)
@@ -324,7 +332,18 @@ def _esnek_uyum_baglami() -> tuple[Baglam, list[date], list[AtamaKaydi]]:
 def test_esnek_hedefler_cozucu_dogrulayici_uyumu() -> None:
     """SDD 3.2.1'in uyum guvencesini S1-S8+S6b'ye genisletir: modele_ekle'nin
     urettigi ham ceza (cozucunun kendi hesabi) ile dogrula'nin bagimsizca
-    urettigi ceza toplami her esnek hedef icin birebir esit olmalidir."""
+    urettigi ceza toplami her esnek hedef icin birebir esit olmalidir.
+
+    S4 istisnasi: modele_ekle CP-SAT'in tamsayi kisiti geregi _S4_OLCEK (onda
+    bir saat) ile olcup son adimda dogal birime (saat) yarim-yukari yuvarlayarak
+    geri cevirir (SDD Ek A "Kesirli hedeflerin tamsayiya olceklenmesi"); dogrula
+    ise kesirli cezayi hic yuvarlamadan (onda bir saat hassasiyetinde) dondurur -
+    bu ikisi ancak ayni yuvarlama uygulandiginda birebir esitlenir, cunku ozetin
+    (7 vs 6.7 gibi) tam sayiya yuvarlanmasi dogrula'nin PAYLASTIRILMAMIS toplamiyla
+    aritmetik olarak ayni sey degildir. Bu yuzden S4 icin dogrula_toplami'nin
+    _S4_OLCEK ile yeniden tam sayiya cevrilip aynen modele_ekle'deki gibi
+    yarim-yukari yuvarlanmasi gerekir - test bu donusumu yeniden uygulayarak
+    hem yuvarlamanin yapildigini hem DOGRU yapildigini kanitlar."""
     baglam, gunler, _ = _esnek_uyum_baglami()
     kurallar = _tum_kurallari_yukle()
 
@@ -345,6 +364,12 @@ def test_esnek_hedefler_cozucu_dogrulayici_uyumu() -> None:
         assert sinif is not None
         kural = sinif(parametreler={})
         dogrula_toplami = sum(ihlal.ceza for ihlal in kural.dogrula(atamalar, baglam))
+        if kimlik == "S4":
+            # dogrula'nin onda-bir-saat hassasiyetli (kesirli) toplamini
+            # modele_ekle'nin kendi ic olceginde (_S4_OLCEK) yeniden tam sayiya
+            # cevirip ayni yarim-yukari kuraliyla yuvarla (bkz. yukaridaki not).
+            toplam_x10 = round(dogrula_toplami * _S4_OLCEK)
+            dogrula_toplami = (toplam_x10 + _S4_OLCEK // 2) // _S4_OLCEK
         assert sonuc.ceza_dokumu[kimlik] == dogrula_toplami, (
             f"{kimlik}: cozucunun ham cezasi ({sonuc.ceza_dokumu[kimlik]}) "
             f"dogrulayicinin hesapladigi toplamdan ({dogrula_toplami}) farkli"

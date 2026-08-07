@@ -97,7 +97,7 @@ Projenin kapsamı bilinçli olarak sınırlı tutulmuştur. Sistem, halihazırda
 
 **Önemli Fonksiyonel Olmayan Gereksinimler**
 
-- Otuz personel ve yirmi sekiz günlük referans örnek altmış saniyenin altında çözülmelidir.
+- Kırk personel ve yirmi sekiz günlük referans örnek (varsayılan bir haftalık dönemden büyük, kasıtlı bir stres testi ölçeği) altmış saniyenin altında çözülmelidir.
 
 - Çözüm için üst zaman limiti tanımlanabilmelidir.
 

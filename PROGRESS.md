@@ -1705,3 +1705,132 @@ kullanıcıya bırakıldı.
 uygula (yalnızca kod: `scripts/demo_veri_uret.py`'deki `_KURAL_TANIMLARI`
 ağırlıkları — gerçek kullanımda `/api/kural` üzerinden değişecek);
 sonra Sprint 3 Gün 12'ye (Analiz Servisi ve Ekranı) geç.
+
+---
+
+## 2026-08-07 — Ek görev (devamı 2): S4 ham cezası imkânsız büyüklükteydi — gerçek kök neden bulundu
+
+Kullanıcı, bir önceki turdaki ölçüm tablosundan (S4 ham=1390, Rahat
+dönem) matematiksel bir imkânsızlık çıkardı: 44 personel + 1152 saatlik
+toplam talep + H5/H6'nın 40 saatlik kişisel tavanıyla mümkün olan azami
+`Σ|saat−pay|` ≈ 774'tü, ama 1390 bunu aşıyordu. Kullanıcının hipotezi
+(×10 ölçeklemenin geri çevrilmediği) **kısmen doğruydu ama asıl neden
+değildi** — araştırma canlı `baglam` üzerinde doğrudan ölçümle yapıldı
+(bkz. aşağıdaki doğrulama), tahmin yürütülmedi.
+
+**Gerçek kök neden:** `_s4_hedef_paylari`, `toplam_talep_saat`'i
+`baglam.talep`'in TAMAMI üzerinden topluyordu — ama `baglam.talep`,
+`zaman_ekseni_olustur`'un ürettiği tam zaman ekseni (TD-5: ısıtma
+penceresi + dönem) için çözülüyor. Isıtma penceresi dönemden hemen önceki
+7 gün olduğundan (7'nin katı), aynı gün-tipi talep deseni ısıtma
+penceresinde de tekrarlanıyor ve `baglam.talep` üzerinden filtresiz
+toplam ~2 katına çıkıyor. Canlı ölçüm: Rahat dönem için `toplam gece
+talep` (S2 için) filtresiz 172, dönem-içi (doğru) 86 — birebir 2 kat.
+S4 için filtresiz `toplam_talep_saat` 2304, dönem-içi (doğru) 1152 —
+yine birebir 2 kat. **Bu bug yalnızca S4'te değil, S2 ve S3'ün
+`_adalet_sapmasi_terimi`/`_adalet_sapmasi_ihlalleri` yardımcılarında da
+vardı** — üçü de aynı `baglam.talep.items()` filtresiz toplama
+desenini paylaşıyordu. SDD Ek A'nın (sürüm 1.4) S2 örneği
+(`TOPLA(talep[g,v,n]) HER (g,v,n) İÇİN baglam.donem`) zaten doğru
+kapsamı (yalnızca `baglam.donem`, ısıtma penceresi hariç) gösteriyordu;
+kod bunu tam uygulamıyordu.
+
+**Düzeltme (`app/kurallar/esnek.py`):**
+- `_adalet_sapmasi_terimi` ve `_adalet_sapmasi_ihlalleri`: `toplam_talep`
+  hesabına `baglam.donem_icinde(anahtar[0])` filtresi eklendi (S2/S3'un
+  hem `modele_ekle` hem `dogrula`'sı).
+- `_s4_hedef_paylari` → `_s4_hedef_paylari_x10` olarak yeniden yazıldı:
+  aynı `donem_icinde` filtresi + kullanıcının istediği SDD Ek A ölçekleme
+  kuralı (aşağıda).
+
+**SDD Ek A'nın yeni kuralı uygulandı — "Kesirli hedeflerin tamsayıya
+ölçeklenmesi":** S4'ün `pay[p]`'i kesirli çıkabildiği ve doğrudan bir
+mutlak sapma hesabına girdiği için (S2/S3'un taban/tavan hilesi burada
+işlemez — pay doğrudan kıyaslanıyor), CP-SAT'in tamsayı kısıtı gereği
+hem `pay` hem çalışma saati `_S4_OLCEK=10` (onda bir saat) ile
+ölçeklenip tamsayıya çevriliyor. `modele_ekle` artık bütün hesabı
+onda-bir-saat biriminde yapıyor, en sonda TEK bir
+`model.add_division_equality` ile (yarım birimi yukarı yuvarlayan
+`(toplam_x10 + 5) // 10` formülüyle) doğal birime (saat) geri
+çevriliyor — döndürülen terim, hem ağırlıklandırma (`kural.agirlik *
+terim`) hem `ceza_dokumu` raporlaması için kullanıldığından, bu
+geri çevirme yalnızca raporlama değil gerçek optimizasyon davranışını
+da düzeltiyor (SDD'nin uyardığı "ağırlığından bağımsız on kat önemli
+görünme" tam olarak budur). `dogrula` da aynı ölçeği kullanıyor
+(`sapma_x10/10`, kişi başına ondalık hassasiyetli) — ama kişi başına
+YUVARLAMA yapmıyor, yalnızca modele_ekle'nin AGREGAT (kişi başına değil,
+tüm toplam üzerinde tek seferlik) yuvarlamasıyla eşleşmesi gerekiyor.
+
+**Uyum testi genişletildi (madde 2 — geri çevirmeyi kapsayacak
+şekilde):** `test_cozucu_uctan_uca.py::_esnek_uyum_baglami`'deki
+personel 4'ün hedef saati kasıtlı olarak farklı bırakıldı (20 vs
+diğerlerinin 40'ı) — eşit hedeflerle `pay[p]` hep tam sayı çıkıyor ve
+ölçekleme adımı hiç çalışmadan da (kazara) testten geçebilirdi. Kesirli
+pay ile ilk çalıştırmada gerçekten yakalandı: ham=7, dogrula (yuvarlanmamış)
+toplamı=6.7 — tam da SDD'nin tarif ettiği geri-çevirme adımı eksik
+olsaydı ortaya çıkacak fark. Test artık S4 için dogrula toplamını
+`_S4_OLCEK` ile yeniden tam sayıya çevirip aynı yarım-yukarı kuralıyla
+yuvarlıyor, sonra `ham_terim`'le birebir karşılaştırıyor (diğer sekiz
+kural hâlâ çıplak birebir eşitlik).
+
+**Madde 3 (SDD Ek A'nın S2 `dogrula` örneği artık talep tabanlı) —
+doğrulandı, kod zaten talep tabanlıydı (bir önceki turda kullanıcının
+"SRS otorite" dediği düzeltmenin ta kendisi); değişiklik gerekmedi. Ama
+doğrulama sırasında yukarıdaki dönem-kapsamı hatası bulundu ve
+düzeltildi — kullanıcının "kapsama açığı olan dönemlerde ikisi ayrışır,
+uyum testi bunu yakalamalı" uyarısı, farklı ama ilişkili bir hatayı
+(kapsama açığı değil ısıtma penceresi kaynaklı ayrışma) gerçekten
+yakalamış oldu.**
+
+**Madde 4 (NFR-1):** SRS 1.3, SDD 1.5 ve Charter'ın kendi içindeki
+tutarsız satırı "kırk personel"de birleşti; kodda bu sayıya referans
+olmadığından (Sprint 3 Gün 14 performans testi henüz yok) ek bir
+değişiklik gerekmedi.
+
+**Doğrulama:**
+- Kök nedeni doğrulamak için canlı `baglam_olustur()` çıktısı üzerinde
+  doğrudan Python'da ölçüm yapıldı (yukarıdaki 172/86 ve 2304/1152
+  rakamları) — koda dokunmadan önce.
+- `ruff check`/`format` temiz.
+- Tam paket (99 test) temiz veritabanında 7,6 saniyede geçti.
+- Yeni uyum testi senaryosu (kesirli S4 payı) ilk çalıştırmada gerçekten
+  başarısız oldu (7 ≠ 6.7), düzeltme sonrası geçti — testin genişletmeyi
+  gerçekten sınadığının kanıtı.
+- Gerçek `uvicorn` + temiz demo veriyle iki dönem de yeniden çözüldü;
+  S4'ün canlı `pay[p]` örnekleri (Rahat dönem) `~26.2` saat çıktı —
+  kullanıcının elle hesapladığı `26,18`'e birebir yakın (onda bir saat
+  yuvarlamasıyla tutarlı).
+
+**Ağırlık kalibrasyonu için ölçüm — TEKRARLANDI (yine karar verilmedi,
+yalnızca ölçüldü):**
+
+| Kural | Rahat: ham | Rahat: ham×ağırlık | Sıkışık: ham | Sıkışık: ham×ağırlık |
+| --- | ---: | ---: | ---: | ---: |
+| S1 | 0 | 0 | 4 | 4000 |
+| S2 | 53 | 265 | 59 | 295 |
+| S3 | 44 | 220 | 59 | 295 |
+| S4 | 152 | 456 | 465 | 1395 |
+| S5 | 0 | 0 | 0 | 0 |
+| S6 | 0 | 0 | 5 | 50 |
+| S7 | 11 | 22 | 36 | 72 |
+| S8 | 0 | 0 | 0 | 0 |
+| **Toplam** | | **963** | | **6107** |
+| **Toplam (S1 hariç)** | | **963** | | **2107** |
+
+(Yine `en_iyi_ceza` ile birebir eşleşti: 963.00 ve 6107.00.)
+
+S4'ün düzeltilmesiyle ham değeri 1390'dan 152'ye (Rahat) ve muhtemelen
+benzer oranda Sıkışık'ta düştü — teorik üst sınırın (~774) içinde,
+artık gerçek bir dengesizlik ölçüsü. **Sıkışık dönemde S1 hariç
+ağırlıklı toplam (2107), w1'in (1000) hâlâ üzerinde ama bir önceki
+turdaki 8450'den çok daha yakın** — kalibrasyon sorusu hâlâ geçerli
+(solver'ın önünde hâlâ matematiksel olarak 1 kapsama açığı biriminden
+vazgeçip diğerlerini toplu iyileştirebileceği bir alan var) ama artık
+gerçek bir S4 hatasının değil, yalnızca ağırlıkların kendisinin
+sonucu. Ağırlıklara yine hiç dokunulmadı.
+
+**Kalan / ertelenen:** Ağırlık kalibrasyon kararı hâlâ kullanıcıdan
+bekliyor (bu turdaki düzeltilmiş ölçümle).
+
+**Sıradaki oturumun ilk işi:** Ağırlık kalibrasyon kararı netleşirse
+uygula; sonra Sprint 3 Gün 12'ye (Analiz Servisi ve Ekranı) geç.

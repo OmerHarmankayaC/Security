@@ -27,6 +27,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 06.08.2026 | Kontrol 2 sözde kodu bireysel izni hesaba katacak şekilde düzeltildi; ön kontrolün zaman-pencereli yetkinlik açıklarını yakalayamama sınırı somut örnekle netleştirildi | 1.2 |
 | Ömer HARMANKAYA | 06.08.2026 | 5.5'teki manuel düzenleme doğrulaması düzeltildi: dönem geneli agregasyona dayanan esnek hedefler (S2-S4) artık pencere yerine dönem geneli atama kümesiyle değerlendiriliyor; kural başına kapsam alanı (pencere / dönem geneli) tanımlandı | 1.3 |
 | Ömer HARMANKAYA | 07.08.2026 | Ek A'daki S2 örneği düzeltildi: aralık (en yüksek eksi en düşük) minimizasyonu yerine SRS bölüm 4'teki normatif formül (hedeften sapmaların toplamı) kullanılıyor; örnek ile normatif gereksinim arasındaki çelişki giderildi | 1.4 |
+| Ömer HARMANKAYA | 07.08.2026 | Ek A'daki S2 dogrula örneği hedefi atanan sayılardan değil talepten türetecek şekilde düzeltildi; kesirli hedeflerin tamsayıya ölçeklenmesi ve raporlamadan önce doğal birime geri çevrilmesi kuralı Ek A'ya eklendi; NFR-1 referans kadrosu üç dokümanda kırk personel olarak hizalandı | 1.5 |
 
 
 
@@ -924,7 +925,9 @@ SINIF S2GeceAdaleti(EsnekHedef):
 
     def dogrula(self, atamalar, baglam):
         sayilar ← atamalar.gece_sayilari_kisi_basina()
-        hedef ← TOPLA(sayilar.degerleri) / SAY(sayilar)
+        toplam ← TOPLA(talep[g,v,n])
+                 HER (g,v,n) İÇİN baglam.donem, gece[v] = 1
+        hedef ← toplam / SAY(baglam.personel)
         taban ← TABAN(hedef);  tavan ← TAVAN(hedef)
         toplam_sapma ← 0
         HER (p, n) İÇİN sayilar:
@@ -936,7 +939,17 @@ SINIF S2GeceAdaleti(EsnekHedef):
 
 
 
+Hedefin atanmış sayıların ortalamasından değil talepten türetilmesi önemlidir: kapsama açığı bulunduğunda atanan toplam, talep toplamının altında kalır ve iki değer ayrışır. Normatif tanım (SRS bölüm 4, S2) talebi esas aldığından her iki yorumlayıcı da talebi kullanır; aksi hâlde çözücü ile doğrulayıcı açık bulunan dönemlerde farklı sayı üretir.
+
+
+
 S3 (hafta sonu adaleti) aynı yapıyı kullanır; yalnızca gece bayrağı yerine hafta sonu/resmî tatil bayrağı ile sayım yapılır (SRS TD-3). İki metodun aynı hedefi ifade ettiği, bölüm 3.2.1'de tanımlanan çözücü-doğrulayıcı uyum testiyle sayısal eşitlik düzeyinde doğrulanır.
+
+#### Kesirli hedeflerin tamsayıya ölçeklenmesi
+
+S2, S3 ve S4'ün hedefleri bölme içerdiğinden kesirli çıkabilir; CP-SAT ise yalnızca tamsayı katsayılarla çalışır. S2 ve S3'te bu sorun taban ve tavan değerlerinin kullanılmasıyla çözülür — hedef kesirli olsa da taban ve tavanı tamsayıdır. S4'te ise pay değeri doğrudan bir sapma hesabına girdiğinden tabana yuvarlanamaz; bu durumda hem pay hem çalışma saati ortak bir ölçek çarpanıyla (örneğin on) tamsayıya çevrilir.
+
+Ölçekleme yalnızca modelin iç temsilidir. Çözücüden dönen ceza değeri kullanıcıya gösterilmeden, veritabanına yazılmadan ve doğrulayıcının ürettiği değerle karşılaştırılmadan önce aynı çarpana bölünerek doğal birimine (saat) geri çevrilmelidir. Aksi hâlde ceza dökümü yanlış birimde raporlanır ve ilgili hedef, ağırlığından bağımsız olarak diğerlerinin on katı önemliymiş gibi görünür. Çözücü-doğrulayıcı uyum testi bu geri çevirmeyi de kapsamalıdır.
 
 ## Ek B — Uygulama Programlama Arayüzü Özeti
 

@@ -25,6 +25,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 05.08.2026 | İlk sürüm — alan modeli, kural kataloğu ve gereksinimler tanımlandı | 1.0 |
 | Ömer HARMANKAYA | 05.08.2026 | Görev noktası boyutu eklendi (TD-10, TD-11); H1, H8, S1, S6 ve S8 yeniden yazıldı; uygulama alanı olarak güvenlik personeli tanımlandı (bölüm 3.3) | 1.1 |
 | Ömer HARMANKAYA | 07.08.2026 | Görev noktaları tesis geneli üç noktaya indirildi ve planlama dönemi varsayılanı bir haftaya çekildi (bölüm 3.3); S4'ün hedefi kişisel sözleşme saatinden talebin orantılı payına çevrildi (hedef ulaşılamaz olduğunda ceza sabite dönüşüyor ve ayırt ediciliğini kaybediyordu); S6b'nin mevcut uygulama alanında etkisiz kaldığı belirtildi | 1.2 |
+| Ömer HARMANKAYA | 07.08.2026 | NFR-1'in referans kadrosu otuzdan kırk personele çıkarıldı; Proje Tanım Dokümanı ve Yazılım Tasarım Dokümanı ile arasındaki üçlü tutarsızlık giderildi | 1.3 |
 
 
 
@@ -776,7 +777,7 @@ Dosya karakter kodlaması UTF-8 olmalı; tarih biçimi ISO 8601 (YYYY-AA-GG) kul
 
 | Kimlik | Kategori | Gereksinim |
 | --- | --- | --- |
-| NFR-1 | Performans | Otuz personel ve yirmi sekiz günlük referans örnek (varsayılan bir haftalık dönemden büyük, kasıtlı bir stres testi ölçeği) altmış saniyenin altında çözülmelidir. |
+| NFR-1 | Performans | Kırk personel ve yirmi sekiz günlük referans örnek (varsayılan bir haftalık dönemden büyük, kasıtlı bir stres testi ölçeği) altmış saniyenin altında çözülmelidir. |
 | NFR-2 | Performans | Manuel düzenleme sonrası kural doğrulaması bir saniyenin altında tamamlanmalıdır. |
 | NFR-3 | Performans | Yeniden çözüm süresi ilk çözüm süresini aşmamalıdır. |
 | NFR-4 | Performans | Çizelge ızgarası ve analiz raporları ek işlem gerektirmeden görüntülenebilmelidir. |
