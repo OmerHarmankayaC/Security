@@ -1834,3 +1834,109 @@ bekliyor (bu turdaki düzeltilmiş ölçümle).
 
 **Sıradaki oturumun ilk işi:** Ağırlık kalibrasyon kararı netleşirse
 uygula; sonra Sprint 3 Gün 12'ye (Analiz Servisi ve Ekranı) geç.
+
+---
+
+## 2026-08-07 — Ek görev (devamı 3): ağırlık kalibrasyonu uygulandı
+
+Kullanıcı iki karar verdi (bir önceki turun ölçümüne dayanarak):
+1. w1: 1000 → 10000 (Sıkışık'ta S1-hariç ağırlıklı toplam 2107'ydi,
+   1000 baskınlık garantisi vermiyordu).
+2. Birim ölçeği düzeltmesi: S2/S3'ün ham birimi VARDİYA, S4'ünki SAAT
+   (1 vardiya=8 saat) — eski `w2=5/w4=3` ile vardiya-eşdeğeri başına
+   S4, S2'nin 5 katı önemli sayılıyordu. `w4 ≈ w2/8` hedefiyle yeni set:
+   `S1=10000, S2=10, S3=8, S4=1, S5=12, S6=4, S7=6, S8=15` (S6b pasif,
+   ağırlığı 6'da bırakıldı — modele hiç girmiyor).
+
+**Uygulanan:** `scripts/demo_veri_uret.py`'deki `_KURAL_TANIMLARI`
+ağırlıkları yukarıdaki sete güncellendi.
+
+**Regresyon testi eklendi**
+(`tests/test_agirlik_kalibrasyonu.py`,
+`test_s1_agirligi_diger_hedeflerin_agirlikli_toplamindan_buyuk`):
+gerçek demo senaryosunu (`scripts/demo_veri_uret.uret`) üretip
+`CozumServisi.baslat` ile her iki dönemi de gerçekten çözüyor,
+`Kural.agirlik` değerlerini DB'den okuyarak `w1 > Σ_{k≠S1}
+ham[k]·agirlik[k]` iddiasını her iki dönem için ayrı ayrı doğruluyor.
+Canlı PostgreSQL gerektirir (`pg_yoksa_atla`). İki teknik not:
+- `test_cozum_servisi.py`'nin `temel_kurulum` fixture'ı, benzersiz
+  sonek kullanmayan düz `H1..S8` kural satırları commit ediyor ve hiç
+  temizlemiyor (bilinen bir test-izolasyon eksiği, bu turda kök nedeni
+  araştırılmadı) — `demo_veri_uret.uret()` bu satırlarla çakışıp
+  `UniqueViolation` veriyordu. Test artık `uret()` çağrısından önce
+  `_her_seyi_temizle()`'yi koşulsuz çağırıyor (uret'in kendi "zaten
+  var mı" kontrolü yalnızca "Güvenlik Görevi" yetkinliğine bakıyor,
+  yalnız kural satırları kalmışsa bu kontrolü atlatıyordu).
+- `CozumServisi.baslat` işi ayrı bir `multiprocessing.Process`'te
+  çalıştırıyor (SDD 3.4.4); testin kendi `oturum`'u iş biterken hiç
+  sorgu atmadığından SQLAlchemy'nin kimlik haritası `ceza_dokumu=None`
+  durumundaki eski kopyayı önbellekte tutuyordu — `oturum.expire_all()`
+  eklenerek düzeltildi.
+
+**Doğrulama:** `ruff check`/`format` temiz, tam paket (100 test — 99 +
+yeni regresyon testi) temiz veritabanında 145 saniyede geçti (yeni
+testin kendisi ~90 saniye — iki gerçek çözümü içerdiği için beklenen).
+
+**Gerçek `uvicorn` + temiz demo veriyle iki dönem de yeniden çözüldü
+(kullanıcının istediği "dağılımın beklenene yakın çıktığını doğrula"
+adımı):**
+
+| Kural | Rahat: ham | ham×ağırlık | Sıkışık: ham | ham×ağırlık |
+| --- | ---: | ---: | ---: | ---: |
+| S1 | 0 | 0 | 3 | 30000 |
+| S2 | 47 | 470 | 59 | 590 |
+| S3 | 44 | 352 | 59 | 472 |
+| S4 | 152 | 152 | 475 | 475 |
+| S5 | 0 | 0 | 0 | 0 |
+| S6 | 20 | 80 | 15 | 60 |
+| S7 | 1 | 6 | 9 | 54 |
+| S8 | 0 | 0 | 0 | 0 |
+| **Toplam** | | **1060** | | **31651** |
+| **Toplam (S1 hariç)** | | **1060** | | **1651** |
+
+(Yine `en_iyi_ceza` ile birebir eşleşti.)
+
+**S1 baskınlığı artık sağlam:** Sıkışık'ta S1-hariç toplam (1651),
+w1'in (10000) çok altında — önceki turun 2107 > 1000 riski tamamen
+kapandı, geniş bir pay var.
+
+**Dağılım dengelendi ama kullanıcının elle hesapladığı beklenen
+değerlerden SAPMA VAR — bildiriliyor, kendiliğinden düzeltilmedi:**
+Kullanıcının "gece 590, hafta sonu 472, saat 465, izole 216, desen 20"
+beklentisi, bir önceki turun HAM değerlerini (S2=59, S3=59, S4=465,
+S6=5, S7=36) yeni ağırlıklarla çarparak türetilmiş görünüyor. Gece
+(590) ve hafta sonu (472) birebir tutturuldu — ama **ham değerlerin
+kendisi ağırlık değişince sabit kalmıyor**, çünkü çözücü artık FARKLI
+bir ağırlıklı toplamı optimize ediyor ve dolayısıyla farklı bir çizelge
+seçiyor:
+- S7 (izole): ağırlığı 2'den 6'ya (3 kat) çıkınca çözücü izole
+  günlerden gerçekten kaçındı — ham 36'dan 9'a düştü, ağırlıklı katkı
+  216 beklenirken yalnızca 54 çıktı (beklenenin ~%25'i, İYİ yönde bir
+  sapma — izole gün pratik olarak neredeyse ortadan kalktı).
+- S6 (desen): ağırlığı 10'dan 4'e (2,5 kat) İNİNCE çözücü daha fazla
+  vardiya-tipi değişimini göze aldı — ham 5'ten 15'e çıktı, ağırlıklı
+  katkı 20 beklenirken 60 çıktı (beklenenin 3 katı).
+- S4 (saat): ham 465 beklenirken 475 çıktı (yakın, muhtemelen 90
+  saniyelik zaman limitinin optimal'i garanti etmemesinden kaynaklanan
+  sıradan çözücü varyansı, "uyarılı" durumu — kanıtlanmış optimal
+  değil).
+
+Genel kalite hedefi (kullanıcının "tek bir hedef baskın değil" ifadesi)
+**sağlandı**: S2/S3/S4 artık aynı büyüklük mertebesinde (352-590),
+S1 hâlâ açık ara baskın, hiçbir tek hedef S1 dışında toplamın çoğunu
+oluşturmuyor. Ama S6/S7'nin gerçek büyüklüğü, ağırlık kendisi
+değiştiği için "eski ham × yeni ağırlık" tahmininden sapıyor — bu,
+esnek hedeflerin birbirine bağımlı olmasının (bir kuralın ağırlığı
+değişince çözücü TÜM çizelgeyi yeniden seçiyor, yalnızca o kuralın
+kendi ihlalini değil) doğal bir sonucu, bir hata değil. Ağırlıklara
+bu turda da dokunulmadı; karar kullanıcıya bırakıldı.
+
+**Kalan / ertelenen:**
+- S6/S7'nin sapması hakkında karar kullanıcıdan bekleniyor.
+- `test_cozum_servisi.py`'nin `temel_kurulum` fixture'ının kural
+  satırlarını temizlememesi — bilinen, kök nedeni araştırılmamış bir
+  test-izolasyon eksiği (bu turda yalnızca yeni testte etrafından
+  dolaşıldı, düzeltilmedi).
+
+**Sıradaki oturumun ilk işi:** S6/S7 sapması hakkında kullanıcı kararı
+netleşirse uygula; sonra Sprint 3 Gün 12'ye (Analiz Servisi ve Ekranı) geç.

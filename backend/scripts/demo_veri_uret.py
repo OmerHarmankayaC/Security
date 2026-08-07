@@ -94,23 +94,27 @@ _KURAL_TANIMLARI: list[dict] = [
     },
     {"kimlik": "H7", "tip": KuralTipi.ZORUNLU, "parametreler": {}, "agirlik": None},
     {"kimlik": "H8", "tip": KuralTipi.ZORUNLU, "parametreler": {}, "agirlik": None},
+    # Agirlik kalibrasyonu (PROGRESS.md, Ek Gorev - agirlik kalibrasyonu turu):
     # S1 agirligi, digerlerinin agirlikli toplam katkisindan belirgin buyuk olmali
-    # (SRS S1, "baskin agirlik" ilkesi) - olcum PROGRESS.md'de (Ek Gorev, agirlik
-    # kalibrasyonu) ayrintili.
-    {"kimlik": "S1", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 1000},
-    {"kimlik": "S2", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 5},
-    {"kimlik": "S3", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 5},
-    {"kimlik": "S4", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 3},
-    {"kimlik": "S5", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 2},
-    {"kimlik": "S6", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 10},
+    # (SRS S1, "baskin agirlik" ilkesi) - 1000 Sikisik senaryoda S1-haric agirlikli
+    # toplami (2107) garantilemiyordu, 10000'e cikarildi (bkz.
+    # tests/test_agirlik_kalibrasyonu.py). Ayrica S2/S3'un ham birimi VARDIYA,
+    # S4'unku SAAT (bir vardiya=8 saat); w4, vardiya-esdegeri basina S4'un
+    # S2/S3 kadar onemli sayilmasi icin ~w2/8 olacak sekilde dusuruldu.
+    {"kimlik": "S1", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 10000},
+    {"kimlik": "S2", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 10},
+    {"kimlik": "S3", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 8},
+    {"kimlik": "S4", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 1},
+    {"kimlik": "S5", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 12},
+    {"kimlik": "S6", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 4},
     # S6b (bina tutarliligi) bu senaryoda pasif: nokta sadelestirmesinden beri butun
     # gorev noktalari tesis geneli (bina_id NULL), bina degisimi fiziksel olarak
     # imkansiz oldugundan S6b modelde daima 0 katki verir. Kural katalogda kalir -
     # binaya bagli bir nokta tanimlanirsa kendiliginden devreye girer - ama gereksiz
     # bir amac fonksiyonu terimi olarak burada aktif tutulmaz (SRS'e not eklendi).
     {"kimlik": "S6b", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 6, "aktif": False},
-    {"kimlik": "S7", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 2},
-    {"kimlik": "S8", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 8},
+    {"kimlik": "S7", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 6},
+    {"kimlik": "S8", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 15},
 ]
 
 _RAHAT_BASLANGIC = date(2026, 2, 2)  # Pazartesi
