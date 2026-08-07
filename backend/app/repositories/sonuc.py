@@ -1,12 +1,19 @@
 """Sonuc varliklari icin depo katmani (SDD 4.2.4)."""
 
 from collections.abc import Sequence
-from datetime import date
+from datetime import UTC, date, datetime
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from app.models.sonuc import Atama, CizelgeSurumu, CozumIsi, Donem, KapsamaAcigi
+from app.models.sonuc import (
+    Atama,
+    CizelgeSurumu,
+    CizelgeSurumuDurumu,
+    CozumIsi,
+    Donem,
+    KapsamaAcigi,
+)
 from app.repositories.taban import TabanDepo
 
 
@@ -29,6 +36,43 @@ class CizelgeSurumuDeposu(TabanDepo[CizelgeSurumu]):
         if donem_id is not None:
             stmt = stmt.where(CizelgeSurumu.donem_id == donem_id)
         return self.oturum.execute(stmt.order_by(CizelgeSurumu.surum_no.desc())).scalars().all()
+
+    def taslak_turet(self, onceki_surum_id: int) -> CizelgeSurumu | None:
+        """SDD 5.6: yeni_surum <- SurumServisi.taslak_turet(onceki_surum_id).
+
+        Onceki surumun atamalarini KOPYALAMAZ - yeni surumun atamalari
+        cozucunun urettigi sonuctan yazilir (bkz. cozum_servisi.py); burada
+        yalnizca donem_id/surum_no/onceki_surum_id baglantili yeni bir
+        taslak satiri olusturulur.
+        """
+        onceki = self.getir(onceki_surum_id)
+        if onceki is None:
+            return None
+        surum_no = self.donem_icin_sonraki_surum_no(onceki.donem_id)
+        return self.olustur(
+            donem_id=onceki.donem_id,
+            surum_no=surum_no,
+            durum=CizelgeSurumuDurumu.TASLAK,
+            onceki_surum_id=onceki.surum_id,
+        )
+
+    def yayinla(self, surum_id: int) -> CizelgeSurumu | None:
+        """TD-8: yayinlanan surum salt okunur olur; ayni donemde daha once
+        yayinlanmis bir surum varsa arsiv durumuna gecer."""
+        surum = self.getir(surum_id)
+        if surum is None:
+            return None
+        onceki_yayinlar = self.oturum.execute(
+            select(CizelgeSurumu).where(
+                CizelgeSurumu.donem_id == surum.donem_id,
+                CizelgeSurumu.durum == CizelgeSurumuDurumu.YAYINLANDI,
+            )
+        ).scalars()
+        for onceki in onceki_yayinlar:
+            onceki.durum = CizelgeSurumuDurumu.ARSIV
+        surum.durum = CizelgeSurumuDurumu.YAYINLANDI
+        surum.yayin_zamani = datetime.now(UTC)
+        return surum
 
 
 class CozumIsiDeposu(TabanDepo[CozumIsi]):

@@ -61,3 +61,7 @@ class AtamaKilitIstek(BaseModel):
     personel_id: int
     tarih: date
     kilitli: bool
+
+
+class SurumTaslakTuretIstek(BaseModel):
+    onceki_surum_id: int

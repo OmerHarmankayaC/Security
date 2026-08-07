@@ -19,6 +19,7 @@ def model_kur(
     zaman_ekseni: list[date],
     kurallar: list[Kural],
     isitma_penceresi_atamalari: list[AtamaKaydi] | None = None,
+    kilitli_atamalar: list[AtamaKaydi] | None = None,
 ) -> tuple[
     cp_model.CpModel, dict[XAnahtari, cp_model.IntVar], Baglam, dict[str, cp_model.LinearExprT]
 ]:
@@ -28,6 +29,11 @@ def model_kur(
     gunlerinden olusan birlesik listesidir (caller'in sorumlulugu, SDD
     TD-5). baglam onceden tanim/girdi/talep verisiyle kurulmus olmali;
     bu fonksiyon onun uzerine zaman_ekseni ve y alanlarini doldurur.
+
+    kilitli_atamalar (SDD 5.6, yeniden_coz): yeniden cozumde kullanicinin
+    kilitledigi onceki atamalar - isitma penceresiyle ayni mekanizmayla
+    (x=1'e sabitlenerek) modele islenir, ama farkli bir nedenden (kullanici
+    tercihi, gecmis bir zorunluluk degil) ayri bir parametre olarak tutulur.
 
     Dorduncu donus degeri, esnek hedeflerin (agirliksiz) ceza ifadelerini
     kural kimligine gore tasir; SDD 5.4'teki 'cozum.hedef_bazinda_ceza()'
@@ -51,16 +57,16 @@ def model_kur(
                         continue
                     x[(p, g, v, n)] = model.new_bool_var(f"x_p{p}_g{g}_v{v}_n{n}")
 
-    isitma_kumesi = {
+    sabit_kumesi = {
         (a.personel_id, a.tarih, a.vardiya_tipi_id, a.nokta_id)
-        for a in (isitma_penceresi_atamalari or [])
+        for a in (isitma_penceresi_atamalari or []) + (kilitli_atamalar or [])
     }
-    for anahtar in isitma_kumesi:
+    for anahtar in sabit_kumesi:
         if anahtar in x:
             model.add(x[anahtar] == 1)
-        # Anahtar x'te yoksa (ör. talep artik sifir), isitma penceresindeki
-        # bu tarihi gecmis, degistirilemez bir atama zaten sabitlenecek bir
-        # karar degiskeni gerektirmiyor demektir; sessizce atlanir.
+        # Anahtar x'te yoksa (ör. talep artik sifir), isitma penceresi/kilitli
+        # atama listesindeki bu atama icin zaten sabitlenecek bir karar
+        # degiskeni yok demektir; sessizce atlanir.
 
     y: dict[tuple[int, date, int], cp_model.LinearExprT] = {}
     for p in baglam.personel:

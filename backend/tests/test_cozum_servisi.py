@@ -29,7 +29,7 @@ _SONUCLANMIS = (
 )
 
 
-def _bekle_ve_getir(is_id: int, *, zaman_asimi_saniye: float = 45) -> CozumIsiDurumu:
+def _bekle_ve_getir(is_id: int, *, zaman_asimi_saniye: float = 150) -> CozumIsiDurumu:
     baslangic = zaman.monotonic()
     while zaman.monotonic() - baslangic < zaman_asimi_saniye:
         oturum = OturumYerel()

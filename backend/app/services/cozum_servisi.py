@@ -17,11 +17,13 @@ from sqlalchemy.orm import Session
 
 from app.cozucu import CozucuAdaptoru, model_kur
 from app.db import OturumYerel
+from app.kurallar.baglam import AtamaKaydi
 from app.kurallar.kayit_defteri import kurallari_yukle
 from app.models.kural import Kural
 from app.models.sonuc import (
     Atama,
     AtamaKaynagi,
+    CizelgeSurumu,
     CizelgeSurumuDurumu,
     CozumIsi,
     CozumIsiDurumu,
@@ -52,17 +54,31 @@ class CozumServisi:
         self.is_ = CozumIsiDeposu(oturum)
 
     def baslat(
-        self, donem_id: int, *, zaman_limiti_saniye: int = _VARSAYILAN_ZAMAN_LIMITI_SANIYE
+        self,
+        donem_id: int | None = None,
+        *,
+        onceki_surum_id: int | None = None,
+        zaman_limiti_saniye: int = _VARSAYILAN_ZAMAN_LIMITI_SANIYE,
     ) -> CozumIsi | None:
-        """Isi kuyruga alir, hemen doner; gercek cozum ayri bir surecte calisir."""
-        donem = self.donem.getir(donem_id)
-        if donem is None:
-            return None
+        """Isi kuyruga alir, hemen doner; gercek cozum ayri bir surecte calisir.
 
-        surum_no = self.surum.donem_icin_sonraki_surum_no(donem_id)
-        surum = self.surum.olustur(
-            donem_id=donem_id, surum_no=surum_no, durum=CizelgeSurumuDurumu.TASLAK
-        )
+        onceki_surum_id verilirse SDD 5.6 (yeniden_coz): donem_id onceki
+        surumden turetilir, yeni surum onceki_surum_id'ye baglanir (bkz.
+        CizelgeSurumuDeposu.taslak_turet) - kilitli atamalarin sabitlenmesi
+        ve S8 taban atamalari cozum_isini_calistir'de islenir.
+        """
+        surum: CizelgeSurumu | None
+        if onceki_surum_id is not None:
+            surum = self.surum.taslak_turet(onceki_surum_id)
+            if surum is None:
+                return None
+        else:
+            if donem_id is None or self.donem.getir(donem_id) is None:
+                return None
+            surum_no = self.surum.donem_icin_sonraki_surum_no(donem_id)
+            surum = self.surum.olustur(
+                donem_id=donem_id, surum_no=surum_no, durum=CizelgeSurumuDurumu.TASLAK
+            )
         self.oturum.flush()
 
         is_kaydi = self.is_.olustur(
@@ -125,7 +141,27 @@ def cozum_isini_calistir(oturum: Session, is_id: int) -> None:
 
     baglam = baglam_olustur(oturum, donem)
     zaman_ekseni = zaman_ekseni_olustur(donem)
-    model, x, baglam, ceza_terimleri = model_kur(baglam, zaman_ekseni, kurallar)
+
+    kilitli_atamalar: list[AtamaKaydi] = []
+    if surum.onceki_surum_id is not None:
+        # SDD 5.6 yeniden_coz: onceki_atamalar S8'in taban aldigi cizelge
+        # (baglam.onceki_atamalar), kilitli olanlar ise modele x=1 olarak
+        # sabitlenir (bkz. model_kur'un kilitli_atamalar parametresi).
+        onceki_atama_satirlari = atama_depo.surume_gore_getir(surum.onceki_surum_id)
+        onceki_atamalar = [
+            AtamaKaydi(a.personel_id, a.tarih, a.vardiya_tipi_id, a.nokta_id)
+            for a in onceki_atama_satirlari
+        ]
+        baglam.onceki_atamalar = onceki_atamalar
+        kilitli_atamalar = [
+            AtamaKaydi(a.personel_id, a.tarih, a.vardiya_tipi_id, a.nokta_id)
+            for a in onceki_atama_satirlari
+            if a.kilitli
+        ]
+
+    model, x, baglam, ceza_terimleri = model_kur(
+        baglam, zaman_ekseni, kurallar, kilitli_atamalar=kilitli_atamalar or None
+    )
 
     is_kaydi.durum = CozumIsiDurumu.COZULUYOR
     oturum.commit()

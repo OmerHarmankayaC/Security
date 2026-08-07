@@ -29,6 +29,7 @@ from app.schemas.surum import (
     DonemOku,
     DonemOlustur,
     KapsamaAcigiOku,
+    SurumTaslakTuretIstek,
 )
 from app.services.cozum_servisi import CozumServisi
 from app.services.dogrulama_servisi import (
@@ -63,9 +64,13 @@ def on_kontrol_calistir(istek: OnKontrolIstek, oturum: Oturum) -> OnKontrolYanit
 @router.post("/cozum", response_model=CozumOku, status_code=201)
 def cozum_baslat(istek: CozumBaslatIstek, oturum: Oturum) -> CozumOku:
     servis = CozumServisi(oturum)
-    is_kaydi = servis.baslat(istek.donem_id, zaman_limiti_saniye=istek.zaman_limiti_saniye)
+    is_kaydi = servis.baslat(
+        istek.donem_id,
+        onceki_surum_id=istek.onceki_surum_id,
+        zaman_limiti_saniye=istek.zaman_limiti_saniye,
+    )
     if is_kaydi is None:
-        raise HTTPException(status_code=404, detail="Donem bulunamadi")
+        raise HTTPException(status_code=404, detail="Donem ya da onceki surum bulunamadi")
     return CozumOku.model_validate(is_kaydi)
 
 
@@ -176,6 +181,27 @@ def surum_listele(
     oturum: Oturum, donem_id: Annotated[int | None, Query()] = None
 ) -> list[CizelgeSurumuOku]:
     return list(CizelgeSurumuDeposu(oturum).listele(donem_id=donem_id))  # type: ignore[return-value]
+
+
+@router.post("/surum", response_model=CizelgeSurumuOku, status_code=201)
+def surum_taslak_turet(veri: SurumTaslakTuretIstek, oturum: Oturum) -> CizelgeSurumuOku:
+    """SDD Ek B: 'Cizelge surumleri; taslak turetme'. Cozum baslatmaz - yalniz
+    onceki surume bagli bos bir taslak olusturur (fiili yeniden cozum icin
+    bkz. POST /api/cozum + onceki_surum_id)."""
+    surum = CizelgeSurumuDeposu(oturum).taslak_turet(veri.onceki_surum_id)
+    if surum is None:
+        raise HTTPException(status_code=404, detail="Onceki surum bulunamadi")
+    return CizelgeSurumuOku.model_validate(surum)
+
+
+@router.post("/surum/{surum_id}/yayinla", response_model=CizelgeSurumuOku)
+def surum_yayinla(surum_id: int, oturum: Oturum) -> CizelgeSurumuOku:
+    """TD-8: surumu yayinlar; ayni donemde daha once yayinlanmis bir surum
+    varsa arsiv durumuna gecer."""
+    surum = CizelgeSurumuDeposu(oturum).yayinla(surum_id)
+    if surum is None:
+        raise HTTPException(status_code=404, detail="Cizelge surumu bulunamadi")
+    return CizelgeSurumuOku.model_validate(surum)
 
 
 @router.get("/surum/{surum_id}/atama", response_model=list[AtamaOku])

@@ -1255,3 +1255,108 @@ dokunulmadı; `pytest -q` (93 test) değişmeden geçti.
 
 **Kalan / ertelenen:** Yok — bu ara oturumun kapsamı (görsel geçiş)
 tamamlandı. Sıradaki iş Gün 11 (yukarıdaki not hâlâ geçerli, değişmedi).
+
+---
+
+## 2026-08-07 — Sprint 2, Gün 11: Yeniden Çözme (S8) ve Sprint 2 Checkpoint
+
+**Tamamlanan (kod):**
+- `app/cozucu/model_kurucu.py`: `model_kur()`'a `kilitli_atamalar` parametresi
+  eklendi — ısıtma penceresiyle aynı mekanizmayı (x=1'e sabitleme)
+  paylaşıyor ama kavramsal olarak ayrı tutuldu (ısıtma penceresi geçmiş
+  bir zorunluluk, kilitli atama kullanıcı tercihi).
+- `app/repositories/sonuc.py`: `CizelgeSurumuDeposu.taslak_turet()` (SDD
+  5.6 — önceki sürüme bağlı yeni bir taslak satırı oluşturur, atamaları
+  KOPYALAMAZ) ve `.yayinla()` (TD-8 — sürümü yayınlar, aynı dönemde daha
+  önce yayınlanmış bir sürüm varsa arşive alır).
+- `app/services/cozum_servisi.py`: `CozumServisi.baslat()` artık
+  `onceki_surum_id` alabiliyor (SDD 5.6 `yeniden_coz`): verilirse
+  `taslak_turet` ile taslak türetilir, `donem_id` yerine kullanılır.
+  `cozum_isini_calistir()`, sürümün `onceki_surum_id`'si doluysa önceki
+  sürümün atamalarını okuyup `baglam.onceki_atamalar`'a yazıyor (S8'in
+  taban aldığı çizelge) ve kilitli olanları `model_kur`'a
+  `kilitli_atamalar` olarak geçiriyor.
+- `app/schemas/cozum.py`: `CozumBaslatIstek.donem_id` artık opsiyonel,
+  `onceki_surum_id` eklendi; `model_validator` ile tam olarak birinin
+  verilmesi zorunlu kılındı.
+- `app/schemas/surum.py` + `app/routers/cizelge.py`: `POST /api/surum`
+  (SDD Ek B — yalnız taslak türetir, çözüm başlatmaz; asıl yeniden çözme
+  `POST /api/cozum` + `onceki_surum_id` ile tek adımda yapılır) ve `POST
+  /api/surum/{id}/yayinla` (TD-8) eklendi.
+- **"Değişen atama sayısı" (FR-7.4) nasıl raporlanıyor:** Yeni bir alan
+  eklenmedi — S8'in `modele_ekle`'si zaten `Σ|x-x_önceki|` hesaplıyor
+  (Gün 6'dan beri var) ve bu, `ceza_dokumu["S8"]` üzerinden `CozumOku`'da
+  (Gün 8'den beri) zaten dışa açık. `baglam.onceki_atamalar` dolu
+  olduğunda bu alan otomatik olarak anlamlı bir sayı taşıyor.
+- `tests/test_yeniden_coz.py` (yeni, 5 test): taslak türetme + onceki
+  sürüme bağlanma + kilitli atamanın yeniden çözümde aynen koruması (uçtan
+  uca, gerçek bir çözüm + kilitleme + yayınlama + yeniden çözüm akışıyla),
+  yayınlamanın önceki yayını arşive aldığı, bulunamayan sürümde `None`,
+  `CozumBaslatIstek`'in doğrulama kuralı (ikisi de eksik / ikisi de dolu
+  → hata).
+
+**Gerçek bir performans/hijyen sorunu bulundu ve çözüldü (kod hatası
+değil):** Tam paket testi bu oturumda tekrar tekrar (150 saniyeye kadar
+zaman aşımı süresi denenerek) **istikrarlı biçimde** iki testte takılıyordu
+— ikisi de birer `CozumServisi.baslat()` çağrısı içeren dosyalarının
+İLK testleriydi. `pg_stat_activity` ve canlı `ps aux` ile araştırıldı:
+çözücü süreci CPU'da %90+ ile gerçekten çalışıyordu (donmuş değildi),
+ama `on_kontrol`/`cozuluyor` aşamalarında normalden çok daha uzun
+sürüyordu. Kök neden: bu oturumda `pytest -q` tam paket testi **defalarca**
+(shadcn geçişi + Gün 11 hata ayıklaması sırasında) hiç `TRUNCATE`
+edilmeden çalıştırıldı; her çalıştırma benzersiz sonek'li (`on_ek`)
+personel/talep/vardiya_tipi/görev_noktası satırları biriktirdiği için
+(bkz. Gün 8'in test-izolasyon notu — bu satırlar KASITLI OLARAK silinmiyor,
+yalnızca benzersiz isimlendirmeyle çakışmaları önlüyor) paylaşılan test
+veritabanı 160 personel/108 vardiya_tipi/76 görev_noktası/4019 atamaya
+kadar şişti. `baglam_olustur()`'un kapsam dışı (dönem bağımsız) sorguları
+ve `model_kur`'un `personel × gün × vardiya × nokta` döngüsü bu şişkin
+veriyle katlanarak büyüdü, gerçek testleri neredeyse durma noktasına
+getirdi. **Düzeltme:** `TRUNCATE` ile veritabanı temizlendi, tam paket
+tekrar 98 testi **6,9 saniyede** geçti (2 kez ardışık doğrulandı) — kod
+tarafında hiçbir değişiklik gerekmedi. Küçük bir ek önlem olarak
+`test_cozum_servisi.py` ve `test_yeniden_coz.py`'deki `_bekle_ve_getir`
+zaman aşımı varsayılanı 45'ten 150 saniyeye çıkarıldı (çoklu-süreç
+`multiprocessing.spawn` soğuk başlangıcının + olası gelecekteki hafif
+şişkinliğin payını almak için — asıl neden veritabanı temizliği olsa da
+bu ek bir güvenlik payı).
+- **Öğrenilen ders (gelecek oturumlar için):** Uzun bir oturumda tam paket
+  testini defalarca çalıştırırken ara sıra `TRUNCATE` yapılmalı; aksi
+  halde biriken test verisi (kasıtlı olarak silinmeyen, yalnızca
+  benzersiz sonekli satırlar) zamanla performans testi gibi davranmaya
+  başlayıp yanlış "kod hatası" izlenimi verebiliyor.
+
+**Doğrulama:**
+- `ruff check`/`format` temiz.
+- Geçici Docker PostgreSQL'de tüm paket (98 test — 93 + Gün 11'in 5 yeni
+  testi) temiz veritabanında iki kez ardışık geçti (~7-40 saniye,
+  makine yüküne göre).
+- Gerçek `uvicorn` + demo veri (44 personel, 2 dönem) ile canlı `curl`
+  zinciriyle tam SDD 5.6/TD-8 akışı uçtan uca doğrulandı: Sürüm 1
+  çözüldü (`uyarılı`) → bir atama kilitlendi → Sürüm 1 yayınlandı →
+  `POST /api/cozum` + `onceki_surum_id=1` ile yeniden çözüldü → Sürüm 2
+  `onceki_surum_id=1` ile doğru bağlandı, kilitli hücre (personel 13,
+  2026-02-13) birebir aynı kaldı (`vardiya_tipi_id=2, nokta_id=5`),
+  `ceza_dokumu.S8=485` (S8'in gerçekten aktif olduğunu ve önceki
+  çizelgeden sapmayı saydığını kanıtlıyor) → Sürüm 2 yayınlanınca Sürüm 1
+  otomatik olarak `arsiv` durumuna geçti.
+
+**Sapmalar / notlar:**
+- FR-7.5 (iki sürümü yan yana karşılaştırma) bu günün kapsamına
+  alınmadı — Ek B'de "Orta" öncelikli, Gün 11'in kendi madde listesinde
+  yok; Sprint 3/Analiz'e bırakıldı, not düşüldü.
+- `POST /api/surum` (yalnız taslak türetme, çözüm başlatmadan) Ek B'de
+  ayrı bir satır olarak tanımlı olduğu için eklendi, ama Gün 11'in asıl
+  kabul kriterinin sınadığı yol `POST /api/cozum` + `onceki_surum_id`
+  (SDD 5.6'nın `yeniden_coz`'unu tek adımda birebir uyguluyor).
+
+**Kalan / ertelenen:** Yok — Gün 11 kapsamındaki (Sprint 2 çıkış kabul
+kriteri dahil) tüm maddeler tamamlandı. Ek Görev (S1–S8+S6b uyum testi
+genişletmesi + S4 birim düzeltmesi) hâlâ yapılmadı — bu oturumun hemen
+ardından kullanıcı ayrı bir görev (nokta/talep veri modeli değişikliği)
+verdiği için Ek Görev'e henüz geçilmedi, sıradaki oturumda ele alınmalı.
+
+**Sıradaki oturumun ilk işi:** Önce kullanıcının bu oturumun sonunda
+verdiği ek görevi (bkz. bir sonraki PROGRESS.md kaydı — nokta/talep veri
+modeli sadeleştirmesi) bitir, sonra Ek Görev'e (S1–S8+S6b uyum testi
+genişletmesi) geç, ardından Sprint 3 Gün 12'ye (Analiz Servisi ve Ekranı).
