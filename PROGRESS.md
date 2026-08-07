@@ -1558,3 +1558,150 @@ sessizce sapmama kuralı gereği).
 **Sıradaki oturumun ilk işi:** Ağırlık ayarlaması konuşulup karara
 bağlanırsa onu uygula; sonra Sprint 3 Gün 12'ye (Analiz Servisi ve
 Ekranı) geç.
+
+---
+
+## 2026-08-07 — Ek görev (devamı): dokümanlar .md'ye geçti, S4 yeniden tanımlandı, S6b pasif, ağırlık ölçümü
+
+**Doküman formatı değişti.** Kullanıcı `docs/` altındaki dört `.docx`'i
+sildi, yerine dört `.md` dosyası (Charter 1.1, SRS 1.2, SDD 1.4,
+Backlog 1.0) ve `docs/diyagramlar/` altında beş şekil (f31/f32/f34/f41/
+f51.png, SDD'nin img referanslarıyla eşleşiyor) koydu — sürüm 1.0'ın
+son dört günün hiçbir düzeltmesini içermediği, bu yüzden bazı işlerin
+güncel olmayan gereksinimlere göre yapılmış olabileceği uyarısıyla.
+`git rm` (docx) + `git add` (md + diyagramlar/, flat png'ler taşınarak)
+yapıldı, aşağıdaki kod değişiklikleriyle birlikte tek commit'te.
+
+**Dört doküman da baştan sona okundu** (SRS 815 satır, SDD 982 satır,
+Charter, Backlog) ve kodla karşılaştırıldı:
+
+**1. S4 SRS v1.2'de yeniden tanımlandı — uygulandı:**
+Eski formül (`hedef_saat[p] = haftalik_hedef_saat[p]·donem_gun_sayisi/7`)
+gerçek bir kusur taşıyordu: H5 (45 saat tavan) + H6 (haftada 1 izin)
+birlikte kişi başı azami 5 vardiya = tam 40 saat veriyor, yani kimse
+kişisel hedefini aşamıyor; herkes hedefin eş ya da altında kalıyor ve
+`Σsaat[p]` talep tarafından sabitlendiği için `Σ|saat[p]-hedef_saat[p]|`
+dağılımdan bağımsız SABİT bir sayıya dönüşüyordu (ölçülen S4=608, tam
+olarak `44×40 − 144×8` aritmetiğine eşit) — amaç fonksiyonuna ekleniyor
+ama hiçbir optimizasyon sinyali üretmiyordu. Yeni formül (SRS 4.3 S4):
+```
+toplam_talep_saat = Σ sure[s]·talep[d,s,n]
+pay[p] = (hedef_saat[p] / Σ_q hedef_saat[q]) · toplam_talep_saat
+Ceza: w4 · Σ_p |saat[p] − pay[p]|
+```
+`app/kurallar/esnek.py`: yeni paylaşılan yardımcı `_s4_hedef_paylari`
+(hem `modele_ekle` hem `dogrula` kullanıyor — pay CP-SAT'in tamsayı
+kısıtı gereği en yakın saate yuvarlanıyor, `dogrula` da aynı yuvarlamayı
+kullanıyor ki uyum testi birebir eşitlik korusun). `tests/test_kurallar_esnek.py`'deki
+iki eski S4 birim testi (`test_s4_saat_sapmasi_ceza_uretir`,
+`test_s4_hedefi_tutturunca_ceza_uretmez`) yeni formüle göre yeniden
+yazıldı (artık `baglam.talep` dolduruyorlar, pay hesaba talep üzerinden
+giriyor).
+
+**2. S6b pasif edildi:**
+SRS 4.3 S6 metnine not eklenmiş: nokta sadeleştirmesinden beri bütün
+noktalar tesis geneli (`bina_id` NULL), bina değişimi fiziksel olarak
+imkânsız, S6b modelde daima 0. `scripts/demo_veri_uret.py`'de S6b
+satırına `"aktif": False` eklendi (kural katalogda kalıyor, yalnızca
+gösterim verisinde pasif — `KuralDeposu.aktif_kurallari_getir()` zaten
+her yerde (`cozum_servisi.py`, `dogrulama_servisi.py`) filtre noktası
+olduğu için tek satırlık değişiklik yeterliydi). S1 ağırlığı yorumundaki
+eski "digerlerinin toplami (...=41)" hesabı da güncel olmayan bir sayı
+taşıdığından kaldırıldı, PROGRESS.md'deki ölçüme işaret eden bir nota
+çevrildi.
+
+**3. Genel tutarlılık taraması (madde c) — bulgular:**
+- Nokta yapısı, talep matrisi (SRS 3.3.3/3.3.4), dönem varsayılanı (1
+  hafta), SDD 5.5'teki kapsam ayrımı (S2/S3/S4 dönem geneli), SDD 5.2
+  Kontrol 2 (bireysel izni hesaba katan `min(musait_gun, azami_vardiya_donem)`)
+  — hepsi kodla **zaten tutarlı** (önceki oturumlarda uygulanmış).
+  Değişiklik gerekmedi.
+- Ek A'daki S2 örneğinin `dogrula` sözde kodu (`hedef ← TOPLA(sayilar.degerleri)/SAY(sayilar)`,
+  yani GERÇEKLEŞEN atama sayısına göre hedef) kendi `modele_ekle`'siyle
+  (`toplam ← TOPLA(talep[...])`, yani TALEP'e göre hedef) tutarsız —
+  SRS 4.3'ün kendisi talep tabanlı hedefi tanımlıyor. **Kodda bu sorun
+  yok**: `_adalet_sapmasi_ihlalleri`/`_adalet_sapmasi_terimi` ikisi de
+  zaten talep tabanlı hedef kullanıyor (bu, kullanıcının bir önceki
+  turda "SRS otorite" dediği ve o zaman düzelttiğim formülün ta
+  kendisi). Yalnızca dokümandaki Ek A örneğinin `dogrula` yarısı kendi
+  `modele_ekle`'siyle tutarsız kalmış — muhtemelen S1 kapsama açığı
+  sıfırken fark etmiyor (talep=atanan), S1>0 olduğunda ayrışabilir. Kod
+  değişikliği gerektirmiyor, yalnızca **doküman içi bir not** olarak
+  burada kayıtlı; SDD'nin bir sonraki revizyonunda Ek A'nın `dogrula`
+  satırının da talep tabanlı hedefe çevrilmesi önerilir.
+- **NFR-1 sayısı üç yerde üç farklı biçimde:** SRS NFR-1 "Otuz personel",
+  SDD 3.4.2 hâlâ "Kırk personel" (SDD bu noktada SRS 1.2'ye
+  güncellenmemiş), Charter'ın KENDİ İÇİNDE bile tutarsız (§ölçülebilir
+  hedefler "Otuz personel", §4.2 Varsayımlar "Kırk personel"). Şu an
+  hiçbir kodda bu sayıya referans yok (Sprint 3 Gün 14'ün performans
+  testi henüz yazılmadı), o yüzden kod etkisi yok — ama Gün 14'e
+  geçilmeden önce üç dokümanın da aynı sayıda birleşmesi gerekiyor.
+  **Karar kullanıcıya bırakıldı, tahmin yürütülmedi.**
+- `UYGULAMA_PLANI.md`'nin başındaki referans listesi hâlâ
+  `docs/*.docx` yollarını gösteriyor (artık `.md`) — küçük bir hijyen
+  notu, bu oturumda dokunulmadı.
+
+**Doğrulama:**
+- `ruff check`/`format` temiz.
+- Tam paket (99 test) temiz veritabanında 7,3 saniyede geçti.
+- Test sırasında Docker'daki `vardiya-pg-test` konteynerinin durmuş
+  olduğu görüldü (muhtemelen bir önceki oturumdan beri), `docker start`
+  ile yeniden ayağa kaldırıldı. Ayrıca test paketinin biriktirdiği çok
+  sayıda başıboş `donem` satırı (muhtemelen dönem-oluşturma testlerinin
+  benzersiz sonek kullanmadığı bir yer) fark edildi — bu oturumda yalnız
+  `TRUNCATE` ile temizlendi, kök neden araştırılmadı (ayrı bir konu).
+
+**Ağırlık kalibrasyonu için ölçüm (karar verilmedi, yalnızca ölçüldü —
+kullanıcının istediği tam biçimde):**
+
+Gerçek `uvicorn` + temiz demo veriyle (44 personel) her iki dönem de
+S4/S2/S3/S6b düzeltmeleri sonrası baştan çözüldü. Ağırlıklar: w1=1000,
+w2=5, w3=5, w4=3, w5=2, w6=10, w7=2, w8=8 (S6b pasif, katkısı yok).
+
+| Kural | Rahat: ham | Rahat: ham×ağırlık | Sıkışık: ham | Sıkışık: ham×ağırlık |
+| --- | ---: | ---: | ---: | ---: |
+| S1 | 0 | 0 | 4 | 4000 |
+| S2 | 105 | 525 | 216 | 1080 |
+| S3 | 62 | 310 | 106 | 530 |
+| S4 | 1390 | 4170 | 2266 | 6798 |
+| S5 | 0 | 0 | 0 | 0 |
+| S6 | 0 | 0 | 0 | 0 |
+| S7 | 10 | 20 | 21 | 42 |
+| S8 | 0 | 0 | 0 | 0 |
+| **Toplam** | | **5025** | | **12450** |
+| **Toplam (S1 hariç)** | | **5025** | | **8450** |
+
+(Ağırlıklı toplamlar her iki dönemde de `en_iyi_ceza` alanıyla birebir
+eşleşti — 5025.00 ve 12450.00 — bu da ağırlıklandırma hesabında başka
+bir hata olmadığının bağımsız bir doğrulaması.)
+
+Rahat dönemde S1=0 olduğu için S1 hariç toplam zaten toplamın tamamı;
+kalibrasyon sorusu asıl Sıkışık dönemde anlamlı: **S1 hariç ağırlıklı
+toplam (8450), w1'in kendisinden (1000) sekiz kattan fazla büyük.**
+Yani solver'ın önünde, tek bir kapsama açığı biriminden (1000 ceza)
+vazgeçip diğer yedi hedefi topluca iyileştirerek 1000'den fazla kazanç
+sağlayabileceği bir alan matematiksel olarak var — kullanıcının
+"baskın ağırlık kâğıt üzerinde kalır" endişesi bu sayılarla somutlaşmış
+durumda. En büyük tek katkı S4 (6798, toplamın %80'inden fazlası);
+S4'ün formül düzeltmesi cezayı daha anlamlı hale getirdi ama aynı
+zamanda büyüklüğünü de artırdı (608'den 2266'ya).
+
+Ağırlıklara **hiç dokunulmadı** (kullanıcının açık talimatı). Karar
+kullanıcıya bırakıldı.
+
+**Kalan / ertelenen:**
+- Ağırlık kalibrasyon kararı (yukarıdaki ölçüme dayanarak w1 ve/veya
+  w4'ün yeniden ayarlanıp ayarlanmayacağı) — kullanıcıdan onay bekliyor.
+- SDD Ek A'nın S2 `dogrula` örneğinin talep tabanlı hedefe çevrilmesi
+  (doküman-içi tutarsızlık, kod etkilenmiyor) — küçük, ayrı bir revizyon.
+- NFR-1'in üç dokümandaki üç farklı sayısının (otuz/kırk) birleştirilmesi
+  — Sprint 3 Gün 14'ten önce, kullanıcı kararına bağlı.
+- `UYGULAMA_PLANI.md`'nin `docs/*.docx` referanslarının `.md`'ye
+  güncellenmesi — küçük hijyen.
+- Test paketinin biriktirdiği başıboş `donem` satırlarının kök nedeni
+  araştırılmadı.
+
+**Sıradaki oturumun ilk işi:** Ağırlık kalibrasyon kararı netleşirse
+uygula (yalnızca kod: `scripts/demo_veri_uret.py`'deki `_KURAL_TANIMLARI`
+ağırlıkları — gerçek kullanımda `/api/kural` üzerinden değişecek);
+sonra Sprint 3 Gün 12'ye (Analiz Servisi ve Ekranı) geç.

@@ -154,13 +154,23 @@ class S3HaftaSonuAdaleti(EsnekHedef):
 
 @kayitli("S4")
 class S4ToplamSaatDengesi(EsnekHedef):
-    """Kisi basina toplam saatin, kisisel donemlik hedeften mutlak sapmasi.
+    """Kisi basina toplam saatin, kisisel dagilim payindan mutlak sapmasi (SRS v1.2).
 
-    Not: modele_ekle CP-SAT'in tamsayi kisiti geregi vardiya surelerini saate
-    yuvarlar (SRS/dogrula ile ayni birim - bkz. PROGRESS.md Ek Gorev); pratikte
-    vardiya sureleri zaten tam saat oldugundan yuvarlama etkisizdir. Daha once
-    (Sprint 2 Gun 6-11) dakika biriminde hesaplaniyordu, bu da raporlanan ham
-    ceza buyuklugunu dogrula'nin sadece 60 katina cikariyordu.
+    Not: eski formul (hedef_saat[p] = haftalik_hedef_saat[p] * donem_gun_sayisi/7)
+    H5 (haftalik saat tavani) + H6 (haftalik asgari izin) altinda hic kimse kisisel
+    hedefini asamadigindan (herkes hedefin es ya da altinda kalir, ve Sigma saat[p]
+    talep tarafindan sabitlenmis oldugundan) Sigma|saat[p]-hedef_saat[p]| dagilimdan
+    bagimsiz SABIT bir sayi uretiyordu - amac fonksiyonuna ekleniyor ama hicbir
+    optimizasyon sinyali vermiyordu (bkz. PROGRESS.md, Ek Gorev 2. tur). Yeni formul,
+    hedefi kisinin donemlik hedef saatine gore degil, donemin toplam talep saatinden
+    kisiye dusen PAYA gore tanimlar - bu pay gercekten ulasilabilir oldugundan sapma
+    iki yonlu olabilir ve S4 gercekten dengesizligi olcer:
+        toplam_talep_saat = Sigma sure[s]*talep[d,s,n]
+        pay[p] = (hedef_saat[p] / Sigma_q hedef_saat[q]) * toplam_talep_saat
+        Ceza: w4 * Sigma_p |saat[p] - pay[p]|
+    pay[p] CP-SAT'in tamsayi kisiti geregi en yakin saate yuvarlanir; dogrula ayni
+    yuvarlamayi uygular (aksi halde reel sayili hedefle cozucu-dogrulayici uyum testi
+    hicbir zaman birebir esitlik saglayamaz - bkz. asagidaki _s4_hedef_paylari).
 
     SDD 5.5 (surum 1.3): donem geneli kapsamli - kisinin donem toplam saatine
     baktigi icin pencereyle sinirlandirilamaz.
@@ -172,20 +182,20 @@ class S4ToplamSaatDengesi(EsnekHedef):
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
     ) -> cp_model.LinearExprT:
         donem_gun_sayisi = len(baglam.donem_gunleri)
+        paylar = _s4_hedef_paylari(baglam, donem_gun_sayisi)
         azami_vardiya_saat = max(
             (round(baglam.sure_saat(v)) for v in baglam.vardiya_tipleri), default=0
         )
-        ust_sinir = donem_gun_sayisi * azami_vardiya_saat
+        ust_sinir = donem_gun_sayisi * azami_vardiya_saat + max(paylar.values(), default=0)
         terimler: list[cp_model.IntVar] = []
-        for p, personel in baglam.personel.items():
+        for p in baglam.personel:
             toplam_saat = sum(
                 round(baglam.sure_saat(v)) * baglam.y[(p, g, v)]
                 for g in baglam.donem_gunleri
                 for v in baglam.vardiya_tipleri
             )
-            hedef_saat = round(float(personel.haftalik_hedef_saat) * donem_gun_sayisi / 7)
             fark = model.new_int_var(-ust_sinir, ust_sinir, f"s4_fark_p{p}")
-            model.add(fark == toplam_saat - hedef_saat)
+            model.add(fark == toplam_saat - paylar[p])
             mutlak = model.new_int_var(0, ust_sinir, f"s4_abs_p{p}")
             model.add_abs_equality(mutlak, fark)
             terimler.append(mutlak)
@@ -193,15 +203,16 @@ class S4ToplamSaatDengesi(EsnekHedef):
 
     def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
         donem_gun_sayisi = _donem_gun_sayisi(baglam)
+        paylar = _s4_hedef_paylari(baglam, donem_gun_sayisi)
         saatler: dict[int, float] = defaultdict(float)
         for a in atamalar:
             if baglam.donem_icinde(a.tarih):
                 saatler[a.personel_id] += baglam.sure_saat(a.vardiya_tipi_id)
 
         ihlaller: list[Ihlal] = []
-        for personel_id, personel in baglam.personel.items():
-            hedef_saat = personel.haftalik_hedef_saat * (donem_gun_sayisi / 7)
-            sapma = abs(saatler.get(personel_id, 0.0) - hedef_saat)
+        for personel_id in baglam.personel:
+            pay = paylar.get(personel_id, 0)
+            sapma = abs(saatler.get(personel_id, 0.0) - pay)
             if sapma > 1e-9:
                 ihlaller.append(
                     Ihlal(
@@ -210,7 +221,7 @@ class S4ToplamSaatDengesi(EsnekHedef):
                         ceza=sapma,
                         aciklama=(
                             f"Toplam saat {saatler.get(personel_id, 0.0):.1f}, "
-                            f"donemlik hedef {hedef_saat:.1f} saatten {sapma:.1f} saat sapiyor"
+                            f"dagilim payi {pay} saatten {sapma:.1f} saat sapiyor"
                         ),
                     )
                 )
@@ -512,6 +523,29 @@ def _donem_gun_sayisi(baglam: Baglam) -> float:
     if baglam.donem_baslangic is not None and baglam.donem_bitis is not None:
         return (baglam.donem_bitis - baglam.donem_baslangic).days + 1
     return 7.0  # donem bilgisi yoksa (testlerde) haftalik hedefi degistirmeyen notr deger
+
+
+def _s4_hedef_paylari(baglam: Baglam, donem_gun_sayisi: float) -> dict[int, int]:
+    """S4'un SRS v1.2 formulu: donemin toplam talep saatinden kisiye, kisisel
+    donemlik hedef saatiyle orantili dusen pay (modele_ekle ve dogrula'nin ortak
+    hesabi - CP-SAT'in tamsayi kisiti geregi en yakin saate yuvarlanir, dogrula da
+    ayni yuvarlamayi kullanir ki cozucu-dogrulayici uyum testi birebir esitlik
+    saglayabilsin)."""
+    toplam_talep_saat = sum(
+        round(baglam.sure_saat(vardiya_tipi_id)) * gereken
+        for (_tarih, vardiya_tipi_id, _nokta_id), gereken in baglam.talep.items()
+    )
+    hedef_saatler = {
+        p: float(personel.haftalik_hedef_saat) * donem_gun_sayisi / 7
+        for p, personel in baglam.personel.items()
+    }
+    toplam_hedef = sum(hedef_saatler.values())
+    if toplam_hedef <= 0:
+        return dict.fromkeys(hedef_saatler, 0)
+    return {
+        p: round(hedef_saat / toplam_hedef * toplam_talep_saat)
+        for p, hedef_saat in hedef_saatler.items()
+    }
 
 
 def _bilinen_aralik(atamalar: list[AtamaKaydi], baglam: Baglam) -> tuple[date, date] | None:

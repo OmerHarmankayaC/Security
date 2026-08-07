@@ -145,12 +145,15 @@ def test_s4_saat_sapmasi_ceza_uretir(baglam: Baglam) -> None:
     kural = S4ToplamSaatDengesi(parametreler={}, agirlik=4)
     baglam.donem_baslangic = date(2026, 1, 5)
     baglam.donem_bitis = date(2026, 1, 11)  # 7 gun -> carpan 1.0
-    # personel 1 hedefi 40 saat; yalnizca 3 vardiya x 8 saat = 24 saat calisiyor.
+    # Ikisi de hedef=40 (esit agirlik) -> toplam_talep_saat 5*8=40'i esit bolusur: pay=20.
+    for i in range(5):
+        baglam.talep[(date(2026, 1, 5 + i), GUNDUZ, KAPI)] = 1
+    # personel 1 yalnizca 3 vardiya x 8 saat = 24 saat calisiyor (payin 4 saat ustunde).
     atamalar = [AtamaKaydi(1, date(2026, 1, 5 + i), GUNDUZ, KAPI) for i in range(3)]
     ihlaller = kural.dogrula(atamalar, baglam)
     ceza_by_personel = {i.personel_id: i.ceza for i in ihlaller}
-    assert ceza_by_personel[1] == pytest.approx(16.0)
-    assert ceza_by_personel[2] == pytest.approx(40.0)  # hic calismiyor
+    assert ceza_by_personel[1] == pytest.approx(4.0)
+    assert ceza_by_personel[2] == pytest.approx(20.0)  # hic calismiyor, payin tamami eksik
 
 
 def test_s4_hedefi_tutturunca_ceza_uretmez(baglam: Baglam) -> None:
@@ -158,6 +161,9 @@ def test_s4_hedefi_tutturunca_ceza_uretmez(baglam: Baglam) -> None:
     baglam.donem_baslangic = date(2026, 1, 5)
     baglam.donem_bitis = date(2026, 1, 11)
     baglam.personel = {1: PersonelBilgisi(1, date(2026, 1, 1), None, frozenset(), 40)}
+    # Tek personel oldugu icin toplam_talep_saatin tamami onun payi: 5*8=40 saat.
+    for i in range(5):
+        baglam.talep[(date(2026, 1, 5 + i), GUNDUZ, KAPI)] = 1
     atamalar = [AtamaKaydi(1, date(2026, 1, 5 + i), GUNDUZ, KAPI) for i in range(5)]  # 40 saat
     assert kural.dogrula(atamalar, baglam) == []
 

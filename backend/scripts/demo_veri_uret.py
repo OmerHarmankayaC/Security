@@ -94,14 +94,21 @@ _KURAL_TANIMLARI: list[dict] = [
     },
     {"kimlik": "H7", "tip": KuralTipi.ZORUNLU, "parametreler": {}, "agirlik": None},
     {"kimlik": "H8", "tip": KuralTipi.ZORUNLU, "parametreler": {}, "agirlik": None},
-    # S1 agirligi, digerlerinin toplamindan (5+5+3+2+10+6+2+8=41) belirgin buyuk (SRS S1).
+    # S1 agirligi, digerlerinin agirlikli toplam katkisindan belirgin buyuk olmali
+    # (SRS S1, "baskin agirlik" ilkesi) - olcum PROGRESS.md'de (Ek Gorev, agirlik
+    # kalibrasyonu) ayrintili.
     {"kimlik": "S1", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 1000},
     {"kimlik": "S2", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 5},
     {"kimlik": "S3", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 5},
     {"kimlik": "S4", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 3},
     {"kimlik": "S5", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 2},
     {"kimlik": "S6", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 10},
-    {"kimlik": "S6b", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 6},
+    # S6b (bina tutarliligi) bu senaryoda pasif: nokta sadelestirmesinden beri butun
+    # gorev noktalari tesis geneli (bina_id NULL), bina degisimi fiziksel olarak
+    # imkansiz oldugundan S6b modelde daima 0 katki verir. Kural katalogda kalir -
+    # binaya bagli bir nokta tanimlanirsa kendiliginden devreye girer - ama gereksiz
+    # bir amac fonksiyonu terimi olarak burada aktif tutulmaz (SRS'e not eklendi).
+    {"kimlik": "S6b", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 6, "aktif": False},
     {"kimlik": "S7", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 2},
     {"kimlik": "S8", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 8},
 ]
