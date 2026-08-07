@@ -211,7 +211,13 @@ Müsaitlik, Tercihler ekranlarına gün ayrılmamıştı) kapatır.
 - SDD 5.7'deki yedi metriği uygula.
 - `/api/analiz/{surum_id}` uç noktası, SDD 6.3.4'teki analiz ekranı.
 - CSV dışa aktarma.
-- **Kabul:** Sıkışık senaryo üzerinde kapsama oranı, gece/hafta sonu adalet grafiği ve ceza dökümü doğru sayılarla görüntüleniyor.
+- **Ara İş'ten devreden:** Özet ekranındaki "Toplam Ceza" kutusu, bir
+  çizelge sürümünü kendi çözüm işinin ceza dökümüne bağlayan uç nokta
+  bulunmadığı için atlanmıştı. İlişki şemada zaten var
+  (`cozum_isi.surum_id`); bu bilgi Analiz servisinin çıktısına dahil
+  edilerek hem Analiz ekranı hem de Özet'teki eksik kutu aynı uç
+  noktadan beslenmeli — ayrı bir router açmaya gerek yok.
+- **Kabul:** Sıkışık senaryo üzerinde kapsama oranı, gece/hafta sonu adalet grafiği ve ceza dökümü doğru sayılarla görüntüleniyor. Özet ekranındaki "Toplam Ceza" kutusu da dolu.
 
 ### Gün 13 — Çalışan Paneli
 - SDD 6.1'deki dört bölüm: Vardiyalarım, Dönem özetim, Tercih bildirimi, Tercihlerim.

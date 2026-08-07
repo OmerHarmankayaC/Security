@@ -194,9 +194,10 @@ ekran vardır.
 ## Uygulama notları
 
 **Tailwind eşlemesi.** Bu paletin hiçbiri Tailwind'in varsayılan
-renklerine karşılık gelmez. Tokenleri `tailwind.config.js` içinde CSS
-değişkeni olarak tanımlayın ve isimleri yukarıdaki token adlarıyla birebir
-tutun (`chrome-base`, `canvas`, `accent`, `signal`, `vardiya-gece` …).
+renklerine karşılık gelmez. Proje Tailwind v4 kullanıyor; tokenler
+`tailwind.config.js` içinde değil, `index.css`'teki `@theme` bloğunda
+tanımlanır. İsimleri yukarıdaki token adlarıyla birebir tutun
+(`chrome-base`, `canvas`, `accent`, `signal`, `vardiya-gece` …).
 Rastgele Tailwind rengi (`gray-800`, `teal-700` gibi) kullanmayın.
 
 **Genişleyen bileşenlere sabit genişlik.** Metnine göre büyüyen bir öğe
