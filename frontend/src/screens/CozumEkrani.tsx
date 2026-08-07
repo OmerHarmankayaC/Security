@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
 import type { CozumIsi, Donem, OnKontrolBulgu } from '../api/types'
 import { AppShell, type NavOgesi } from '../components/AppShell'
-import { Buton, BuyukRakam, Kart, KartEtiketi } from '../components/app-ui'
+import { Buton, BuyukRakam, Kart, KartEtiketi, Sayi } from '../components/app-ui'
 import { Input } from '@/components/ui/input'
 import { utcTarihiAyristir } from '../lib/tarih'
 
@@ -25,7 +25,7 @@ const DURUM_METNI: Record<string, string> = {
 }
 
 const SECIM_SINIFI =
-  'h-8 rounded-md border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50'
+  'h-8 rounded-sm border border-rule bg-surface px-2.5 font-mono text-sm text-ink outline-none focus-visible:border-accent focus-visible:ring-3 focus-visible:ring-accent/30 disabled:opacity-50'
 
 function gecenSureSaniye(baslangicIso: string): number {
   return Math.max(0, Math.floor((Date.now() - utcTarihiAyristir(baslangicIso).getTime()) / 1000))
@@ -133,13 +133,18 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
   const calisiyorMu = isKaydi !== null && CALISAN_DURUMLAR.has(isKaydi.durum)
   const sonuclandiMi = isKaydi !== null && !CALISAN_DURUMLAR.has(isKaydi.durum)
 
+  const cezaGirdileri = isKaydi?.ceza_dokumu
+    ? Object.entries(isKaydi.ceza_dokumu).sort(([a], [b]) => a.localeCompare(b))
+    : []
+  const azamiCeza = cezaGirdileri.reduce((azami, [, deger]) => Math.max(azami, deger), 0)
+
   return (
     <AppShell aktifEkran="Çözüm" ekranSec={ekranSec} baslik="Çözüm">
       <Kart>
         <KartEtiketi>çözüm ayarları</KartEtiketi>
         <div className="flex flex-wrap items-end gap-6">
           <div className="flex flex-col gap-1">
-            <label htmlFor="donem-sec" className="text-sm text-muted-foreground">
+            <label htmlFor="donem-sec" className="text-sm text-ink-muted">
               Dönem
             </label>
             <select
@@ -156,14 +161,14 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <label htmlFor="zaman-limiti" className="text-sm text-muted-foreground">
+            <label htmlFor="zaman-limiti" className="text-sm text-ink-muted">
               Zaman Limiti (saniye)
             </label>
             <Input
               id="zaman-limiti"
               type="number"
               min={1}
-              className="w-32"
+              className="w-32 rounded-sm border-rule font-mono"
               value={zamanLimiti}
               onChange={(e) => setZamanLimiti(Number(e.target.value))}
             />
@@ -189,11 +194,11 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
         {bulgular && (
           <div className="mt-4">
             {bulgular.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Yapısal bir engel bulunamadı.</p>
+              <p className="text-sm text-ink-muted">Yapısal bir engel bulunamadı.</p>
             ) : (
               <ul className="m-0 flex list-none flex-col gap-1 p-0">
                 {bulgular.map((b, i) => (
-                  <li key={i} className="text-sm text-amber-700">
+                  <li key={i} className="text-sm text-signal">
                     {b.aciklama}
                   </li>
                 ))}
@@ -203,7 +208,7 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
         )}
       </Kart>
 
-      {hata && <p className="text-sm text-destructive">{hata}</p>}
+      {hata && <p className="text-sm text-signal">{hata}</p>}
 
       {isKaydi && calisiyorMu && (
         <Kart vurgulu>
@@ -219,7 +224,7 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
           <Buton varyant="hayalet" onClick={durdur}>
             Durdur
           </Buton>
-          <p className="mt-2 text-sm text-muted-foreground">
+          <p className="mt-2 text-sm text-ink-muted">
             Durdur, işi "iptal" olarak işaretler; ayrı süreçte fiilen çalışan arama en iyi çaba
             ile sonlanır, süre limitine kadar arka planda devam edebilir.
           </p>
@@ -231,24 +236,27 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
           <KartEtiketi renk={isKaydi.durum === 'tamamlandi' ? undefined : 'warn'}>
             sonuç özeti — {DURUM_METNI[isKaydi.durum] ?? isKaydi.durum}
           </KartEtiketi>
-          {isKaydi.hata_mesaji && <p className="text-sm text-destructive">{isKaydi.hata_mesaji}</p>}
-          {isKaydi.ceza_dokumu && (
+          {isKaydi.hata_mesaji && <p className="text-sm text-signal">{isKaydi.hata_mesaji}</p>}
+          {cezaGirdileri.length > 0 && (
             <ul className="m-0 flex list-none flex-col gap-2 p-0">
-              {Object.entries(isKaydi.ceza_dokumu)
-                .sort(([a], [b]) => a.localeCompare(b))
-                .map(([kimlik, deger]) => (
-                  <li
-                    key={kimlik}
-                    className="flex justify-between border-b border-border py-2 text-sm last:border-none"
-                  >
-                    <span>{kimlik}</span>
-                    <span>{deger}</span>
-                  </li>
-                ))}
+              {cezaGirdileri.map(([kimlik, deger]) => (
+                <li key={kimlik} className="flex items-center gap-3 py-1 text-sm">
+                  <span className="w-28 shrink-0 text-ink-muted">{kimlik}</span>
+                  <span className="h-2 flex-1 overflow-hidden rounded-sm bg-sunken">
+                    <span
+                      className={kimlik === 'S1' ? 'block h-full bg-signal' : 'block h-full bg-accent'}
+                      style={{
+                        width: azamiCeza > 0 ? `${Math.max(2, (deger / azamiCeza) * 100)}%` : '0%',
+                      }}
+                    />
+                  </span>
+                  <Sayi className="w-16 shrink-0 text-right text-ink">{deger}</Sayi>
+                </li>
+              ))}
             </ul>
           )}
           {kapsamaSayisi !== null && kapsamaSayisi > 0 && (
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p className="mt-2 text-sm text-ink-muted">
               {kapsamaSayisi} kapsama açığı bulundu → Çizelge ekranında ilgili hücreler
               işaretlendi.
             </p>

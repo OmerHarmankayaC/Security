@@ -6,8 +6,8 @@ interface Props {
   ekranSec: (ekran: NavOgesi) => void
 }
 
-// Sprint 2 Gün 10 kapsamı yalnızca Çizelge ve Çözüm ekranları; kalan altı
-// nav öğesi, kabuk (sidebar/topbar) tutarlılığı için burada yer tutucu.
+// Analiz (Gün 12) ve Sürümler (Gün 15) — Sprint 3 Ara İş'in kapsamı dışında,
+// yeni tasarım diliyle kendi günlerinde yapılacaklar (bkz. UYGULAMA_PLANI.md).
 export function PlaceholderEkrani({ ekran, ekranSec }: Props) {
   return (
     <AppShell aktifEkran={ekran} ekranSec={ekranSec} baslik={ekran}>

@@ -1,6 +1,10 @@
-import type { PropsWithChildren, ReactNode } from 'react'
+import { type PropsWithChildren, type ReactNode, useEffect, useState } from 'react'
+import { api } from '@/api/client'
+import type { Donem, VardiyaTipi } from '@/api/types'
 import { cn } from '@/lib/utils'
-import { NAV_OGELERI, type NavOgesi } from './nav'
+import { buyukHarf } from '@/lib/metin'
+import { donemAraligiBicimle, gunlerListesi } from '@/lib/tarih'
+import { NAV_GRUPLARI, type NavOgesi } from './nav'
 
 export type { NavOgesi }
 
@@ -8,8 +12,11 @@ interface AppShellProps {
   aktifEkran: NavOgesi
   ekranSec: (ekran: NavOgesi) => void
   baslik: string
-  altBaslik?: string
+  altBaslik?: ReactNode
   aksiyonlar?: ReactNode
+  // Yan menünün altındaki eylem butonu — yalnızca Tanımlar alt sekmelerinde
+  // kullanılır (bkz. TASARIM_REFERANSI.md, "Alt grubu").
+  altEylem?: ReactNode
 }
 
 export function AppShell({
@@ -18,37 +25,98 @@ export function AppShell({
   baslik,
   altBaslik,
   aksiyonlar,
+  altEylem,
   children,
 }: PropsWithChildren<AppShellProps>) {
+  const [donemler, setDonemler] = useState<Donem[]>([])
+  const [vardiyaTipleri, setVardiyaTipleri] = useState<VardiyaTipi[]>([])
+
+  useEffect(() => {
+    Promise.all([api.donemler(), api.vardiyaTipiListele()])
+      .then(([d, v]) => {
+        setDonemler(d)
+        setVardiyaTipleri(v)
+      })
+      .catch(() => {
+        // Dönem bloğu salt bilgilendirme amaçlı — sessizce boş bırakılır,
+        // asıl ekranın kendi veri yükleme hatası zaten görünür olur.
+      })
+  }, [])
+
+  const donem = donemler[0]
+  const ilkVardiya = vardiyaTipleri[0]
+  const vardiyaOzeti = ilkVardiya
+    ? `${vardiyaTipleri.length}×${Number(ilkVardiya.sure_saat)}`
+    : null
+
   return (
-    <div className="flex min-h-svh bg-background">
-      <aside className="w-[260px] shrink-0 border-r border-border bg-card p-6">
-        <p className="mb-6 text-base font-semibold text-foreground">Vardiya Çizelgeleme</p>
-        <nav className="flex flex-col gap-1">
-          {NAV_OGELERI.map((oge) => (
-            <button
-              key={oge}
-              type="button"
-              className={cn(
-                'rounded-md px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted',
-                oge === aktifEkran && 'bg-accent font-medium text-primary hover:bg-accent',
-              )}
-              onClick={() => ekranSec(oge)}
-            >
-              {oge}
-            </button>
-          ))}
-        </nav>
+    <div className="flex min-h-svh bg-canvas text-ink">
+      <aside className="sticky top-0 flex h-svh w-[260px] shrink-0 flex-col justify-between overflow-y-auto bg-chrome-base px-[18px] pt-[26px] pb-[22px]">
+        <div className="flex flex-col">
+          <p className="m-0 text-base font-semibold tracking-wide text-chrome-ink">
+            {buyukHarf('Vardiya Çizelgeleme')}
+          </p>
+          <p className="m-0 mt-[3px] text-xs text-chrome-ink-muted">karar destek aracı</p>
+
+          <nav className="mt-6 flex flex-col">
+            {NAV_GRUPLARI.map((grup, i) => (
+              <div key={grup.baslik ?? `grup-${i}`} className={cn(i > 0 && 'mt-3.5')}>
+                {grup.baslik && (
+                  <p className="mb-1 font-condensed text-[10px] tracking-[0.14em] text-chrome-ink-muted">
+                    {grup.baslik}
+                  </p>
+                )}
+                <div className="flex flex-col gap-0.5">
+                  {grup.ogeler.map((oge) => (
+                    <button
+                      key={oge}
+                      type="button"
+                      className={cn(
+                        'h-[34px] rounded-sm px-2.5 text-left text-sm text-chrome-ink-muted transition-colors hover:text-chrome-ink',
+                        oge === aktifEkran && 'bg-chrome-raised font-medium text-chrome-ink',
+                      )}
+                      onClick={() => ekranSec(oge)}
+                    >
+                      {oge}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </nav>
+        </div>
+
+        <div className="flex flex-col gap-[22px]">
+          {altEylem}
+          <div className="border-t border-chrome-line pt-3">
+            <p className="m-0 font-condensed text-[10px] tracking-[0.14em] text-chrome-ink-muted">
+              {buyukHarf('Planlama Dönemi')}
+            </p>
+            {donem ? (
+              <>
+                <p className="m-0 mt-1.5 font-mono text-sm font-semibold text-chrome-ink">
+                  {buyukHarf(donemAraligiBicimle(donem.baslangic_tarihi, donem.bitis_tarihi))}
+                </p>
+                <p className="m-0 mt-0.5 font-mono text-[10px] text-chrome-ink-muted">
+                  {gunlerListesi(donem.baslangic_tarihi, donem.bitis_tarihi).length} gün
+                  {vardiyaOzeti ? ` · ${vardiyaOzeti} vardiya` : ''}
+                </p>
+              </>
+            ) : (
+              <p className="m-0 mt-1.5 text-sm text-chrome-ink-muted">—</p>
+            )}
+          </div>
+        </div>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-[88px] shrink-0 items-center justify-between gap-6 border-b border-border bg-card px-10">
-          <div>
-            <h1 className="m-0 text-xl font-semibold text-foreground">{baslik}</h1>
-            {altBaslik && <p className="mt-1 text-sm text-muted-foreground">{altBaslik}</p>}
+        <header className="flex h-16 shrink-0 items-center justify-between gap-6 border-b border-rule bg-canvas px-7">
+          <div className="flex items-center gap-3">
+            <h1 className="m-0 text-lg font-semibold text-ink">{baslik}</h1>
+            {altBaslik}
           </div>
-          {aksiyonlar && <div className="flex shrink-0 gap-2">{aksiyonlar}</div>}
+          {aksiyonlar && <div className="flex shrink-0 items-center gap-2">{aksiyonlar}</div>}
         </header>
-        <main className="flex flex-col gap-6 px-10 py-8">{children}</main>
+        <main className="flex flex-col gap-5 px-8 py-7">{children}</main>
       </div>
     </div>
   )

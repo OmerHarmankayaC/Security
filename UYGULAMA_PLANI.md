@@ -117,6 +117,8 @@ Bu sprintin riski en yüksek olanı: kural kataloğu burada yanlış kurulursa S
 - Çözücü-doğrulayıcı uyum testinin iskeletini kur (henüz gerçek çözücü yok, elle üretilmiş rastgele geçerli atamalarla test et).
 - **Kabul (Sprint 1 çıkışı):** Tanım yönetimi ekranından bağımsız olarak, API üzerinden tam bir personel/yetkinlik/nokta/talep kümesi kurulabiliyor; demo veri betiği tek komutla iki senaryoyu da veritabanına yazabiliyor; on altı kuralın `dogrula` tarafı test kapsamında.
 
+---
+
 ## Demo Veri Stratejisi
 
 İki senaryo, **aynı personel havuzu ve aynı talep matrisi** üzerinde, yalnızca müsaitlik/izin kayıtları farklı olacak biçimde üretilir — kadro büyüklüğü değişmez:
@@ -125,8 +127,6 @@ Bu sprintin riski en yüksek olanı: kural kataloğu burada yanlış kurulursa S
 - **Sıkışık senaryo:** aynı dönemde, kırılgan bir yetkinlik havuzunun (SRS 3.3.6'da tanımlanan vardiya şefi havuzu gibi) bir kısmı izinli gösterilir; kalan kişi sayısı haftalık gereken sayının altına düşer.
 
 Bu ayrımın amacı, SRS 3.3.6'nın anlattığı kırılganlık mekanizmasını (küçük bir havuzda tek bir iznin kapatılamayan boşluk doğurması) somut veriyle göstermek ve S1'in esnek tanımının (kabul kriterindeki "eksik gün/vardiya/sayı gösterimi") gerçek bir örnekte çalıştığını kanıtlamaktır. Farklı kadro büyüklükleri denenmez; değişken yalnızca müsaitliktir.
-
----
 
 ## Sprint 2 (Gün 6–11): CP-SAT Modeli, Ön Kontrol, Çizelge Ekranı, Yeniden Çözme
 
@@ -165,14 +165,47 @@ Bu ayrımın amacı, SRS 3.3.6'nın anlattığı kırılganlık mekanizmasını 
 - Sürüm durumu geçişleri (taslak → çözüldü → yayınlandı → arşiv, SRS TD-8).
 - **Kabul (Sprint 2 çıkışı):** Rahat senaryo uçtan uca çözülüyor; sıkışık senaryo ön kontrolde doğru engelleri gösteriyor ve yine de bir çizelge üretip kapsama açığını raporluyor; yayınlanmış bir sürümden yeni izinle yeniden çözüm alınıp değişen atama sayısı görülebiliyor.
 
-### Ek Görev — S1–S8+S6b Uyum Testi Genişletmesi (Sprint 2 sonu, Gün 11'den sonra)
-- Gün 6'daki çözücü-doğrulayıcı uyum testi (`test_cozucu_uctan_uca.py`) şu ana kadar yalnızca H1–H8'i kapsıyor; bunu S1–S8+S6b'yi de içerecek şekilde genişlet — çözücünün ürettiği çizelgede, S-kurallarının `dogrula` tarafının hesapladığı ceza dökümüyle `modele_ekle`'nin amaç fonksiyonuna kattığı ceza tutarlı olmalı.
-- Bu genişletme sırasında Gün 6'da not düşülen S4 birim tutarsızlığını (`modele_ekle` dakika, `dogrula` saat biriminde ceza üretiyor) düzelt — ikisi aynı birimi kullanmalı.
-- **Kabul:** S1–S8+S6b'nin tamamı için, çözücü çıktısı üzerinde `dogrula`'nın hesapladığı toplam ceza ile `modele_ekle`'nin amaç fonksiyonuna kattığı (ağırlıksız) ceza birbiriyle tutarlı; S4 artık tek bir birimde raporlanıyor.
-
 ---
 
-## Sprint 3 (Gün 12–15): Analiz, Çalışan Paneli, Deneyler, Dağıtım
+## Sprint 3 (Ara İş + Gün 12–15): Arayüz Yenileme, Analiz, Çalışan Paneli, Deneyler, Dağıtım
+
+### Ara İş — "Kontrol Odası" Arayüz Yenilemesi (Gün 12'den önce)
+
+Tasarım dili üçüncü kez ve son kez değişti. Bu ara iş, hem mevcut iki
+ekranı yeni dile taşır hem de plandaki boşluğu (Özet, Tanımlar,
+Müsaitlik, Tercihler ekranlarına gün ayrılmamıştı) kapatır.
+
+- `docs/tasarim/TASARIM_REFERANSI.md` (sürüm 3) baştan sona okunur. Bu
+  doküman sürüm 1 ve 2'nin yerini tamamen alır; kodda önceki sürümlere
+  ait renk, köşe yarıçapı, gölge veya Inter fontu kalıntısı kalmamalıdır.
+- Tasarım tokenleri `tailwind.config.js` içinde CSS değişkeni olarak,
+  referans dokümanındaki adlarla birebir tanımlanır.
+- IBM Plex (Sans / Sans Condensed / Mono) projeye eklenir.
+- Yan menü yeniden yapılır: koyu şasi, üç başlıklı menü grupları
+  (VERİ / ÜRETİM / DEĞERLENDİRME), altta eylem butonu + Dönem bloğu.
+- **Mevcut iki ekran yeni dile taşınır:** Çizelge, Çözüm. İşlevsellik
+  (API çağrıları, state, doğrulama akışı) aynen korunur — bu bir
+  görsel refactor, yeniden yazma değil.
+- **Dört ekran sıfırdan eklenir:** Özet, Tanımlar (yedi sekmesiyle),
+  Müsaitlik, Tercihler.
+- **İki eksik router yazılır:** `/api/musaitlik` (GET, POST, DELETE) ve
+  `/api/tercih` (GET, POST, PUT — onay/ret dahil). Bunlar SDD Ek B'de
+  zaten tanımlı ve SRS FR-2.x / FR-3.x gereksinimlerinin karşılığı,
+  ancak Gün 4 yalnızca FR-1.x'i (tanım yönetimi) kapsadığı için
+  yazılmamışlardı. `tanim.py`'deki CRUD örüntüsü aynen izlenir.
+  Müsaitlik ekranı olmadan izin verisi arayüzden hiç girilemez ve
+  sıkışık senaryonun girdisi eksik kalır — bu yüzden ertelenemez.
+- Analiz ve Sürümler ekranları bu işin kapsamı dışında — sırasıyla
+  Gün 12 ve Gün 15'te, yeni tasarım diliyle yapılacaklar.
+- **Kabul:** Sekiz ekranın hepsi tarayıcıda yeni tasarım diliyle
+  açılıyor; hiçbirinde yer tutucu kalmadı. Çizelge ve Çözüm'ün
+  mevcut uçtan uca akışları (çözüm başlatma, ilerleme izleme, hücre
+  düzenleme kabul/red) bozulmadan çalışıyor. Müsaitlik ve Tercihler
+  ekranları gerçek veriyle çalışıyor: arayüzden izin kaydı
+  eklenebiliyor ve bir tercih onaylanıp reddedilebiliyor. Mevcut
+  testlerin tamamı geçiyor; yeni iki router için de mutlu yol ve
+  hata yolu testleri yazılmış. Çözücü, kural motoru ve mevcut API
+  sözleşmesi değişmedi.
 
 ### Gün 12 — Analiz Servisi ve Ekranı
 - SDD 5.7'deki yedi metriği uygula.

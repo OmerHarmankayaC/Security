@@ -1,15 +1,25 @@
 import type {
   Atama,
   AtamaDegisikligiIstek,
+  Bina,
   CizelgeSurumu,
   CozumIsi,
   Donem,
   DogrulamaSonucu,
   GorevNoktasi,
   KapsamaAcigi,
+  Kural,
+  Musaitlik,
+  MusaitlikOlusturIstek,
   OnKontrolBulgu,
   Personel,
+  TalepHucresi,
+  TalepYaniti,
+  Tercih,
+  TercihDurumu,
+  TercihTipi,
   VardiyaTipi,
+  Yetkinlik,
 } from './types'
 
 export class ApiHatasi extends Error {
@@ -38,6 +48,8 @@ async function istek<T>(yol: string, secenekler?: RequestInit): Promise<T> {
 
 const gonder = <T>(yol: string, govde: unknown, yontem: 'POST' | 'PUT' = 'POST') =>
   istek<T>(yol, { method: yontem, body: JSON.stringify(govde) })
+
+const silIste = (yol: string) => istek<void>(yol, { method: 'DELETE' })
 
 export const api = {
   donemler: () => istek<Donem[]>('/api/donem'),
@@ -76,4 +88,59 @@ export const api = {
       tarih,
       kilitli,
     }),
+
+  // --- Tanımlar (Sprint 3 Ara İş) -----------------------------------------
+  yetkinlikListele: () => istek<Yetkinlik[]>('/api/yetkinlik'),
+  yetkinlikOlustur: (ad: string, aciklama?: string) =>
+    gonder<Yetkinlik>('/api/yetkinlik', { ad, aciklama: aciklama ?? null }),
+
+  binaListele: () => istek<Bina[]>('/api/bina'),
+  binaOlustur: (ad: string) => gonder<Bina>('/api/bina', { ad }),
+
+  talepGetir: () => istek<TalepYaniti>('/api/talep'),
+  talepHucresiGuncelle: (hucre: Omit<TalepHucresi, 'talep_id'>) =>
+    gonder<TalepYaniti>('/api/talep', hucre, 'PUT'),
+
+  kuralListele: () => istek<Kural[]>('/api/kural'),
+  kuralGuncelle: (kimlik: string, veri: Partial<Pick<Kural, 'agirlik' | 'aktif'>>) =>
+    gonder<Kural>(`/api/kural/${kimlik}`, veri, 'PUT'),
+
+  personelOlustur: (govde: {
+    ad_soyad: string
+    sicil_no: string
+    haftalik_hedef_saat: number
+    aktif_baslangic: string
+    yetkinlik_idleri?: number[]
+  }) => gonder<Personel>('/api/personel', govde),
+
+  noktaOlustur: (ad: string, binaId: number | null, onkosulYetkinlikId: number | null) =>
+    gonder<GorevNoktasi>('/api/nokta', {
+      ad,
+      bina_id: binaId,
+      onkosul_yetkinlik_id: onkosulYetkinlikId,
+    }),
+
+  vardiyaTipiOlustur: (ad: string, baslangicSaati: string, bitisSaati: string) =>
+    gonder<VardiyaTipi>('/api/vardiya-tipi', {
+      ad,
+      baslangic_saati: baslangicSaati,
+      bitis_saati: bitisSaati,
+    }),
+
+  // --- Müsaitlik (FR-2.x) --------------------------------------------------
+  musaitlikListele: () => istek<Musaitlik[]>('/api/musaitlik'),
+  musaitlikOlustur: (govde: MusaitlikOlusturIstek) => gonder<Musaitlik>('/api/musaitlik', govde),
+  musaitlikSil: (musaitlikId: number) => silIste(`/api/musaitlik/${musaitlikId}`),
+
+  // --- Tercih (FR-3.x) -------------------------------------------------------
+  tercihListele: () => istek<Tercih[]>('/api/tercih'),
+  tercihOlustur: (govde: {
+    personel_id: number
+    donem_id: number
+    tarih: string
+    tip: TercihTipi
+    vardiya_tipi_id?: number | null
+  }) => gonder<Tercih>('/api/tercih', govde),
+  tercihDurumGuncelle: (tercihId: number, durum: TercihDurumu) =>
+    gonder<Tercih>(`/api/tercih/${tercihId}`, { durum }, 'PUT'),
 }

@@ -1,4 +1,18 @@
 const GUN_KISALTMALARI = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt']
+const AY_KISALTMALARI = [
+  'Oca',
+  'Şub',
+  'Mar',
+  'Nis',
+  'May',
+  'Haz',
+  'Tem',
+  'Ağu',
+  'Eyl',
+  'Eki',
+  'Kas',
+  'Ara',
+]
 
 export function isoAyristir(iso: string): Date {
   return new Date(`${iso}T00:00:00`)
@@ -19,6 +33,21 @@ export function gunlerListesi(baslangicIso: string, bitisIso: string): string[] 
     gunler.push(isoBicimle(g))
   }
   return gunler
+}
+
+// "03 - 09 Ağu 2026" (Dönem bloğu, Sayfa İskeleti — Yan menü). Ayrı ay/yıl
+// gerektiren nadir durumlarda her iki uca ay adı eklenir.
+export function donemAraligiBicimle(baslangicIso: string, bitisIso: string): string {
+  const b = isoAyristir(baslangicIso)
+  const s = isoAyristir(bitisIso)
+  const bGun = String(b.getDate()).padStart(2, '0')
+  const sGun = String(s.getDate()).padStart(2, '0')
+  const sAy = AY_KISALTMALARI[s.getMonth()]
+  if (b.getFullYear() === s.getFullYear() && b.getMonth() === s.getMonth()) {
+    return `${bGun} - ${sGun} ${sAy} ${s.getFullYear()}`
+  }
+  const bAy = AY_KISALTMALARI[b.getMonth()]
+  return `${bGun} ${bAy} - ${sGun} ${sAy} ${s.getFullYear()}`
 }
 
 export function gunKisaltmasiVeNumarasi(iso: string): string {

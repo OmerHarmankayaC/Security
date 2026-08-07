@@ -127,3 +127,88 @@ export interface AtamaDegisikligiIstek {
   vardiya_tipi_id: number | null
   nokta_id: number | null
 }
+
+// --- Tanımlar (Sprint 3 Ara İş) --------------------------------------------
+
+export interface Yetkinlik {
+  yetkinlik_id: number
+  ad: string
+  aciklama: string | null
+}
+
+export interface Bina {
+  bina_id: number
+  ad: string
+}
+
+export type GunTipi = 'hafta_ici' | 'hafta_sonu' | 'resmi_tatil'
+
+export interface TalepHucresi {
+  talep_id: number
+  nokta_id: number
+  vardiya_tipi_id: number
+  gun_tipi: GunTipi
+  tarih: string | null
+  gereken_sayi: number
+}
+
+export interface YukGostergesi {
+  haftalik_kisi_vardiya: number
+  haftalik_kisi_saat: string
+  asgari_kadro: number
+}
+
+export interface TalepYaniti {
+  hucreler: TalepHucresi[]
+  yuk_gostergesi: YukGostergesi
+}
+
+export type KuralTipi = 'zorunlu' | 'esnek'
+
+export interface Kural {
+  kural_id: number
+  kimlik: string
+  tip: KuralTipi
+  parametreler: Record<string, unknown>
+  agirlik: number | null
+  aktif: boolean
+}
+
+// --- Müsaitlik (FR-2.x) ----------------------------------------------------
+
+export type MusaitlikDilimi = 'tam_gun' | 'ogleden_once' | 'ogleden_sonra'
+export type MusaitlikTipi = 'yillik_izin' | 'rapor' | 'egitim' | 'mazeret'
+
+export interface Musaitlik {
+  musaitlik_id: number
+  personel_id: number
+  baslangic_tarihi: string
+  bitis_tarihi: string
+  dilim: MusaitlikDilimi
+  tip: MusaitlikTipi
+  not_: string | null
+}
+
+export interface MusaitlikOlusturIstek {
+  personel_id: number
+  baslangic_tarihi: string
+  bitis_tarihi: string
+  dilim: MusaitlikDilimi
+  tip: MusaitlikTipi
+  not_?: string | null
+}
+
+// --- Tercih (FR-3.x) --------------------------------------------------------
+
+export type TercihTipi = 'calismama' | 'vardiya_tipi_tercihi'
+export type TercihDurumu = 'beklemede' | 'onaylandi' | 'reddedildi'
+
+export interface Tercih {
+  tercih_id: number
+  personel_id: number
+  donem_id: number
+  tarih: string
+  tip: TercihTipi
+  vardiya_tipi_id: number | null
+  durum: TercihDurumu
+}

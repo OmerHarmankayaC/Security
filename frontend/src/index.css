@@ -1,51 +1,86 @@
 @import 'tailwindcss';
-@import '@fontsource/inter/400.css';
-@import '@fontsource/inter/500.css';
-@import '@fontsource/inter/600.css';
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+@import '@fontsource/ibm-plex-sans-condensed/500.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/600.css';
 
-/* Tasarım Referansı (sürüm 2): standart SaaS admin paneli estetiği —
-   mavi vurgu, yuvarlak köşeler, yumuşak gölge. shadcn/ui bileşenleri
-   (src/components/ui/) bu değişkenleri kullanır; kesin hex değerleri
-   docs/tasarim/TASARIM_REFERANSI.md'deki tokenlerle birebir eşleşir. */
+/* Tasarım Referansı sürüm 3 — "Kontrol Odası": operasyon konsolu dili.
+   Koyu şasi (yan menü/üst çubuk) + açık tuval, derin teal aksan, turuncu
+   yalnızca uyarı, IBM Plex, köşe 3-4px, GÖLGE YOK (bkz.
+   docs/tasarim/TASARIM_REFERANSI.md). Sürüm 1 (tuğla kırmızısı) ve sürüm 2
+   (mavi SaaS) tokenlerinin hiçbir kalıntısı burada tutulmaz. */
 :root {
-  --background: #f9fafb; /* gray-50 */
-  --foreground: #111827; /* gray-900 */
-  --card: #ffffff;
-  --card-foreground: #111827;
-  --popover: #ffffff;
-  --popover-foreground: #111827;
-  --primary: #2563eb; /* blue-600 */
+  /* Şasi (yan menü, üst çubuk — koyu) */
+  --chrome-base: #1a1f26;
+  --chrome-raised: #2a323c;
+  --chrome-line: #39424e;
+  --chrome-ink: #e6eae6;
+  --chrome-ink-muted: #909ba6;
+
+  /* Tuval (içerik alanı — açık) */
+  --canvas: #eff1ee;
+  --surface: #ffffff;
+  --sunken: #e4e7e1;
+  --rule: #d2d7ce;
+  --rule-strong: #a9b1a3;
+  --ink: #171b18;
+  --ink-muted: #5d655c;
+
+  /* Anlam renkleri */
+  --accent: #0f6e63;
+  --accent-soft: #dce9e6;
+  --signal: #d2521e;
+  --signal-soft: #f7e2d6;
+
+  /* Vardiya kodlaması (yalnızca Çizelge ızgarası) */
+  --vardiya-gunduz: #ffffff;
+  --vardiya-aksam: #c7cec0;
+  --vardiya-gece: #2f3a38;
+  --vardiya-gece-ink: #e8ebe5;
+  --vardiya-gece-ink-muted: #99a29a;
+
+  /* shadcn/ui bileşenlerinin (src/components/ui/) beklediği genel semantik
+     değişkenler — hepsi yukarıdaki tokenlerin takma adı, ayrı bir renk
+     değeri taşımaz. Bu sayede Button/Card/Badge/Input dosyalarına
+     dokunmadan yeni palet devralınır. */
+  --background: var(--canvas);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary: var(--accent);
   --primary-foreground: #ffffff;
-  --secondary: #f3f4f6; /* gray-100 */
-  --secondary-foreground: #111827;
-  --muted: #f3f4f6; /* gray-100 */
-  --muted-foreground: #6b7280; /* gray-500 */
-  --accent: #eff6ff; /* blue-50 */
-  --accent-foreground: #2563eb;
-  --destructive: #dc2626; /* red-600 */
+  --secondary: var(--sunken);
+  --secondary-foreground: var(--ink);
+  --muted: var(--sunken);
+  --muted-foreground: var(--ink-muted);
+  --destructive: var(--signal);
   --destructive-foreground: #ffffff;
-  --border: #e5e7eb; /* gray-200 */
-  --input: #e5e7eb;
-  --ring: #2563eb;
+  --border: var(--rule);
+  --input: var(--rule);
+  --ring: var(--accent);
 
-  /* Köşe yarıçapı: kartlar 8px, buton/girdi 6px, rozet tam yuvarlak
-     (bkz. TASARIM_REFERANSI.md) — Tailwind'in calc tabanlı radius
-     zincirine güvenmek yerine her adım doğrudan sabitlendi. */
-  --radius-xs: 4px;
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 6px;
-  --radius-xl: 8px;
-  --radius-2xl: 10px;
-  --radius-3xl: 12px;
-  --radius-4xl: 9999px;
+  /* Köşe yarıçapı: kart/panel 4px, buton/menü/sekme/hücre 3px — hiçbir
+     öğe bunun üzerine çıkmaz (bkz. TASARIM_REFERANSI.md). */
+  --radius-xs: 3px;
+  --radius-sm: 3px;
+  --radius-md: 3px;
+  --radius-lg: 3px;
+  --radius-xl: 4px;
+  --radius-2xl: 4px;
+  --radius-3xl: 4px;
+  --radius-4xl: 3px;
 
-  --font-sans:
-    'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: 'IBM Plex Sans', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-condensed: 'IBM Plex Sans Condensed', var(--font-sans);
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
 
   color-scheme: light;
   color: var(--foreground);
-  background: var(--background);
+  background: var(--canvas);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -53,6 +88,7 @@
 }
 
 @theme inline {
+  /* Genel semantik (shadcn) */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -65,15 +101,44 @@
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+
+  /* Referans dokümanındaki token adlarıyla birebir Tailwind renkleri
+     (bg-chrome-base, text-ink-muted, border-rule, bg-vardiya-gece …) —
+     rastgele Tailwind rengi (gray-800, teal-700) yerine bunlar kullanılır. */
+  --color-chrome-base: var(--chrome-base);
+  --color-chrome-raised: var(--chrome-raised);
+  --color-chrome-line: var(--chrome-line);
+  --color-chrome-ink: var(--chrome-ink);
+  --color-chrome-ink-muted: var(--chrome-ink-muted);
+
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-sunken: var(--sunken);
+  --color-rule: var(--rule);
+  --color-rule-strong: var(--rule-strong);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-signal: var(--signal);
+  --color-signal-soft: var(--signal-soft);
+
+  --color-vardiya-gunduz: var(--vardiya-gunduz);
+  --color-vardiya-aksam: var(--vardiya-aksam);
+  --color-vardiya-gece: var(--vardiya-gece);
+  --color-vardiya-gece-ink: var(--vardiya-gece-ink);
+  --color-vardiya-gece-ink-muted: var(--vardiya-gece-ink-muted);
+
   --font-sans: var(--font-sans);
   --font-heading: var(--font-sans);
+  --font-condensed: var(--font-condensed);
+  --font-mono: var(--font-mono);
 }
 
 * {
@@ -85,8 +150,8 @@ body {
   font-family: var(--font-sans);
   font-size: 13px;
   line-height: 145%;
-  color: var(--foreground);
-  background: var(--background);
+  color: var(--ink);
+  background: var(--canvas);
 }
 
 #root {

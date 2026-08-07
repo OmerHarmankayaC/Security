@@ -11,9 +11,10 @@ import type {
   VardiyaTipi,
 } from '../api/types'
 import { AppShell, type NavOgesi } from '../components/AppShell'
-import { Buton, Kart, KartEtiketi } from '../components/app-ui'
+import { Buton, Kart, KartEtiketi, Sayi } from '../components/app-ui'
 import { cn } from '../lib/utils'
-import { gunKisaltmasiVeNumarasi, gunlerListesi, zamanBicimle } from '../lib/tarih'
+import { buyukHarf } from '../lib/metin'
+import { gunKisaltmasiVeNumarasi, gunlerListesi } from '../lib/tarih'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -32,18 +33,21 @@ const SURUM_DURUM_METNI: Record<string, string> = {
 }
 
 const SECIM_SINIFI =
-  'h-8 rounded-md border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50'
-
-const HUCRE_DURUM_SINIFI: Record<string, string> = {
-  bos: 'border-transparent bg-transparent',
-  dolu: 'border-border bg-card',
-  eksik: 'border-amber-700 bg-amber-100 font-medium text-amber-700',
-  kilitli: 'border-primary bg-accent font-medium text-primary',
-}
+  'h-8 rounded-sm border border-rule bg-surface px-2.5 font-mono text-sm text-ink outline-none focus-visible:border-accent focus-visible:ring-3 focus-visible:ring-accent/30 disabled:opacity-50'
 
 interface SeciliHucre {
   personelId: number
   tarih: string
+}
+
+// Vardiya kodlaması yalnızca Çizelge ızgarasında kullanılır (TASARIM_REFERANSI.md):
+// gündüz açık/beyaz, akşam sage, gece koyu — vardiya tipinin kendisi bunu
+// taşımadığından (yalnızca gece_mi var) başlangıç saatinden yaklaştırılır.
+function vardiyaHucreSinifi(vardiya: VardiyaTipi | undefined): string {
+  if (!vardiya) return 'bg-surface'
+  if (vardiya.gece_mi) return 'bg-vardiya-gece text-vardiya-gece-ink'
+  const saat = Number(vardiya.baslangic_saati.slice(0, 2))
+  return saat >= 14 ? 'bg-vardiya-aksam text-ink' : 'bg-vardiya-gunduz text-ink'
 }
 
 export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }: Props) {
@@ -233,11 +237,14 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
     <AppShell
       aktifEkran="Çizelge"
       ekranSec={ekranSec}
-      baslik={surum ? `Çizelge — Sürüm ${surum.surum_no}` : 'Çizelge'}
+      baslik="Çizelge"
       altBaslik={
-        surum
-          ? `${SURUM_DURUM_METNI[surum.durum] ?? surum.durum} · Son güncelleme ${zamanBicimle(surum.guncelleme_zamani)}`
-          : undefined
+        surum ? (
+          <span className="rounded-sm bg-sunken px-2 py-1 font-condensed text-[11px] tracking-[0.06em] text-ink-muted">
+            {buyukHarf(SURUM_DURUM_METNI[surum.durum] ?? surum.durum)} · SÜRÜM{' '}
+            {surum.surum_no}
+          </span>
+        ) : undefined
       }
       aksiyonlar={
         <>
@@ -258,7 +265,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
         <KartEtiketi>seçim</KartEtiketi>
         <div className="flex flex-wrap items-end gap-6">
           <div className="flex flex-col gap-1">
-            <label htmlFor="donem-sec" className="text-sm text-muted-foreground">
+            <label htmlFor="donem-sec" className="text-sm text-ink-muted">
               Dönem
             </label>
             <select
@@ -275,7 +282,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <label htmlFor="surum-sec" className="text-sm text-muted-foreground">
+            <label htmlFor="surum-sec" className="text-sm text-ink-muted">
               Sürüm
             </label>
             <select
@@ -294,13 +301,13 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
         </div>
       </Kart>
 
-      {hata && <p className="text-sm text-destructive">{hata}</p>}
+      {hata && <p className="text-sm text-signal">{hata}</p>}
 
       <Kart>
         {yukleniyor ? (
-          <p>Yükleniyor…</p>
+          <p className="text-sm text-ink-muted">Yükleniyor…</p>
         ) : izgaraPersonelleri.length === 0 ? (
-          <p>Bu sürümde henüz atama yok.</p>
+          <p className="text-sm text-ink-muted">Bu sürümde henüz atama yok.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-max min-w-full border-collapse">
@@ -310,7 +317,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                   {gunler.map((gun) => (
                     <th
                       key={gun}
-                      className="whitespace-nowrap p-2 text-center text-xs font-medium text-muted-foreground"
+                      className="whitespace-nowrap p-2 text-center font-mono text-xs font-medium text-ink-muted"
                     >
                       {gunKisaltmasiVeNumarasi(gun)}
                     </th>
@@ -319,30 +326,33 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
               </thead>
               <tbody>
                 {izgaraPersonelleri.map((p) => (
-                  <tr key={p.personel_id}>
-                    <td className="whitespace-nowrap px-3 py-2 text-right text-sm text-foreground">
+                  <tr key={p.personel_id} className="border-t border-rule">
+                    <td className="whitespace-nowrap px-3 py-2 text-right text-sm text-ink">
                       {p.ad_soyad}
                     </td>
                     {gunler.map((gun) => {
                       const atama = atamaBul(p.personel_id, gun)
                       const kapsama = atama ? kapsamaBul(atama) : undefined
-                      const durum = !atama ? 'bos' : atama.kilitli ? 'kilitli' : kapsama ? 'eksik' : 'dolu'
+                      const vardiya = atama ? vardiyaMap.get(atama.vardiya_tipi_id) : undefined
                       const seciliMi =
                         seciliHucre?.personelId === p.personel_id && seciliHucre?.tarih === gun
                       return (
-                        <td key={gun} className="p-0">
+                        <td key={gun} className="p-0.5">
                           <button
                             type="button"
                             className={cn(
-                              'box-border h-11 w-24 rounded-md border p-1 text-center text-xs',
-                              HUCRE_DURUM_SINIFI[durum],
-                              seciliMi && 'outline-2 outline-offset-[-2px] outline-foreground',
+                              'box-border h-11 w-24 rounded-sm border border-rule p-1 text-center font-mono text-xs',
+                              !atama && 'border-transparent bg-transparent',
+                              atama && !kapsama && vardiyaHucreSinifi(vardiya),
+                              kapsama && 'border-signal bg-signal-soft font-medium text-signal',
+                              atama?.kilitli && 'outline-2 outline-offset-[-2px] outline-accent',
+                              seciliMi && 'ring-2 ring-offset-1 ring-ink',
                             )}
                             onClick={() => hucreSec(p.personel_id, gun)}
                           >
                             {atama && (
                               <>
-                                {vardiyaMap.get(atama.vardiya_tipi_id)?.ad}
+                                {vardiya?.ad}
                                 <br />
                                 {kapsama
                                   ? `${kapsama.eksik_sayi} eksik`
@@ -365,12 +375,12 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
         <Kart>
           <KartEtiketi>atama düzenle</KartEtiketi>
           <div className="flex flex-col gap-4">
-            <p className="text-sm text-foreground">
+            <p className="text-sm text-ink">
               {seciliPersonel.ad_soyad} — {gunKisaltmasiVeNumarasi(seciliHucre.tarih)}
             </p>
             <div className="flex flex-wrap items-end gap-4">
               <div className="flex flex-col gap-1">
-                <label htmlFor="vardiya-sec" className="text-sm text-muted-foreground">
+                <label htmlFor="vardiya-sec" className="text-sm text-ink-muted">
                   Vardiya
                 </label>
                 <select
@@ -388,7 +398,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                 </select>
               </div>
               <div className="flex flex-col gap-1">
-                <label htmlFor="nokta-sec" className="text-sm text-muted-foreground">
+                <label htmlFor="nokta-sec" className="text-sm text-ink-muted">
                   Görev Noktası
                 </label>
                 <select
@@ -419,20 +429,21 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
               )}
             </div>
 
-            {panelHata && <p className="text-sm text-destructive">{panelHata}</p>}
+            {panelHata && <p className="text-sm text-signal">{panelHata}</p>}
 
             {dogrulamaSonucu && (
               <div>
-                <p className="text-sm text-foreground">
+                <p className="text-sm text-ink">
                   {dogrulamaSonucu.kabul_edilebilir
                     ? 'Kabul edilebilir.'
                     : 'Zorunlu kısıt ihlali — reddedildi.'}{' '}
-                  Esnek hedef ceza değişimi: {dogrulamaSonucu.ceza_degisimi.toFixed(2)}
+                  Esnek hedef ceza değişimi:{' '}
+                  <Sayi>{dogrulamaSonucu.ceza_degisimi.toFixed(2)}</Sayi>
                 </p>
                 {dogrulamaSonucu.zorunlu_ihlaller.length > 0 && (
                   <ul className="m-0 mt-1 flex list-none flex-col gap-1 p-0">
                     {dogrulamaSonucu.zorunlu_ihlaller.map((ihlal, i) => (
-                      <li key={i} className="text-sm text-destructive">
+                      <li key={i} className="text-sm text-signal">
                         {ihlal.kural_kimlik} — {ihlal.aciklama}
                       </li>
                     ))}

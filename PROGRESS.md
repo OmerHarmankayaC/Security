@@ -1940,3 +1940,147 @@ bu turda da dokunulmadı; karar kullanıcıya bırakıldı.
 
 **Sıradaki oturumun ilk işi:** S6/S7 sapması hakkında kullanıcı kararı
 netleşirse uygula; sonra Sprint 3 Gün 12'ye (Analiz Servisi ve Ekranı) geç.
+
+---
+
+## 2026-08-07 — Sprint 3 Ara İş: "Kontrol Odası" arayüz yenilemesi
+
+Tasarım dili üçüncü ve son kez değişti (`docs/tasarim/TASARIM_REFERANSI.md`
+sürüm 3 — koyu şasi, derin teal aksan, turuncu yalnız uyarı için, IBM
+Plex, köşe 3-4px, gölge yok). `UYGULAMA_PLANI.md`'ye Sprint 3'ün başına
+eklenen Ara İş maddesi uygulandı. Eski ekran görüntüleri
+(`Vardiya Çizelgeleme — Admin Panel/`) silinip yenileri
+(`Vardiya Çizelgeleme — Kontrol Odası/`) kondu.
+
+**Kapsam netleştirmesi (oturum başında):** Plan "Müsaitlik ve Tercihler
+için Gün 4'te hazırlanan uç noktalar var, yeni API gerekmiyor" diyordu —
+kontrol ettiğimde bu yanlıştı: `backend/app/routers/`'da yalnızca
+`tanim` (FR-1.x) ve `cizelge` router'ları vardı, `/api/musaitlik` ve
+`/api/tercih` (FR-2.x/FR-3.x) hiç yazılmamıştı. Kullanıcıya soruldu;
+"bu turda backend'i de genişlet, bu kapsam kayması değil SDD Ek B'de
+zaten tanımlı iki eksik uç nokta" kararı verildi. `UYGULAMA_PLANI.md`
+buna göre güncellendi.
+
+**Backend — iki eksik router (`tanim.py`'deki CRUD örüntüsü izlenerek):**
+- `app/repositories/girdi.py` (yeni): `MusaitlikDeposu`, `TercihDeposu`
+  (ikisi de `TabanDepo`'nun düz alt sınıfı, özel mantık gerekmedi).
+- `app/schemas/girdi.py` (yeni): `MusaitlikOlustur/Oku`,
+  `TercihOlustur/Guncelle/Oku`.
+- `TanimServisi`'ne `self.musaitlik`/`self.tercih` eklendi (SDD 3.1:
+  müsaitlik/tercih zaten "Tanım Yönetimi Alt Sistemi"nin parçası —
+  ayrı bir servis/router gerekmedi).
+- `tanim.py` router'ına `GET/POST/DELETE /api/musaitlik` ve
+  `GET/POST/PUT /api/tercih` eklendi (PUT yalnızca `durum` değiştirir —
+  FR-3.4 onay/red).
+- `tests/test_girdi_api.py` (yeni, 5 test): mutlu yol (oluştur/listele/
+  sil, oluştur/listele/onayla/reddet, vardiya tipi tercihi) + hata yolu
+  (var olmayan personel_id ile FK ihlali, var olmayan tercih_id ile 404).
+
+**Frontend — tasarım sistemi:**
+- `index.css` baştan yazıldı: sürüm 2'nin mavi/yuvarlak/gölgeli
+  tokenlerinin hiçbir kalıntısı yok. Referans dokümanındaki YİRMİ token
+  (chrome-*, canvas/surface/sunken/rule/ink, accent/signal ve
+  yumuşakları, vardiya-*) `@theme inline` içinde birebir isimleriyle
+  Tailwind rengi olarak tanımlandı; shadcn'in genel semantik
+  değişkenleri (`--primary`, `--border` vb.) bunların takma adı yapıldı
+  ki `components/ui/*.tsx` dosyalarına dokunmadan yeni palet
+  devralınsın. **Not:** proje Tailwind v4 (CSS-first `@theme`)
+  kullanıyor, `tailwind.config.js` diye bir dosya yok — talimat
+  metnindeki dosya adı yerine bu projenin gerçek yapılandırma noktasına
+  uygulandı, aynı ilke (token adları birebir, rastgele Tailwind rengi
+  yok) korunarak.
+- `@fontsource/inter` kaldırıldı, `@fontsource/ibm-plex-sans` +
+  `-sans-condensed` + `-mono` eklendi.
+- Köşe yarıçapı 3-4px'e sabitlendi, `card.tsx`'teki `shadow-sm` silindi.
+- `app-ui.tsx`: `Buton/Kart/KartEtiketi/Rozet/BuyukRakam` yeni tokenlere
+  taşındı; yeni `Sayi` bileşeni eklendi (`font-mono tabular-nums`) ve
+  tüm sayı/tarih/saat gösterimlerinde kullanıldı (referans dokümanının
+  "sayı her yerde Mono" uyarısı). `buyukHarf()` (zaten
+  `toLocaleUpperCase('tr-TR')` kullanıyordu, bkz. Gün 10) ve `Rozet`'in
+  sabit genişliği (zaten vardı, bkz. Gün 10) korundu — referans
+  dokümanının diğer iki uyarısı bu ikisiydi, ikisi de daha önceki bir
+  oturumda zaten doğru uygulanmıştı.
+
+**Frontend — kabuk:**
+- `AppShell.tsx` yeniden yazıldı: koyu şasi (`chrome-base`), üç başlıklı
+  menü grupları (`nav.ts`'e `NAV_GRUPLARI` eklendi: VERİ/ÜRETİM/
+  DEĞERLENDİRME), altta `altEylem` slotu (yalnızca Tanımlar alt
+  sekmelerinde dolduruluyor) + Dönem bloğu (`/api/donem` ve
+  `/api/vardiya-tipi`'den kendi çeker).
+- **Bulunan ve düzeltilen bir düzen hatası:** `<aside>` başta
+  `flex-col justify-between` ile normal akışta duruyordu; kök flex
+  satırı `align-items: stretch` olduğundan, ana içerik (örn. 44 satırlı
+  Personel tablosu) sayfayı uzatınca yan menü de AYNI yüksekliğe
+  streç oluyor, alt gruptaki "Personel Ekle" butonu ve Dönem bloğu
+  görünür alanın çok altına (y≈2100px) itiliyordu — tarayıcıda gerçekten
+  test edilmeseydi (yalnızca kısa ekranlarda screenshot alınsaydı)
+  fark edilmezdi. `<aside>` `sticky top-0 h-svh overflow-y-auto` yapılarak
+  düzeltildi.
+
+**Frontend — ekranlar:**
+- Çizelge ve Çözüm yeni dile taşındı, **işlevsellik değişmedi** (aynı
+  state/API çağrıları): vardiya kodlaması (gündüz beyaz/akşam sage/gece
+  koyu — `VardiyaTipi`'de yalnızca `gece_mi` olduğundan akşam/gündüz
+  ayrımı başlangıç saatinden yaklaştırıldı, ≥14:00 akşam sayıldı),
+  kilitli hücreler teal `outline`, kapsama açığı `signal` zemin. Çözüm
+  ekranındaki ceza dökümü artık referans mockup'taki gibi yatay çubuk
+  grafiği.
+- Özet, Tanımlar (7 sekme: Talep matrisi düzenlenebilir hücrelerle,
+  Personel/Yetkinlik/Bina/Görev Noktası/Vardiya Tipi tablo+ekleme
+  formu, Kural H1-H8/S1-S8+S6b tablosu ağırlık/aktiflik düzenlenebilir),
+  Müsaitlik (kayıt tablosu + ekleme formu + basit çakışma uyarısı),
+  Tercihler (Bekleyen/Onaylandı/Reddedildi sekmeleri + onayla/reddet)
+  sıfırdan yazıldı — hepsi gerçek API verisiyle.
+- Analiz ve Sürümler kapsam dışı bırakıldı (plan böyle diyor); ikisi de
+  `PlaceholderEkrani` üzerinden ama artık yeni `AppShell`/`Kart` diliyle
+  render ediliyor (eski mavi tema kalıntısı yok).
+
+**Doğrulama:**
+- `ruff check`/`format`, tam backend paketi (105 test) temiz veritabanında
+  değişmeden geçti (~2,5 dk — sırf yeni testler eklendiği için, mevcut
+  hiçbiri değişmedi).
+- `tsc -b --noEmit`, `oxlint`, `npm run build` temiz.
+- Gerçek `uvicorn` + `vite` dev sunucusuyla tarayıcıda uçtan uca
+  gezildi (1440×900): demo veri (44 personel) + elle eklenen birkaç
+  müsaitlik/tercih kaydıyla sekiz ekranın hepsi (Analiz/Sürümler dahil,
+  onlar placeholder ama yeni dille) gerçekten açıldı; Çizelge'de gerçek
+  bir sürümün ızgarası vardiya renkleriyle göründü; Çözüm'de gerçek bir
+  çözüm çalıştırılıp tamamlandı; Tanımlar'ın yedi sekmesi de gerçek veri
+  gösterdi (talep matrisi, kural ağırlıkları dahil — kalibre edilen
+  S1=10000...S8=15 değerleri ekranda birebir görüldü); Müsaitlik'te
+  yeni kayıt formu ve çakışma uyarısı denendi; Tercihler'de "Onayla"
+  gerçekten `/api/tercih` PUT'unu tetikleyip durumu değiştirdi (API
+  ile bağımsızca doğrulandı).
+
+**Sapmalar / notlar:**
+- Kapsam netleştirmesi (musaitlik/tercih router'ları) yukarıda
+  açıklandı — kullanıcı onayıyla, kapsam kayması değil.
+- `tailwind.config.js` yerine `index.css`'teki `@theme` bloğu
+  kullanıldı (proje Tailwind v4) — yukarıda açıklandı.
+- Akşam/gündüz vardiya renk ayrımı `VardiyaTipi.gece_mi`'nin
+  kapsamadığı bir sezgiye (başlangıç saati ≥14:00) dayanıyor; veri
+  modelinde bunu taşıyan bir alan yok, üç vardiyalı (08-16/16-24/00-08)
+  mevcut senaryoda doğru çalışıyor ama farklı bir vardiya yapısında
+  yanlış sınıflandırabilir. Küçük, bilinen bir sınır.
+- Özet ekranının "Toplam Ceza" metriği (referans mockup'ta var)
+  kasıtlı olarak eklenmedi: bu veri hiçbir mevcut uç noktadan
+  gelmiyor (sürüm ↔ çözüm işi ilişkisini kuran bir endpoint yok),
+  eklemek plan dışı üçüncü bir router demek olurdu. Dört dilim
+  (Kapsama/Eksik Hücre/Bekleyen Tercih/Sürüm Durumu) gerçek veriyle
+  dolduruldu, beşincisi eklenmedi — Gün 12'nin Analiz endpoint'i
+  doğal olarak bunu da karşılayacak.
+- Kapsama % hesaplaması (Özet) basitleştirilmiş bir yaklaşıklık:
+  `atama_sayisi / (atama_sayisi + toplam_eksik)`. Gerçek "kapsama
+  oranı" tanımı Gün 12'nin Analiz servisinin işi; bu, o güne kadar
+  dürüst (uydurma olmayan) bir ara değer.
+
+**Kalan / ertelenen:** Yok — Ara İş'in kapsamındaki tüm maddeler
+tamamlandı (kabul kriteri: sekiz ekran yeni dille açılıyor, Çizelge/
+Çözüm akışları bozulmadı, Müsaitlik/Tercihler gerçek veriyle çalışıyor,
+iki yeni router'ın testleri var, çözücü/kural motoru/mevcut API
+sözleşmesi değişmedi — hepsi sağlandı).
+
+**Sıradaki oturumun ilk işi:** Sprint 3 Gün 12 — Analiz Servisi ve
+Ekranı (SDD 5.7'deki yedi metrik; Özet ekranının eksik "Toplam Ceza"
+dilimi ve basitleştirilmiş "Kapsama %" hesaplaması de o zaman gerçek
+Analiz endpoint'ine bağlanabilir).

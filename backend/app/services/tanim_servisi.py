@@ -5,6 +5,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.models.tanim import Bina, GorevNoktasi, Personel, Talep, VardiyaTipi, Yetkinlik
+from app.repositories.girdi import MusaitlikDeposu, TercihDeposu
 from app.repositories.kural import KuralDeposu
 from app.repositories.tanim import (
     BinaDeposu,
@@ -39,6 +40,8 @@ class TanimServisi:
         self.vardiya_tipi = VardiyaTipiDeposu(oturum)
         self.talep = TalepDeposu(oturum)
         self.kural = KuralDeposu(oturum)
+        self.musaitlik = MusaitlikDeposu(oturum)
+        self.tercih = TercihDeposu(oturum)
 
     # --- Personel (FR-1.1, FR-1.2) ---------------------------------------
 

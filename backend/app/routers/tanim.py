@@ -10,6 +10,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db import oturum_al
+from app.schemas.girdi import (
+    MusaitlikOku,
+    MusaitlikOlustur,
+    TercihGuncelle,
+    TercihOku,
+    TercihOlustur,
+)
 from app.schemas.kural import KuralGuncelle, KuralOku
 from app.schemas.tanim import (
     BinaGuncelle,
@@ -212,4 +219,45 @@ def kural_guncelle(kimlik: str, veri: KuralGuncelle, servis: Servis) -> KuralOku
     if mevcut is None:
         raise HTTPException(status_code=404, detail="Kural bulunamadi")
     nesne = servis.kural.guncelle(mevcut.kural_id, **veri.model_dump(exclude_unset=True))
+    return nesne  # type: ignore[return-value]
+
+
+# --- Musaitlik (FR-2.1, FR-2.2) -------------------------------------------
+
+
+@router.get("/musaitlik", response_model=list[MusaitlikOku])
+def musaitlik_listele(servis: Servis) -> list[MusaitlikOku]:
+    return list(servis.musaitlik.tumunu_getir())
+
+
+@router.post("/musaitlik", response_model=MusaitlikOku, status_code=201)
+def musaitlik_olustur(veri: MusaitlikOlustur, servis: Servis) -> MusaitlikOku:
+    return servis.musaitlik.olustur(**veri.model_dump())  # type: ignore[return-value]
+
+
+@router.delete("/musaitlik/{musaitlik_id}", status_code=204)
+def musaitlik_sil(musaitlik_id: int, servis: Servis) -> None:
+    if not servis.musaitlik.sil(musaitlik_id):
+        raise HTTPException(status_code=404, detail="Musaitlik kaydi bulunamadi")
+
+
+# --- Tercih (FR-3.1, FR-3.2, FR-3.4) --------------------------------------
+
+
+@router.get("/tercih", response_model=list[TercihOku])
+def tercih_listele(servis: Servis) -> list[TercihOku]:
+    return list(servis.tercih.tumunu_getir())
+
+
+@router.post("/tercih", response_model=TercihOku, status_code=201)
+def tercih_olustur(veri: TercihOlustur, servis: Servis) -> TercihOku:
+    return servis.tercih.olustur(**veri.model_dump())  # type: ignore[return-value]
+
+
+@router.put("/tercih/{tercih_id}", response_model=TercihOku)
+def tercih_guncelle(tercih_id: int, veri: TercihGuncelle, servis: Servis) -> TercihOku:
+    """FR-3.4: yonetici tercihi onaylar veya reddeder (durum degisikligi)."""
+    nesne = servis.tercih.guncelle(tercih_id, **veri.model_dump(exclude_unset=True))
+    if nesne is None:
+        raise HTTPException(status_code=404, detail="Tercih bulunamadi")
     return nesne  # type: ignore[return-value]

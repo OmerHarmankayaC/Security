@@ -1,8 +1,6 @@
-// Gün 10'da elle yazılan Buton/Kart/KartEtiketi/Rozet/BuyukRakam
-// bileşenlerinin shadcn/ui üzerine kurulu karşılıkları (Tasarım Referansı
-// sürüm 2). Ekran dosyalarının JSX'i değişmeden kalsın diye aynı Türkçe
-// prop adları korunuyor — yalnızca görsel katman shadcn primitiflerine
-// taşındı (bkz. PROGRESS.md, Sprint 2 Gün 10 shadcn geçişi notu).
+// Tasarım Referansı sürüm 3 ("Kontrol Odası") üzerine kurulu paylaşılan
+// bileşenler — shadcn primitiflerini (src/components/ui/) sarar. Ekran
+// dosyalarının kullandığı Türkçe prop adları korunur.
 import { Children, type ButtonHTMLAttributes, type PropsWithChildren, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -42,8 +40,8 @@ export function Kart({
   return (
     <Card
       className={cn(
-        '[--card-spacing:--spacing(8)]', // TASARIM_REFERANSI.md: kart ic bosluk 32px
-        vurgulu && 'border-primary bg-accent',
+        '[--card-spacing:--spacing(6)] rounded-md border-rule bg-surface',
+        vurgulu && 'border-accent bg-accent-soft',
         className,
       )}
     >
@@ -54,7 +52,8 @@ export function Kart({
 
 // Bolum etiketi (kart basligi) — kaynak metin kucuk harfle yazilir, gorsel
 // olarak toLocaleUpperCase('tr-TR') ile buyutulur (duz toUpperCase DEGIL —
-// Turkce İ/ı harflerini bozar, bkz. TASARIM_REFERANSI.md).
+// Turkce İ/ı harflerini bozar, bkz. TASARIM_REFERANSI.md). Stil
+// `etiket/caps`: IBM Plex Sans Condensed Medium 10px, %14 harf araligi.
 export function KartEtiketi({
   children,
   renk,
@@ -62,9 +61,9 @@ export function KartEtiketi({
   return (
     <p
       className={cn(
-        'mb-4 text-xs font-medium tracking-wide text-muted-foreground',
-        renk === 'accent' && 'text-primary',
-        renk === 'warn' && 'text-amber-700',
+        'mb-4 font-condensed text-[10px] font-medium tracking-[0.14em] text-ink-muted',
+        renk === 'accent' && 'text-accent',
+        renk === 'warn' && 'text-signal',
       )}
     >
       {buyukHarf(duzMetneCevir(children))}
@@ -75,15 +74,16 @@ export function KartEtiketi({
 type RozetVaryanti = 'dolu' | 'eksik' | 'kilitli' | 'notr'
 
 const ROZET_VARYANT_SINIFI: Record<RozetVaryanti, string> = {
-  dolu: 'bg-green-50 text-green-700',
-  eksik: 'bg-amber-100 text-amber-700',
-  kilitli: 'bg-accent text-primary',
-  notr: 'bg-gray-100 text-gray-500',
+  dolu: 'bg-sunken text-ink-muted',
+  eksik: 'bg-signal-soft text-signal',
+  kilitli: 'bg-accent-soft text-accent',
+  notr: 'bg-sunken text-ink-muted',
 }
 
 // Sabit genislik zorunlu: metne gore otomatik genisleyen bir rozet, yan yana
-// gelen alanlari kaydirir (bkz. TASARIM_REFERANSI.md — Sürümler ekranindaki
-// durum rozeti notu; shadcn Badge'e gecerken de gecerliligini koruyor).
+// gelen alanlari kaydirir (bkz. TASARIM_REFERANSI.md — "Genişleyen
+// bileşenlere sabit genişlik" uyarısı, bu tasarımda daha önce iki kez
+// yaşanmış).
 export function Rozet({
   children,
   varyant,
@@ -92,7 +92,7 @@ export function Rozet({
   return (
     <Badge
       variant="secondary"
-      className={cn('justify-center', ROZET_VARYANT_SINIFI[varyant])}
+      className={cn('justify-center rounded-sm font-condensed tracking-[0.08em]', ROZET_VARYANT_SINIFI[varyant])}
       style={{ width: genislik }}
     >
       {buyukHarf(duzMetneCevir(children))}
@@ -100,11 +100,19 @@ export function Rozet({
   )
 }
 
+// Sayı her yerde Mono: tarih, saat, ceza puanı, personel sayısı — rakamlar
+// böylece sütun halinde hizalanır (bkz. TASARIM_REFERANSI.md, Tipografi).
+export function Sayi({ children, className }: PropsWithChildren<{ className?: string }>) {
+  return <span className={cn('font-mono tabular-nums', className)}>{children}</span>
+}
+
 export function BuyukRakam({ deger, etiket }: { deger: string; etiket: string }) {
   return (
     <div>
-      <p className="m-0 text-3xl font-semibold text-foreground">{deger}</p>
-      <p className="mt-1 text-sm text-muted-foreground">{etiket}</p>
+      <p className="m-0 font-mono text-3xl font-semibold text-ink">{deger}</p>
+      <p className="mt-1 font-condensed text-[10px] tracking-[0.14em] text-ink-muted">
+        {buyukHarf(etiket)}
+      </p>
     </div>
   )
 }
