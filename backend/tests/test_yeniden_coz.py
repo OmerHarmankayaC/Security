@@ -5,7 +5,6 @@ multiprocessing.Process baslattigi icin bu testler islerin bitmesini
 bekleyerek (poll) calisir.
 """
 
-import time as zaman
 import uuid
 from datetime import date, time, timedelta
 
@@ -20,28 +19,7 @@ from app.models.tanim import GorevNoktasi, GunTipi, Personel, Talep, VardiyaTipi
 from app.repositories.sonuc import CizelgeSurumuDeposu, CozumIsiDeposu
 from app.schemas.cozum import CozumBaslatIstek
 from app.services.cozum_servisi import CozumServisi
-from tests.conftest import pg_yoksa_atla
-
-_SONUCLANMIS = (
-    CozumIsiDurumu.TAMAMLANDI,
-    CozumIsiDurumu.UYARILI,
-    CozumIsiDurumu.BASARISIZ,
-    CozumIsiDurumu.IPTAL,
-)
-
-
-def _bekle_ve_getir(is_id: int, *, zaman_asimi_saniye: float = 150) -> CozumIsiDurumu:
-    baslangic = zaman.monotonic()
-    while zaman.monotonic() - baslangic < zaman_asimi_saniye:
-        oturum = OturumYerel()
-        try:
-            is_kaydi = CozumIsiDeposu(oturum).getir(is_id)
-            if is_kaydi is not None and is_kaydi.durum in _SONUCLANMIS:
-                return is_kaydi.durum
-        finally:
-            oturum.close()
-        zaman.sleep(0.5)
-    pytest.fail(f"Cozum isi {zaman_asimi_saniye} saniyede sonuclanmadi")
+from tests.conftest import isi_calistir_ve_bekle, pg_yoksa_atla
 
 
 def _standart_kurallari_ekle(oturum: OturumYerel) -> None:
@@ -146,7 +124,7 @@ def test_yeniden_coz_taslagi_onceki_surume_baglar_ve_kilitli_atamayi_korur(
     finally:
         oturum.close()
 
-    ilk_durum = _bekle_ve_getir(ilk_is_id)
+    ilk_durum = isi_calistir_ve_bekle(ilk_is_id)
     assert ilk_durum in (CozumIsiDurumu.TAMAMLANDI, CozumIsiDurumu.UYARILI)
 
     # 2) Bu noktadaki bir atamayi kilitle, sonra surumu yayinla.
@@ -190,7 +168,7 @@ def test_yeniden_coz_taslagi_onceki_surume_baglar_ve_kilitli_atamayi_korur(
 
     assert yeni_surum_id != ilk_surum_id
 
-    yeni_durum = _bekle_ve_getir(yeni_is_id)
+    yeni_durum = isi_calistir_ve_bekle(yeni_is_id)
     assert yeni_durum in (CozumIsiDurumu.TAMAMLANDI, CozumIsiDurumu.UYARILI)
 
     oturum = OturumYerel()

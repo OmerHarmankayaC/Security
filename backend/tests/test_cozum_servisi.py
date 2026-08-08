@@ -5,7 +5,6 @@ multiprocessing.Process baslattigi icin bu testler islerin bitmesini
 bekleyerek (poll) calisir.
 """
 
-import time as zaman
 import uuid
 from datetime import date, time, timedelta
 
@@ -19,28 +18,7 @@ from app.models.sonuc import Atama, CozumIsiDurumu, Donem, KapsamaAcigi
 from app.models.tanim import GorevNoktasi, GunTipi, Personel, Talep, VardiyaTipi, Yetkinlik
 from app.repositories.sonuc import CozumIsiDeposu
 from app.services.cozum_servisi import CozumServisi
-from tests.conftest import pg_yoksa_atla
-
-_SONUCLANMIS = (
-    CozumIsiDurumu.TAMAMLANDI,
-    CozumIsiDurumu.UYARILI,
-    CozumIsiDurumu.BASARISIZ,
-    CozumIsiDurumu.IPTAL,
-)
-
-
-def _bekle_ve_getir(is_id: int, *, zaman_asimi_saniye: float = 150) -> CozumIsiDurumu:
-    baslangic = zaman.monotonic()
-    while zaman.monotonic() - baslangic < zaman_asimi_saniye:
-        oturum = OturumYerel()
-        try:
-            is_kaydi = CozumIsiDeposu(oturum).getir(is_id)
-            if is_kaydi is not None and is_kaydi.durum in _SONUCLANMIS:
-                return is_kaydi.durum
-        finally:
-            oturum.close()
-        zaman.sleep(0.5)
-    pytest.fail(f"Cozum isi {zaman_asimi_saniye} saniyede sonuclanmadi")
+from tests.conftest import isi_calistir_ve_bekle, pg_yoksa_atla
 
 
 def _standart_kurallari_ekle(oturum: OturumYerel) -> None:
@@ -145,7 +123,7 @@ def test_cozum_kadro_yeterliyken_tamamlandi_doner_ve_atama_yazilir(temel_kurulum
     finally:
         oturum.close()
 
-    durum = _bekle_ve_getir(is_id)
+    durum = isi_calistir_ve_bekle(is_id)
     # Paylasilan test veritabaninda baska testlerin biraktigi genel (tarihsiz)
     # talep satirlari (SDD 4.2.1 geregi haftaici gunlere gecerli sekilde
     # uygulanir) baska noktalarda ek talep dogurabilir; bu yuzden is genelinde
@@ -270,7 +248,7 @@ def test_cozum_on_kontrolde_yapisal_engel_varsa_cozmeden_basarisiz_doner(
     finally:
         oturum.close()
 
-    durum = _bekle_ve_getir(is_id)
+    durum = isi_calistir_ve_bekle(is_id)
     assert durum == CozumIsiDurumu.BASARISIZ
 
     oturum = OturumYerel()

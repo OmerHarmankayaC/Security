@@ -37,7 +37,7 @@ kısmını çözücüden alır ve SDD 3.4.3'teki çekirdek paylaşımı kararın
 | Dosya | İşlev |
 |---|---|
 | `uygulama.service` | API (uvicorn) systemd unit'i |
-| `cozum-isci.service` | Çözücü işçisi systemd unit'i — **bkz. bölüm 7, açık madde** |
+| `cozum-isci.service` | Çözücü işçisi systemd unit'i |
 | `DAGITIM.md` | bu dosya |
 | `../.env.example` | tüm ortam değişkenleri, sır gerektirenler işaretli |
 
@@ -87,20 +87,23 @@ dağıtılmış bütün çalışan paneli bağlantıları geçersiz olur**; yeni
 - [ ] `cozum-isci.service` kurulumu, `enable --now`, günlük kontrolü
 - [ ] API'nin yanıt verdiğinin doğrulanması
 
-**AÇIK MADDE — çözücü işçisi servisi henüz kurulamaz.** SDD 3.4.4 çözüm
-işinin *ayrı bir sistem servisi* olarak çalışmasını ve süreçler arası
-iletişimin yalnızca veritabanı üzerinden olmasını tanımlar. Mevcut
-uygulamada ise çözüm işi, API süreci içinden `multiprocessing.Process`
-ile açılan bir **çocuk süreçtir** (`app/services/cozum_servisi.py`,
-`baslat`). Bu, Sprint 2 Gün 8'de bilinçli bir ara çözümdü — Uygulama
-Planı o maddede "bu aşamada basit bir `multiprocessing` … yeterli;
-systemd entegrasyonu Sprint 3'te" diyor.
+**Çözüm işçisi hakkında.** SDD 3.4.4 gereği çözüm işi API sürecinde
+çalışmaz: `CozumServisi.baslat` işi yalnızca `kuyrukta` durumunda yazar,
+`cozum-isci.service` kuyruğu yoklayıp işleri yürütür. İki süreç arasında
+doğrudan iletişim yoktur; tek sözleşme veritabanıdır.
 
-Dolayısıyla `cozum-isci.service`'in çalıştıracağı bir işçi süreci **henüz
-yok**: kuyruktaki (`kuyrukta` durumundaki) işleri veritabanından alıp
-çalıştıran bir döngü yazılmadan bu unit dosyası boşa işaret eder. Kurulum
-buraya geldiğinde işçi yazılmalıdır; ayrıntı ve öneri için bkz. PROGRESS.md
-(08.08.2026 kaydı).
+Sonuçları:
+
+- **API tek başına yeterli değildir.** İşçi çalışmazsa çözüm istekleri
+  kuyrukta bekler ve hiçbir çizelge üretilmez. Her iki servis de
+  `enable --now` edilmelidir.
+- **Durdur butonu** API'den işin durumunu `IPTAL`'e çeker; işçi bunu çözüm
+  geri çağırımında okuyup aramayı sonlandırır ve **hiçbir atama yazmadan**
+  çıkar (SDD 6.3.2). Durum anında görünür, aramanın fiilen durması bir
+  sonraki iyileşmiş çözüme ya da zaman limitine kadar sürebilir.
+- **`systemctl stop` yarım sonuç bırakmaz:** işçi SIGTERM'de eldeki işi
+  tamamlayıp çıkar. Unit'teki `TimeoutStopSec=180s` bu yüzden çözücü zaman
+  limitinden (varsayılan 60 sn) geniş tutulmuştur.
 
 ## 8. Dağıtım sonrası kabul ölçümü
 

@@ -10,10 +10,8 @@ donemi de gercekten cozer; canli PostgreSQL gerektirir.
 """
 
 import sys
-import time as zaman
 from pathlib import Path
 
-import pytest
 from sqlalchemy import select
 
 from app.db import OturumYerel
@@ -21,30 +19,10 @@ from app.models.kural import Kural
 from app.models.sonuc import CozumIsiDurumu, Donem
 from app.repositories.sonuc import CozumIsiDeposu
 from app.services.cozum_servisi import CozumServisi
-from tests.conftest import pg_yoksa_atla
+from tests.conftest import isi_calistir_ve_bekle, pg_yoksa_atla
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.demo_veri_uret import _her_seyi_temizle, uret  # noqa: E402
-
-_SONUCLANMIS = (
-    CozumIsiDurumu.TAMAMLANDI,
-    CozumIsiDurumu.UYARILI,
-    CozumIsiDurumu.BASARISIZ,
-)
-
-
-def _bekle_ve_getir(is_id: int, *, zaman_asimi_saniye: float = 150) -> CozumIsiDurumu:
-    baslangic = zaman.monotonic()
-    while zaman.monotonic() - baslangic < zaman_asimi_saniye:
-        oturum = OturumYerel()
-        try:
-            is_kaydi = CozumIsiDeposu(oturum).getir(is_id)
-            if is_kaydi is not None and is_kaydi.durum in _SONUCLANMIS:
-                return is_kaydi.durum
-        finally:
-            oturum.close()
-        zaman.sleep(0.5)
-    pytest.fail(f"Cozum isi {zaman_asimi_saniye} saniyede sonuclanmadi")
 
 
 def test_s1_agirligi_diger_hedeflerin_agirlikli_toplamindan_buyuk() -> None:
@@ -74,8 +52,8 @@ def test_s1_agirligi_diger_hedeflerin_agirlikli_toplamindan_buyuk() -> None:
         assert is_kaydi_rahat is not None
         assert is_kaydi_sikisik is not None
 
-        durum_rahat = _bekle_ve_getir(is_kaydi_rahat.is_id)
-        durum_sikisik = _bekle_ve_getir(is_kaydi_sikisik.is_id, zaman_asimi_saniye=150)
+        durum_rahat = isi_calistir_ve_bekle(is_kaydi_rahat.is_id)
+        durum_sikisik = isi_calistir_ve_bekle(is_kaydi_sikisik.is_id)
         assert durum_rahat != CozumIsiDurumu.BASARISIZ
         assert durum_sikisik != CozumIsiDurumu.BASARISIZ
 

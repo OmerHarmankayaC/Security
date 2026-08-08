@@ -38,6 +38,19 @@ uvicorn app.main:app --reload
 
 `http://localhost:8000/health` 200 dönmelidir.
 
+Çözüm işçisi (**ayrı bir terminalde, API'nin yanı sıra çalışmalı**):
+
+```bash
+cd backend
+source .venv/bin/activate
+python scripts/cozum_iscisi.py
+```
+
+Çözüm işi API sürecinde değil, ayrı bir serviste çalışır (SDD 3.4.4); iki
+süreç yalnızca veritabanı üzerinden haberleşir. Bu işçi çalışmazsa çözüm
+istekleri `kuyrukta` durumunda bekler ve hiçbir çizelge üretilmez.
+Geliştirme ile sunucu böylece aynı yolu kullanır.
+
 Gösterim amaçlı örnek veri (FR-1.14 — SRS 3.3'teki güvenlik personeli
 senaryosu: 44 personel, 6 görev noktası, talep matrisi, 17 kural; "rahat"
 ve "sıkışık" iki dönem):

@@ -1,0 +1,56 @@
+# Vardiya Cizelgeleme - cozum iscisi (SDD 3.4.4)
+#
+# Uygulama sunucusu cozum CALISTIRMAZ; isi `kuyrukta` durumunda birakir ve
+# bu servis kuyrugu yoklayip isleri yurutur. Iki surec arasinda dogrudan
+# iletisim yoktur, tek sozlesme veritabanidir - bu sayede iscinin
+# sonlanmasi API'yi etkilemez ve isci ileride ayri bir makineye tasinabilir.
+#
+# Kurulum:
+#   sudo cp deploy/cozum-isci.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now cozum-isci.service
+
+[Unit]
+Description=Vardiya Cizelgeleme - cozum iscisi
+Documentation=file:///opt/vardiya/deploy/DAGITIM.md
+After=network-online.target postgresql.service
+Wants=network-online.target
+Requires=postgresql.service
+
+[Service]
+Type=exec
+User=vardiya
+Group=vardiya
+WorkingDirectory=/opt/vardiya/backend
+EnvironmentFile=/opt/vardiya/.env
+
+ExecStart=/opt/vardiya/backend/.venv/bin/python scripts/cozum_iscisi.py
+
+Restart=on-failure
+RestartSec=5s
+
+# SIGTERM'de isci eldeki isi TAMAMLAYIP cikar (yarim cizelge yazmamak icin;
+# bkz. scripts/cozum_iscisi.py, _KapanmaIstegi). Bu yuzden durdurma
+# zaman asimi, cozucuye verilen ust sure sinirindan (COZUCU_ZAMAN_LIMITI_SANIYE,
+# varsayilan 60 sn) belirgin genis tutulur; aksi halde systemd isi
+# tamamlanmadan SIGKILL gonderir.
+KillSignal=SIGTERM
+TimeoutStopSec=180s
+
+# CP-SAT'in kullanacagi cekirdek sayisi .env'deki COZUCU_ARAMA_ISCISI_SAYISI
+# ile belirlenir (SDD 3.4.3: cekirdek sayisinin bir eksigi, referans
+# donanimda 3). Burada ayrica sinirlanmaz - iki yerde tanimlamak, degerlerin
+# sessizce ayrismasina yol acar.
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/vardiya/backend
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=vardiya-cozum-isci
+
+[Install]
+WantedBy=multi-user.target

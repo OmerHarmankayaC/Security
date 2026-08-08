@@ -29,18 +29,43 @@ class CozumSonucu:
     # SDD 5.4: cozum.hedef_bazinda_ceza() ve cozum.eksik_degiskenleri.
     ceza_dokumu: dict[str, float] = field(default_factory=dict)
     kapsama_eksikleri: dict[KapsamaAnahtari, int] = field(default_factory=dict)
+    # Arama, iptal istegi geldigi icin sonlandirildi. Cagiran taraf bu
+    # durumda ELDEKI cozumu YAZMAMALIDIR (SDD 6.3.2: "iptal edilen is, o ana
+    # kadar bulunmus en iyi cozumu kaydetmeden sonlanir").
+    iptal_edildi: bool = False
 
 
 class _IlerlemeGeriCagrisi(cp_model.CpSolverSolutionCallback):
-    """SDD 5.4: ara_cozum_geri_cagirma = FONKSIYON(ceza, gecen_sure): ..."""
+    """SDD 5.4: ara_cozum_geri_cagirma = FONKSIYON(ceza, gecen_sure): ...
 
-    def __init__(self, geri_cagirma: Callable[[float, float], None] | None) -> None:
+    Ayrica iptal kontrolunu tasir: cozum isci ayri bir SERVIS oldugundan
+    (SDD 3.4.4) API o sureci olduremez; durdurma istegi veritabanina
+    yazilir ve isci bunu burada, her yeni cozumde okur.
+
+    SINIR: bu geri cagirim yalnizca CP-SAT yeni ve DAHA IYI bir cozum
+    buldugunda tetiklenir. Iki iyilesme arasinda uzun bir sessizlik varsa
+    durdurma o sessizlik bitene ya da zaman limiti dolana kadar etkisini
+    gostermez. Zaman limiti her zaman bir ust sinir oldugundan is yine de
+    sonlanir; anlik sonlandirma icin surec oldurmek gerekirdi ki ayri
+    servis mimarisinde bu mumkun degil.
+    """
+
+    def __init__(
+        self,
+        geri_cagirma: Callable[[float, float], None] | None,
+        iptal_kontrolu: Callable[[], bool] | None = None,
+    ) -> None:
         super().__init__()
         self._geri_cagirma = geri_cagirma
+        self._iptal_kontrolu = iptal_kontrolu
+        self.iptal_edildi = False
 
     def on_solution_callback(self) -> None:
         if self._geri_cagirma is not None:
             self._geri_cagirma(self.objective_value, self.wall_time)
+        if self._iptal_kontrolu is not None and self._iptal_kontrolu():
+            self.iptal_edildi = True
+            self.stop_search()
 
 
 class CozucuAdaptoru:
@@ -54,13 +79,14 @@ class CozucuAdaptoru:
         zaman_limiti_saniye: float,
         arama_iscisi_sayisi: int = 1,
         ara_cozum_geri_cagirma: Callable[[float, float], None] | None = None,
+        iptal_kontrolu: Callable[[], bool] | None = None,
         ceza_terimleri: dict[str, Any] | None = None,
         kapsama_degiskenleri: dict[KapsamaAnahtari, Any] | None = None,
     ) -> CozumSonucu:
         cozucu = cp_model.CpSolver()
         cozucu.parameters.max_time_in_seconds = zaman_limiti_saniye
         cozucu.parameters.num_search_workers = arama_iscisi_sayisi
-        geri_cagrisi = _IlerlemeGeriCagrisi(ara_cozum_geri_cagirma)
+        geri_cagrisi = _IlerlemeGeriCagrisi(ara_cozum_geri_cagirma, iptal_kontrolu)
         durum = cozucu.solve(model, geri_cagrisi)
 
         if durum not in _UYGUN_DURUMLAR:
@@ -69,6 +95,7 @@ class CozucuAdaptoru:
                 atanan_anahtarlar=frozenset(),
                 toplam_ceza=None,
                 sure_saniye=cozucu.wall_time,
+                iptal_edildi=geri_cagrisi.iptal_edildi,
             )
 
         atananlar = frozenset(anahtar for anahtar, degisken in x.items() if cozucu.value(degisken))
@@ -87,4 +114,5 @@ class CozucuAdaptoru:
             sure_saniye=cozucu.wall_time,
             ceza_dokumu=ceza_dokumu,
             kapsama_eksikleri=kapsama_eksikleri,
+            iptal_edildi=geri_cagrisi.iptal_edildi,
         )

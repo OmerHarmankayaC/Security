@@ -7,7 +7,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
-from app.models.ortak import ZamanDamgasiKarisimi
+from app.models.ortak import ZamanDamgasi, ZamanDamgasiKarisimi
 
 
 class CizelgeSurumuDurumu(enum.StrEnum):
@@ -49,7 +49,7 @@ class CizelgeSurumu(Base, ZamanDamgasiKarisimi):
     surum_no: Mapped[int]
     durum: Mapped[CizelgeSurumuDurumu] = mapped_column(default=CizelgeSurumuDurumu.TASLAK)
     onceki_surum_id: Mapped[int | None] = mapped_column(ForeignKey("cizelge_surumu.surum_id"))
-    yayin_zamani: Mapped[datetime | None]
+    yayin_zamani: Mapped[datetime | None] = mapped_column(ZamanDamgasi)
 
 
 class Atama(Base, ZamanDamgasiKarisimi):
@@ -74,8 +74,8 @@ class CozumIsi(Base, ZamanDamgasiKarisimi):
     is_id: Mapped[int] = mapped_column(primary_key=True)
     surum_id: Mapped[int] = mapped_column(ForeignKey("cizelge_surumu.surum_id"))
     durum: Mapped[CozumIsiDurumu] = mapped_column(default=CozumIsiDurumu.KUYRUKTA)
-    baslangic_zamani: Mapped[datetime]
-    bitis_zamani: Mapped[datetime | None]
+    baslangic_zamani: Mapped[datetime] = mapped_column(ZamanDamgasi)
+    bitis_zamani: Mapped[datetime | None] = mapped_column(ZamanDamgasi)
     sure_saniye: Mapped[Decimal | None] = mapped_column(Numeric(10, 3))
     zaman_limiti_saniye: Mapped[int]
     en_iyi_ceza: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))

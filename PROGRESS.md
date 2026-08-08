@@ -2731,3 +2731,128 @@ servisleri (`uygulama.service`, `cozum-isci.service`), Caddy, PostgreSQL
 sistem servisi; kabul ölçümünün gerçek gösterim donanımında yeniden
 çalıştırılıp `docs/PERFORMANS_NOTU.md`'nin o sonuçlarla güncellenmesi;
 dört dokümanla kodun son tutarlılık kontrolü; `sprint-3` etiketi.
+
+---
+
+## 2026-08-08 — Dağıtım Öncesi Maddeler: 4, 3, 1, 2
+
+Kullanıcının verdiği sırayla. Maddeler 1 ve 2 önceki turlarda zaten
+yapılmıştı; doğrulanıp aşağıda raporlandı.
+
+### Madde 4 — Çözüm işçisi ayrı servis + Durdur (yeni)
+
+SDD 3.4.4'ün tanımladığı mimariye geçildi: çözüm işi artık API sürecinin
+çocuğu değil, **ayrı bir servis**. Yapılandırma anahtarı KONMADI (kullanıcı
+uyarısı: iki kip bırakmak aynı davranışı iki yerde tanımlamaktır ve bu
+projede üç kez soruna yol açan kalıbın kendisidir).
+
+- `CozumServisi.baslat` süreç açmayı bıraktı; işi `kuyrukta` durumunda
+  yazıp dönüyor. `multiprocessing` bağımlılığı ve `_disaridan_calistir`
+  kalktı.
+- `scripts/cozum_iscisi.py` (yeni): kuyruğu yoklayıp `cozum_isini_calistir`
+  çağıran döngü. `siradaki_isi_isle()` tek adımı yapar (bir iş işler ya da
+  None döner) — testlerin senkron çağırdığı giriş noktası.
+- **Yarışa kapalı kapma:** `UPDATE cozum_isi SET durum='ON_KONTROL' WHERE
+  is_id = (SELECT ... WHERE durum='KUYRUKTA' ... FOR UPDATE SKIP LOCKED)
+  RETURNING is_id`. Durum değişikliği ile seçim tek ifadede olduğu için iki
+  işçi aynı işi alamaz; ayrı bir sahiplik sütununa gerek kalmadı.
+  Enum'ların veritabanında **isimle** saklandığı (`KUYUKTA` değil
+  `KUYRUKTA`) ham SQL yazmadan önce doğrulandı.
+- **SIGTERM:** bayrak kaldırılır, eldeki iş TAMAMLANIR, döngü ondan sonra
+  çıkar. Yarım çizelge yazmak, kural ihlali içermeyen ama kapsaması eksik
+  bir çizelgeden ayırt edilemeyeceği için yanıltıcı olurdu (SDD 5.4).
+  Unit'teki `TimeoutStopSec=180s` bu yüzden çözücü limitinden geniş.
+- **Durdur:** bayrak için ayrı sütun açılmadı — `durum=IPTAL` zaten SDD
+  5.4'ün durum makinesinde var ve "veritabanına bir bayrak yazar" tam
+  olarak bu. API durumu IPTAL'e çeker; işçi bunu CP-SAT geri çağırımında
+  `oturum.refresh(is_kaydi, ["durum"])` ile **taze** okur (kimlik
+  haritasındaki önbellek başka bağlantının değişikliğini görmez) ve
+  `stop_search()` çağırır. Sonuç yazma bloğundan ÖNCE kontrol edilir, yarım
+  sonuç yazılmaz (SDD 6.3.2).
+- **Bilinen sınır (kodda ve DAGITIM.md'de yazılı):** geri çağırım yalnızca
+  yeni ve daha iyi bir çözüm bulununca tetiklenir; iki iyileşme arasında
+  uzun bir sessizlik varsa durdurma o sessizlik bitene ya da zaman limitine
+  kadar etkisini göstermez. Ayrı servis mimarisinde süreç öldürmek mümkün
+  olmadığı için bu kaçınılmaz.
+- **5 mevcut test yeniden yazıldı:** `tests/conftest.py`'ye
+  `isi_calistir_ve_bekle()` eklendi; işçinin tek adımını senkron sürüyor.
+  Yoklama/zaman aşımı/yarış kalktı, testler belirlenimli oldu.
+- `tests/test_cozum_iscisi.py` (yeni, 6 test): kuyruğa yazma, işi alıp
+  çalıştırma, boş kuyruk, aynı işin iki kez kapılamaması, kuyruktayken
+  iptal edilen işin hiç alınmaması, çözüm sırasında iptalde **hiçbir atama /
+  kapsama açığı yazılmaması ve sürümün taslak kalması**.
+- `deploy/cozum-isci.service` yazıldı, DAGITIM.md bölüm 7'deki açık madde
+  kapatıldı. README'ye yerel geliştirmede işçinin ayrı çalıştırılması
+  gerektiği eklendi.
+- **Test yazarken bulunan bir tuzak:** fikstüre yalnız H1–H8 koyunca iş
+  "tamamlandı" görünüp sıfır atama üretiyor — S1 olmadan kapsama kısıtı
+  kurulmuyor, model boş amaç fonksiyonuyla çözülüyor. Fikstür S kurallarını
+  da yükleyecek şekilde düzeltildi, nedeni yorumda yazılı.
+
+**Gerçek servisle uçtan uca doğrulandı:** işçi ayrı süreçte işi aldı ve
+tamamladı (`cozuluyor` → `tamamlandi`); 28 günlük bir iş sürerken Durdur
+gönderildi, iş `iptal` oldu ve veritabanında **0 atama, 0 kapsama açığı,
+sürüm `taslak`, ceza dökümü None** kaldı; iş sürerken SIGTERM gönderildi,
+işçi eldeki işi bitirip (`tamamlandi`) temiz çıktı.
+
+### Madde 3 — TIMESTAMPTZ göçü (yeni)
+
+- Kapsam modellerden üretildi: **35 sütun, 16 tablo**; listesi göç
+  dosyasının başına yorum olarak yazıldı. DATE sütunları (dönem/atama
+  tarihleri) kapsam dışı — onlar bir takvim günü, bir zaman anı değil (TD-1).
+- `ZamanDamgasi = DateTime(timezone=True)` `app/models/ortak.py`'de tek
+  yerde tanımlandı; karışım ve üç açık sütun (`yayin_zamani`,
+  `baslangic_zamani`, `bitis_zamani`) oradan alıyor.
+- Göç `c8f2d1a45b73`: her sütun için açık
+  `USING <kolon> AT TIME ZONE 'UTC'`. Bırakılsaydı PostgreSQL sunucunun
+  saat dilimini varsayıp sessizce kaydırırdı.
+- **Kayma olmadığı kanıtlandı:** oturum saat dilimi `Europe/Istanbul`
+  yapılıp göç öncesi `12:00` naive değer yazıldı; göçten sonra UTC
+  karşılığı **12:00 kaldı**, İstanbul'da `15:00+03` göründü. Downgrade →
+  upgrade gidiş-dönüşü de çalıştırıldı.
+- Göçten sonra API'nin gerçekte ne döndürdüğü ölçüldü:
+  `'2026-08-08T06:14:14.058150Z'` — artık ofsetli.
+- `utcTarihiAyristir` tek geçiş noktası olarak KALDI ama sağlamlaştı: eski
+  regex (`/[zZ]|[+-]\d\d:\d\d$/`) `[zZ]`'yi sona bağlamıyordu ve `+0300`
+  biçimini kaçırıyordu. Yeni hâli ofseti yalnız **zaman bölümünde** arıyor
+  ('Z', '+03:00', '+0300', '+03'), tarih bölümündeki tireyi ofset sanmıyor.
+
+### Maddeler 1 ve 2 — önceki turlarda yapılmıştı (doğrulandı)
+
+- **Madde 1:** `app/services/calisan_baglantisi.py` — anahtar
+  `HMAC-SHA256(secret, personel_id)`, doğrulama `hmac.compare_digest` ile
+  sabit zamanlı, sır `.env`'den. `scripts/calisan_baglantisi_uret.py` yeni
+  şemayı kullanıyor. Yönetici arayüzünde bağlantı gösteren/kopyalatan bir
+  yer **yok**, o yüzden orada güncellenecek bir şey de yok. Testler:
+  doğru anahtar 200, yanlış anahtar 403, **başka personelin geçerli
+  anahtarı 403** (üç uç nokta için de).
+- **Madde 2:** FR-9.4'ün üçüncü türü tamam. Kaldırılan günler
+  `kaldirilan_gunler` alanında **ayrı** taşınıyor (bir vardiya değil,
+  yokluğu); ızgarada boş hücreye ince işaret, listede üstü çizili
+  "KALDIRILDI" satırı. Karşılaştırma tabanı çalışan panelinde
+  `en_son_arsivlenen_getir` (aynı dönemdeki en son arşiv); Sürümler
+  ekranının kullanıcı seçimli tabanıyla karıştırılmadı — iki ayrı kod yolu.
+
+### Madde 6 — testler
+
+**163 backend testi** geçiyor (157 + 6 yeni işçi testi). Ek olarak
+**8 frontend testi** (`src/lib/tarih.test.ts`). `ruff`, `tsc`, `oxlint`,
+`build` temiz.
+
+**Sapmalar / notlar:**
+- **Frontend'e `vitest` eklendi** (dev bağımlılığı + `npm test` betiği).
+  Madde 3 `utcTarihiAyristir` için test istiyordu ve frontend'de hiç test
+  koşucusu yoktu; Vite projesinin standart karşılığı bu. SDD'de tanımlı
+  olmayan bir kütüphane kararı olduğu için burada not ediliyor.
+- Dağıtım paketi hazır: `deploy/uygulama.service`,
+  `deploy/cozum-isci.service`, `.env.example` (sırlar BOŞ),
+  `deploy/DAGITIM.md`.
+
+**Kalan / ertelenen:** Sunucuya dağıtım (madde 7) ve referans donanımda
+kabul ölçümü (madde 8) — sunucu bilgileri/erişim henüz gelmedi.
+
+**Sıradaki oturumun ilk işi:** Sunucu erişimi gelince madde 7 (bağımlılık
+kurulumu, PostgreSQL, Alembic göçleri — TIMESTAMPTZ göçü dahil, frontend
+derlemesi, systemd) ve ardından madde 8 (kabul ölçümünün sunucuda
+tekrarı, PERFORMANS_NOTU'na İKİNCİ sütun olarak işlenmesi). Sırlar
+kullanıcı tarafından doldurulacak; servisler ondan sonra başlatılacak.

@@ -1,22 +1,27 @@
 """SDD 5.4: cozum isinin durum makinesi (Sekil 5.1) ve yasam dongusu yonetimi.
 
 cozum_isini_calistir(), SDD 5.4'teki YORDAM'in birebir Python karsiligidir.
-Cozum, SDD 3.4.4 geregi HTTP istek-yanit dongusunden bagimsiz, ayri bir
-surecte calisir (bu asamada basit bir multiprocessing.Process yeterli;
-systemd entegrasyonu Sprint 3'te). Baslat(), isi kuyruga alip surumu
-dondurur; asil calisma _disaridan_calistir uzerinden ayri bir Python
-sureci icinde yurutulur.
+
+YURUTME BAGLAMI (SDD 3.4.4). Cozum isi AYRI BIR SISTEM SERVISI olarak
+calisir; iki surec arasinda dogrudan iletisim yoktur, is durumu/ilerleme/
+sonuc yalnizca veritabani uzerinden aktarilir. Bu yuzden:
+  - `CozumServisi.baslat` surec ACMAZ, isi `kuyrukta` durumunda birakir.
+  - `scripts/cozum_iscisi.py` kuyruktan is alip `cozum_isini_calistir`i
+    cagirir.
+  - Durdurma istegi de ayni kanaldan gelir: API isin durumunu IPTAL'e
+    ceker, isci bunu cozum geri cagiriminda okuyup aramayi sonlandirir
+    ve HICBIR sonuc yazmadan cikar (bkz. _iptal_istendi_mi).
+Sprint 2 Gun 8'deki multiprocessing.Process ara cozumu kaldirildi.
 """
 
-import multiprocessing
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
+from app.config import ayarlar
 from app.cozucu import CozucuAdaptoru, model_kur
-from app.db import OturumYerel
 from app.kurallar.baglam import AtamaKaydi
 from app.kurallar.kayit_defteri import kurallari_yukle
 from app.models.kural import Kural
@@ -41,7 +46,6 @@ from app.services.baglam_kurucu import baglam_olustur, donem_gunlerini_uret, zam
 from app.services.on_kontrol import Bulgu, on_kontrol_yap
 
 _VARSAYILAN_ZAMAN_LIMITI_SANIYE = 60
-_VARSAYILAN_ARAMA_ISCISI_SAYISI = 3
 _VARSAYILAN_AZAMI_HAFTALIK_SAAT = Decimal(45)
 _VARSAYILAN_HAFTALIK_ASGARI_IZIN_GUNU = 1
 
@@ -60,7 +64,13 @@ class CozumServisi:
         onceki_surum_id: int | None = None,
         zaman_limiti_saniye: int = _VARSAYILAN_ZAMAN_LIMITI_SANIYE,
     ) -> CozumIsi | None:
-        """Isi kuyruga alir, hemen doner; gercek cozum ayri bir surecte calisir.
+        """Isi KUYRUGA YAZAR ve hemen doner; cozumu ayri bir SERVIS calistirir.
+
+        SDD 3.4.4: cozum isi ayri bir sistem servisi olarak calisir ve iki
+        surec arasinda dogrudan iletisim yoktur - is durumu, ilerleme ve
+        sonuc yalnizca veritabani uzerinden aktarilir. Bu metot bu yuzden
+        surec ACMAZ; isi `kuyrukta` durumunda birakir, `cozum_iscisi` onu
+        alir (bkz. scripts/cozum_iscisi.py).
 
         onceki_surum_id verilirse SDD 5.6 (yeniden_coz): donem_id onceki
         surumden turetilir, yeni surum onceki_surum_id'ye baglanir (bkz.
@@ -89,23 +99,10 @@ class CozumServisi:
             kural_anlik_goruntu={},
         )
         self.oturum.flush()
-        # Ayri surecin bu satirlari gorebilmesi icin once onaylamak sart.
+        # Isciyi ayri bir SERVIS oldugu icin ancak onaylanmis satirlar
+        # gorur; kuyruga yazmak bu commit ile tamamlanir.
         self.oturum.commit()
-
-        surec = multiprocessing.Process(
-            target=_disaridan_calistir, args=(is_kaydi.is_id,), daemon=False
-        )
-        surec.start()
         return is_kaydi
-
-
-def _disaridan_calistir(is_id: int) -> None:
-    """multiprocessing.Process hedefi: kendi oturumunu acar (ayri surec, ayri baglanti)."""
-    oturum = OturumYerel()
-    try:
-        cozum_isini_calistir(oturum, is_id)
-    finally:
-        oturum.close()
 
 
 def cozum_isini_calistir(oturum: Session, is_id: int) -> None:
@@ -163,6 +160,11 @@ def cozum_isini_calistir(oturum: Session, is_id: int) -> None:
         baglam, zaman_ekseni, kurallar, kilitli_atamalar=kilitli_atamalar or None
     )
 
+    # Model kurulurken (uzun surebilir) durdurma istenmis olabilir.
+    if _iptal_istendi_mi(oturum, is_kaydi):
+        _iptal_olarak_kapat(oturum, is_kaydi)
+        return
+
     is_kaydi.durum = CozumIsiDurumu.COZULUYOR
     oturum.commit()
 
@@ -174,11 +176,18 @@ def cozum_isini_calistir(oturum: Session, is_id: int) -> None:
         model,
         x,
         zaman_limiti_saniye=is_kaydi.zaman_limiti_saniye,
-        arama_iscisi_sayisi=_VARSAYILAN_ARAMA_ISCISI_SAYISI,
+        arama_iscisi_sayisi=ayarlar.cozucu_arama_iscisi_sayisi,
         ara_cozum_geri_cagirma=ara_cozum_geri_cagirma,
+        iptal_kontrolu=lambda: _iptal_istendi_mi(oturum, is_kaydi),
         ceza_terimleri=ceza_terimleri,
         kapsama_degiskenleri=baglam.kapsama_eksikleri,
     )
+
+    # SDD 6.3.2: "Iptal edilen is, o ana kadar bulunmus en iyi cozumu
+    # KAYDETMEDEN sonlanir." Bu kontrol atama yazma blogundan once gelir.
+    if sonuc.iptal_edildi or _iptal_istendi_mi(oturum, is_kaydi):
+        _iptal_olarak_kapat(oturum, is_kaydi)
+        return
 
     if sonuc.durum == "cozum_yok":
         is_kaydi.durum = CozumIsiDurumu.BASARISIZ
@@ -220,6 +229,29 @@ def cozum_isini_calistir(oturum: Session, is_id: int) -> None:
     )
     is_kaydi.bitis_zamani = datetime.now(UTC)
     surum.durum = CizelgeSurumuDurumu.COZULDU
+    oturum.commit()
+
+
+def _iptal_istendi_mi(oturum: Session, is_kaydi: CozumIsi) -> bool:
+    """Durdurma bayragini VERITABANINDAN taze okur.
+
+    Bayrak ayri bir sutun degil, `durum` alanidir: API `/api/cozum/{id}/iptal`
+    cagrisinda durumu IPTAL'e ceker (SDD 5.4'un durum makinesinde zaten var
+    olan terminal durum). Isci ayri bir servis oldugundan (SDD 3.4.4) API o
+    sureci olduremez; tek haberlesme kanali veritabanidir.
+
+    `refresh` sart: is_kaydi bu oturumun kimlik haritasinda onbelleklidir ve
+    API'nin BASKA bir baglantidan yaptigi degisiklik yeniden okunmadan
+    gorulmez.
+    """
+    oturum.refresh(is_kaydi, ["durum"])
+    return is_kaydi.durum == CozumIsiDurumu.IPTAL
+
+
+def _iptal_olarak_kapat(oturum: Session, is_kaydi: CozumIsi) -> None:
+    """Isi iptal olarak sonlandirir; hicbir atama veya kapsama acigi yazilmaz."""
+    is_kaydi.durum = CozumIsiDurumu.IPTAL
+    is_kaydi.bitis_zamani = datetime.now(UTC)
     oturum.commit()
 
 

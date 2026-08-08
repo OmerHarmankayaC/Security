@@ -107,7 +107,11 @@ export function gunFarki(aIso: string, bIso: string): number {
 // buyuk bir kaymaya yol acar — bu yuzden ofset yoksa 'Z' ekleyip UTC oldugunu
 // acikca belirtmek gerekir.
 export function utcTarihiAyristir(iso: string): Date {
-  const ofsetVar = /[zZ]|[+-]\d\d:\d\d$/.test(iso)
+  // Ofset ARANIRKEN yalnızca zaman bölümüne bakılır: tarih bölümündeki tire
+  // ("2026-08-08") yanlışlıkla ofset sanılmasın. Kabul edilen biçimler:
+  // 'Z'/'z', '+03:00', '+0300', '+03'.
+  const zamanBolumu = iso.slice(iso.indexOf('T') + 1)
+  const ofsetVar = /(?:[Zz]|[+-]\d{2}:?\d{2}|[+-]\d{2})$/.test(zamanBolumu)
   return new Date(ofsetVar ? iso : `${iso}Z`)
 }
 

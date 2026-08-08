@@ -87,10 +87,22 @@ def cozum_durumu(is_id: int, oturum: Oturum) -> CozumOku:
 
 @router.post("/cozum/{is_id}/iptal", response_model=CozumOku)
 def cozum_iptal(is_id: int, oturum: Oturum) -> CozumOku:
-    """En iyi caba: durumu iptal olarak isaretler. Ayri surecte fiilen calisan
-    CP-SAT aramasini zorla sonlandirmaz (bu, surec izlemeyi gerektirir ve
-    Sprint 3'teki systemd entegrasyonuna birakildi); is zaten sonuclanmissa
-    (tamamlandi/basarisiz/vb.) hicbir sey degistirmez."""
+    """Durdurma istegini VERITABANINA yazar: isin durumunu IPTAL'e ceker.
+
+    Cozum isci ayri bir SERVIS oldugundan (SDD 3.4.4) API o sureci
+    olduremez; iki surec arasindaki tek kanal veritabanidir. Isci bu
+    durumu cozum geri cagiriminda okur, aramayi sonlandirir ve HICBIR
+    atama yazmadan cikar (SDD 6.3.2: "iptal edilen is, o ana kadar
+    bulunmus en iyi cozumu kaydetmeden sonlanir").
+
+    Durum degisikligi aninda gorunur, ama aramanin fiilen durmasi bir
+    sonraki iyilesmis cozuma ya da zaman limitine kadar surebilir (bkz.
+    cozucu/adaptor.py, _IlerlemeGeriCagrisi'nin SINIR notu).
+
+    Is zaten sonuclanmissa (tamamlandi/basarisiz/vb.) hicbir sey degismez.
+    Henuz kuyruktaki bir is IPTAL'e cekilirse isci onu hic almaz: kapma
+    sorgusu yalnizca `kuyrukta` durumundakileri secer.
+    """
     depo = CozumIsiDeposu(oturum)
     is_kaydi = depo.getir(is_id)
     if is_kaydi is None:
