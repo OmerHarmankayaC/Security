@@ -3,15 +3,28 @@ name = "vardiya-cizelgeleme"
 version = "0.1.0"
 description = "BOTAS vardiya cizelgeleme karar destek araci - backend"
 requires-python = ">=3.12"
+# Gosterim sunucusu Ubuntu 26.04 / Python 3.14 (deponun tek surumu; ayni
+# makinedeki diger projeler de onu kullaniyor). Asagidaki UC sabit, derlenmis
+# uzantilari Python 3.14 icin tekerlek tasimadigi icin yukseltildi - kaynaktan
+# derlemek Rust/C++ zinciri gerektirirdi. Her biri, 3.14 tekerlegi bulunan EN
+# DUSUK surumdur (PyPI'dan tarandi); gereksiz yukselme yok. Yukseltmelerden
+# sonra tam test paketi (163 test; cozucu-dogrulayici uyum testi ve agirlik
+# kalibrasyonu dahil) ve kabul olcumu 5/5 ile dogrulandi - sayilar
+# degismedi. Bkz. PROGRESS.md, 08.08.2026 dagitim kaydi.
 dependencies = [
     "fastapi==0.115.6",
     "uvicorn[standard]==0.34.0",
     "sqlalchemy==2.0.36",
     "alembic==1.14.0",
-    "psycopg[binary]==3.2.3",
-    "pydantic==2.10.4",
+    # 3.2.3 -> 3.2.10: psycopg-binary tekerlegi 3.14 icin buradan itibaren var.
+    "psycopg[binary]==3.2.10",
+    # 2.10.4 -> 2.12.0: 2.10.4, pydantic-core==2.27.2'yi TAM sabitler ve onun
+    # 3.14 tekerlegi yok. pydantic-core 2.35+ isteyen en dusuk pydantic 2.12.0
+    # (pydantic-core==2.41.1 ile gelir).
+    "pydantic==2.12.0",
     "pydantic-settings==2.7.1",
-    "ortools==9.14.6206",
+    # 9.14.6206 -> 9.15.6755: 9.14'un 3.14 tekerlegi yok.
+    "ortools==9.15.6755",
 ]
 
 [project.optional-dependencies]

@@ -6,9 +6,9 @@
 # sonlanmasi API'yi etkilemez ve isci ileride ayri bir makineye tasinabilir.
 #
 # Kurulum:
-#   sudo cp deploy/cozum-isci.service /etc/systemd/system/
+#   sudo cp deploy/vardiya-cozucu.service /etc/systemd/system/
 #   sudo systemctl daemon-reload
-#   sudo systemctl enable --now cozum-isci.service
+#   sudo systemctl enable --now vardiya-cozucu.service
 
 [Unit]
 Description=Vardiya Cizelgeleme - cozum iscisi
@@ -50,7 +50,7 @@ ReadWritePaths=/opt/vardiya/backend
 
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=vardiya-cozum-isci
+SyslogIdentifier=vardiya-cozucu
 
 [Install]
 WantedBy=multi-user.target
