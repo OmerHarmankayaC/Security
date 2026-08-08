@@ -111,6 +111,22 @@ export function utcTarihiAyristir(iso: string): Date {
   return new Date(ofsetVar ? iso : `${iso}Z`)
 }
 
+// Sürümler ekranı (SDD 6.3.5) oluşturma zamanını "bugün 14:20", "dün 09:04",
+// "2 gün önce" biçiminde gösterir — sürümler tipik olarak aynı gün içinde
+// arka arkaya üretildiğinden mutlak tarih ayırt edici değil.
+export function goreliZaman(iso: string): string {
+  const zaman = utcTarihiAyristir(iso)
+  const saat = zaman.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+
+  const bugun = new Date()
+  const gunBasi = (t: Date) => new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime()
+  const gunFarki = Math.round((gunBasi(bugun) - gunBasi(zaman)) / 86_400_000)
+
+  if (gunFarki <= 0) return `bugün ${saat}`
+  if (gunFarki === 1) return `dün ${saat}`
+  return `${gunFarki} gün önce`
+}
+
 export function zamanBicimle(iso: string): string {
   return utcTarihiAyristir(iso).toLocaleString('tr-TR', {
     hour: '2-digit',

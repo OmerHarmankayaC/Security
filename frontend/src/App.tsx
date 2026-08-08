@@ -6,6 +6,7 @@ import { CozumEkrani } from './screens/CozumEkrani'
 import { MusaitlikEkrani } from './screens/MusaitlikEkrani'
 import { OzetEkrani } from './screens/OzetEkrani'
 import { PlaceholderEkrani } from './screens/PlaceholderEkrani'
+import { SurumlerEkrani } from './screens/SurumlerEkrani'
 import { TanimlarEkrani } from './screens/TanimlarEkrani'
 import { TercihlerEkrani } from './screens/TercihlerEkrani'
 
@@ -40,6 +41,8 @@ function App() {
       return <CozumEkrani ekranSec={setEkran} donemId={donemId} donemIdSec={setDonemId} />
     case 'Analiz':
       return <AnalizEkrani ekranSec={setEkran} donemId={donemId} donemIdSec={setDonemId} />
+    case 'Sürümler':
+      return <SurumlerEkrani ekranSec={setEkran} donemId={donemId} donemIdSec={setDonemId} />
     default:
       return <PlaceholderEkrani ekran={ekran} ekranSec={setEkran} />
   }

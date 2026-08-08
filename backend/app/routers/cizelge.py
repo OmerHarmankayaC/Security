@@ -29,6 +29,8 @@ from app.schemas.surum import (
     DonemOku,
     DonemOlustur,
     KapsamaAcigiOku,
+    SurumKarsilastirmaOku,
+    SurumOzetiOku,
     SurumTaslakTuretIstek,
 )
 from app.services.cozum_servisi import CozumServisi
@@ -39,6 +41,7 @@ from app.services.dogrulama_servisi import (
     SurumTaslakDegilError,
 )
 from app.services.on_kontrol_servisi import OnKontrolServisi
+from app.services.surum_servisi import SurumlerAyniDonemdeDegilError, SurumServisi
 
 router = APIRouter(prefix="/api", tags=["cizelge"])
 
@@ -176,11 +179,34 @@ def donem_olustur(veri: DonemOlustur, oturum: Oturum) -> DonemOku:
     return DonemDeposu(oturum).olustur(**veri.model_dump())  # type: ignore[return-value]
 
 
-@router.get("/surum", response_model=list[CizelgeSurumuOku])
+@router.get("/surum", response_model=list[SurumOzetiOku])
 def surum_listele(
     oturum: Oturum, donem_id: Annotated[int | None, Query()] = None
-) -> list[CizelgeSurumuOku]:
-    return list(CizelgeSurumuDeposu(oturum).listele(donem_id=donem_id))  # type: ignore[return-value]
+) -> list[SurumOzetiOku]:
+    """SDD 6.3.5 Surum Listesi: numara, durum, olusturma zamani, toplam ceza
+    ve kapsama acigi sayisi."""
+    return SurumServisi(oturum).listele(donem_id=donem_id)
+
+
+@router.get("/surum/karsilastir", response_model=SurumKarsilastirmaOku)
+def surum_karsilastir(
+    oturum: Oturum,
+    onceki_surum_id: Annotated[int, Query()],
+    yeni_surum_id: Annotated[int, Query()],
+) -> SurumKarsilastirmaOku:
+    """SDD 6.3.5 Karsilastir Butonu: secilen iki surum arasindaki farkli
+    atamalari listeler.
+
+    Yol, /surum/{surum_id} deseninden ONCE tanimlanmak zorunda: aksi halde
+    FastAPI "karsilastir" dizesini surum_id olarak ayristirmaya calisir.
+    """
+    try:
+        sonuc = SurumServisi(oturum).karsilastir(onceki_surum_id, yeni_surum_id)
+    except SurumlerAyniDonemdeDegilError as hata:
+        raise HTTPException(status_code=409, detail=str(hata)) from hata
+    if sonuc is None:
+        raise HTTPException(status_code=404, detail="Cizelge surumu bulunamadi")
+    return sonuc
 
 
 @router.post("/surum", response_model=CizelgeSurumuOku, status_code=201)

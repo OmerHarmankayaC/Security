@@ -303,13 +303,19 @@ def _donemleri_ve_izinleri_olustur(
 def uret(*, sifirla: bool) -> None:
     oturum = OturumYerel()
     try:
-        if _mevcut_demo_verisi_var_mi(oturum):
-            if not sifirla:
-                print(
-                    "Demo verisi zaten mevcut. Yeniden uretmek icin --reset kullanin.",
-                    file=sys.stderr,
-                )
-                sys.exit(1)
+        if not sifirla and _mevcut_demo_verisi_var_mi(oturum):
+            print(
+                "Demo verisi zaten mevcut. Yeniden uretmek icin --reset kullanin.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        if sifirla:
+            # KOSULSUZ temizlik. Eskiden yalnizca _mevcut_demo_verisi_var_mi()
+            # dogruysa temizleniyordu; oysa _her_seyi_temizle zaten o tablolarin
+            # TUMUNU siler. Sonuc: demo disi artiklar (test fikstürleri, kabul
+            # olcumu verisi) bulunan bir veritabaninda --reset sessizce hicbir
+            # sey silmiyor ve uretec artiklarin USTUNE ekliyordu; ortaya iki
+            # veri kumesinin karistigi bir durum cikiyordu.
             _her_seyi_temizle(oturum)
 
         vardiyalar = _vardiya_tiplerini_olustur(oturum)

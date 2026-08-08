@@ -153,6 +153,27 @@ class CozumIsiDeposu(TabanDepo[CozumIsi]):
         stmt = select(CozumIsi).where(CozumIsi.surum_id == surum_id).order_by(CozumIsi.is_id.desc())
         return self.oturum.execute(stmt).scalars().first()
 
+    def surumlere_gore_en_son_ceza(self, surum_idleri: Sequence[int]) -> dict[int, float]:
+        """Surum listesi icin (SDD 6.3.5) her surumun EN SON cozum isindeki
+        toplam cezasi - surum basina ayri sorgu yerine tek sorguda.
+
+        Bir surumun birden fazla cozum isi olabilir (yeniden calistirma);
+        surume_gore_en_son ile ayni secim: en buyuk is_id."""
+        if not surum_idleri:
+            return {}
+        en_son = (
+            select(func.max(CozumIsi.is_id).label("is_id"))
+            .where(CozumIsi.surum_id.in_(surum_idleri))
+            .group_by(CozumIsi.surum_id)
+            .scalar_subquery()
+        )
+        stmt = select(CozumIsi.surum_id, CozumIsi.en_iyi_ceza).where(CozumIsi.is_id.in_(en_son))
+        return {
+            surum_id: float(ceza)
+            for surum_id, ceza in self.oturum.execute(stmt).all()
+            if ceza is not None
+        }
+
 
 class AtamaDeposu(TabanDepo[Atama]):
     def __init__(self, oturum: Session) -> None:
@@ -203,3 +224,18 @@ class KapsamaAcigiDeposu(TabanDepo[KapsamaAcigi]):
     def surume_gore_getir(self, surum_id: int) -> Sequence[KapsamaAcigi]:
         stmt = select(KapsamaAcigi).where(KapsamaAcigi.surum_id == surum_id)
         return self.oturum.execute(stmt).scalars().all()
+
+    def surumlere_gore_eksik_toplami(self, surum_idleri: Sequence[int]) -> dict[int, int]:
+        """Surum listesi icin (SDD 6.3.5) surum basina toplam eksik KISI sayisi.
+
+        Acik HUCRE sayisi degil kisi sayisi toplanir: bir hucrede birden fazla
+        kisi eksik olabilir (eksik_sayi > 1) ve "kapsama acigi" kullanicinin
+        kapatmasi gereken kisi sayisidir."""
+        if not surum_idleri:
+            return {}
+        stmt = (
+            select(KapsamaAcigi.surum_id, func.sum(KapsamaAcigi.eksik_sayi))
+            .where(KapsamaAcigi.surum_id.in_(surum_idleri))
+            .group_by(KapsamaAcigi.surum_id)
+        )
+        return {surum_id: int(toplam or 0) for surum_id, toplam in self.oturum.execute(stmt).all()}

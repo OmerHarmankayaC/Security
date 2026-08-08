@@ -2638,8 +2638,96 @@ eklerken ilk soru "bu hedefe herkes ulaşabilir mi" olacak.
 **Kalan / ertelenen:** Yok (K3 kapandı). Charter'ın altıncı kriteri
 Sürümler/Karşılaştır ekranıyla ölçülecek.
 
-**Sıradaki oturumun ilk işi:** Sürümler ekranı (SDD 6.3.5) — sürüm
-listesi, karşılaştır, yayınla, taslak türet; ardından Charter'ın altıncı
-kriterini (yeniden çözümde değişen atama sayısı) ölç. Dağıtım
-(systemd/Caddy/PostgreSQL) kullanıcı talimatıyla BEKLETİLİYOR: her şey
-karara bağlandıktan sonra sunucuya çıkılacak.
+---
+
+## 2026-08-08 — Sürümler Ekranı (SDD 6.3.5) ve Charter K6
+
+Kanonik SDD 1.8 alındı: Ek A'daki S2 örneği artık uygun havuzu kullanıyor
+(bildirdiğim tutarsızlık kapandı) ve havuz hesabının **tek yerde tutulup
+bütün tüketicilerin oradan alması** artık dokümanda yazılı bir kural.
+`Baglam.uygun_havuz` bu kuralı zaten karşılıyor, kod değişmedi.
+
+**Backend — `app/services/surum_servisi.py` (yeni).** SDD 3.2
+izlenebilirlik matrisi FR-7.x'i `SurumServisi`'ne bağlıyordu ama servis
+yoktu (mantık depo + router'a dağılmıştı); iki işi burada topladım.
+- `listele()`: SDD 6.3.5'in istediği liste satırı — numara, durum,
+  oluşturma zamanı, **toplam ceza**, **kapsama açığı sayısı**. İki yeni
+  toplu depo sorgusu (`surumlere_gore_en_son_ceza`,
+  `surumlere_gore_eksik_toplami`) sürüm başına ayrı sorgu açmayı önlüyor.
+  Toplam ceza sürümün EN SON çözüm işinden gelir (yeniden çalıştırmada
+  birden fazla olabilir); kapsama açığı ise açık hücre sayısı değil
+  **toplam eksik kişi** sayısıdır (bir hücrede birden fazla kişi eksik
+  olabilir) — ikisi de testle sabitlendi.
+- `karsilastir()`: iki sürüm arasındaki farklı atamalar, (personel, tarih)
+  ekseninde ve **üç türde** (eklendi / kaldırıldı / değişti) — FR-9.4'ün
+  çalışan panelinde kullandığı aynı sınıflandırma, burada yönetici
+  tarafında. Karşılaştırma tabanı kullanıcının seçtiği iki sürümdür;
+  çalışan panelindeki "en son arşiv" seçimi oraya özgü, buraya
+  karıştırılmadı. Farklı dönemlerin sürümleri karşılaştırılamaz (409):
+  atamalar farklı takvim günlerine düştüğü için "değişen gün" tanımsız.
+- `GET /api/surum/karsilastir` eklendi. **Yol sırası önemli:**
+  `/surum/{surum_id}` deseninden ÖNCE tanımlanmak zorunda, yoksa FastAPI
+  "karsilastir" dizesini surum_id olarak ayrıştırmaya çalışır.
+
+**Frontend — `SurumlerEkrani.tsx` (yeni).** Mockup'taki sürüm kartları
+(durum rozeti, sürüm no, göreli zaman, toplam ceza, açık — açık>0 ise
+turuncu), üst çubukta Karşılaştır, kart başına Yayınla / Taslak Türet.
+Karşılaştırma paneli iki sürüm seçtirip fark tablosunu ve üç sayacı
+gösteriyor. `lib/tarih.ts`'e `goreliZaman` eklendi ("bugün 07:10", "dün
+09:04", "2 gün önce" — mockup böyle).
+- **Yayınlama onayı (SDD 6.3.5 "Onay istenir"):** önce `window.confirm`
+  yazmıştım; uygulamanın hiçbir yerinde modal deseni yok (tasarım
+  referansında da yok) ve yerel diyalog hem dile yabancı hem
+  otomasyonda kilitleniyor. Satır içi iki adımlı onaya çevirdim: Yayınla
+  → sonucu adıyla söyleyen bir şerit ("Sürüm 2 yayınlanacak, Sürüm 1
+  arşive alınacak … salt okunur olur") + Vazgeç / Onayla ve Yayınla.
+
+**Bulunan ve düzeltilen bir betik hatası.** `demo_veri_uret.py --reset`
+yalnızca `_mevcut_demo_verisi_var_mi()` doğruysa temizlik yapıyordu; oysa
+`_her_seyi_temizle` zaten o tabloların TÜMÜNÜ siler. Sonuç: demo dışı
+artık bulunan (test fikstürü, kabul ölçümü verisi) bir veritabanında
+`--reset` sessizce hiçbir şey silmiyor, üreteç artıkların ÜSTÜNE
+ekliyordu. Tam olarak bu yüzden ilk K6 ölçümüm test fikstürünün dönemiyle
+demo personelinin karıştığı bir veri üzerinde çıktı. Temizlik artık
+`--reset` verildiğinde koşulsuz.
+
+**Charter K6 ölçüldü — 6/6.** Gerçek bir yeniden çözüm üzerinde: Rahat
+Dönem çözülüp Sürüm 1 olarak yayınlandı (ceza 912) → GG-001 dönemin ilk
+dört gününe izne çıkarıldı → Sürüm 1'den türetilen taslak yeniden çözüldü
+(Sürüm 2, ceza 983) → Karşılaştır: **4 değişen atama** (2 kaldırıldı,
+2 eklendi, 0 değişti). Sonuç yalnızca raporlamanın değil **S8'in de**
+çalıştığını gösteriyor: izne çıkan kişinin iki vardiyası iki başka kişiye
+verilmiş, dönemin geri kalanındaki ~140 atama korunmuş.
+
+**Testler:** 157 (152 + 5 yeni). `tests/test_surum_api.py`: liste
+satırının toplam ceza (en son çözüm işi) ve kapsama açığı (toplam eksik
+kişi) taşıması, karşılaştırmanın üç türü doğru ayırıp sayması, aynı sürüm
+kendisiyle karşılaştırılınca fark çıkmaması, bulunmayan sürümde 404,
+farklı dönemlerin sürümlerinde 409. `ruff`/`tsc`/`oxlint`/`build` temiz.
+
+**Doğrulama:** Gerçek uvicorn + vite ile tarayıcıda gezildi (1440×900):
+sürüm kartları mockup'la örtüştü, Karşılaştır uçtan uca çalıştı (Sürüm 1 →
+Sürüm 2, 4 değişen atama, KALDIRILDI turuncu / EKLENDİ teal), Yayınla'nın
+onay şeridi doğru metni gösterdi, onaylayınca TD-8 gereği Sürüm 2
+YAYINLANDI ve Sürüm 1 otomatik ARŞİV oldu, Taslak Türet Sürüm 3'ü üretti.
+Konsol hatası yok. `docs/PERFORMANS_NOTU.md` 1.2'ye çıkarıldı (K6 bölümü
++ 6/6 tablosu).
+
+**Sapmalar / notlar:**
+- `GET /api/surum/karsilastir` **SDD Ek B'de listeli değil**. Ek B bir
+  "özet" ve 6.3.5 karşılaştırma işlevini açıkça istiyor; uç nokta o işlevin
+  doğal karşılığı. Kaynak dokümanda Ek B'ye eklenmesi gerekiyor
+  (`docs/`'a elle dokunmuyorum).
+- Sürüm listesi uç noktasının yanıtı zenginleşti (`CizelgeSurumuOku` →
+  `SurumOzetiOku`); mevcut tüketiciler (Çizelge/Çözüm/Analiz) yalnız
+  okudukları alanları kullandığı için etkilenmedi, TS tipi güncellendi.
+
+**Kalan / ertelenen:** Yok. Altı kabul kriterinin tamamı ölçüldü ve geçti.
+
+**Sıradaki oturumun ilk işi:** Dağıtım kullanıcı talimatıyla
+BEKLETİLİYOR — her şey karara bağlandıktan sonra tek seferde sunucuya
+çıkılacak. Dağıtım turunda yapılacaklar (UYGULAMA_PLANI Gün 15): systemd
+servisleri (`uygulama.service`, `cozum-isci.service`), Caddy, PostgreSQL
+sistem servisi; kabul ölçümünün gerçek gösterim donanımında yeniden
+çalıştırılıp `docs/PERFORMANS_NOTU.md`'nin o sonuçlarla güncellenmesi;
+dört dokümanla kodun son tutarlılık kontrolü; `sprint-3` etiketi.

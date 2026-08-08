@@ -1,11 +1,12 @@
 # Performans ve Kabul Kriteri Notu
 
-**Tarih:** 07.08.2026 · **Kapsam:** Sprint 3 Gün 14 · **Sürüm:** 1.1
+**Tarih:** 08.08.2026 · **Kapsam:** Sprint 3 Gün 14 + Sürümler ekranı · **Sürüm:** 1.2
 
-Bu not, Proje Tanım Dokümanı bölüm 5'teki kabul kriterlerinin ölçüm
-sonuçlarını içerir. Ölçümler `backend/scripts/kabul_olcumu.py` ile
-otomatik olarak alınır; not elle güncellenmez, betiğin çıktısından
-yazılır ve betik yeniden çalıştırılarak doğrulanabilir.
+Bu not, Proje Tanım Dokümanı bölüm 5'teki altı kabul kriterinin ölçüm
+sonuçlarını içerir. K1–K5 `backend/scripts/kabul_olcumu.py` ile otomatik
+alınır; K6 gerçek bir yeniden çözüm gerektirdiği için ayrı ölçülür
+(bölüm 3, K6). Notun sayıları elle yazılmaz, ölçümün çıktısından alınır
+ve ölçüm yeniden çalıştırılarak doğrulanabilir (bölüm 5).
 
 > Bu dosya `docs/` altındaki dört kanonik dokümandan (Proje Tanım
 > Dokümanı, SRS, SDD, Backlog) biri **değildir**; Gün 14'ün ürettiği
@@ -67,13 +68,13 @@ havuz (Vardiya Şefi, Müracaat) olduğu gibi korunmuştur.
 | **K3** Kişi başına gece sayısı hedeften en fazla 1 sapar | ≤ 1,0 | **0,61** | ✅ geçti |
 | **K4** Çelişkili örnekte gün/vardiya/eksik sayısı gösterilir | ≥ 1 açık, üç bilgi de dolu | **21 açık hücre** | ✅ geçti |
 | **K5** Manuel düzenleme doğrulaması < 1 sn | < 1,000 sn | **0,038 sn** | ✅ geçti |
+| **K6** Yeniden çözümde değişen atama sayısı raporlanır | sayı raporlanır | **4 değişen atama** | ✅ geçti |
 
-**5/5 kriter geçti.**
+**6/6 kriter geçti.**
 
-Charter'ın altıncı kriteri ("yeniden çözümde değişen atama sayısı
-raporlanır") bu turda ölçülmemiştir: raporlama yüzeyi Sürümler
-ekranındaki karşılaştırma işlevidir (SDD 6.3.5) ve o ekran Gün 15'in
-işidir. Uygulama Planı'nın Gün 14 maddesi de beş kriter sayar.
+K1–K5 `kabul_olcumu.py` ile otomatik ölçülür. K6 ayrı ölçülür (aşağıda):
+raporlama yüzeyi Sürümler ekranının karşılaştırma işlevidir (SDD 6.3.5) ve
+ölçümü gerçek bir yeniden çözüm gerektirir.
 
 ### K1 — Çözüm süresi
 
@@ -174,6 +175,43 @@ davranışıdır: kadro daraldığında çözüm reddedilmez, açık gösterilir
 doğrulanmıştır: en iyi 0,031 sn, ortanca 0,032 sn, en kötü 0,038 sn.
 Eşiğin (1 sn) yaklaşık 26 kat altındadır.
 
+### K6 — Yeniden çözümde değişen atama sayısı
+
+Charter bölüm 5'in altıncı kriteri, sistemin yeniden çözümde kaç atamanın
+değiştiğini **raporlamasını** ister. Raporlama yüzeyi Sürümler ekranının
+Karşılaştır işlevidir (SDD 6.3.5); servis karşılığı
+`SurumServisi.karsilastir`, uç nokta `GET /api/surum/karsilastir`.
+
+Ölçüm gerçek bir yeniden çözüm üzerinde yapılmıştır:
+
+1. Demo "Rahat Dönem" (02–08 Şubat 2026, 44 personel) çözülüp Sürüm 1
+   olarak yayınlandı (toplam ceza 912).
+2. Bir güvenlik görevlisi (GG-001) dönemin ilk dört gününe yıllık izne
+   çıkarıldı.
+3. Sürüm 1'den türetilen taslak yeniden çözüldü → Sürüm 2 (toplam ceza 983).
+
+Karşılaştırma çıktısı:
+
+```
+Sürüm 1 → Sürüm 2 : TOPLAM DEĞİŞEN ATAMA = 4
+  eklendi = 2   kaldırıldı = 2   değişti = 0
+    2026-02-02  GG-001  kaldırıldı  Akşam · Güvenlik →  —
+    2026-02-02  GG-013  eklendi     —              →  Akşam · Güvenlik
+    2026-02-03  GG-001  kaldırıldı  Akşam · Güvenlik →  —
+    2026-02-03  GG-005  eklendi     —              →  Akşam · Güvenlik
+```
+
+Sonuç yalnızca raporlamanın çalıştığını değil, **S8 (değişim
+minimizasyonu) hedefinin de işlediğini** gösteriyor: izne çıkan personelin
+iki vardiyası kaldırılıp iki başka kişiye verilmiş, dönemin geri kalanındaki
+~140 atama olduğu gibi korunmuştur. Değişim, izin kaydının zorunlu kıldığı
+en küçük kümeyle sınırlı kalmıştır.
+
+Fark üç türde ayrışır (eklendi / kaldırıldı / değişti) — çalışan panelindeki
+FR-9.4 sınıflandırmasının aynısı, burada yönetici tarafında. Karşılaştırma
+tabanı kullanıcının seçtiği iki sürümdür; çalışan panelindeki "en son arşiv"
+seçimi oraya özgüdür ve buraya karıştırılmaz.
+
 ## 4. Çözücü–doğrulayıcı uyumu
 
 SDD 3.2.1: "çözücünün geçerli saydığı bir çizelgede doğrulayıcının ihlal
@@ -191,10 +229,17 @@ doğrulayıcı ihlal bulmamıştır. Örnekler sabit tohumla üretilir
 
 ```bash
 cd backend
-python scripts/kabul_olcumu.py          # kriterleri ölç (tablo)
+python scripts/kabul_olcumu.py          # K1–K5 (tablo)
 python scripts/kabul_olcumu.py --json   # makine okunur çıktı
 python -m pytest tests/test_cozucu_dogrulayici_uyumu_olcek.py
+python -m pytest tests/test_surum_api.py    # K6'nın mantığı (birim düzeyi)
 ```
+
+K6'nın uçtan uca ölçümü Sürümler ekranından yapılır: demo veriyi üret
+(`python scripts/demo_veri_uret.py --reset`), bir dönemi çöz ve yayınla,
+bir izin kaydı ekle, aynı sürümden yeniden çöz, sonra Sürümler → Karşılaştır
+ile iki sürümü seç. "Toplam değişen atama" sayısı ekranda ve
+`GET /api/surum/karsilastir` yanıtında raporlanır.
 
 Betik ölçüm verisini kurabilmek için veritabanındaki tanım/girdi/kural/
 sonuç tablolarını temizler (`demo_veri_uret.py --reset` ile aynı

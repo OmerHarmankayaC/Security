@@ -17,7 +17,41 @@ export interface CizelgeSurumu {
   durum: CizelgeSurumuDurumu
   onceki_surum_id: number | null
   yayin_zamani: string | null
+  olusturma_zamani: string
   guncelleme_zamani: string
+  // SDD 6.3.5 — Sürümler ekranının liste satırı bu ikisini de gösterir.
+  // Hiç çözülmemiş bir taslakta toplam_ceza null olur.
+  toplam_ceza: number | null
+  // Açık hücre sayısı değil, toplam eksik KİŞİ sayısı.
+  kapsama_acigi_sayisi: number
+}
+
+// --- Sürümler / Karşılaştır (SDD 6.3.5) -------------------------------------
+
+export type AtamaFarkiTuru = 'eklendi' | 'kaldirildi' | 'degisti'
+
+export interface AtamaFarki {
+  personel_id: number
+  ad_soyad: string
+  tarih: string
+  tur: AtamaFarkiTuru
+  onceki_vardiya_tipi_ad: string | null
+  onceki_nokta_ad: string | null
+  yeni_vardiya_tipi_ad: string | null
+  yeni_nokta_ad: string | null
+}
+
+export interface SurumKarsilastirmasi {
+  onceki_surum_id: number
+  yeni_surum_id: number
+  onceki_surum_no: number
+  yeni_surum_no: number
+  eklenen: number
+  kaldirilan: number
+  degisen: number
+  // Charter bölüm 5, altıncı kabul kriteri: "değişen atama sayısı raporlanır".
+  toplam_degisiklik: number
+  farklar: AtamaFarki[]
 }
 
 export type AtamaKaynagi = 'cozucu' | 'manuel'

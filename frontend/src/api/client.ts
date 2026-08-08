@@ -15,6 +15,7 @@ import type {
   MusaitlikOlusturIstek,
   OnKontrolBulgu,
   Personel,
+  SurumKarsilastirmasi,
   TalepHucresi,
   TalepYaniti,
   Tercih,
@@ -149,6 +150,15 @@ export const api = {
       `/api/tercih/${tercihId}`,
       { durum, ...(retGerekcesi ? { ret_gerekcesi: retGerekcesi } : {}) },
       'PUT',
+    ),
+
+  // --- Sürümler (FR-7.x, SDD 6.3.5) ---------------------------------------
+  surumYayinla: (surumId: number) => gonder<CizelgeSurumu>(`/api/surum/${surumId}/yayinla`, {}),
+  surumTaslakTuret: (oncekiSurumId: number) =>
+    gonder<CizelgeSurumu>('/api/surum', { onceki_surum_id: oncekiSurumId }),
+  surumKarsilastir: (oncekiSurumId: number, yeniSurumId: number) =>
+    istek<SurumKarsilastirmasi>(
+      `/api/surum/karsilastir?onceki_surum_id=${oncekiSurumId}&yeni_surum_id=${yeniSurumId}`,
     ),
 
   // --- Analiz (FR-8.x) ---------------------------------------------------
