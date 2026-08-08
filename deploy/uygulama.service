@@ -1,0 +1,58 @@
+# Vardiya Cizelgeleme - uygulama sunucusu (FastAPI/uvicorn)
+# Hedef: dort cekirdek / sekiz gigabayt referans donanim (SDD 3.4.2).
+#
+# Kurulum:
+#   sudo cp deploy/uygulama.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now uygulama.service
+#
+# Yol ve kullanici adlari bu dosyada SABIT yazilidir; farkli bir dizine
+# kurulacaksa WorkingDirectory, ExecStart ve EnvironmentFile birlikte
+# guncellenmelidir (bkz. deploy/DAGITIM.md).
+
+[Unit]
+Description=Vardiya Cizelgeleme - uygulama sunucusu
+Documentation=file:///opt/vardiya/deploy/DAGITIM.md
+# Veritabani ayni makinede; API acilirken hazir olsun.
+After=network-online.target postgresql.service
+Wants=network-online.target
+Requires=postgresql.service
+
+[Service]
+Type=exec
+User=vardiya
+Group=vardiya
+WorkingDirectory=/opt/vardiya/backend
+
+# Sirlar (veritabani parolasi, calisan paneli anahtari) bu dosyada DEGIL,
+# yalnizca .env icinde durur; .env kok dizinde 0600 izinle tutulur ve
+# surum kontrolune girmez.
+EnvironmentFile=/opt/vardiya/.env
+
+# Tek uvicorn iscisi: cozum yuku ayri serviste (cozum-isci.service), bu
+# surec yalnizca istek isler. Birden fazla uvicorn iscisi acmak, dort
+# cekirdegin bir kismini cozucuden calardi (SDD 3.4.3).
+ExecStart=/opt/vardiya/backend/.venv/bin/uvicorn app.main:app \
+    --host 127.0.0.1 \
+    --port 8000 \
+    --workers 1 \
+    --proxy-headers \
+    --forwarded-allow-ips=127.0.0.1
+
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+
+# Guvenlik siniri: servis yalnizca kendi dizinini okur, hicbir yere yazmaz.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/vardiya/backend
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=vardiya-uygulama
+
+[Install]
+WantedBy=multi-user.target
