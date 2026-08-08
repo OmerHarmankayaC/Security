@@ -23,6 +23,7 @@ Sürüm 1.0
 | Ad | Tarih | Değişiklik Nedeni | Sürüm |
 | --- | --- | --- | --- |
 | Ömer HARMANKAYA | 05.08.2026 | İlk sürüm — kapsam dışı maddeler, ertelenen özellikler ve karar günlüğü kayda alındı | 1.0 |
+| Ömer HARMANKAYA | 08.08.2026 | T-06 (iptal gecikmesi) eklendi; dağıtım öncesi alınan kararlar karar günlüğüne işlendi | 1.1 |
 
 
 
@@ -84,6 +85,7 @@ Bu maddeler kullanıcıya doğrudan yeni bir işlev sunmaz; çözüm kalitesini,
 | T-03 | Çoklu çözüm sunumu. Aynı ceza seviyesinde birden fazla alternatif çizelgenin üretilip kullanıcıya seçtirilmesi. | Çözüm süresi tek çözüm için kriterin belirgin altında kaldığında |
 | T-04 | Ağırlık kalibrasyon önerisi. Kullanıcının seçtiği ağırlıkların sonuç üzerindeki etkisinin duyarlılık analiziyle raporlanması. | Ağırlık ayarlamanın deneme yanılmaya dönüştüğü gözlendiğinde |
 | T-05 | Kural kataloğu şema doğrulaması. Katalog verisinin biçimsel şemayla doğrulanması ve hatalı tanımların çözücüye ulaşmadan yakalanması. | Kataloğa üçüncü bir yorumlayıcı eklendiğinde |
+| T-06 | İptal gecikmesinin giderilmesi. İptal isteği şu anda ara çözüm geri çağırması içinde okunur; geri çağırma yalnızca daha iyi bir çözüm bulunduğunda tetiklendiğinden istek iki iyileşme arasında bekleyebilir (SDD 5.4). Öneri: çözüm çağrısı işçi içinde ayrı bir iş parçacığında yürütülür, ana döngü iş durumunu düzenli aralıklarla yoklar ve çözücünün aramayı dışarıdan sonlandıran çağrısını kullanır. Kütüphane sürümünde bu çağrının davranışı önce doğrulanmalıdır. | Kullanıcı iptalin geç yanıt verdiğini gerçek kullanımda bildirdiğinde |
 
 
 
@@ -106,6 +108,11 @@ Aşağıdaki tablo, tasarım sürecinde alınan ve sonradan değiştirilen karar
 | 06.08.2026 | SDD 5.2 Kontrol 2 (yetkinlik havuzu) sözde kodu bireysel izni hesaba katacak şekilde düzeltildi | Orijinal sözde kod Kontrol 1'in aksine musait_gun'u hiç çıkarmıyordu; gerçek demo senaryosuyla test edilirken fark edildi. Düzeltme bile bu senaryodaki zaman-pencereli (haftalık) açığı yakalamıyor — bkz. B-14 ve SDD 5.2'deki yeni sınır açıklaması |
 | 07.08.2026 | Kapı ve kontrol odası görev noktaları tek bir "Güvenlik" noktasında birleştirildi, bina ayrımı kaldırıldı; müracaat noktası da bina ayrımı olmadan tanımlandı | Kontrol odası zaten ayrı bir yetkinlik değildi (aynı Güvenlik Görevi havuzu); atamanın hangi fiziksel noktaya yazıldığı modelin ihtiyaç duyduğu bir bilgi değil, kim nerede duracağını vardiya şefi belirliyor. Altı nokta üçe indi, toplam kadro sayıları (36 kişi, 7/6/23 havuz) değişmedi |
 | 07.08.2026 | Planlama dönemi varsayılanı yirmi sekiz günden bir haftaya düşürüldü, kullanıcı manuel büyütebilir | Gerçek kullanımda haftalık planlama daha tipik; yirmi sekiz günlük ölçek performans kabul kriterinde kasıtlı bir stres testi olarak korundu, sistemin daha büyük dönemleri desteklemesi gerekliliği değişmedi |
+| 08.08.2026 | S2 ve S3'ün paydası uygun havuza çevrildi; havuz hesabı tek bir yerde tutuluyor ve dört tüketici (model kurma, doğrulama, analiz servisi, ölçüm betiği) oradan alıyor | Yetkinliği gereği gece talebi bulunan hiçbir noktada çalışamayan personel paydaya girdiğinde hedef ulaşılamaz hâle geliyordu. Tanımın tüketicilerde tekrarlanması hâlinde ölçüm aracı, doğruladığı ölçütün tanımını kendisi taşıdığı için sessizce yanlış bir sonuç üretebilir |
+| 08.08.2026 | Çözüm işi, uygulama sürecinden açılan çocuk süreç olmaktan çıkarılıp bağımsız bir sistem servisine taşındı | Sprint 2'deki çocuk süreç çözümü bilinçli bir ara adımdı; SDD 3.4.4 çözüm işinin ayrı bir servis olmasını ve süreçler arası iletişimin yalnızca veritabanı üzerinden kurulmasını tanımlıyor |
+| 08.08.2026 | Yürütme kipi için yapılandırma anahtarı (gömülü / servis) konmadı; tek yol bırakıldı ve eski davranışa dayanan testler işçinin tek adımını doğrudan çağıracak biçimde yeniden yazıldı | İki yürütme kipi, aynı davranışın iki yerde tanımlanması demektir; bu proje aynı kalıptan daha önce birkaç kez zarar görmüştür. Ayrıca yerel geliştirmenin gösterim ortamıyla aynı yolu kullanması sürüm eşliğini güçlendirir |
+| 08.08.2026 | Çözümün durdurulması ayrı bir bayrak alanı yerine iş kaydının `iptal` durumu üzerinden yürütüldü | Durum alanı bu bilgiyi zaten taşıyor; ikinci bir alan aynı bilginin iki kaynağa ayrışması riskini doğururdu |
+| 08.08.2026 | Zaman damgası sütunları saat dilimli tipe geçirildi; mevcut veri UTC olarak yorumlandı | Uygulama zaten UTC yazıyordu ve arayüz bunu elle telafi ediyordu. Dönüşümde saat dilimi açıkça belirtilmezse veritabanı sunucunun yerel dilimini varsayar ve veriyi sessizce kaydırır |
 
 
 

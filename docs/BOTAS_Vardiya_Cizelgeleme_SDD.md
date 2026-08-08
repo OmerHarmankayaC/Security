@@ -31,6 +31,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 07.08.2026 | Tercih tablosuna calisan_notu ve ret_gerekcesi alanları eklendi; çalışan arayüzü dört bölümden üçe indirildi ve tek sütunlu/mobil öncelikli düzen ile dönem görünümünün takvim sarmalı olarak sunulması yazıldı | 1.6 |
 | Ömer HARMANKAYA | 07.08.2026 | 5.7'deki saat dağılımı metriğinin tabanı sözleşme saatinden adil paya (S4'teki pay[p]) çevrildi; gece ve hafta sonu ortalamaları SRS S2/S3'teki uygun havuz üzerinden hesaplanacak biçimde hizalandı | 1.7 |
 | Ömer HARMANKAYA | 07.08.2026 | Ek A'daki S2 örneği SRS 1.5 ile hizalandı (payda uygun havuz); havuz hesabının tek bir yerde tutulması ve bütün tüketicilerin oradan alması kuralı eklendi | 1.8 |
+| Ömer HARMANKAYA | 08.08.2026 | Gösterim ortamının paylaşımlı bir sunucu olduğu ve ölçümün izole olmadığı 3.4.1 ile 3.4.2'ye işlendi; çözüm işinin iptal mekanizması (veritabanı üzerinden bayrak okuma) ve gecikme sınırı 5.4'e eklendi | 1.9 |
 
 
 
@@ -223,7 +224,7 @@ Sistem, geliştirme ve gösterim aşamalarının her ikisinde de konteynerleşti
 | Ortam | Yapılandırma | Kullanım |
 | --- | --- | --- |
 | Geliştirme | Geliştirici makinesinde, sistem üzerine doğrudan kurulmuş Python, Node.js ve PostgreSQL ile uvicorn ve Vite geliştirme sunucuları | Sprint 1–3 boyunca gündelik geliştirme |
-| Gösterim | Tek sunucuda, sistem üzerine doğrudan kurulmuş aynı yığın; uygulama ve çözüm işçisi systemd servisi olarak, önlerinde Caddy | Mentör sunumu ve kabul denemeleri |
+| Gösterim | Tek sunucuda, sistem üzerine doğrudan kurulmuş aynı yığın; uygulama ve çözüm işçisi systemd servisi olarak, önlerinde Caddy. Sunucu başka uygulamalarla paylaşılmaktadır (aşağıya bakınız) | Mentör sunumu ve kabul denemeleri |
 | İleri aşama | Ayrılmış veritabanı hizmeti, bağımsız çözüm işçisi, kurumsal kimlik doğrulama | Kapsam dışı; Ürün Backlog'u B-05 ve T-02 |
 
 
@@ -234,6 +235,8 @@ Bunun karşılığında geliştirme ve gösterim ortamları arasındaki sürüm 
 
 Gösterim sunucusunda uygulama ve çözüm işçisi ayrı systemd servisleri olarak tanımlanır. Bu, konteynerin sağladığı iki pratik faydayı — süreç çöktüğünde otomatik yeniden başlatma ve sunucu yeniden başladığında otomatik ayağa kalkma — konteyner katmanı olmadan verir. Caddy, sistem paketi olarak kurulur ve alan adı sertifikasını otomatik yönetir; gelen istekleri statik dosyalar için doğrudan derlenmiş React çıktısına, API istekleri için uygulama servisine yönlendirir. PostgreSQL de sistem servisi olarak kurulur; veri dizini işletim sisteminin dosya sisteminde durur ve servis güncellemelerinden etkilenmez.
 
+Gösterim sunucusu bu sisteme ayrılmış değildir; üzerinde başka uygulamalar da çalışmaktadır. Bunun iki pratik sonucu vardır. Birincisi, uygulama sunucusunun dinlediği yerel kapı diğer uygulamalarla çakışmayacak biçimde seçilir ve ters vekil zaten kurulu olan Caddy örneği üzerinden yapılandırılır; sisteme ait servisler proje önekiyle adlandırılır. İkincisi ve tasarım açısından önemlisi, çekirdek paylaşımı yalnızca 3.4.3'te tanımlanan uygulama–çözücü paylaşımından ibaret değildir: aynı makinedeki diğer uygulamalar da işlemciyi kullanır. Kurulum ayrıntıları, sunucuya özgü oldukları ve bu dokümanın tasarım kapsamına girmedikleri için ayrı bir dağıtım kaydında tutulur.
+
 ![Şekil 3.3 — Gösterim Ortamı Dağıtım Görünümü](diyagramlar/f34.png)
 
 *Şekil 3.3 — Gösterim Ortamı Dağıtım Görünümü*
@@ -241,6 +244,8 @@ Gösterim sunucusunda uygulama ve çözüm işçisi ayrı systemd servisleri ola
 ### 3.4.2 Referans Donanım ve Çözüm Süresi
 
 Gösterim ortamının referans donanımı dört çekirdekli işlemci ve sekiz gigabayt bellektir. Bu tanım, kabul kriterlerinin ölçüldüğü zemini oluşturur ve dokümanda yer alması zorunludur: CP-SAT paralel arama yürüttüğü için çözüm süresi çekirdek sayısına doğrudan bağlıdır ve donanım belirtilmeden verilen bir süre ölçümü tekrarlanabilir değildir. Kabul kriterinde tanımlanan kırk personel ve yirmi sekiz günlük referans örneğin altmış saniyelik hedefi, bu donanım üzerinde ölçülecektir.
+
+Referans donanım tanımı, ölçümün üzerinde yapıldığı makinenin bu sisteme ayrılmış olduğu anlamına gelmez. Gösterim sunucusu paylaşımlı olduğundan, ölçüm sırasında aynı makinedeki diğer uygulamaların işlemci kullanımı süreleri etkileyebilir. Bu nedenle kabul ölçümü, diğer uygulamaların boşta olduğu bir anda alınır ve ölçüm kaydında ortamın paylaşımlı olduğu açıkça belirtilir. Ölçülen süre, izole bir makinede alınacak sürenin üst sınırı gibi okunur.
 
 Bellek, sistemin kısıtlayıcı kaynağı değildir. Referans örnekte üretilen karar değişkeni sayısı yirmi bin mertebesindedir; bu ölçek CP-SAT için küçüktür ve sekiz gigabayt fazlasıyla yeterlidir. Kısıtlayıcı kaynak işlemci çekirdeğidir.
 
@@ -663,6 +668,10 @@ YORDAM cozum_isini_calistir(is_id):
 
 
 Atamaların yazılması tek bir veritabanı işlemi içinde yapılır. Bunun nedeni, sürecin yazma sırasında kesilmesi durumunda çizelgenin yarı dolu kalmasını engellemektir; yarım bir çizelge, kural ihlali içermeyen fakat kapsaması eksik bir çizelgeden ayırt edilemez ve yanıltıcıdır.
+
+**İptal.** Kullanıcının çalışan bir işi durdurma isteği, uygulama sunucusu tarafından iş kaydının durumu `iptal` olarak yazılarak bildirilir. Ayrı bir iptal bayrağı tutulmaz: durum alanı bu bilgiyi zaten taşır ve aynı bilginin ikinci bir alanda tekrarlanması iki kaynağın ayrışması riskini doğurur. Çözüm işçisi, ara çözüm geri çağırması içinde iş kaydının durumunu veritabanından **taze** okur ve `iptal` gördüğünde aramayı sonlandırır; sonuç yazılmaz, iş bu durumda kalır. Kaydın oturum önbelleğinden değil veritabanından okunması zorunludur, aksi hâlde işçi uygulama sunucusunun yazdığı değeri hiç görmez.
+
+Bu mekanizmanın bilinen bir sınırı vardır: geri çağırma yalnızca çözücü daha iyi bir çözüm bulduğunda tetiklenir, dolayısıyla iptal isteği iki iyileşme arasındaki sessizlikte bekleyebilir. Süreçler arası iletişimin yalnızca veritabanı üzerinden kurulması (3.4.4) tercih edildiği ve uygulama sunucusu çözüm sürecini doğrudan sonlandırmadığı için bu gecikme mimarinin kabul edilmiş bir sonucudur. Giderilmesi Ürün Backlog'u T-06'da kayıtlıdır.
 
 ## 5.5 Manuel Düzenleme Doğrulaması
 
