@@ -30,6 +30,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 07.08.2026 | Ek A'daki S2 dogrula örneği hedefi atanan sayılardan değil talepten türetecek şekilde düzeltildi; kesirli hedeflerin tamsayıya ölçeklenmesi ve raporlamadan önce doğal birime geri çevrilmesi kuralı Ek A'ya eklendi; NFR-1 referans kadrosu üç dokümanda kırk personel olarak hizalandı | 1.5 |
 | Ömer HARMANKAYA | 07.08.2026 | Tercih tablosuna calisan_notu ve ret_gerekcesi alanları eklendi; çalışan arayüzü dört bölümden üçe indirildi ve tek sütunlu/mobil öncelikli düzen ile dönem görünümünün takvim sarmalı olarak sunulması yazıldı | 1.6 |
 | Ömer HARMANKAYA | 07.08.2026 | 5.7'deki saat dağılımı metriğinin tabanı sözleşme saatinden adil paya (S4'teki pay[p]) çevrildi; gece ve hafta sonu ortalamaları SRS S2/S3'teki uygun havuz üzerinden hesaplanacak biçimde hizalandı | 1.7 |
+| Ömer HARMANKAYA | 07.08.2026 | Ek A'daki S2 örneği SRS 1.5 ile hizalandı (payda uygun havuz); havuz hesabının tek bir yerde tutulması ve bütün tüketicilerin oradan alması kuralı eklendi | 1.8 |
 
 
 
@@ -922,13 +923,14 @@ SINIF S2GeceAdaleti(EsnekHedef):
     kapsam = DÖNEM_GENELİ
 
     def modele_ekle(self, model, x, baglam):
+        havuz ← baglam.uygun_havuz(gece = DOĞRU)
         toplam ← TOPLA(talep[g,v,n])
                  HER (g,v,n) İÇİN baglam.donem, gece[v] = 1
-        hedef ← toplam / SAY(baglam.personel)
+        hedef ← toplam / SAY(havuz)
         taban ← TABAN(hedef);  tavan ← TAVAN(hedef)
 
         sapmalar ← []
-        HER p İÇİN baglam.personel:
+        HER p İÇİN havuz:
             gece_sayisi ← TOPLA(y[p,g,v])
                 HER (g,v) İÇİN baglam.donem × baglam.gece_vardiyalari
             sapma ← model.YeniTamsayiDegisken(alt_sinir = 0)
@@ -938,13 +940,14 @@ SINIF S2GeceAdaleti(EsnekHedef):
         DÖNDÜR TOPLA(sapmalar)      # ceza terimi: sapmaların toplamı
 
     def dogrula(self, atamalar, baglam):
+        havuz ← baglam.uygun_havuz(gece = DOĞRU)
         sayilar ← atamalar.gece_sayilari_kisi_basina()
         toplam ← TOPLA(talep[g,v,n])
                  HER (g,v,n) İÇİN baglam.donem, gece[v] = 1
-        hedef ← toplam / SAY(baglam.personel)
+        hedef ← toplam / SAY(havuz)
         taban ← TABAN(hedef);  tavan ← TAVAN(hedef)
         toplam_sapma ← 0
-        HER (p, n) İÇİN sayilar:
+        HER (p, n) İÇİN sayilar EĞER p ∈ havuz:
             toplam_sapma ← toplam_sapma
                            + MAKS(0, n − taban, tavan − n)
         DÖNDÜR [Ihlal('S2', ceza = toplam_sapma)]
@@ -954,6 +957,8 @@ SINIF S2GeceAdaleti(EsnekHedef):
 
 
 Hedefin atanmış sayıların ortalamasından değil talepten türetilmesi önemlidir: kapsama açığı bulunduğunda atanan toplam, talep toplamının altında kalır ve iki değer ayrışır. Normatif tanım (SRS bölüm 4, S2) talebi esas aldığından her iki yorumlayıcı da talebi kullanır; aksi hâlde çözücü ile doğrulayıcı açık bulunan dönemlerde farklı sayı üretir.
+
+Payda, bütün personel değil uygun havuzdur (SRS S2'deki P_gece). Havuz hesabı tek bir yerde — bağlam nesnesinde — tutulmalı ve bütün tüketiciler oradan almalıdır: modelin kurulması, doğrulama, analiz servisi ve kabul ölçüm betiği. Tüketicilerden herhangi biri havuz tanımını kendi içinde yeniden yazarsa, tanımlar sessizce ayrışır ve ölçüm aracı doğruladığı şeyin tanımını kendisi taşıdığı için yanlış bir "geçti" üretebilir.
 
 
 
