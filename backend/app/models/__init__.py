@@ -6,6 +6,7 @@ from app.models.girdi import (
     TercihDurumu,
     TercihTipi,
 )
+from app.models.kimlik import Kullanici, OturumKaydi, Rol
 from app.models.kural import Kural, KuralTipi
 from app.models.sonuc import (
     Atama,
@@ -41,14 +42,17 @@ __all__ = [
     "GorevNoktasi",
     "GunTipi",
     "KapsamaAcigi",
+    "Kullanici",
     "Kural",
     "KuralTipi",
     "Musaitlik",
     "MusaitlikDilimi",
     "MusaitlikTipi",
+    "OturumKaydi",
     "OzelGun",
     "Personel",
     "PersonelYetkinlik",
+    "Rol",
     "Talep",
     "Tercih",
     "TercihDurumu",

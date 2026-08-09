@@ -18,6 +18,7 @@ from sqlalchemy.orm import InstrumentedAttribute, Session
 
 from app.db import Base
 from app.models.girdi import Musaitlik, Tercih
+from app.models.kimlik import Kullanici
 from app.models.sonuc import Atama, KapsamaAcigi
 from app.models.tanim import (
     Bina,
@@ -78,6 +79,12 @@ _KAYNAKLAR: dict[type[Base], tuple[KullanimKaynagi, ...]] = {
         KullanimKaynagi("müsaitlik kaydı", Musaitlik.personel_id),
         KullanimKaynagi("tercih", Tercih.personel_id),
         KullanimKaynagi("yetkinlik ataması", PersonelYetkinlik.personel_id),
+        # Calisan hesabi personele baglidir (FR-10.6). Sayima girmezse
+        # hesabi olan bir personel "hicbir kayitta kullanilmiyor" gorunur,
+        # gercek silme denenir ve yabanci anahtar kisitina duser. Sonuc
+        # pasiflestirme olmalidir: hesap ayakta kalir, personel yeni
+        # cizelgelere girmez.
+        KullanimKaynagi("kullanıcı hesabı", Kullanici.personel_id),
     ),
 }
 

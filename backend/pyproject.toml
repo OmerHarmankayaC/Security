@@ -29,6 +29,12 @@ dependencies = [
     "pydantic-settings==2.7.1",
     # 9.14.6206 -> 9.15.6755: 9.14'un 3.14 tekerlegi yok.
     "ortools==9.15.6755",
+    # Parola ozeti icin Argon2id (SDD 5.1b, SRS FR-10.2). Derlenmis uzantiyi
+    # tasiyan alt paket argon2-cffi-bindings, KARARLI ABI tekerlegi yayinlar
+    # (cp39-abi3-manylinux_2_28_x86_64), yani gosterim sunucusunun Python
+    # 3.14'unde de kaynaktan derleme gerektirmez - yukaridaki uc paketin
+    # yasadigi sorun burada yok, surum yukseltmesi gerekmiyor.
+    "argon2-cffi==25.1.0",
 ]
 
 [project.optional-dependencies]
