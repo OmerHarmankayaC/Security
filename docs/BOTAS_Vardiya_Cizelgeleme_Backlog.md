@@ -24,6 +24,7 @@ Sürüm 1.0
 | --- | --- | --- | --- |
 | Ömer HARMANKAYA | 05.08.2026 | İlk sürüm — kapsam dışı maddeler, ertelenen özellikler ve karar günlüğü kayda alındı | 1.0 |
 | Ömer HARMANKAYA | 08.08.2026 | T-06 (iptal gecikmesi) eklendi; dağıtım öncesi alınan kararlar karar günlüğüne işlendi | 1.1 |
+| Ömer HARMANKAYA | 09.08.2026 | Arayüz turunda alınan beş karar (azami dönem, kural kaydı yetkisi, çoklu taslak, arşivden kopyalama, tanım pasifleştirme) karar günlüğüne işlendi | 1.2 |
 
 
 
@@ -113,6 +114,11 @@ Aşağıdaki tablo, tasarım sürecinde alınan ve sonradan değiştirilen karar
 | 08.08.2026 | Yürütme kipi için yapılandırma anahtarı (gömülü / servis) konmadı; tek yol bırakıldı ve eski davranışa dayanan testler işçinin tek adımını doğrudan çağıracak biçimde yeniden yazıldı | İki yürütme kipi, aynı davranışın iki yerde tanımlanması demektir; bu proje aynı kalıptan daha önce birkaç kez zarar görmüştür. Ayrıca yerel geliştirmenin gösterim ortamıyla aynı yolu kullanması sürüm eşliğini güçlendirir |
 | 08.08.2026 | Çözümün durdurulması ayrı bir bayrak alanı yerine iş kaydının `iptal` durumu üzerinden yürütüldü | Durum alanı bu bilgiyi zaten taşıyor; ikinci bir alan aynı bilginin iki kaynağa ayrışması riskini doğururdu |
 | 08.08.2026 | Zaman damgası sütunları saat dilimli tipe geçirildi; mevcut veri UTC olarak yorumlandı | Uygulama zaten UTC yazıyordu ve arayüz bunu elle telafi ediyordu. Dönüşümde saat dilimi açıkça belirtilmezse veritabanı sunucunun yerel dilimini varsayar ve veriyi sessizce kaydırır |
+| 09.08.2026 | Azami planlama dönemi otuz bir gün olarak sınırlandı | Çözüm süresi dönem uzunluğuyla hızla büyür; sınır konmadığında kullanıcı hiçbir uyarı almadan saatlerce sürecek bir iş başlatabilir. Otuz bir gün, yirmi sekiz günlük kabul kriteri ölçeğini kapsar |
+| 09.08.2026 | Kullanıcının arayüzden kural kaydı oluşturması ve silmesi kapsam dışı bırakıldı; yetkisi parametre, ağırlık ve aktiflikle sınırlandı | Kural tablosundaki her satır kayıt defterindeki bir sınıfla eşleşmek zorundadır (SDD 3.2.1); sınıfı olmayan bir satır zaten yüklenemez. Kullanıcının ekleyebileceği bir kural bu mimaride oluşamaz, dolayısıyla ekleme ve silme arayüzü var olmayan bir yetkiyi vaat ederdi |
+| 09.08.2026 | Aynı dönemde birden fazla taslağın bir arada bulunmasına izin verildi | TD-8'deki sürüm durum makinesi taslak sayısına sınır koymaz ve her çözüm başlatma zaten yeni bir taslak açar; sınır getirmek mevcut davranışı bozardı |
+| 09.08.2026 | Arşivlenmiş sürüm geri döndürülmek yerine yeni taslağa kopyalanır | Yayınlanmış ve arşivlenmiş sürüm tarihsel kayıttır. Durumunun geri alınması, çalışan panelindeki "en son arşiv" karşılaştırma tabanını ve iki sürüm arasındaki karşılaştırmayı dayanaksız bırakır |
+| 09.08.2026 | Kullanımda olan bir tanım silinmez, pasifleştirilir | Atamalarda kullanılan bir tanımın gerçekten silinmesi geçmiş çizelgeleri okunamaz hâle getirir. Hiçbir yerde kullanılmayan tanım için gerçek silme korunmuştur |
 
 
 

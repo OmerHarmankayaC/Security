@@ -32,6 +32,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 07.08.2026 | 5.7'deki saat dağılımı metriğinin tabanı sözleşme saatinden adil paya (S4'teki pay[p]) çevrildi; gece ve hafta sonu ortalamaları SRS S2/S3'teki uygun havuz üzerinden hesaplanacak biçimde hizalandı | 1.7 |
 | Ömer HARMANKAYA | 07.08.2026 | Ek A'daki S2 örneği SRS 1.5 ile hizalandı (payda uygun havuz); havuz hesabının tek bir yerde tutulması ve bütün tüketicilerin oradan alması kuralı eklendi | 1.8 |
 | Ömer HARMANKAYA | 08.08.2026 | Gösterim ortamının paylaşımlı bir sunucu olduğu ve ölçümün izole olmadığı 3.4.1 ile 3.4.2'ye işlendi; çözüm işinin iptal mekanizması (veritabanı üzerinden bayrak okuma) ve gecikme sınırı 5.4'e eklendi | 1.9 |
+| Ömer HARMANKAYA | 09.08.2026 | Arayüz turunun tasarım etkileri işlendi: yetkinlik, bina ve vardiya tipi tablolarına aktif alanı eklendi ve personel pasifleştirmesinin aktif_bitis'i bir önceki güne yazması tanımlandı (4.2.1); kural sınıflarının katalog üst verisini taşıması ve kural kaydı oluşturma/silmenin mimari olarak mümkün olmaması 3.2.1'e yazıldı; Tanımlar ekranındaki eylem çubuğu ile silme davranışı (6.3.1), Çizelge ekranına eklenen dışa aktarma ve yazdırma (6.3.4) ve arşivden taslak kopyalama (6.3.5) tanımlandı | 1.10 |
 
 
 
@@ -175,6 +176,10 @@ class Kural:
 
 Kural sınıfları, uygulama başlatılırken kimliğine göre bir kayıt defterine yazılır. Veritabanındaki kural tablosu her kural için hangi kimliğin aktif olduğunu, parametre değerlerini ve esnek hedefler için ağırlığı tutar. Bir çözüm işi başlatıldığında kayıt defteri, veritabanındaki satırlarla eşleştirilerek o çalıştırmaya özgü kural nesneleri üretilir.
 
+Kural sınıfı, davranışının yanında katalog üst verisini de taşır: SRS bölüm 4'teki kural adı ve açıklaması ile parametre başına etiket, birim ve kabul edilen değer aralığı. Bu bilginin sınıfla birlikte durmasının nedeni, arayüzün kural parametrelerini ham veri olarak değil alan-değer çiftleri hâlinde sunabilmesi ve girilen değerin çözücüye ulaşmadan doğrulanabilmesidir. Üst verinin ayrı bir yerde tutulması hâlinde, kural sınıfı değiştiğinde açıklama ve sınırların sessizce geride kalma riski doğar.
+
+Kayıt defteri aynı zamanda hangi kuralların var olabileceğini belirler: kural tablosundaki her satır kayıt defterindeki bir sınıfla eşleşmek zorundadır, sınıfı bulunmayan bir satır yüklenemez. Bunun doğrudan sonucu, kullanıcının arayüzden yeni bir kural kaydı oluşturamaması ve mevcut kayıtları silememesidir; kullanıcının yetkisi parametre, ağırlık ve aktiflik ile sınırlıdır. Yeni bir kural tipi eklemek bölüm 3.3'te açıklandığı üzere kod değişikliği gerektirir.
+
 Bu tasarımın iki sonucu vardır. Kural değerinin değiştirilmesi — ardışık gece sınırının üçten dörde çıkarılması gibi — yalnızca veri değişikliğidir ve arayüzden yapılır; kod değişmez. Yeni bir kural tipinin eklenmesi ise yeni bir sınıf yazmayı gerektirir. Bu ayrım bilinçlidir ve gerekçesi bölüm 3.3'te açıklanmıştır.
 
 Çözücü ile doğrulayıcının aynı kuralı ifade ettiği, tip sistemi tarafından güvence altına alınamaz; iki metot ayrı ayrı yazılmıştır. Bu nedenle tasarım, uyumu bir doğrulama testine bağlar: rastgele üretilen örnekler çözülür ve elde edilen çizelge doğrulayıcıdan geçirilir. Çözücünün geçerli saydığı bir çizelgede doğrulayıcının ihlal bulması ya da tersi, bir yazılım hatası olarak ele alınır. Bu test, sürekli tümleştirme kapsamında her değişiklikte çalıştırılır.
@@ -299,7 +304,7 @@ Aşağıdaki tablolar veritabanı şemasını alan düzeyinde tanımlar. Bütün
 | haftalik_hedef_saat | INT | S4 saat dengesi hedefinde kullanılan kişisel hedef |
 | sabit_vardiya_tipi_id | INT (FK → vardiya_tipi), NULL | Doldurulduğunda personel yalnızca bu vardiya tipine atanır; boş ise rotasyona dahildir |
 | aktif_baslangic | DATE | Personelin çizelgeye dahil edildiği ilk tarih |
-| aktif_bitis | DATE, NULL | Personelin çizelgeden çıkarıldığı tarih; boş ise süresizdir |
+| aktif_bitis | DATE, NULL | Personelin çizelgeden çıkarıldığı tarih; boş ise süresizdir. Pasifleştirme işlemi bu alana bir önceki günü yazar: bugünün tarihi yazıldığında personel bugünü kapsayan çözümlerde hâlâ müsait sayılır ve pasifleştirme aynı gün için etkisiz kalır |
 
 
 
@@ -310,6 +315,7 @@ Aşağıdaki tablolar veritabanı şemasını alan düzeyinde tanımlar. Bütün
 | yetkinlik_id | INT (PK) | Yetkinliğin benzersiz kimliği |
 | ad | VARCHAR (UNIQUE) | Yetkinlik adı (Güvenlik Görevi, Vardiya Şefi, Müracaat Görevlisi) |
 | aciklama | TEXT | Yetkinliğin kapsamına dair açıklama |
+| aktif | BOOLEAN | Pasifleştirilen yetkinlikler yeni çizelgelerde kullanılmaz; mevcut kayıtlarda görünmeye devam eder |
 
 
 
@@ -328,6 +334,7 @@ Birincil anahtar iki alanın birleşimidir. İlişki seviyesizdir (SRS TD-9); bi
 | --- | --- | --- |
 | bina_id | INT (PK) | Binanın benzersiz kimliği |
 | ad | VARCHAR | Bina adı |
+| aktif | BOOLEAN | Pasifleştirilen binalar yeni çizelgelerde kullanılmaz |
 
 
 
@@ -353,6 +360,7 @@ Birincil anahtar iki alanın birleşimidir. İlişki seviyesizdir (SRS TD-9); bi
 | bitis_saati | TIME | Vardiyanın bitiş saati; başlangıçtan küçükse vardiya gece yarısını aşar |
 | sure_saat | NUMERIC | Başlangıç ve bitişten hesaplanan süre |
 | gece_mi | BOOLEAN | SRS TD-2 uyarınca tanımlanan gece bayrağı |
+| aktif | BOOLEAN | Pasifleştirilen vardiya tipleri yeni çizelgelerde kullanılmaz |
 
 
 
@@ -794,6 +802,10 @@ Bu sıralamanın gerekçesi, ekran tasarımının bu dokümanda tanımlanan veri
 
 Sekmeli bir düzen kullanılır; her sekme bir tanım varlığını yönetir.
 
+Her sekmenin üst çubuğunda Ekle, Değiştir ve Sil eylemleri aynı konumda ve aynı sırada bulunur; kullanıcının sekme değiştirdiğinde eylemleri yeniden araması engellenir. Bu üçlünün dışında kalan iki sekme vardır: Talep sekmesi doğrudan düzenlenebilir bir matristir, Kural sekmesinde ise kayıt oluşturma ve silme mimari olarak mümkün değildir (3.2.1).
+
+Silme eylemi, tanımın başka kayıtlarda kullanılıp kullanılmadığına göre iki farklı sonuç üretir. Kullanılmayan bir tanım gerçekten silinir. Atamalarda, taleplerde veya başka bir kayıtta kullanılan bir tanım silinmez, pasifleştirilir: yeni çizelgelerde kullanılmaz, geçmiş kayıtlarda görünmeye devam eder. Onay penceresi hangi durumun geçerli olduğunu ve tanımın kaç kayıtta kullanıldığını açıkça yazar; kullanıcı sonucu onaydan önce bilir. Pasif kayıtlar listede ayırt edilebilir ve filtrelenebilir.
+
 - Personel Tablosu: Ad, sicil, yetkinlikler, haftalık hedef saat ve aktiflik durumunu listeler. Satır sonundaki düzenleme bağlantısı satır içi formu açar.
 
 - Yetkinlik Atama Alanı: Personel formunda çoklu seçim bileşeni. Seçilen yetkinlikler personel_yetkinlik kayıtlarını günceller.
@@ -850,7 +862,9 @@ Sekmeli bir düzen kullanılır; her sekme bir tanım varlığını yönetir.
 
 - Ceza Dökümü: Toplam cezanın hedefler arasındaki dağılımı. Her hedefin adı, ağırlığı ve katkısı listelenir.
 
-- Dışa Aktarma Butonu: Çizelgeyi ve raporları CSV biçiminde indirir.
+- Dışa Aktarma Butonu: Çizelgeyi ve raporları CSV biçiminde indirir (SRS 7.2). Çizelge ile kapsama açıkları ayrı dosyalar hâlinde iner.
+
+Dışa aktarma yalnızca bu ekrana özgü değildir: Çizelge ekranı (6.3.3) da aynı işlevi sunar; ayrıca oradan yazdırılabilir görünüm üretilir (FR-8.8). Biçimlendirme ve indirme mantığı iki ekran tarafından paylaşılan tek bir birimde tutulur, ekran başına ayrı kopya çıkarılmaz.
 
 ### 6.3.5 Sürümler Ekranı
 
@@ -861,6 +875,8 @@ Sekmeli bir düzen kullanılır; her sekme bir tanım varlığını yönetir.
 - Yayınla Butonu: Seçilen sürümü yayınlanmış duruma geçirir, önceki yayınlanmış sürümü arşive alır. Onay istenir; onaydan sonra sürüm salt okunur hâle gelir.
 
 - Taslak Türet Butonu: Yayınlanmış bir sürümden düzenlenebilir yeni taslak oluşturur.
+
+- Taslak Olarak Kopyala Butonu: Arşivlenmiş bir sürümün atamalarıyla birlikte yeni bir taslağa kopyalanmasını sağlar (FR-7.6). Arşiv kaydı bu işlemden etkilenmez ve durumu değişmez. Değişmezliğin korunması zorunludur: çalışan panelindeki karşılaştırma tabanı olan "aynı dönemdeki en son arşiv" ile iki sürüm arasındaki karşılaştırma, arşivin geriye doğru değiştirilmemesine dayanır. Kopyalama tek bir veritabanı işlemi içinde yapılır ve türetilen taslakta kaynak sürüm görünür.
 
 # 7. Gereksinim İzlenebilirlik Matrisi
 

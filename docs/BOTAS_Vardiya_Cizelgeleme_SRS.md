@@ -28,6 +28,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 07.08.2026 | NFR-1'in referans kadrosu otuzdan kırk personele çıkarıldı; Proje Tanım Dokümanı ve Yazılım Tasarım Dokümanı ile arasındaki üçlü tutarsızlık giderildi | 1.3 |
 | Ömer HARMANKAYA | 07.08.2026 | Çalışan paneli boşlukları kapatıldı: tercih kaydına çalışan notu ve ret gerekçesi alanları eklendi (FR-3.4), karşılanma durumu TD-12 olarak türetilmiş ve üç değerli biçimde tanımlandı (FR-3.6, FR-9.6), FR-9.4'ün karşılaştırma tabanı ve değişim türleri netleştirildi, FR-9.3'teki aylık görünüm dönem görünümüne çevrildi | 1.4 |
 | Ömer HARMANKAYA | 07.08.2026 | S2 ve S3'ün hedefi bütün personel yerine uygun havuz (P_gece, P_hs) üzerinden hesaplanacak biçimde düzeltildi; yetkinliği gereği gece veya hafta sonu talebi bulunan hiçbir noktada çalışamayan personel paydaya dahil edildiğinde hedef ulaşılamaz hâle geliyor ve ayırt ediciliğini kaybediyordu | 1.5 |
+| Ömer HARMANKAYA | 09.08.2026 | Arayüz turunun gereksinim etkileri işlendi: FR-4.2'nin varsayılanı bir haftaya çekildi ve otuz bir günlük azami dönem tanımlandı; kapsama açığı dışa aktarımı (FR-8.7) ve yazdırılabilir görünüm (FR-8.8) eklendi; arşivlenmiş sürümden taslak türetme (FR-7.6) eklendi; 7.2'deki çizelge dışa aktarma biçimi görev noktası sütunu, noktalı virgül ayracı ve bayt sırası imi ile güncellendi | 1.6 |
 
 
 
@@ -593,7 +594,7 @@ Ağırlıkların tamamı kullanıcı tarafından ayarlanabilir. Sistem hangi hed
 | Kimlik | Gereksinim | Öncelik |
 | --- | --- | --- |
 | FR-4.1 | Sistem, seçilen dönem için kısıt programlama modeli kullanarak çizelge üretmelidir. | Zorunlu |
-| FR-4.2 | Sistem, planlama ufkunun kullanıcı tarafından seçilmesine imkân vermeli, varsayılan olarak dört haftalık dönem önermelidir. | Zorunlu |
+| FR-4.2 | Sistem, planlama ufkunun kullanıcı tarafından takvim üzerinden seçilmesine imkân vermeli, varsayılan olarak bir haftalık dönem önermelidir. Seçilebilecek azami dönem uzunluğu otuz bir gündür; bu sınır aşıldığında sistem çözümü başlatmamalı ve nedenini bildirmelidir. | Zorunlu |
 | FR-4.3 | Sistem, bölüm 4.2'deki zorunlu kısıtların tamamını sağlayan çizelge üretmelidir. | Zorunlu |
 | FR-4.4 | Sistem, bölüm 4.4'teki amaç fonksiyonunu en aza indiren çözümü aramalıdır. | Zorunlu |
 | FR-4.5 | Sistem, önceki yayınlanmış çizelgenin son yedi gününü ısıtma penceresi olarak modele dahil etmelidir (TD-5). | Zorunlu |
@@ -637,6 +638,7 @@ Ağırlıkların tamamı kullanıcı tarafından ayarlanabilir. Sistem hangi hed
 | FR-7.3 | Sistem, yayınlanmış bir sürümün doğrudan düzenlenmesini engellemeli; düzenleme talebinde kopyadan yeni bir taslak sürüm oluşturmalıdır. | Zorunlu |
 | FR-7.4 | Sistem, yeniden çözümde önceki sürümden sapmayı cezalandırmalı ve değişen atama sayısını raporlamalıdır. | Zorunlu |
 | FR-7.5 | Sistem, iki çizelge sürümünü yan yana karşılaştırarak farkları göstermelidir. | Orta |
+| FR-7.6 | Sistem, arşivlenmiş bir sürümün atamalarıyla birlikte yeni bir taslak sürüme kopyalanmasına imkân vermelidir. Kaynak sürüm bu işlemden etkilenmez ve arşivde kalır. | Orta |
 
 
 
@@ -650,6 +652,8 @@ Ağırlıkların tamamı kullanıcı tarafından ayarlanabilir. Sistem hangi hed
 | FR-8.4 | Sistem, onaylanmış tercihlerin karşılanma oranını raporlamalıdır. | Yüksek |
 | FR-8.5 | Sistem, çizelgeyi CSV veya Excel formatında dışa aktarabilmelidir. | Zorunlu |
 | FR-8.6 | Sistem, kural bazlı ihlal ve ceza dökümünü raporlamalıdır. | Yüksek |
+| FR-8.7 | Sistem, çizelgenin kapsama açıklarını ayrı bir dosya olarak dışa aktarabilmelidir. Talep karşılama esnek hedef olarak tanımlandığından (S1) açıkları içermeyen bir çıktı çizelgeyi olduğundan tam gösterir. | Zorunlu |
+| FR-8.8 | Sistem, çizelgenin yazdırılabilir bir görünümünü üretebilmelidir. Görünüm personel × gün matrisi biçiminde olmalı, başlığında dönem, sürüm ve üretim tarihi bulunmalı, kapsama açıkları tablonun altında listelenmelidir. | Yüksek |
 
 
 
@@ -788,10 +792,20 @@ Dilim değerleri: TAM, OO (öğleden önce), OS (öğleden sonra)
 **Çizelge dışa aktarma (CSV):**
 
 ```
-sicil, ad, tarih, vardiya_tipi, gece_mi, hafta_sonu_mu, sure_saat
+tarih; sicil; ad; vardiya_tipi; gorev_noktasi; gece_mi; hafta_sonu_mu; sure_saat
 ```
 
-Dosya karakter kodlaması UTF-8 olmalı; tarih biçimi ISO 8601 (YYYY-AA-GG) kullanılmalıdır.
+Görev noktası sütunu, atamanın görev noktası kırılımında tutulmasından gelir (Yazılım Tasarım Dokümanı 4.2.4); noktası olmayan bir satır kaydın yalnızca bir bölümünü taşır. Tarih sütunu, satırların gün ekseninde okunmasını kolaylaştırmak üzere başa alınmıştır.
+
+**Kapsama açığı dışa aktarma (CSV):**
+
+```
+tarih; vardiya_tipi; gorev_noktasi; eksik_sayi
+```
+
+Kapsama açıkları çizelge dosyasının içinde bir bölüm olarak değil, ayrı bir dosya olarak verilir. Tek dosyada iki başlık bloğu bulunması, uzun biçimin varlık nedeni olan makine okunabilirliğini ortadan kaldırır; hiçbir tablo programı böyle bir dosyayı tek tablo olarak açamaz. Açık bulunmayan bir sürümde dosya yalnızca başlık satırıyla üretilir; sıfır satır, açık bulunmadığı anlamına gelir ve dosya hiçbir durumda üretilmeden bırakılmaz.
+
+Dosya karakter kodlaması UTF-8 olmalı ve bayt sırası imi (BOM) içermelidir; tarih biçimi ISO 8601 (YYYY-AA-GG) kullanılmalıdır. Alan ayracı noktalı virgüldür. Bu iki tercih Türkçe yerelli elektronik tablo programlarından kaynaklanır: bayt sırası imi bulunmadığında Türkçe karakterler bozuk görüntülenir, virgül ayracı ise ondalık ayracı olarak yorumlanıp bütün satırı tek sütuna yığar.
 
 # 8. Fonksiyonel Olmayan Gereksinimler
 
@@ -823,10 +837,10 @@ Aşağıdaki tablo, proje tanım dokümanındaki hedefleri bu dokümandaki gerek
 | Çizelge Üretimi | FR-4.1 – FR-4.8, H1–H8 | Referans örnek 60 saniyenin altında çözülür; zorunlu kısıt ihlali yoktur (NFR-1, NFR-8) |
 | Fizibilite Geri Bildirimi | FR-2.4, FR-5.1 – FR-5.5, S1 | Çelişkili örnekte hangi gün ve vardiyada kaç kişi eksik kaldığı gösterilir |
 | Manuel Müdahale | FR-6.1 – FR-6.6 | İhlal bildirimi bir saniyenin altında görüntülenir (NFR-2) |
-| Değişim Odaklı Yeniden Çözme | FR-7.1 – FR-7.5, S8 | Yeniden çözümde değişen atama sayısı raporlanır |
+| Değişim Odaklı Yeniden Çözme | FR-7.1 – FR-7.6, S8 | Yeniden çözümde değişen atama sayısı raporlanır |
 | Yük Dengesi ve Adalet | S2, S3, S4, FR-8.2, FR-8.3 | Kişi başına gece sayısı hedeften en fazla bir sapar (NFR-9) |
 | Tercih Yönetimi | FR-3.1 – FR-3.6, S5 | Onay durumu ve karşılanma durumu ayrı ayrı gösterilir |
-| Analiz ve Raporlama | FR-8.1 – FR-8.6, FR-4.8 | Ceza dökümü hedef bazında ayrıştırılır |
+| Analiz ve Raporlama | FR-8.1 – FR-8.8, FR-4.8 | Ceza dökümü hedef bazında ayrıştırılır |
 | Çalışan Görünürlüğü | FR-9.1 – FR-9.6 | Yalnızca yayınlanmış sürüm görünür; değişen günler işaretlenir |
 
 
