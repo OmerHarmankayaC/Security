@@ -2954,3 +2954,192 @@ olarak eklendi, geliştirme makinesi sütunu silinmedi.
 **Sıradaki oturumun ilk işi:** Sprint 3 kapanışı — dört dokümanla kodun son
 tutarlılık kontrolü ve `sprint-3` etiketi (UYGULAMA_PLANI Gün 15'in kalan
 maddeleri). Ekrandaki doğrulamayı kullanıcı yapacak.
+
+---
+
+## 2026-08-09 — Arayüz İyileştirme Turu (maddeler 1–7)
+
+**Sistem dağıtılmış ve çalışır durumdayken alınan kullanıcı deneyimi turu.**
+Yedi madde; kanonik dört dokümana dokunulmadı, çıkan gereksinim etkileri
+aşağıda "Dokümana işlenecekler" başlığında toplandı.
+
+**Testler: 190 backend (163 → 190, hepsi canlı PostgreSQL'de geçti,
+atlama yok) + 82 frontend (8 → 82).** `ruff`, `tsc`, `oxlint`, `build`
+temiz. Göç zinciri başı: `d5e70a91c26f`.
+
+### Madde 5 — Tarih biçimi tek kaynakta (c7514de)
+
+Ham ISO üç dönem açılır listesinde görünüyordu. Asıl bulgu bu değildi:
+**üç ayrı "bugün" hesabı** birbirinden ayrışmıştı ve ikisi
+`new Date().toISOString().slice(0,10)` ile UTC'ye göre kesiyordu — Türkiye'de
+(UTC+3) gece yarısı ile 03:00 arasında bir önceki günü veriyordu.
+
+Her şey `lib/tarih.ts`ten geçiyor: `tarihBicimle` ("9 Ağustos 2026"),
+`donemAraligiBicimle` ("03 – 09 Ağu 2026", ayraç en tire oldu),
+`zamanBicimle` (sayısal "09.08 14:20" yerine tam biçim), `bugunIso()`.
+Izgara başlığı ("PZT 3") ve çalışan paneli ("03 Ağustos Pazartesi") kendi
+biçimlerini korudu — farklı bilgi taşıyorlar, kısaltılmış tarih değiller.
+
+**`tarih.guard.test.ts`** kaynak ağacını tarayıp ikinci bir biçimleme yolunu
+teste bağlıyor. Kural yorumla değil testle tutuluyor; bu projede aynı kalıp
+zaten üç yerde delinmişti.
+
+Yan bulgu: yan menüdeki "Planlama Dönemi" bloğu seçili dönemi değil,
+`/api/donem`'in sırasız döndürdüğü ilk dönemi gösteriyordu.
+
+### Maddeler 3 ve 6 — Çizelge okunabilirliği ve Nokta Görünümü (3fcbbed)
+
+Yoğunluk **28 günlük dönemle** ölçülerek ayarlandı (bir haftaya bakıp karar
+verilmedi): hücre 96×44 → 60×28, tam adlar yerine kısaltma (SDD 6.3.3 zaten
+kısaltma diyordu), **ızgara 2838px → 1860px**, satır 52px → 34px. Boş hücreler
+kenarlık ve dolgusunu bıraktı. Hafta sonu sütunları `sunken` ile gölgelendi —
+`hs[d]` model kavramı (TD-3), süs değil.
+
+Yapışkanlık iki eksende. İki teknik zorunluluk tarayıcıda doğrulandı:
+kaydırma kabının **yüksekliği sınırlı olmak zorunda** (sınırsız kap dikey
+kaymaz, `sticky top-0` karşılıksız kalır) ve tablo **`border-separate`**
+olmalı (`border-collapse` ile kenarlıklar tabloya ait olur ve yapışkan
+hücrenin altından kayar). Ad sütunu 180px: 150px'te "Demo Personel GG-001"
+tam da ayırt edici sicil ekinden kesiliyordu.
+
+**Nokta Görünümü** yazıldı; buton `disabled` + "Sprint 3'te eklenecek"
+başlığıyla duruyordu. SDD 6.3.3'teki tanım uygulandı. Satırlar nokta ×
+vardiya: talep ikisi üzerinden tanımlı (SDD 4.2.1), yalnız nokta satırı üç
+vardiyayı tek hücreye katlamak zorunda kalırdı. Hücrede tam ad yerine sicil —
+yedi kişilik bir Güvenlik hücresi tam adlarla sütuna sığmıyor.
+
+Hücre araması her hücrede atama listesini baştan tarıyordu (~1000 hücre × n);
+üç indeks bir kez kuruluyor.
+
+### Madde 1 — Tanım pasifleştirme ve CRUD (f911785, e666fb3)
+
+Silme semantiği beş varlıkta üç farklı davranıştaydı: `gorev_noktasi`
+pasifleştiriyor, `personel` aktiflik penceresini kapatıyor,
+**`yetkinlik`/`bina`/`vardiya_tipi` gerçekten siliyordu**. Referans verilen bir
+tanımın silinmesi yayınlanmış çizelgeleri bozar (SDD 4.1).
+
+Tek kural, tek yer (`TanimDeposu.sil`): kullanımdaysa pasifleştir,
+kullanılmıyorsa gerçekten sil. Üç tabloya `aktif` sütunu eklendi
+(göç `d5e70a91c26f`). `personel` istisna kaldı — aktiflik orada tarih
+aralığıdır (SDD 4.2.1), ikinci bayrak aynı bilgiyi iki kaynağa ayırırdı.
+
+**Personel pasifleştirmesi artık pencereyi DÜNE kapatıyor.** `aktif_bitis`
+dahil son gün olduğundan bugüne yazmak personeli bugünkü çözümde hâlâ müsait
+bırakıyordu — pasifleştirme yarına kadar karşılıksızdı.
+
+`GET /api/<varlik>/{id}/kullanim` kayıt türü kırılımında sayı döndürüyor;
+arayüz onay kutusunun metnini bundan kuruyor ("42 atamada kullanılıyor,
+kayıt pasifleştirilecek"). Sayım ile silme aynı tablodan besleniyor; ayrı
+yazılsalardı onay kutusunun söylediğiyle DELETE'in yaptığı ayrışabilirdi.
+DELETE her iki sonuçta da 204 — istemci açısından sonuç aynı ve arayüz zaten
+önceden sormuş oluyor.
+
+Pasif tanım yeni çözüme girmiyor, mevcut kayıtlarda görünüyor:
+`baglam_olustur(yalniz_aktif=...)`. Çözüm ve ön kontrol `True`; **analiz ve
+doğrulama `False`** — mevcut bir sürümü okuyorlar ve o sürümün atamaları
+pasifleştirmeden önceki tanımlara referans verebilir, tanım kümeden
+düşürülürse atama sessizce sayılmaz olur.
+
+`test_tanim_kullanimi` sayılan sütunları ust verideki **tüm** yabancı
+anahtarlarla karşılaştırıyor: bir tanıma bağlanan yeni bir tablo sayımdan
+sessizce kaçıp DELETE'te kısıt hatasına düşemez.
+
+Arayüzde Ekle/Değiştir/Sil üst çubuğun sağında, beş sekmede aynı sıra ve
+görünüm. Tutarlılık yapısal: her sekme yalnızca satırın nasıl okunacağını
+tarif ediyor, düzeni ve eylem çubuğunu tek bileşen çiziyor. Pasif kayıtlar
+listede kalıyor (soluk + rozet), "Pasifleri göster" ile filtreleniyor;
+gizlenenler sayılıyor. Ekleme ve değiştirme tek form — iki form, alanların ve
+doğrulamanın iki yerde tanımlanması demekti.
+
+### Madde 2 — Kural kataloğu arayüzü (2981a6a)
+
+Ekranda yalnızca "H1", "S1" ve `JSON.stringify(parametreler)` vardı.
+
+Kural sınıfları artık katalog kaydını taşıyor: SRS bölüm 4'teki ad, tek
+cümlelik açıklama ve parametre başına `ParametreTanimi` (etiket, birim,
+sınır). SDD 3.2.1 zaten kuralın tanımını oraya koyuyor, NFR-10 da yeni bir
+kuralın "kural tanımına bir kayıt" olarak gelmesini öngörüyor. `GET /api/kural`
+kayıt defterini satırla birleştiriyor.
+
+Parametreler yazma anında doğrulanıyor. JSONB alanı hiçbir şey denetlemiyor:
+yanlış yazılmış bir anahtar veya sınır dışı bir değer sessizce kabul edilip
+ya çözüm sırasında `KeyError` olarak ya da hiç görünmeden yanlış bir çizelge
+olarak çıkıyordu.
+
+**Kural ekleme ve silme bilinçli olarak yok.** H1–H8 ve S1–S8 kayıt
+defterindeki sınıflarla eşleşiyor; sınıfı olmayan bir satır zaten
+yüklenemiyor ("Tanımsız kural kimliği"). Kullanıcının sonradan eklediği bir
+kural bu mimaride oluşamaz — "Ekle" butonu ya ölü olurdu ya da sistemi
+çözülemez hâle getirirdi. Ekran ayrımı yazıyor, `silinebilir_mi` alanı veri
+olarak taşıyor.
+
+S1 ağırlığı düşürülürken uyarı çıkıyor. Kıyas yalnızca **aktif** esnek
+hedefleri sayıyor: pasif bir hedef amaç fonksiyonuna hiç girmiyor (SDD 5.1),
+onu saymak olmayan bir rekabet için uyarmak olurdu.
+
+Bir test her kuralın kaynağını tarayıp `self.parametreler[...]` ile okunan
+her anahtarın tanımlı olduğunu doğruluyor — tanımsız parametrenin arayüzde
+alanı olmaz, kullanıcı değeri değiştiremez ve nedenini de anlayamaz.
+
+### Madde 4 — Takvimli dönem seçimi (f0996af)
+
+Yalnızca veritabanında var olan sabit dönemler çözülebiliyordu. Azami 31 gün;
+sınırsız bırakıldığında kullanıcı hiçbir uyarı almadan saatlerce dönecek bir
+iş başlatabiliyor. Varsayılan bir hafta (Backlog 07.08.2026) — SRS FR-4.2
+hâlâ dört hafta diyor, karar onu geçersiz kılmıştı.
+
+Doğrulama iki tarafta ve ikisi de gereksiz değil: arayüz kullanıcıyı istek
+gitmeden durdurup nedenini operasyon diliyle yazıyor (NFR-5), şema ise
+sözleşmenin kendisi ve istemciden bağımsız geçerli. İki taraf aynı sayıyı
+kullanıyor, iki tarafın testleri de sınırı sabitliyor (28 kabul, 31 kabul,
+32 ret — seçilen uzunluk mesajda yazıyor).
+
+### Madde 7 — Dışa aktarma (772ce8e)
+
+Mevcut CSV `AnalizEkrani` içindeydi; `lib/disaAktarma.ts`'e taşındı, Çizelge
+ve Analiz aynı fonksiyonları çağırıyor.
+
+CSV **uzun biçim** — satır başına bir atama. Matris kâğıtta iyi okunur ama
+araçta kötüdür: sütun sayısı döneme göre değişir, filtrelenemez, gruplanamaz.
+Matris yazdırılabilir görünümün işi. Sütunlar SRS 7.2'nin tamamını koruyup
+üzerine `gorev_noktasi` ekliyor: atama nokta kırılımında tutuluyor
+(SDD 4.2.4), noktasız satır kaydın yarısını taşır.
+
+İki kodlama kararı, ikisi de kodda gerekçeli:
+- **UTF-8 BOM** — yoksa Windows'ta Excel sistem kod sayfasına düşüyor,
+  "Güvenlik" → "GÃ¼venlik".
+- **Noktalı virgül ayraç** — Türkçe yerelli Excel virgülü ondalık ayracı
+  sayıyor ve bütün satırı tek sütuna yığıyor. RFC 4180 virgül diyor; bu
+  dosyanın gerçek okuyucusu Excel.
+
+**Kapsama açıkları ayrı dosya**, aynı dosyada bölüm değil. S1 esnek hedef
+(SRS 4.3), yani çizelgede karşılanmamış talep bulunabilir ve açıkları
+göstermeyen bir çıktı çizelgeyi olduğundan tam gösterir. Tek dosyada iki
+başlık bloğu, uzun biçimin varlık nedenini bozardı. Açık yoksa dosya başlık
+satırıyla iniyor — sıfır satır, "açık yok"un makine okunur karşılığı; insan
+okunur karşılığı yazdırılabilir görünümde cümleyle yazılıyor ve bölüm
+hiçbir durumda gizlenmiyor.
+
+Tarih ayrımı bilinçli, ikisi de `lib/tarih.ts`ten: CSV'de ISO (SRS 7.2,
+okuyucu tablo programı), baskıda Türkçe (okuyucu insan).
+
+**Baskı ölçüldü, varsayılmadı.** 28 gün × 36 personelde tablonun asgari
+genişliği **744px**, yatay A4 yazım alanı **1062px** — sığıyor. Yükseklik
+1003px, sayfa 733px, yani iki sayfa; gün başlığı `table-header-group` ile
+her sayfada tekrarlanıyor. 36 satırı tek sayfaya sığdırmak satırları
+okunmaz yapardı. Başlık satırı genişliği tam dolduruyordu (1062/1062), ay
+değiştiren bir dönem etiketinde kırpılmasın diye sarmalı yapıldı.
+
+### Sapmalar / notlar
+
+- **Yeni geliştirme bağımlılıkları:** `@testing-library/react` ve `jsdom`
+  (yazdırılabilir görünümün render testi için). `vitest` yapılandırması
+  `vite.config.ts`ten ayrı dosyaya alındı — `test` alanı Vite şemasında yok,
+  `tsc -b` hata veriyordu.
+- **`docs/tasarim/TASARIM_REFERANSI.md` güncellendi** (kanonik dört doküman
+  değil): eylem butonu yan menünün altından üst çubuğun sağına taşındı, dönem
+  bloğunun hangi dönemi göstereceği tanımlandı.
+- Tur boyunca `backend/.env` içindeki `VERITABANI_URL` satırında yalnız parola
+  yazılıydı ve veritabanı isteyen 56 test atlanıyordu. Kullanıcı yerelde
+  PostgreSQL'i kurup göçleri uyguladı; **tam paket 190/190 geçti**, bu kayıt
+  o doğrulamadan sonra yazıldı.
