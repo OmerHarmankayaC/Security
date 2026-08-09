@@ -44,4 +44,5 @@ class OnKontrolServisi:
             donem_gunleri,
             azami_haftalik_saat=azami_haftalik_saat,
             haftalik_asgari_izin_gunu=haftalik_asgari_izin_gunu,
+            aktif_kural_kimlikleri=frozenset(k.kimlik for k in self.kural.aktif_kurallari_getir()),
         )

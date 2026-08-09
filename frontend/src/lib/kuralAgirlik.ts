@@ -26,3 +26,24 @@ export function s1BaskinligiKayboldu(
   if (s1Agirligi === null) return false
   return s1Agirligi <= digerToplam
 }
+
+/**
+ * S1 pasifse uyarı metni; değilse null.
+ *
+ * Ağırlık uyarısının pasifleştirme karşılığı ve ondan daha ağır bir durum:
+ * ağırlık düşürüldüğünde S1 hâlâ modeldedir, yalnızca yarışı kaybeder;
+ * pasifleştirildiğinde talep kısıtı modele HİÇ eklenmez. Aynı metnin backend
+ * karşılığı ön kontrol katmanındadır (on_kontrol.kapsama_kurali_bulgusu) —
+ * orası çözüm başlatıldığında, burası kullanıcı anahtarı kapattığı anda
+ * söyler.
+ */
+export function s1PasifUyarisi(kurallar: Kural[]): string | null {
+  const s1 = kurallar.find((k) => k.kimlik === 'S1')
+  if (!s1 || s1.aktif) return null
+  return (
+    'S1 pasif: talep kısıtı modele eklenmiyor. Hiçbir vardiyanın doldurulması ' +
+    'zorunlu değil (sonuç boş bir çizelge olabilir), bir noktaya talebin üzerinde ' +
+    'personel atanabilir ve kapsama açığı hiç hesaplanmadığı için Analiz ile ' +
+    'Çizelge ekranları karşılanmamış talebi "0 açık" gösterir.'
+  )
+}

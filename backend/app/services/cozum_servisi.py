@@ -43,7 +43,7 @@ from app.repositories.sonuc import (
     KapsamaAcigiDeposu,
 )
 from app.services.baglam_kurucu import baglam_olustur, donem_gunlerini_uret, zaman_ekseni_olustur
-from app.services.on_kontrol import Bulgu, on_kontrol_yap
+from app.services.on_kontrol import Bulgu, engelleyenler, on_kontrol_yap
 
 _VARSAYILAN_ZAMAN_LIMITI_SANIYE = 60
 _VARSAYILAN_AZAMI_HAFTALIK_SAAT = Decimal(45)
@@ -124,12 +124,19 @@ def cozum_isini_calistir(oturum: Session, is_id: int) -> None:
     oturum.commit()
 
     bulgular = _on_kontrolu_calistir(oturum, kural_depo, donem)
-    if bulgular:
+    # Yalnizca YAPISAL engeller isi durdurur. Yapilandirma uyarilari (or. S1
+    # pasif) kullanicinin bilincli bir ayari olabilir; sistem onun yerine
+    # karar vermez, uyariyi is kaydina yazar ve cozume devam eder.
+    engeller = engelleyenler(bulgular)
+    if engeller:
         is_kaydi.durum = CozumIsiDurumu.BASARISIZ
-        is_kaydi.hata_mesaji = _bulgulari_ozetle(bulgular)
+        is_kaydi.hata_mesaji = _bulgulari_ozetle(engeller)
         is_kaydi.bitis_zamani = datetime.now(UTC)
         oturum.commit()
         return
+    if bulgular:
+        is_kaydi.hata_mesaji = _bulgulari_ozetle(bulgular)
+        oturum.commit()
 
     kural_satirlari = list(kural_depo.aktif_kurallari_getir())
     kurallar = kurallari_yukle(kural_satirlari)
@@ -275,6 +282,7 @@ def _on_kontrolu_calistir(oturum: Session, kural_depo: KuralDeposu, donem: Donem
         donem_gunleri,
         azami_haftalik_saat=azami_haftalik_saat,
         haftalik_asgari_izin_gunu=haftalik_asgari_izin_gunu,
+        aktif_kural_kimlikleri=frozenset(k.kimlik for k in kural_depo.aktif_kurallari_getir()),
     )
 
 

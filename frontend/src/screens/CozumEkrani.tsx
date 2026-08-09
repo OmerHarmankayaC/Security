@@ -4,6 +4,8 @@ import type { CozumIsi, Donem, OnKontrolBulgu } from '../api/types'
 import { AppShell, type NavOgesi } from '../components/AppShell'
 import { Buton, BuyukRakam, Kart, KartEtiketi, Sayi } from '../components/app-ui'
 import { Input } from '@/components/ui/input'
+import { cn } from '../lib/utils'
+import { buyukHarf } from '../lib/metin'
 import { bugunIso, donemAraligiBicimle, gunEkle, utcTarihiAyristir } from '../lib/tarih'
 import {
   AZAMI_DONEM_GUN,
@@ -303,9 +305,25 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
             {bulgular.length === 0 ? (
               <p className="text-sm text-ink-muted">Yapısal bir engel bulunamadı.</p>
             ) : (
-              <ul className="m-0 flex list-none flex-col gap-1 p-0">
+              // Engel ile uyarı ayrı gösterilir ve ayrı sayılır: engel varken
+              // çözüm zaten başlamaz, uyarı varken başlar. İkisini aynı kırmızı
+              // listede toplamak, kullanıcının çözümün duracağını sanmasına
+              // (ya da tersine, uyarıyı engel sanıp yok saymasına) yol açar.
+              <ul className="m-0 flex list-none flex-col gap-2 p-0">
                 {bulgular.map((b, i) => (
-                  <li key={i} className="text-sm text-signal">
+                  <li
+                    key={i}
+                    className={cn(
+                      'border-l-2 pl-3 text-sm',
+                      b.engel_mi
+                        ? 'border-signal text-signal'
+                        : 'border-accent text-ink',
+                    )}
+                  >
+                    <span className="font-condensed text-[10px] tracking-[0.12em] text-ink-muted">
+                      {buyukHarf(b.engel_mi ? 'Engel' : 'Uyarı')}
+                    </span>
+                    <br />
                     {b.aciklama}
                   </li>
                 ))}

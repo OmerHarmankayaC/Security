@@ -27,7 +27,13 @@ def test_on_kontrol_bulunamayan_donemde_404(istemci: TestClient) -> None:
     assert yanit.status_code == 404
 
 
-def test_on_kontrol_kadro_yeterliyken_bos_liste_doner(istemci: TestClient) -> None:
+def test_on_kontrol_kadro_yeterliyken_yapisal_engel_bildirmez(istemci: TestClient) -> None:
+    """Bu testin olctugu sey KADRO ARITMETIGI: talep kadroyla karsilanabiliyorsa
+    yapisal engel bildirilmemeli.
+
+    Yapilandirma uyarilari (engel_mi=False) bu olcumun disindadir ve burada
+    ayiklanir: bu fikstur kural satiri kurmadigindan katalogda S1 bulunmayabilir
+    ve o durumda uyari cikmasi DOGRUDUR (talep kisiti kurulmaz)."""
     on_ek = uuid.uuid4().hex[:8]
     oturum = OturumYerel()
     try:
@@ -66,4 +72,5 @@ def test_on_kontrol_kadro_yeterliyken_bos_liste_doner(istemci: TestClient) -> No
 
     yanit = istemci.post("/api/on-kontrol", json={"donem_id": donem_id})
     assert yanit.status_code == 200
-    assert yanit.json() == {"bulgular": []}
+    engeller = [b for b in yanit.json()["bulgular"] if b["engel_mi"]]
+    assert engeller == []

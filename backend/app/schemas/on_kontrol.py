@@ -21,6 +21,9 @@ class BulguOku(BaseModel):
     tarih: date | None = None
     vardiya_tipi_id: int | None = None
     nokta_id: int | None = None
+    # False ise bulgu cozumu DURDURMAZ; arayuz onu uyari olarak gosterir
+    # (yapisal engel degil, yapilandirma uyarisi).
+    engel_mi: bool = True
 
 
 class OnKontrolYaniti(BaseModel):

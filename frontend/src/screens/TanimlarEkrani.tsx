@@ -23,7 +23,11 @@ import { Buton, Kart, KartEtiketi, Rozet, Sayi } from '../components/app-ui'
 import { Input } from '@/components/ui/input'
 import { cn } from '../lib/utils'
 import { bugunIso } from '../lib/tarih'
-import { digerEsnekAgirlikToplami, s1BaskinligiKayboldu } from '../lib/kuralAgirlik'
+import {
+  digerEsnekAgirlikToplami,
+  s1BaskinligiKayboldu,
+  s1PasifUyarisi,
+} from '../lib/kuralAgirlik'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -252,6 +256,7 @@ export function TanimlarEkrani({ ekranSec }: Props) {
   // testleri var.
   const s1Agirligi = esnekKurallar.find((k) => k.kimlik === 'S1')?.agirlik ?? null
   const esnekAgirlikToplami = digerEsnekAgirlikToplami(kurallar)
+  const s1Uyarisi = s1PasifUyarisi(kurallar)
 
   return (
     <AppShell
@@ -488,6 +493,11 @@ export function TanimlarEkrani({ ekranSec }: Props) {
           </Kart>
           <Kart>
             <KartEtiketi>S1–S8 · esnek hedefler</KartEtiketi>
+            {s1Uyarisi && (
+              <p className="-mt-2 mb-4 border-l-2 border-signal pl-3 text-sm text-signal">
+                {s1Uyarisi}
+              </p>
+            )}
             <div className="flex flex-col">
               {esnekKurallar.map((k) => (
                 <KuralSatiri

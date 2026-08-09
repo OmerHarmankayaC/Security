@@ -12,7 +12,13 @@ from app.kurallar.baglam import (
     VardiyaTipiBilgisi,
 )
 from app.models.girdi import MusaitlikDilimi
-from app.services.on_kontrol import BulguTipi, on_kontrol_yap
+from app.services.on_kontrol import (
+    Bulgu,
+    BulguTipi,
+    engelleyenler,
+    kapsama_kurali_bulgusu,
+    on_kontrol_yap,
+)
 
 GECE, GUNDUZ, AKSAM = 1, 2, 3
 KAPI, KONTROL_ODASI = 1, 2
@@ -32,6 +38,15 @@ def _vardiya_tipleri() -> dict[int, VardiyaTipiBilgisi]:
 
 def _gunler(n: int, baslangic: date = date(2026, 2, 2)) -> list[date]:
     return [baslangic + timedelta(days=i) for i in range(n)]
+
+
+def _bos_baglam() -> Baglam:
+    return Baglam(
+        vardiya_tipleri=_vardiya_tipleri(),
+        gorev_noktalari={KAPI: GorevNoktasiBilgisi(KAPI, onkosul_yetkinlik_id=GUVENLIK_GOREVI)},
+        personel={},
+        talep={},
+    )
 
 
 def test_bulgu_yoksa_bos_liste_doner() -> None:
@@ -184,3 +199,67 @@ def test_nokta_icin_uygun_personel_yok_yetkinlik_eksikken() -> None:
     assert len(ilgili) == 1
     assert ilgili[0].tarih == gun
     assert ilgili[0].nokta_id == KAPI
+
+
+# --- S1 pasifken uyari (madde: aktiflik anahtarinin sessiz kalmamasi) -------
+
+
+def test_s1_aktifken_yapilandirma_uyarisi_yok() -> None:
+    assert kapsama_kurali_bulgusu(frozenset({"S1", "S2"})) is None
+
+
+def test_s1_pasifken_uyari_uretilir() -> None:
+    bulgu = kapsama_kurali_bulgusu(frozenset({"S2", "S3"}))
+    assert bulgu is not None
+    assert bulgu.tip is BulguTipi.KAPSAMA_KURALI_PASIF
+
+
+def test_s1_uyarisi_cozumu_durdurmaz() -> None:
+    """Pasiflestirme kullanicinin bilincli ayari olabilir; sistem onun yerine
+    karar vermez. Yapisal engellerden ayiran alan bu."""
+    bulgu = kapsama_kurali_bulgusu(frozenset())
+    assert bulgu is not None
+    assert bulgu.engel_mi is False
+    assert engelleyenler([bulgu]) == []
+
+
+def test_yapisal_engeller_cozumu_durdurmaya_devam_eder() -> None:
+    engel = Bulgu(tip=BulguTipi.DONEM_KAPASITESI_YETERSIZ, aciklama="x", eksik=3)
+    assert engel.engel_mi is True
+    assert engelleyenler([engel, kapsama_kurali_bulgusu(frozenset())]) == [engel]
+
+
+def test_s1_uyarisi_uc_sonucu_da_soyler() -> None:
+    """Metin kullaniciya dogrudan gosterilir. Uc sonucun ucu de yazili olmali;
+    ozellikle ucuncusu, cunku digerleri cizelgeye bakinca gorulur ama o
+    sistemin KENDI raporunu yanlislastirir."""
+    metin = kapsama_kurali_bulgusu(frozenset()).aciklama
+    assert "boş" in metin, "bos cizelge ihtimali yazilmali"
+    assert "üzerinde personel" in metin, "ust sinirin kalkmasi yazilmali"
+    assert "0 açık" in metin, "kapsama raporunun yanlislasmasi yazilmali"
+    # Ne yapilacagi da soylenmeli, yalnizca sorun degil (NFR-5).
+    assert "S1'i etkinleştirin" in metin
+
+
+def test_donem_gunu_yokken_de_uyari_kaybolmaz() -> None:
+    """Erken cikis yolu uyariyi yutmamali."""
+    bulgular = on_kontrol_yap(
+        _bos_baglam(),
+        [],
+        azami_haftalik_saat=Decimal(45),
+        haftalik_asgari_izin_gunu=1,
+        aktif_kural_kimlikleri=frozenset(),
+    )
+    assert [b.tip for b in bulgular] == [BulguTipi.KAPSAMA_KURALI_PASIF]
+
+
+def test_varsayilan_cagri_yapilandirma_uyarisi_uretmez() -> None:
+    """Kadro aritmetigini elle kuran cagiranlar (testler) kural katalogundan
+    habersizdir; varsayilan onlari uyarmamali."""
+    bulgular = on_kontrol_yap(
+        _bos_baglam(),
+        [],
+        azami_haftalik_saat=Decimal(45),
+        haftalik_asgari_izin_gunu=1,
+    )
+    assert bulgular == []

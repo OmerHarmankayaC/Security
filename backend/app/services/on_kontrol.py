@@ -23,6 +23,9 @@ class BulguTipi(enum.StrEnum):
     YETKINLIK_HAVUZU_YETERSIZ = "yetkinlik_havuzu_yetersiz"
     GUNLUK_PERSONEL_YETERSIZ = "gunluk_personel_yetersiz"
     NOKTA_ICIN_UYGUN_PERSONEL_YOK = "nokta_icin_uygun_personel_yok"
+    # Yapilandirma bulgusu: veri yeterli olabilir ama kural katalogu cozumu
+    # anlamsizlastiracak bicimde ayarlanmis.
+    KAPSAMA_KURALI_PASIF = "kapsama_kurali_pasif"
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -34,6 +37,52 @@ class Bulgu:
     tarih: date | None = None
     vardiya_tipi_id: int | None = None
     nokta_id: int | None = None
+    # Cozumu DURDURUR mu?
+    #
+    # Yapisal engeller (kadro aritmetigi) icin True: cozum calistirilsa da
+    # kesinlikle acik verir, calistirmak zaman kaybidir. Yapilandirma
+    # bulgulari icin False: kullanicinin bilincli olarak yaptigi bir ayar
+    # olabilir ve sistem onun yerine karar vermez — yalnizca sonucun ne
+    # olacagini onceden soyler.
+    engel_mi: bool = True
+
+
+def engelleyenler(bulgular: list[Bulgu]) -> list[Bulgu]:
+    return [b for b in bulgular if b.engel_mi]
+
+
+def kapsama_kurali_bulgusu(aktif_kural_kimlikleri: frozenset[str]) -> Bulgu | None:
+    """S1 pasifse uyari uretir.
+
+    S1 modele UC sey birden ekler (bkz. S1TalepKarsilama.modele_ekle):
+      1. Alt sinir  — atanan + eksik >= gereken, cezasiyla birlikte
+      2. Ust sinir  — atanan <= gereken (SRS S1: "kadro, zorunlu")
+      3. Kapsama acigi degiskenleri — raporlamanin okudugu kaynak
+
+    Kural pasiflestirildiginde ucu birden kaybolur, ve sonuclari sessizdir:
+      - Hicbir sey vardiyalarin doldurulmasini zorlamaz; bos ya da buyuk
+        olcude bos bir cizelge gecerli sayilir.
+      - Bir noktaya talebin uzerinde personel atanabilir.
+      - Kapsama acigi kaydi hic uretilmez; Analiz ve Cizelge ekranlari,
+        talebin tamami karsilanmamisken "0 acik" gosterir.
+
+    Ucuncusu bu uyarinin asil nedeni: ilk ikisi cizelgeye bakinca gorulur,
+    ucuncusu sistemin kendi raporunu yanlislastirir.
+    """
+    if "S1" in aktif_kural_kimlikleri:
+        return None
+    return Bulgu(
+        tip=BulguTipi.KAPSAMA_KURALI_PASIF,
+        engel_mi=False,
+        aciklama=(
+            "S1 (Talep karşılama) kuralı pasif. Talep kısıtı modele eklenmeyecek: "
+            "hiçbir vardiyanın doldurulması zorunlu olmayacak ve sonuç boş ya da büyük "
+            "ölçüde boş bir çizelge olabilir. Bir noktaya talebin üzerinde personel de "
+            "atanabilir. Ayrıca kapsama açığı hiç hesaplanmaz — açık kalan talep, "
+            'Analiz ve Çizelge ekranlarında "0 açık" olarak görünür. '
+            "Çözümü başlatmadan önce Tanımlar → Kural sekmesinden S1'i etkinleştirin."
+        ),
+    )
 
 
 def on_kontrol_yap(
@@ -42,9 +91,14 @@ def on_kontrol_yap(
     *,
     azami_haftalik_saat: Decimal,
     haftalik_asgari_izin_gunu: int,
+    aktif_kural_kimlikleri: frozenset[str] = frozenset({"S1"}),
 ) -> list[Bulgu]:
+    """aktif_kural_kimlikleri varsayilani S1'i iceren kume: bu fonksiyonun
+    kural katalogundan haberi olmayan cagiranlari (kadro aritmetigini elle
+    kuran testler) yapilandirma uyarisi almaz."""
+    kural_bulgusu = kapsama_kurali_bulgusu(aktif_kural_kimlikleri)
     if not donem_gunleri:
-        return []
+        return [kural_bulgusu] if kural_bulgusu else []
 
     azami_vardiya_donem = _azami_vardiya_donem(
         baglam,
@@ -56,7 +110,9 @@ def on_kontrol_yap(
         p: sum(1 for g in donem_gunleri if baglam.gunde_musait_mi(p, g)) for p in baglam.personel
     }
 
-    bulgular: list[Bulgu] = []
+    # Yapilandirma bulgusu once yazilir: kullanici listeye baktiginda once
+    # "kapsama kurali kapali" gorsun, sonra kapsamaya dair sayilari.
+    bulgular: list[Bulgu] = [kural_bulgusu] if kural_bulgusu else []
     bulgular.extend(
         _donem_kapasitesi_kontrolu(
             baglam, donem_gunleri, azami_vardiya_donem, musait_gun_by_personel
