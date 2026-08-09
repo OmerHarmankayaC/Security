@@ -2856,3 +2856,101 @@ kurulumu, PostgreSQL, Alembic göçleri — TIMESTAMPTZ göçü dahil, frontend
 derlemesi, systemd) ve ardından madde 8 (kabul ölçümünün sunucuda
 tekrarı, PERFORMANS_NOTU'na İKİNCİ sütun olarak işlenmesi). Sırlar
 kullanıcı tarafından doldurulacak; servisler ondan sonra başlatılacak.
+
+---
+
+## 2026-08-09 — Sunucuya Dağıtım (madde 7) ve Referans Donanımda Ölçüm (madde 8)
+
+**Site yayında: https://vardiya.omerharmankaya.com — 6/6 kabul kriteri
+referans donanımda geçti.**
+
+### Madde 7 — dağıtım
+
+Kullanıcının dört değişikliği uygulandı: port **8002** (8000 `vera-rag`,
+8001 `energy-api`), servis adları **`vardiya-api`** / **`vardiya-cozucu`**,
+frontend **yerelde** derlenip `dist/` yüklendi (sunucuda Node yok), Caddy'ye
+`vardiya.omerharmankaya.com` bloğu eklendi (yedek alındı, `caddy validate`
+→ *Valid configuration*, diğer bloklara dokunulmadı).
+
+Port tek yerde: unit'in `--port` bayrağında. `.env.example`'a bir `API_PORT`
+satırı eklemiştim, **geri aldım** — `config.py` onu okumuyor; uygulamanın
+okumadığı ama otoriter görünen ikinci bir tanım olurdu.
+
+**Python 3.14 dört sabit sürümü zorladı.** Ubuntu 26.04'ün deposunda tek
+Python sürümü 3.14 ve aynı makinedeki diğer projeler de onu kullanıyor.
+Kullanıcı `ortools` yükseltmesini onayladı; aynı sınıf sorun üç pakete daha
+çıktı. Her biri, çalışan **en düşük** sürüme çekildi (en yenisine değil):
+
+| Paket | Önce | Sonra | Belirti |
+|---|---|---|---|
+| `ortools` | 9.14.6206 | 9.15.6755 | 3.14 tekerleği yok |
+| `psycopg[binary]` | 3.2.3 | 3.2.10 | `psycopg-binary` tekerleği yok |
+| `pydantic` | 2.10.4 | 2.12.0 | `pydantic-core==2.27.2`'yi tam sabitler, onun tekerleği yok |
+| `sqlalchemy` | 2.0.36 | 2.0.41 | **kuruluyor ama çalışma anında çöküyor** |
+
+Son satır önemli bir ders: ilk üçünü `pip install --dry-run` ile taradım ve
+SQLAlchemy'yi "OK" işaretledi — saf Python tekerleği var, kurulum sorunsuz.
+Ama `typing.Union.__getitem__` 3.14'te değişmiş ve model tanımları içe
+aktarılırken çöküyor. **Kurulabilirlik ≠ çalışabilirlik.** SQLAlchemy 3.14
+sınıflandırıcısı da yayınlamadığı için asgari sürüm ampirik bulundu
+(2.0.37/.39/.40 hata, 2.0.41 çalışıyor). Bundan sonra sunucuda **163/163**
+test geçti; başka yükseltme gerekmedi.
+
+**Sırlar:** üretmedim, yazmadım. `.env` sır satırları boş bırakılıp
+kullanıcıya devredildi (`0640 root:vardiya`). İlk denemede `VERITABANI_URL`
+satırına **yalnız parola** yazılmıştı (32 karakter; tam URL ~52+). Kendim
+düzeltmedim — düzeltmek parolayı okuyup yeniden yazmak olurdu; kullanıcıya
+tam şablonu ve değeri açmadan biçim kontrolü yapan tek satırlık komutu
+verdim. Aynı hata daha önce yerel `.env`'de de olmuştu, o yüzden
+`.env.example` ve DAGITIM.md bu hatayı bir daha davet etmeyecek biçimde
+yeniden yazıldı (tam URL şablonu, URL kodlaması uyarısı, systemd
+`EnvironmentFile`'ın `#` davranışı).
+
+**Doğrulama:** iki servis de `active`; API `127.0.0.1:8002`; `/api/donem`
+hem doğrudan hem HTTPS üzerinden 200; ana sayfa 200; **diğer üç site
+(rag/loadcast/emlak) etkilenmedi** (üçü de 200). Uçtan uca çözüm: API
+kuyruğa yazdı, **işçi ayrı serviste aldı**, `tamamlandı` (ceza 912 —
+yereldekiyle aynı).
+
+**Bir güvenlik kontrolü:** günlükte bir tarayıcı botun `/api/.env` denediğini
+gördüm (404). `/.env` ise 200 dönüyor — ama gövdesi `index.html`, yani SPA
+geri dönüşü; dosyanın kendisi değil. `.env` web kökünün dışında
+(`/opt/vardiya/.env`, `0640`). Doğruladım, sızıntı yok; aynı davranış
+`loadcast` bloğunda da var.
+
+### Madde 8 — referans donanımda kabul ölçümü
+
+Gerçek kullanım başlamadan, diğer uygulamalar boştayken (%0,2 CPU) alındı.
+
+| Kriter | Eşik | Geliştirme | **Sunucu** |
+|---|---|---|---|
+| K1 40×28 < 60 sn | < 60 sn | 1,12 sn | **2,73 sn** |
+| K2 zorunlu ihlal | 0 | 0 | **0** |
+| K3 gece sapması | ≤ 1,0 | 0,61 | **0,61** |
+| K4 eksik gösterimi | ≥1 açık | 21 hücre | **28–33 hücre** |
+| K5 manuel düzenleme | < 1 sn | 0,038 sn | **0,116 sn** |
+| K6 değişen atama | raporlanır | 4 | **4** |
+
+Süreler beklendiği gibi arttı (K1 ~2,4×, K5 ~3×) ama eşiklerin çok altında
+(K1 22 kat, K5 9 kat). **Kalite ölçütleri iki ortamda birebir aynı** — K2,
+K3, K6 donanıma değil model ve kural tanımlarına bağlı olduğu için beklenen
+sonuç bu. Sunucu ortamı paylaşımlı olduğundan süreler, izole bir makinenin
+üst sınırı gibi okunmalı (SDD 3.4.1/3.4.2).
+
+Ham çıktı sunucuda saklandı: `/opt/vardiya/olcum/kabul-20260809.json`.
+`docs/PERFORMANS_NOTU.md` 2.0'a çıkarıldı — sunucu ölçümü **ikinci sütun**
+olarak eklendi, geliştirme makinesi sütunu silinmedi.
+
+**Sapmalar / notlar:**
+- Dört sabit sürüm yükseltmesi yukarıda gerekçeleriyle yazılı; `ortools`
+  kullanıcı onaylı, diğer üçü aynı gerekçenin (Python 3.14) doğrudan
+  sonucu ve hepsi tam test paketiyle doğrulandı.
+- `deploy/DAGITIM.md` artık tamamlanmış bir kayıt: her adım gerçekte
+  çalıştırılan komutla, doğrulama tablosuyla ve bakım/güncelleme
+  yordamıyla birlikte (bölüm 9).
+
+**Kalan / ertelenen:** Yok. Dağıtım ve ölçüm tamamlandı.
+
+**Sıradaki oturumun ilk işi:** Sprint 3 kapanışı — dört dokümanla kodun son
+tutarlılık kontrolü ve `sprint-3` etiketi (UYGULAMA_PLANI Gün 15'in kalan
+maddeleri). Ekrandaki doğrulamayı kullanıcı yapacak.

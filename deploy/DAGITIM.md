@@ -1,9 +1,9 @@
 # Dağıtım Kaydı ve Yeniden Kurulum Rehberi
 
-**Durum:** kurulum tamamlandı, **servisler sırlar beklediği için
-başlatılmadı.**
+**Durum:** ✅ **dağıtım tamamlandı ve doğrulandı.** Site yayında:
+https://vardiya.omerharmankaya.com
 **Sunucu:** 46.225.109.40 (Hetzner), Ubuntu 26.04 LTS, 4 çekirdek / 7,6 GB
-**Son güncelleme:** 08.08.2026
+**Son güncelleme:** 09.08.2026
 
 Bu dosya iki işi birden yapar: (a) yapılan her dağıtım adımının kaydı,
 (b) sıfırdan yeniden kurulum rehberi. Dağıtım ilerledikçe her adım
@@ -133,12 +133,28 @@ Yükseltmelerden sonra **163 testin tamamı** (çözücü-doğrulayıcı uyum te
 ve ağırlık kalibrasyonu dahil) ve **kabul ölçümü 5/5** yerelde yeniden
 çalıştırıldı; sayılar değişmedi (K1 1,05 sn, K3 0,61).
 
-## 5. Veritabanı — SIR BEKLİYOR
+## 5. Veritabanı — YAPILDI
 
 - [x] `vardiya` rolü ve `vardiya` veritabanı (önceden hazırdı)
-- [ ] `.env` içindeki `VERITABANI_URL` doldurulacak (bölüm 3)
-- [ ] `sudo -u vardiya .venv/bin/alembic upgrade head` — **parola girilmeden
-      çalıştırılamaz**, TIMESTAMPTZ göçü (`c8f2d1a45b73`) dahil
+- [x] `.env` içindeki `VERITABANI_URL` dolduruldu
+- [x] Göçler koşuldu
+
+```bash
+set -a; . /opt/vardiya/.env; set +a
+cd /opt/vardiya/backend
+sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic upgrade head
+```
+
+Üç göç de uygulandı (`b413bb80a4bd` → `a1c3f7e9b2d4` → `c8f2d1a45b73`);
+17 tablo oluştu, zaman damgaları `timestamp with time zone`.
+
+**Bir sürüm daha yükseltildi — SQLAlchemy 2.0.36 → 2.0.41.** 2.0.36 Python
+3.14'te *kuruluyor* (saf Python tekerleği var) ama çalışma anında çöküyor:
+`typing.Union.__getitem__` davranışı değişmiş. Kurulabilirlik kontrolü bunu
+yakalayamaz; ancak kod çalıştırılınca ortaya çıkar. SQLAlchemy 3.14
+sınıflandırıcısı yayınlamadığı için asgari sürüm ampirik bulundu
+(2.0.37/.39/.40 hata, **2.0.41** çalışıyor). Bundan sonra sunucuda
+**163 testin tamamı geçti** — başka yükseltme gerekmedi.
 
 ## 6. Frontend — YAPILDI
 
@@ -149,9 +165,9 @@ cd frontend && npm ci && npm run build
 rsync -az --delete frontend/dist/ root@SUNUCU:/opt/vardiya/web/
 ```
 
-## 7. Servisler — SIR BEKLİYOR
+## 7. Servisler — YAPILDI
 
-Unit dosyaları kuruldu ve doğrulandı, **başlatılmadı**:
+Unit dosyaları kuruldu ve doğrulandı:
 
 ```bash
 cp /opt/vardiya/deploy/vardiya-api.service /etc/systemd/system/
@@ -161,14 +177,31 @@ systemd-analyze verify /etc/systemd/system/vardiya-api.service      # temiz
 systemd-analyze verify /etc/systemd/system/vardiya-cozucu.service   # temiz
 ```
 
-Sırlar doldurulduktan sonra:
+Sırlar doldurulduktan sonra başlatıldı:
 
 ```bash
 systemctl enable --now vardiya-api.service vardiya-cozucu.service
-systemctl reload caddy          # Caddy bloğu henüz devrede DEĞİL
-journalctl -u vardiya-api -u vardiya-cozucu -n 50
-curl -s https://vardiya.omerharmankaya.com/api/health
+systemctl reload caddy
 ```
+
+**Doğrulama sonuçları:**
+
+| Kontrol | Sonuç |
+|---|---|
+| `vardiya-api` / `vardiya-cozucu` | ikisi de `active` |
+| API dinliyor | `127.0.0.1:8002` |
+| `GET /api/donem` (doğrudan) | 200 |
+| `GET /api/donem` (Caddy üzerinden, HTTPS) | 200 |
+| Ana sayfa | 200 |
+| Diğer siteler (rag / loadcast / emlak) | üçü de 200 — **etkilenmedi** |
+| Uçtan uca çözüm | API kuyruğa yazdı → **işçi aldı** → `tamamlandı` (ceza 912) |
+
+**`.env` dışarıdan erişilemiyor.** `/.env` isteği 200 döner ama gövde
+`index.html`'dir — SPA geri dönüşü (`try_files ... /index.html`), dosyanın
+kendisi değil. `.env` zaten web kökünün (`/opt/vardiya/web`) dışında,
+`/opt/vardiya/.env` konumunda ve `0640 root:vardiya` izinli. `/api/.env`
+404 döner. Aynı davranış `loadcast` bloğunda da vardır (aynı desen).
+İnternet taramaları bu yolu ilk gün denedi; günlükte görülebilir.
 
 ### Caddy — blok eklendi, HENÜZ reload EDİLMEDİ
 
@@ -186,9 +219,9 @@ Eklenen blok `loadcast` bloğuyla aynı deseni kullanır: statik SPA
 (`/opt/vardiya/web`) + `/api/*` → `127.0.0.1:8002`. Aynı origin olduğu için
 CORS başlığı yok.
 
-`reload` bilerek ertelendi: servisler başlamadan reload edilirse site
-yayına girer ama `/api` 502 döner. Reload, servislerin başlatılmasıyla
-birlikte yapılacak.
+`reload` bilerek ertelenmişti: servisler başlamadan reload edilirse site
+yayına girer ama `/api` 502 dönerdi. Servisler ayağa kalktıktan sonra
+reload edildi; diğer üç site etkilenmedi (hepsi 200).
 
 **Çözüm işçisi hakkında.** SDD 3.4.4 gereği çözüm işi API sürecinde
 çalışmaz: `CozumServisi.baslat` işi yalnızca `kuyrukta` durumunda yazar,
@@ -208,15 +241,51 @@ Sonuçları:
   tamamlayıp çıkar. Unit'teki `TimeoutStopSec=180s` bu yüzden çözücü zaman
   limitinden (varsayılan 60 sn) geniş tutulmuştur.
 
-## 8. Dağıtım sonrası kabul ölçümü
+## 8. Dağıtım sonrası kabul ölçümü — YAPILDI
 
-> Doldurulacak (bkz. `docs/PERFORMANS_NOTU.md`).
+Ölçüm, **gerçek kullanım başlamadan önce** alındı (uyarı: `kabul_olcumu.py`
+ve `demo_veri_uret.py --reset` tanım/girdi/kural/sonuç tablolarını temizler).
+SDD 3.4.1/3.4.2 gereği diğer uygulamaların boşta olduğu bir anda ölçüldü
+(`vera-rag` ve `energy-api` %0,2 CPU).
 
-**UYARI:** `scripts/kabul_olcumu.py` ve `scripts/demo_veri_uret.py --reset`
-veritabanındaki tanım/girdi/kural/sonuç tablolarını **temizler**. Ölçüm bu
-yüzden gerçek kullanım başlamadan önce yapılmalıdır.
+- [x] `kabul_olcumu.py` → **K1–K5: 5/5 geçti**
+- [x] `--json` çıktısı saklandı: `/opt/vardiya/olcum/kabul-20260809.json`
+- [x] Tüm test takımı sunucuda: **163/163 geçti** (çözücü-doğrulayıcı uyum
+      testinin 24 rastgele örneği dahil)
+- [x] K6: canlı site üzerinden **4 değişen atama**
+- [x] `docs/PERFORMANS_NOTU.md` 2.0 — sunucu ölçümü **ikinci sütun** olarak
+      eklendi, geliştirme makinesi sütunu korundu
 
-- [ ] `python scripts/kabul_olcumu.py` (ve `--json` çıktısının saklanması)
-- [ ] Tüm test takımı + çözücü-doğrulayıcı uyum testi
-- [ ] K6: demo veri → çöz → yayınla → izin ekle → yeniden çöz → `GET /api/surum/karsilastir`
-- [ ] Sonuçların `docs/PERFORMANS_NOTU.md`'ye **ikinci sütun** olarak işlenmesi (mevcut ölçüm makinesi sütunu silinmez)
+**Referans donanımda 6/6 kriter geçti.** Süreler beklendiği gibi arttı
+(K1 1,12 → 2,73 sn; K5 0,038 → 0,116 sn) ama eşiklerin çok altında kaldı;
+kalite ölçütleri (K2, K3, K6) iki ortamda birebir aynı çıktı.
+
+## 9. Bakım notları
+
+**Yerel geliştirmede çözüm işçisi ayrıca çalıştırılmalıdır** (`python
+scripts/cozum_iscisi.py`); çalışmazsa çözüm istekleri kuyrukta bekler.
+Sunucuda bunu `vardiya-cozucu.service` yapar.
+
+Günlükler:
+
+```bash
+journalctl -u vardiya-api -f
+journalctl -u vardiya-cozucu -f
+journalctl -u caddy -f | grep vardiya
+```
+
+Kod güncellemesi (yerelden):
+
+```bash
+cd frontend && npm ci && npm run build
+rsync -az --delete frontend/dist/ root@SUNUCU:/opt/vardiya/web/
+rsync -az --delete --exclude '.venv/' --exclude '__pycache__/' \
+      --exclude '.pytest_cache/' --exclude '.ruff_cache/' --exclude '.env' \
+      backend/ root@SUNUCU:/opt/vardiya/backend/
+ssh root@SUNUCU 'cd /opt/vardiya/backend && .venv/bin/pip install -q -e ".[dev]" \
+    && chown -R vardiya:vardiya /opt/vardiya/backend \
+    && systemctl restart vardiya-api vardiya-cozucu'
+```
+
+Şema değişikliği varsa `alembic upgrade head` yeniden başlatmadan **önce**
+koşulur (bölüm 5'teki komut).

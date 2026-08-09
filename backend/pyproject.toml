@@ -14,7 +14,11 @@ requires-python = ">=3.12"
 dependencies = [
     "fastapi==0.115.6",
     "uvicorn[standard]==0.34.0",
-    "sqlalchemy==2.0.36",
+    # 2.0.36 -> 2.0.41: 2.0.36 Python 3.14'te KURULUYOR ama calisma aninda
+    # cokuyor (typing.Union.__getitem__ degisti). SQLAlchemy 3.14
+    # siniflandiricisi yayinlamadigi icin asgari surum ampirik bulundu:
+    # 2.0.37/.39/.40 hata veriyor, 2.0.41 calisiyor.
+    "sqlalchemy==2.0.41",
     "alembic==1.14.0",
     # 3.2.3 -> 3.2.10: psycopg-binary tekerlegi 3.14 icin buradan itibaren var.
     "psycopg[binary]==3.2.10",

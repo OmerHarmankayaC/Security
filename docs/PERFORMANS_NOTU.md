@@ -1,6 +1,6 @@
 # Performans ve Kabul Kriteri Notu
 
-**Tarih:** 08.08.2026 · **Kapsam:** Sprint 3 Gün 14 + Sürümler ekranı · **Sürüm:** 1.2
+**Tarih:** 09.08.2026 · **Kapsam:** Sprint 3 Gün 14 + Sürümler ekranı + referans donanım ölçümü · **Sürüm:** 2.0
 
 Bu not, Proje Tanım Dokümanı bölüm 5'teki altı kabul kriterinin ölçüm
 sonuçlarını içerir. K1–K5 `backend/scripts/kabul_olcumu.py` ile otomatik
@@ -14,26 +14,31 @@ ve ölçüm yeniden çalıştırılarak doğrulanabilir (bölüm 5).
 
 ---
 
-## 1. Ölçüm ortamı
+## 1. Ölçüm ortamları
 
-| | |
-|---|---|
-| Referans donanım (SDD 3.4.2) | 4 çekirdek, 8 GB |
-| Ölçüm makinesi | macOS 15.7.3, arm64, 10 çekirdek, 16 GB |
-| Arama işçisi sayısı | **3** (SDD 3.4.3: referans donanımda çekirdek sayısının bir eksiği) |
-| Python | 3.13.11 |
-| Çözücü | OR-Tools CP-SAT |
+Ölçüm **iki ortamda** alınmıştır. Geliştirme makinesi sütunu kayıt olarak
+korunur; belirleyici olan gösterim sunucusu sütunudur.
 
-**Ölçümün referans donanıma göre konumu.** CP-SAT paralel arama yürütür,
-bu yüzden süre çekirdek sayısına doğrudan bağlıdır ve donanım
-belirtilmeden verilen bir süre tekrarlanabilir değildir (SDD 3.4.2).
-Ölçüm, arama işçisi sayısını referans donanımın değerine (3) sabitler;
-böylece çözücünün **paralelliği** referans donanımla aynı olur. Buna
-karşılık **çekirdek başına hız** farkı kalır: ölçüm makinesi referans
-donanımdan büyük olasılıkla hızlıdır. Dolayısıyla aşağıdaki süreler
-referans donanım için bir üst sınır **değil**, bir göstergedir. Kesin
-doğrulama, gösterim ortamı kurulduğunda (Gün 15) aynı betiğin orada
-çalıştırılmasıyla yapılmalıdır.
+| | Geliştirme makinesi | **Gösterim sunucusu (referans donanım)** |
+|---|---|---|
+| Donanım | macOS 15.7.3, arm64, 10 çekirdek, 16 GB | **Ubuntu 26.04, x86_64, 4 çekirdek, 7,6 GB** |
+| SDD 3.4.2 referansıyla | çekirdek sayısı fazla | **uyumlu (4 çekirdek / ~8 GB)** |
+| Arama işçisi | 3 | 3 |
+| Python | 3.13.11 | 3.14.4 |
+| OR-Tools | 9.15.6755 | 9.15.6755 |
+| Ortam | yalnız ölçüm | **paylaşımlı** (aşağıya bakınız) |
+
+**Gösterim sunucusu paylaşımlıdır** (SDD 3.4.1/3.4.2). Aynı makinede
+`vera-rag` ve `energy-api` de çalışır. Ölçüm, bu iki uygulamanın boşta
+olduğu bir anda alınmıştır (ölçüm sırasında ikisi de %0,2 CPU). Buna
+rağmen ortam izole değildir; **ölçülen süreler, izole bir makinede
+alınacak sürenin üst sınırı gibi okunmalıdır.**
+
+**Çekirdek paylaşımı.** CP-SAT paralel arama yürütür, bu yüzden süre
+çekirdek sayısına doğrudan bağlıdır (SDD 3.4.2). Arama işçisi sayısı iki
+ortamda da 3'tür — SDD 3.4.3'ün kuralı (çekirdek −1) gösterim sunucusunda
+gerçek değerdir; geliştirme makinesinde ise referansı taklit etmek için
+sabitlenmiştir.
 
 **Belirlenimsizlik.** CP-SAT paralel aramada belirlenimsizdir; aynı
 örnek farklı çalıştırmalarda farklı (eşit iyilikte) çözümler verebilir.
@@ -61,16 +66,26 @@ havuz (Vardiya Şefi, Müracaat) olduğu gibi korunmuştur.
 
 ## 3. Sonuçlar
 
-| Kriter | Eşik | Ölçülen | Sonuç |
-|---|---|---|---|
-| **K1** 40×28 referans örnek < 60 sn | < 60,0 sn | **1,12 sn** | ✅ geçti |
-| **K2** Zorunlu kısıt ihlali sıfır | 0 ihlal | **0 ihlal** | ✅ geçti |
-| **K3** Kişi başına gece sayısı hedeften en fazla 1 sapar | ≤ 1,0 | **0,61** | ✅ geçti |
-| **K4** Çelişkili örnekte gün/vardiya/eksik sayısı gösterilir | ≥ 1 açık, üç bilgi de dolu | **21 açık hücre** | ✅ geçti |
-| **K5** Manuel düzenleme doğrulaması < 1 sn | < 1,000 sn | **0,038 sn** | ✅ geçti |
-| **K6** Yeniden çözümde değişen atama sayısı raporlanır | sayı raporlanır | **4 değişen atama** | ✅ geçti |
+| Kriter | Eşik | Geliştirme makinesi | **Gösterim sunucusu** | Sonuç |
+|---|---|---|---|---|
+| **K1** 40×28 referans örnek < 60 sn | < 60,0 sn | 1,12 sn | **2,73 sn** | ✅ geçti |
+| **K2** Zorunlu kısıt ihlali sıfır | 0 ihlal | 0 ihlal | **0 ihlal** | ✅ geçti |
+| **K3** Kişi başına gece sayısı hedeften en fazla 1 sapar | ≤ 1,0 | 0,61 | **0,61** | ✅ geçti |
+| **K4** Çelişkili örnekte gün/vardiya/eksik sayısı gösterilir | ≥ 1 açık, üç bilgi dolu | 21 açık hücre | **28–33 açık hücre** | ✅ geçti |
+| **K5** Manuel düzenleme doğrulaması < 1 sn | < 1,000 sn | 0,038 sn | **0,116 sn** | ✅ geçti |
+| **K6** Yeniden çözümde değişen atama sayısı raporlanır | sayı raporlanır | 4 değişen atama | **4 değişen atama** | ✅ geçti |
 
-**6/6 kriter geçti.**
+**Referans donanımda 6/6 kriter geçti.**
+
+Süreler sunucuda beklendiği gibi arttı — K1 yaklaşık 2,4 kat, K5 yaklaşık
+3 kat — ama ikisi de eşiğin çok altında: K1 eşiğin **22 katı**, K5 **9 katı**
+altında. Kalite ölçütleri (K2, K3, K6) iki ortamda **birebir aynı**; bu
+beklenen, çünkü onlar donanıma değil model ve kural tanımlarına bağlıdır.
+K4'ün açık hücre sayısı çalıştırmadan çalıştırmaya değişir (CP-SAT paralel
+aramada belirlenimsizdir); kriter sayının kendisini değil açığın gün,
+vardiya, nokta ve kişi sayısıyla raporlanmasını ister.
+
+Sunucu ölçümünün ham çıktısı: `/opt/vardiya/olcum/kabul-20260809.json`.
 
 K1–K5 `kabul_olcumu.py` ile otomatik ölçülür. K6 ayrı ölçülür (aşağıda):
 raporlama yüzeyi Sürümler ekranının karşılaştırma işlevidir (SDD 6.3.5) ve
@@ -78,21 +93,22 @@ raporlama yüzeyi Sürümler ekranının karşılaştırma işlevidir (SDD 6.3.5
 
 ### K1 — Çözüm süresi
 
-| Aşama | Süre |
-|---|---|
-| Model kurma | 0,50 sn |
-| İlk uygun çözüme ulaşma (çözücü içi) | 0,62 sn |
-| **Kullanıcının beklediği toplam** | **1,12 sn** |
-| Zaman limitine kadar iyileştirme | 60,06 sn |
+| Aşama | Geliştirme makinesi | **Gösterim sunucusu** |
+|---|---|---|
+| Model kurma | 0,50 sn | **0,67 sn** |
+| İlk uygun çözüme ulaşma (çözücü içi) | 0,62 sn | **2,07 sn** |
+| **Kullanıcının beklediği toplam** | 1,12 sn | **2,73 sn** |
+| Zaman limitine kadar iyileştirme | 60,06 sn | 60,05 sn |
 
 **"Çözülür" ne demektir.** CP-SAT bir eniyileme problemi çözer ve zaman
 limiti dolana kadar çözümü iyileştirmeye devam eder; 60 saniyede
 eniyilik kanıtlanmaz (durum: *uygun*). Kriterin işaret ettiği süre, ilk
 **kullanılabilir** çizelgeye ulaşma süresidir — Charter bölüm 6'nın
 önlem cümlesi de bunu söyler: "limit dolduğunda o ana kadarki en iyi
-çözüm döndürülür". Bu okumayla ölçülen 1,12 saniye, 60 saniyelik eşiğin
-yaklaşık 50 kat altındadır. Referans donanımın daha yavaş çekirdekleri
-bu payı daraltır ama kapatması beklenmez.
+çözüm döndürülür". Referans donanımda ölçülen **2,73 saniye**, 60 saniyelik
+eşiğin yaklaşık 22 katı altındadır. Geliştirme makinesine göre 2,4 katlık
+artış, dört çekirdeğin daha yavaş olmasının doğrudan sonucudur; pay yine de
+çok geniştir.
 
 ### K3 — Gece adaleti
 
@@ -157,12 +173,12 @@ bulunmadığı için havuza girmez. Betiğin ulaşılabilirlik teşhisi artık
 Çelişkili örnek, SRS 3.3.6'daki kırılganlık mekanizmasını doğrudan
 kurar: 9 kişilik Vardiya Şefi havuzunun 5'i dönem boyunca izinlidir;
 kalan 4 kişi, haftada 21 vardiya gerektiren tek noktayı H5/H6 tavanını
-aşmadan dolduramaz. Sistem 21 açık hücre raporlamıştır ve her kayıt
-kriterin istediği üç bilgiyi de taşır — örnek:
+aşmadan dolduramaz. Sunucuda 28–33 açık hücre raporlanmıştır (iki
+çalıştırma) ve her kayıt kriterin istediği üç bilgiyi de taşır — örnek:
 
 ```
-2026-06-05 / Gece   / Vardiya Şefliği -> 1 kisi eksik
-2026-06-06 / Gündüz / Vardiya Şefliği -> 1 kisi eksik
+2026-06-02 / Gece   / Vardiya Şefliği -> 1 kisi eksik
+2026-06-04 / Gündüz / Vardiya Şefliği -> 1 kisi eksik
 ```
 
 Bu, S1'in esnek hedef olarak tanımlanmasının (SRS 5.5) beklenen
@@ -172,8 +188,9 @@ davranışıdır: kadro daraldığında çözüm reddedilmez, açık gösterilir
 
 28 günlük gerçek bir sürüm üzerinde, dönem geneli kapsamlı kuralları
 (S2–S4, SDD 5.5) da tetikleyen bir vardiya tipi değişikliği beş kez
-doğrulanmıştır: en iyi 0,031 sn, ortanca 0,032 sn, en kötü 0,038 sn.
-Eşiğin (1 sn) yaklaşık 26 kat altındadır.
+doğrulanmıştır. Gösterim sunucusunda: en iyi 0,080 sn, ortanca 0,093 sn,
+**en kötü 0,116 sn** — eşiğin (1 sn) yaklaşık 9 katı altında. Geliştirme
+makinesinde sırasıyla 0,031 / 0,032 / 0,038 sn idi.
 
 ### K6 — Yeniden çözümde değişen atama sayısı
 
@@ -190,16 +207,21 @@ Karşılaştır işlevidir (SDD 6.3.5); servis karşılığı
    çıkarıldı.
 3. Sürüm 1'den türetilen taslak yeniden çözüldü → Sürüm 2 (toplam ceza 983).
 
-Karşılaştırma çıktısı:
+Gösterim sunucusunda, canlı site üzerinden
+(`GET https://vardiya.omerharmankaya.com/api/surum/karsilastir`):
 
 ```
 Sürüm 1 → Sürüm 2 : TOPLAM DEĞİŞEN ATAMA = 4
   eklendi = 2   kaldırıldı = 2   değişti = 0
-    2026-02-02  GG-001  kaldırıldı  Akşam · Güvenlik →  —
-    2026-02-02  GG-013  eklendi     —              →  Akşam · Güvenlik
-    2026-02-03  GG-001  kaldırıldı  Akşam · Güvenlik →  —
-    2026-02-03  GG-005  eklendi     —              →  Akşam · Güvenlik
+    2026-02-03  GG-001  kaldırıldı  Gündüz →  —
+    2026-02-03  GG-018  eklendi     —      →  Gündüz
+    2026-02-04  GG-001  kaldırıldı  Gündüz →  —
+    2026-02-04  GG-015  eklendi     —      →  Gündüz
 ```
+
+Geliştirme makinesinde de aynı sayı (4 değişen atama) ölçülmüştü; hangi
+günlerin değiştiği çözücünün belirlenimsizliği nedeniyle farklı olabilir,
+değişimin **büyüklüğü** aynı kalır.
 
 Sonuç yalnızca raporlamanın çalıştığını değil, **S8 (değişim
 minimizasyonu) hedefinin de işlediğini** gösteriyor: izne çıkan personelin
@@ -226,6 +248,17 @@ doğrulayıcı ihlal bulmamıştır. Örnekler sabit tohumla üretilir
 üretilebilir.
 
 ## 5. Yeniden üretme
+
+Gösterim sunucusunda:
+
+```bash
+ssh root@SUNUCU
+set -a; . /opt/vardiya/.env; set +a
+cd /opt/vardiya/backend
+sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/python scripts/kabul_olcumu.py
+```
+
+Geliştirme makinesinde:
 
 ```bash
 cd backend
