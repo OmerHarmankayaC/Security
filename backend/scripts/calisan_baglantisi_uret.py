@@ -23,9 +23,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from sqlalchemy import select  # noqa: E402
 
+from app.config import ayarlar  # noqa: E402
 from app.db import OturumYerel  # noqa: E402
 from app.models.tanim import Personel  # noqa: E402
 from app.services.calisan_baglantisi import baglanti_yolu  # noqa: E402
+
+# config.py'deki varsayilan; .env doldurulmadan bu deger gelir.
+_VARSAYILAN_SIR = "degistirilmeli"
 
 
 def main() -> int:
@@ -42,6 +46,24 @@ def main() -> int:
         help="Baglantinin basina eklenecek adres (ornek: https://vardiya.ornek.gov.tr)",
     )
     argumanlar = ayristirici.parse_args()
+
+    # Sir ortamda yoksa config.py'deki varsayilan devreye girer ve betik
+    # SESSIZCE gecersiz baglantilar uretir - API baska bir sirla dogruladigi
+    # icin hepsi 403 alir, ama bu ancak baglantilar dagitildiktan sonra
+    # anlasilir. Dagitim sirasinda tam olarak bu yasandi (betik yalniz
+    # VERITABANI_URL ile calistirilmisti), o yuzden burada aciktan durulur.
+    if ayarlar.calisan_paneli_baglanti_anahtari in ("", _VARSAYILAN_SIR):
+        print(
+            "HATA: CALISAN_PANELI_BAGLANTI_ANAHTARI ayarlanmamis (varsayilan deger\n"
+            "kullaniliyor). Uretilecek baglantilari API kabul etmez.\n\n"
+            "Sunucuda:\n"
+            "    set -a; . /opt/vardiya/.env; set +a\n"
+            "    sudo -u vardiya --preserve-env=VERITABANI_URL,"
+            "CALISAN_PANELI_BAGLANTI_ANAHTARI \\\n"
+            "        .venv/bin/python scripts/calisan_baglantisi_uret.py",
+            file=sys.stderr,
+        )
+        return 2
 
     oturum = OturumYerel()
     try:

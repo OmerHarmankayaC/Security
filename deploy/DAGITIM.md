@@ -260,7 +260,32 @@ SDD 3.4.1/3.4.2 gereği diğer uygulamaların boşta olduğu bir anda ölçüld�
 (K1 1,12 → 2,73 sn; K5 0,038 → 0,116 sn) ama eşiklerin çok altında kaldı;
 kalite ölçütleri (K2, K3, K6) iki ortamda birebir aynı çıktı.
 
-## 9. Bakım notları
+## 9. Çalışan paneli bağlantıları
+
+Panelde kimlik doğrulama yoktur (Backlog B-05); **bağlantının kendisi
+anahtardır**. Anahtar `HMAC-SHA256(sunucu_sırrı, personel_id)` ile türetilir,
+saklanmaz, her istekte yeniden hesaplanır.
+
+```bash
+ssh root@SUNUCU
+set -a; . /opt/vardiya/.env; set +a
+cd /opt/vardiya/backend
+sudo -u vardiya --preserve-env=VERITABANI_URL,CALISAN_PANELI_BAGLANTI_ANAHTARI \
+    .venv/bin/python scripts/calisan_baglantisi_uret.py \
+    --taban https://vardiya.omerharmankaya.com
+```
+
+**`--preserve-env` iki değişkeni de taşımalıdır.** Yalnız `VERITABANI_URL`
+geçirilirse sır ortama girmez, `config.py`'deki varsayılan devreye girer ve
+üretilen bağlantıları API kabul etmez (403). Betik bu durumu artık
+yakalayıp 2 ile çıkar — dağıtım sırasında tam olarak bu yaşandı.
+
+Çıktı sekmeyle ayrılmış üç sütundur: sicil, ad soyad, bağlantı. **Bağlantılar
+paroladır**: kişiye özel kanaldan iletilmeli, toplu çıktı dosyaya
+yazılmamalıdır. Sunucu sırrı değişirse dağıtılmış bütün bağlantılar geçersiz
+olur ve yenileri bu komutla üretilir.
+
+## 10. Bakım notları
 
 **Yerel geliştirmede çözüm işçisi ayrıca çalıştırılmalıdır** (`python
 scripts/cozum_iscisi.py`); çalışmazsa çözüm istekleri kuyrukta bekler.
