@@ -1,8 +1,15 @@
-"""Calisan Paneli uc noktalari testleri (Sprint 3 Gun 13: SDD 6.1, Ek B;
-SRS FR-9.x). SRS TD-12 (karsilanma durumu, yalniz onaylanmislar icin ve uc
-degerli), FR-9.4 (degisen gunler, uc tur) ve FR-9.6 (tercih bildirimi) elle
-kurulmus senaryolarla dogrulanir. FR-9.1 (baska personelin verisine erisim
-yok) kisiye ozel baglanti anahtariyla dogrulanir.
+"""Calisan Paneli uc noktalari testleri (SDD 6.1, Ek B; SRS FR-9.x).
+
+SRS TD-12 (karsilanma durumu, yalniz onaylanmislar icin ve uc degerli),
+FR-9.4 (degisen gunler, uc tur) ve FR-9.6 (tercih bildirimi) elle kurulmus
+senaryolarla dogrulanir.
+
+FR-9.1 (baska personelin verisine erisim yok) artik OTURUM uzerinden
+dogrulanir; kisiye ozel baglanti anahtari kaldirildi. Testin bicimi de
+degisti ve bu degisiklik testin kendisi kadar onemli: eskiden "yanlis
+anahtarla baskasinin kimligini denemek reddediliyor mu" diye sorulurdu,
+simdi "istekte gelen kimlik SONUCU DEGISTIRIYOR MU" diye soruluyor -
+cunku yeni tasarimda kimlik bir parametre degil.
 
 Canli bir PostgreSQL gerektirir; baglanamiyorsa atlanir.
 """
@@ -17,10 +24,10 @@ from sqlalchemy import text
 from app.db import OturumYerel
 from app.main import app
 from app.models.girdi import Tercih, TercihDurumu, TercihTipi
+from app.models.kimlik import Rol
 from app.models.sonuc import Atama, AtamaKaynagi, CizelgeSurumu, CizelgeSurumuDurumu, Donem
 from app.models.tanim import GorevNoktasi, GunTipi, Personel, Talep, VardiyaTipi
-from app.services.calisan_baglantisi import anahtar_uret
-from tests.conftest import pg_yoksa_atla
+from tests.conftest import oturumlu_istemci, pg_yoksa_atla
 
 BUGUN = date.today()
 
@@ -31,19 +38,14 @@ _TABLOLAR = (
 )
 
 
-@pytest.fixture
-def istemci() -> TestClient:
-    pg_yoksa_atla()
-    return TestClient(app)
-
-
 def _benzersiz(on_ek: str) -> str:
     return f"{on_ek}-{uuid.uuid4().hex[:8]}"
 
 
-def _yol(uc_nokta: str, personel_id: int) -> str:
-    """Kisiye ozel baglanti: anahtar personel_id'den turetilir (B-05, FR-9.1)."""
-    return f"/api/calisan/{uc_nokta}?personel_id={personel_id}&anahtar={anahtar_uret(personel_id)}"
+def _calisan_istemcisi(personel_id: int) -> TestClient:
+    """O personele bagli bir calisan hesabiyla giris yapmis istemci."""
+    pg_yoksa_atla()
+    return oturumlu_istemci(Rol.CALISAN, personel_id=personel_id)
 
 
 def _temizle(oturum) -> None:  # noqa: ANN001 - Session, testlere ozel yardimci
@@ -54,23 +56,28 @@ def _temizle(oturum) -> None:  # noqa: ANN001 - Session, testlere ozel yardimci
     oturum.commit()
 
 
-# --- Baglanti kapisi (Backlog B-05, SRS FR-9.1) -----------------------------
+# --- FR-9.1: gosterilecek personel YALNIZ oturumdan belirlenir --------------
 
 
-def test_vardiyalarim_bulunmayan_personelde_404(istemci: TestClient) -> None:
-    assert istemci.get(_yol("vardiyalarim", 999999999)).status_code == 404
+def test_oturumsuz_istek_401_alir() -> None:
+    pg_yoksa_atla()
+    istemci = TestClient(app, base_url="https://testserver")
+    assert istemci.get("/api/calisan/vardiyalarim").status_code == 401
+    assert istemci.get("/api/calisan/tercih").status_code == 401
 
 
-def test_vardiyalarim_yanlis_anahtarda_403(istemci: TestClient) -> None:
-    yanit = istemci.get("/api/calisan/vardiyalarim?personel_id=1&anahtar=yanlis")
-    assert yanit.status_code == 403
+def test_istekte_gelen_personel_kimligi_donen_veriyi_degistiremez() -> None:
+    """FR-9.1'in cekirdegi.
 
+    Eski tasarimda kimlik adreste gelir ve dogrulanirdi; dogrulamayi
+    atlayan tek bir uc nokta butun ayrimi kaldiriyordu. Yeni tasarimda
+    kimlik PARAMETRE DEGIL - bu test onu kanitlar: A'nin oturumuyla B'nin
+    kimligini adreste de govdede de gondermek A'nin verisini dondurur,
+    B'ninkini degil.
 
-def test_bir_personelin_anahtari_baskasinin_verisini_acmaz(istemci: TestClient) -> None:
-    """FR-9.1 / Gun 13 kabul kriteri: 'baska bir personelin verisine erisemiyor'.
-
-    Anahtar personel_id'den turetildigi icin, URL'deki kimligi degistirip kendi
-    anahtarini tasimaya devam etmek 403 verir.
+    Onemli olan ret DEGIL, kimligin sonuca hic girmemesidir. Bir ret
+    beklemek, kimligin okundugunu ve yalnizca reddedildigini varsayardi;
+    okunmadigini dogrulamak daha guclu bir ifadedir.
     """
     on_ek = _benzersiz("izolasyon")
     oturum = OturumYerel()
@@ -90,31 +97,61 @@ def test_bir_personelin_anahtari_baskasinin_verisini_acmaz(istemci: TestClient) 
         oturum.add_all([a, b])
         oturum.commit()
         a_id, b_id = a.personel_id, b.personel_id
+        a_ad = a.ad_soyad
     finally:
         oturum.rollback()
         oturum.close()
 
-    # A kendi baglantisiyla kendi verisini gorur.
-    assert istemci.get(_yol("vardiyalarim", a_id)).status_code == 200
+    istemci = _calisan_istemcisi(a_id)
 
-    # A'nin anahtariyla B'nin kimligini denemek 403 verir.
-    kacak = f"/api/calisan/vardiyalarim?personel_id={b_id}&anahtar={anahtar_uret(a_id)}"
-    assert istemci.get(kacak).status_code == 403
+    kendi = istemci.get("/api/calisan/vardiyalarim").json()
+    assert kendi["personel_id"] == a_id
+    assert kendi["ad_soyad"] == a_ad
 
-    # Tercih uc noktalari da ayni kapiyi kullanir (okuma ve yazma).
+    # (a) Adreste baskasinin kimligi.
+    kacak = istemci.get(f"/api/calisan/vardiyalarim?personel_id={b_id}")
+    assert kacak.status_code == 200
+    assert kacak.json()["personel_id"] == a_id
+
+    # (b) Kendi kimligini gondermek de bir sey degistirmez; alan okunmuyor.
     assert (
-        istemci.get(
-            f"/api/calisan/tercih?personel_id={b_id}&anahtar={anahtar_uret(a_id)}"
-        ).status_code
-        == 403
+        istemci.get(f"/api/calisan/vardiyalarim?personel_id={a_id}").json()["personel_id"] == a_id
     )
-    assert (
-        istemci.post(
-            f"/api/calisan/tercih?personel_id={b_id}&anahtar={anahtar_uret(a_id)}",
-            json={"tarih": BUGUN.isoformat(), "tip": "calismama"},
-        ).status_code
-        == 403
+
+    # (c) Tercih okuma yolu.
+    assert istemci.get(f"/api/calisan/tercih?personel_id={b_id}").status_code == 200
+
+    # (d) YAZMA yolu: govdedeki kimlik de yok sayilir, kayit A adina dogar.
+    yanit = istemci.post(
+        f"/api/calisan/tercih?personel_id={b_id}",
+        json={"tarih": BUGUN.isoformat(), "tip": "calismama", "personel_id": b_id},
     )
+    if yanit.status_code == 201:
+        oturum = OturumYerel()
+        try:
+            kayit = oturum.get(Tercih, yanit.json()["tercih_id"])
+            assert kayit is not None
+            assert kayit.personel_id == a_id
+        finally:
+            oturum.close()
+    else:
+        # Bugun hicbir donemin tercih penceresine dusmuyorsa 400 doner;
+        # o durumda da B adina bir kayit DOGMAMIS olmalidir.
+        assert yanit.status_code == 400
+        oturum = OturumYerel()
+        try:
+            assert oturum.query(Tercih).filter(Tercih.personel_id == b_id).count() == 0
+        finally:
+            oturum.close()
+
+
+def test_yonetici_rolu_calisan_panelinden_gecemez() -> None:
+    """SRS 5.10: calisan rolu digerlerinin alt kumesi degildir; kendi
+    verisine erisim personel kaydina bagli AYRI bir yetkidir. Yonetim
+    rolunun buradan gecmesi, kimin verisinin donecegini yanitsiz birakirdi."""
+    pg_yoksa_atla()
+    istemci = oturumlu_istemci(Rol.YONETIM)
+    assert istemci.get("/api/calisan/vardiyalarim").status_code == 403
 
 
 # --- Vardiyalarim / degisen gunler (FR-9.3, FR-9.4) -------------------------
@@ -256,10 +293,9 @@ def senaryo() -> dict[str, int]:
         oturum.close()
 
 
-def test_vardiyalarim_degisen_gunleri_uc_ture_ayirir(
-    istemci: TestClient, senaryo: dict[str, int]
-) -> None:
-    yanit = istemci.get(_yol("vardiyalarim", senaryo["personel_id"]))
+def test_vardiyalarim_degisen_gunleri_uc_ture_ayirir(senaryo: dict[str, int]) -> None:
+    istemci = _calisan_istemcisi(senaryo["personel_id"])
+    yanit = istemci.get("/api/calisan/vardiyalarim")
     assert yanit.status_code == 200
     govde = yanit.json()
 
@@ -294,7 +330,7 @@ def test_vardiyalarim_degisen_gunleri_uc_ture_ayirir(
     assert govde["ozet"]["toplam_saat"] == pytest.approx(24.0)
 
 
-def test_ilk_yayinda_hicbir_gun_isaretlenmez(istemci: TestClient) -> None:
+def test_ilk_yayinda_hicbir_gun_isaretlenmez() -> None:
     """FR-9.4: donemin ilk yayininda karsilastirma tabani (arsiv surumu)
     bulunmadigindan hicbir gun isaretlenmez ve kaldirilan gun olmaz."""
     on_ek = _benzersiz("ilkyayin")
@@ -349,12 +385,12 @@ def test_ilk_yayinda_hicbir_gun_isaretlenmez(istemci: TestClient) -> None:
         oturum.rollback()
         oturum.close()
 
-    govde = istemci.get(_yol("vardiyalarim", personel_id)).json()
+    govde = _calisan_istemcisi(personel_id).get("/api/calisan/vardiyalarim").json()
     assert [v["degisim_tipi"] for v in govde["vardiyalar"]] == [None]
     assert govde["kaldirilan_gunler"] == []
 
 
-def test_vardiyalarim_yayinlanmamis_surumde_bos_liste_doner(istemci: TestClient) -> None:
+def test_vardiyalarim_yayinlanmamis_surumde_bos_liste_doner() -> None:
     on_ek = _benzersiz("caltaslak")
     oturum = OturumYerel()
     try:
@@ -384,7 +420,7 @@ def test_vardiyalarim_yayinlanmamis_surumde_bos_liste_doner(istemci: TestClient)
         oturum.rollback()
         oturum.close()
 
-    yanit = istemci.get(_yol("vardiyalarim", personel_id))
+    yanit = _calisan_istemcisi(personel_id).get("/api/calisan/vardiyalarim")
     assert yanit.status_code == 200
     govde = yanit.json()
     assert govde["yayinlanmis_surum_var"] is False
@@ -396,9 +432,7 @@ def test_vardiyalarim_yayinlanmamis_surumde_bos_liste_doner(istemci: TestClient)
 # --- Tercihlerim / karsilanma durumu (TD-12, FR-3.6, FR-9.6) ----------------
 
 
-def test_tercihlerim_karsilanma_uc_degerli_ve_yalniz_onaylanmislarda(
-    istemci: TestClient,
-) -> None:
+def test_tercihlerim_karsilanma_uc_degerli_ve_yalniz_onaylanmislarda() -> None:
     on_ek = _benzersiz("caltercih")
     oturum = OturumYerel()
     try:
@@ -515,7 +549,7 @@ def test_tercihlerim_karsilanma_uc_degerli_ve_yalniz_onaylanmislarda(
         oturum.rollback()
         oturum.close()
 
-    yanit = istemci.get(_yol("tercih", personel_id))
+    yanit = _calisan_istemcisi(personel_id).get("/api/calisan/tercih")
     assert yanit.status_code == 200
     govde = yanit.json()
 
@@ -532,7 +566,7 @@ def test_tercihlerim_karsilanma_uc_degerli_ve_yalniz_onaylanmislarda(
     assert ret_map["2026-06-13"] == "Kadro yetersiz"
 
 
-def test_tercih_bildir_mutlu_yol_ve_donem_disi_tarih_400(istemci: TestClient) -> None:
+def test_tercih_bildir_mutlu_yol_ve_donem_disi_tarih_400() -> None:
     on_ek = _benzersiz("calbildir")
     oturum = OturumYerel()
     try:
@@ -557,8 +591,9 @@ def test_tercih_bildir_mutlu_yol_ve_donem_disi_tarih_400(istemci: TestClient) ->
         oturum.rollback()
         oturum.close()
 
+    istemci = _calisan_istemcisi(personel_id)
     yanit = istemci.post(
-        _yol("tercih", personel_id),
+        "/api/calisan/tercih",
         json={"tarih": icindeki_tarih, "tip": "calismama", "calisan_notu": "Kardeşimin düğünü var"},
     )
     assert yanit.status_code == 201
@@ -579,7 +614,7 @@ def test_tercih_bildir_mutlu_yol_ve_donem_disi_tarih_400(istemci: TestClient) ->
 
     disari_tarih = (BUGUN + timedelta(days=100)).isoformat()
     yanit = istemci.post(
-        _yol("tercih", personel_id),
+        "/api/calisan/tercih",
         json={"tarih": disari_tarih, "tip": "calismama"},
     )
     assert yanit.status_code == 400

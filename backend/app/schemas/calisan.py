@@ -127,3 +127,20 @@ class CalisanTercihOlustur(BaseModel):
     tip: TercihTipi
     vardiya_tipi_id: int | None = None
     calisan_notu: str | None = None
+
+
+class CalisanVardiyaTipiOku(BaseModel):
+    """Tercih formunun vardiya tipi listesi (SDD 6.1).
+
+    Tanim yonlendiricisinin `VardiyaTipiOku`sundan AYRI bir sema: orasi
+    tanim yonetiminin alanlarini (sure, aktiflik bayragi) tasir ve calisan
+    yuzeyinin ihtiyaci olan sey yalnizca secim yapilabilecek kadar bilgidir.
+    Ayni semayi paylassalardi, tanim tarafina eklenen her alan calisana da
+    acilirdi.
+    """
+
+    vardiya_tipi_id: int
+    ad: str
+    baslangic_saati: time
+    bitis_saati: time
+    gece_mi: bool

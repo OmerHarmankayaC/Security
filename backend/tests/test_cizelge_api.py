@@ -10,16 +10,15 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.db import OturumYerel
-from app.main import app
 from app.models.sonuc import Donem
 from app.models.tanim import GorevNoktasi, GunTipi, Talep, VardiyaTipi
-from tests.conftest import pg_yoksa_atla
+from tests.conftest import pg_yoksa_atla, yetkili_istemci
 
 
 @pytest.fixture
 def istemci() -> TestClient:
     pg_yoksa_atla()
-    return TestClient(app)
+    return yetkili_istemci()
 
 
 def test_on_kontrol_bulunamayan_donemde_404(istemci: TestClient) -> None:

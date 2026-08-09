@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db import oturum_al
+from app.guvenlik import yonetici_yetkisi
 from app.repositories.tanim import SilmeSonucu, TanimDeposu
 from app.schemas.girdi import (
     MusaitlikOku,
@@ -43,7 +44,10 @@ from app.schemas.tanim import (
 from app.services.tanim_kullanimi import kullanimi_olc
 from app.services.tanim_servisi import KuralParametresiError, TanimServisi
 
-router = APIRouter(prefix="/api", tags=["tanim"])
+# Butun tanim uc noktalari yonetici yetkisi ister (SRS 5.10: calisan rolu
+# tanim, cozum ve yayin islevlerine erisemez). Kapi ROUTER duzeyinde: bu
+# dosyaya sonradan eklenen bir uc noktanin kapisiz kalmasi mumkun degil.
+router = APIRouter(prefix="/api", tags=["tanim"], dependencies=[Depends(yonetici_yetkisi)])
 
 Oturum = Annotated[Session, Depends(oturum_al)]
 

@@ -16,7 +16,6 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from app.db import OturumYerel
-from app.main import app
 from app.models.sonuc import (
     Atama,
     AtamaKaynagi,
@@ -28,7 +27,7 @@ from app.models.sonuc import (
     KapsamaAcigi,
 )
 from app.models.tanim import GorevNoktasi, Personel, VardiyaTipi
-from tests.conftest import pg_yoksa_atla
+from tests.conftest import pg_yoksa_atla, yetkili_istemci
 
 _TABLOLAR = (
     "TRUNCATE kapsama_acigi, cozum_isi, atama, cizelge_surumu, musaitlik, "
@@ -40,7 +39,7 @@ _TABLOLAR = (
 @pytest.fixture
 def istemci() -> TestClient:
     pg_yoksa_atla()
-    return TestClient(app)
+    return yetkili_istemci()
 
 
 def _benzersiz(on_ek: str) -> str:

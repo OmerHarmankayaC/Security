@@ -10,13 +10,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from tests.conftest import pg_yoksa_atla
+from tests.conftest import pg_yoksa_atla, yetkili_istemci
 
 
 @pytest.fixture
 def istemci() -> TestClient:
     pg_yoksa_atla()
-    return TestClient(app)
+    return yetkili_istemci()
 
 
 def _benzersiz(on_ek: str) -> str:

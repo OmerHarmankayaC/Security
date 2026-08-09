@@ -11,7 +11,6 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from app.db import OturumYerel
-from app.main import app
 from app.models.girdi import Tercih, TercihDurumu, TercihTipi
 from app.models.sonuc import (
     Atama,
@@ -24,13 +23,13 @@ from app.models.sonuc import (
     KapsamaAcigi,
 )
 from app.models.tanim import GorevNoktasi, GunTipi, Personel, Talep, VardiyaTipi
-from tests.conftest import pg_yoksa_atla
+from tests.conftest import pg_yoksa_atla, yetkili_istemci
 
 
 @pytest.fixture
 def istemci() -> TestClient:
     pg_yoksa_atla()
-    return TestClient(app)
+    return yetkili_istemci()
 
 
 def _benzersiz(on_ek: str) -> str:

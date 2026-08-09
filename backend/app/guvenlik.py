@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.config import ayarlar
 from app.db import oturum_al
+from app.models.kimlik import Rol
 from app.services.oturum_servisi import CEREZ_ADI, OturumBaglami, OturumServisi
 
 VeriOturumu = Annotated[Session, Depends(oturum_al)]
@@ -92,3 +93,70 @@ def giris_yapan(baglam: Baglam) -> OturumBaglami:
     if baglam.kullanici.parola_degistirmeli:
         raise HTTPException(status_code=403, detail=_PAROLA_BORCU_MESAJI)
     return baglam
+
+
+GirisYapan = Annotated[OturumBaglami, Depends(giris_yapan)]
+
+
+# --- Rol kapilari (FR-10.4) -------------------------------------------------
+#
+# Kapilar router DUZEYINDE baglanir, uc nokta basina degil: bir yonlendiriciye
+# sonradan eklenen uc noktanin kapisiz kalmasi, kapisinin yanlis olmasindan
+# cok daha olasi bir hatadir. Yonlendiricinin butun uc noktalari ayni
+# yetkiyi paylasmiyorsa kapi yine de en dar olanindan secilir ve gevsemesi
+# gereken uc nokta bunu imzasinda acikca yazar.
+
+
+def _rol_kapisi(*izinli: Rol):  # noqa: ANN202 - FastAPI bagimliligi dondurur
+    def kapi(baglam: GirisYapan) -> OturumBaglami:
+        if baglam.kullanici.rol not in izinli:
+            # 404 degil 403: kaynagin varligi zaten gizli degil, gizli olan
+            # ona erisim yetkisi. 404 dondurmek, arayuzu hata ayiklanamaz
+            # hale getirirdi.
+            raise HTTPException(status_code=403, detail="Bu islem icin yetkiniz yok")
+        return baglam
+
+    return kapi
+
+
+# Yonetici arayuzunun tamami. Rol kapsayicidir (SRS 5.10): yonetim, yoneticinin
+# yetkilerini icerir.
+yonetici_yetkisi = _rol_kapisi(Rol.YONETICI, Rol.YONETIM)
+
+# Yalniz hesap yonetimi (FR-10.5). Yonetici rolu BURAYA GIREMEZ.
+yonetim_yetkisi = _rol_kapisi(Rol.YONETIM)
+
+
+def calisan_yetkisi(baglam: GirisYapan) -> OturumBaglami:
+    """Calisan panelinin kapisi (SRS 5.10, FR-9.1).
+
+    Yalniz `calisan` rolu gecer. Rol kapsayiciliginin BURAYA UZANMAMASI
+    bilincli: SRS 5.10 "calisan rolu digerlerinin alt kumesi degildir; kendi
+    verisine erisim, personel kaydina bagli AYRI bir yetkidir" der. Yonetim
+    rolunun buradan gecmesi, kimin verisinin donecegi sorusunu yanitsiz
+    birakirdi.
+
+    `personel_id`nin dolu oldugu ayrica dogrulanir. Sema bunu zaten garanti
+    ediyor (ck_kullanici_calisan_personele_bagli); buradaki kontrol o
+    garantinin ileride gevsetilmesi halinde FR-9.1'in sessizce
+    `personel_id=None` ile calismaya baslamasini engeller.
+    """
+    if baglam.kullanici.rol is not Rol.CALISAN:
+        raise HTTPException(status_code=403, detail="Bu islem icin yetkiniz yok")
+    if baglam.kullanici.personel_id is None:
+        raise HTTPException(status_code=403, detail="Hesap bir personel kaydina bagli degil")
+    return baglam
+
+
+def oturumdaki_personel(baglam: Annotated[OturumBaglami, Depends(calisan_yetkisi)]) -> int:
+    """Calisan isteklerinde hangi personelin verisinin donecegi (SRS FR-9.1).
+
+    BU, O SORUNUN TEK YANITIDIR. Adreste ya da govdede gelen bir personel
+    kimligi bu secime hicbir kosulda giremez; calisan uc noktalari personel
+    kimligini parametre olarak ALMAZ, boylece "parametreyi dogrulamayi
+    unutma" diye bir hata bicimi de kalmaz. Once bu bir acikti (kisiye ozel
+    baglantida URL'deki kimlik degistirilebiliyordu) ve bir daha ayni yere
+    donulmemesi icin kimlik parametre olmaktan tumuyle cikarilmistir.
+    """
+    assert baglam.kullanici.personel_id is not None  # calisan_yetkisi garanti eder
+    return baglam.kullanici.personel_id
