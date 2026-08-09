@@ -16,6 +16,7 @@ import { Buton, Kart, KartEtiketi, Rozet, Sayi } from '../components/app-ui'
 import { Input } from '@/components/ui/input'
 import { cn } from '../lib/utils'
 import { bugunIso } from '../lib/tarih'
+import { digerEsnekAgirlikToplami, s1BaskinligiKayboldu } from '../lib/kuralAgirlik'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -118,10 +119,14 @@ export function TanimlarEkrani({ ekranSec }: Props) {
     }
   }
 
-  const kuralGuncelle = async (kimlik: string, alan: 'agirlik' | 'aktif', deger: number | boolean) => {
+  const kuralGuncelle = async (
+    kimlik: string,
+    veri: Partial<Pick<Kural, 'agirlik' | 'aktif' | 'parametreler'>>,
+  ) => {
     try {
-      const guncel = await api.kuralGuncelle(kimlik, { [alan]: deger })
+      const guncel = await api.kuralGuncelle(kimlik, veri)
       setKurallar((mevcut) => mevcut.map((k) => (k.kimlik === kimlik ? guncel : k)))
+      setHata(null)
     } catch (e) {
       setHata(e instanceof Error ? e.message : 'Kural güncellenemedi')
     }
@@ -137,6 +142,11 @@ export function TanimlarEkrani({ ekranSec }: Props) {
 
   const zorunluKurallar = kurallar.filter((k) => k.tip === 'zorunlu')
   const esnekKurallar = kurallar.filter((k) => k.tip === 'esnek')
+
+  // S1 uyarısının ölçüsü (madde 2d) — hesap lib/kuralAgirlik.ts'te, orada
+  // testleri var.
+  const s1Agirligi = esnekKurallar.find((k) => k.kimlik === 'S1')?.agirlik ?? null
+  const esnekAgirlikToplami = digerEsnekAgirlikToplami(kurallar)
 
   return (
     <AppShell
@@ -398,64 +408,155 @@ export function TanimlarEkrani({ ekranSec }: Props) {
         <>
           <Kart>
             <KartEtiketi>H1–H8 · zorunlu kısıtlar</KartEtiketi>
-            <ul className="m-0 flex list-none flex-col p-0">
+            <p className="-mt-2 mb-4 text-sm text-ink-muted">
+              Katalog kuralları modelin yapısını oluşturur; silinemez, yalnızca devre dışı
+              bırakılır ve parametreleri değiştirilir.
+            </p>
+            <div className="flex flex-col">
               {zorunluKurallar.map((k) => (
-                <li
+                <KuralSatiri
                   key={k.kimlik}
-                  className="flex items-center justify-between gap-4 border-t border-rule py-2.5 first:border-none"
-                >
-                  <span className="w-10 shrink-0 font-mono text-sm font-semibold text-ink">{k.kimlik}</span>
-                  <span className="flex-1 text-sm text-ink">{JSON.stringify(k.parametreler)}</span>
-                  <button
-                    type="button"
-                    onClick={() => kuralGuncelle(k.kimlik, 'aktif', !k.aktif)}
-                    className="shrink-0"
-                  >
-                    <Rozet varyant={k.aktif ? 'dolu' : 'notr'} genislik={64}>
-                      {k.aktif ? 'Aktif' : 'Pasif'}
-                    </Rozet>
-                  </button>
-                </li>
+                  kural={k}
+                  s1Agirligi={s1Agirligi}
+                  esnekAgirlikToplami={esnekAgirlikToplami}
+                  onGuncelle={kuralGuncelle}
+                />
               ))}
-            </ul>
+            </div>
           </Kart>
           <Kart>
             <KartEtiketi>S1–S8 · esnek hedefler</KartEtiketi>
-            <ul className="m-0 flex list-none flex-col p-0">
+            <div className="flex flex-col">
               {esnekKurallar.map((k) => (
-                <li
+                <KuralSatiri
                   key={k.kimlik}
-                  className="flex items-center justify-between gap-4 border-t border-rule py-2.5 first:border-none"
-                >
-                  <span className="w-10 shrink-0 font-mono text-sm font-semibold text-accent">
-                    {k.kimlik}
-                  </span>
-                  <span className="flex-1 text-sm text-ink" />
-                  <Input
-                    type="number"
-                    className="w-20 rounded-sm border-rule font-mono text-right"
-                    defaultValue={k.agirlik ?? 0}
-                    onBlur={(e) => {
-                      const deger = Number(e.target.value)
-                      if (deger !== k.agirlik) kuralGuncelle(k.kimlik, 'agirlik', deger)
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => kuralGuncelle(k.kimlik, 'aktif', !k.aktif)}
-                    className="shrink-0"
-                  >
-                    <Rozet varyant={k.aktif ? 'dolu' : 'notr'} genislik={64}>
-                      {k.aktif ? 'Aktif' : 'Pasif'}
-                    </Rozet>
-                  </button>
-                </li>
+                  kural={k}
+                  s1Agirligi={s1Agirligi}
+                  esnekAgirlikToplami={esnekAgirlikToplami}
+                  onGuncelle={kuralGuncelle}
+                />
               ))}
-            </ul>
+            </div>
           </Kart>
         </>
       )}
     </AppShell>
+  )
+}
+
+interface KuralSatiriProps {
+  kural: Kural
+  s1Agirligi: number | null
+  esnekAgirlikToplami: number
+  onGuncelle: (
+    kimlik: string,
+    veri: Partial<Pick<Kural, 'agirlik' | 'aktif' | 'parametreler'>>,
+  ) => void
+}
+
+/**
+ * Tek bir kuralın satırı (madde 2).
+ *
+ * Önceki hâlinde satırda yalnızca "H1" ve `JSON.stringify(parametreler)`
+ * vardı. Artık katalogdaki okunabilir ad ve kısa açıklama gösteriliyor,
+ * parametreler alan-değer olarak düzenleniyor.
+ */
+function KuralSatiri({
+  kural,
+  s1Agirligi,
+  esnekAgirlikToplami,
+  onGuncelle,
+}: KuralSatiriProps) {
+  const esnek = kural.tip === 'esnek'
+  const baskinlikUyarisi =
+    kural.kimlik === 'S1' && s1BaskinligiKayboldu(s1Agirligi, esnekAgirlikToplami)
+
+  return (
+    <div className="border-t border-rule py-3 first:border-none">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <span
+          className={cn(
+            'w-10 shrink-0 font-mono text-sm font-semibold',
+            esnek ? 'text-accent' : 'text-ink',
+          )}
+        >
+          {kural.kimlik}
+        </span>
+        <div className="min-w-[220px] flex-1">
+          <p className="m-0 text-sm font-medium text-ink">{kural.ad}</p>
+          <p className="m-0 mt-0.5 text-sm text-ink-muted">{kural.aciklama}</p>
+        </div>
+
+        {kural.parametre_tanimlari.map((tanim) => (
+          <div key={tanim.anahtar} className="flex flex-col gap-1">
+            <label
+              htmlFor={`${kural.kimlik}-${tanim.anahtar}`}
+              className="text-sm text-ink-muted"
+            >
+              {tanim.etiket}
+              {tanim.birim ? ` (${tanim.birim})` : ''}
+            </label>
+            <Input
+              id={`${kural.kimlik}-${tanim.anahtar}`}
+              type="number"
+              min={tanim.asgari ?? undefined}
+              max={tanim.azami ?? undefined}
+              className="w-24 rounded-sm border-rule text-right font-mono"
+              defaultValue={Number(kural.parametreler[tanim.anahtar] ?? 0)}
+              onBlur={(e) => {
+                const deger = Number(e.target.value)
+                if (deger !== Number(kural.parametreler[tanim.anahtar])) {
+                  onGuncelle(kural.kimlik, { parametreler: { [tanim.anahtar]: deger } })
+                }
+              }}
+            />
+          </div>
+        ))}
+
+        {esnek && (
+          <div className="flex flex-col gap-1">
+            <label htmlFor={`${kural.kimlik}-agirlik`} className="text-sm text-ink-muted">
+              Ağırlık
+            </label>
+            <Input
+              id={`${kural.kimlik}-agirlik`}
+              type="number"
+              min={0}
+              className="w-24 rounded-sm border-rule text-right font-mono"
+              defaultValue={kural.agirlik ?? 0}
+              onBlur={(e) => {
+                const deger = Number(e.target.value)
+                if (deger !== kural.agirlik) onGuncelle(kural.kimlik, { agirlik: deger })
+              }}
+            />
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={() => onGuncelle(kural.kimlik, { aktif: !kural.aktif })}
+          className="shrink-0"
+          title={
+            kural.aktif
+              ? 'Kuralı devre dışı bırak — kayıt silinmez, yalnızca modele eklenmez'
+              : 'Kuralı yeniden etkinleştir'
+          }
+        >
+          <Rozet varyant={kural.aktif ? 'dolu' : 'notr'} genislik={64}>
+            {kural.aktif ? 'Aktif' : 'Pasif'}
+          </Rozet>
+        </button>
+      </div>
+
+      {baskinlikUyarisi && (
+        <p className="mt-2 text-sm text-signal">
+          S1 ağırlığı (<Sayi>{s1Agirligi}</Sayi>) diğer aktif esnek hedeflerin toplamının (
+          <Sayi>{esnekAgirlikToplami}</Sayi>) üzerinde değil. Talep karşılama baskınlığını
+          kaybeder: çözücü, adalet veya tercih gibi bir hedefi iyileştirmek için kapsama açığı
+          bırakmayı tercih edebilir.
+        </p>
+      )}
+    </div>
   )
 }
 

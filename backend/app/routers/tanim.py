@@ -41,7 +41,7 @@ from app.schemas.tanim import (
     YetkinlikOlustur,
 )
 from app.services.tanim_kullanimi import kullanimi_olc
-from app.services.tanim_servisi import TanimServisi
+from app.services.tanim_servisi import KuralParametresiError, TanimServisi
 
 router = APIRouter(prefix="/api", tags=["tanim"])
 
@@ -257,16 +257,32 @@ def talep_hucresini_guncelle(hucre: TalepHucresi, servis: Servis) -> TalepYaniti
 
 @router.get("/kural", response_model=list[KuralOku])
 def kural_listele(servis: Servis) -> list[KuralOku]:
-    return list(servis.kural.tumunu_getir())
+    return [KuralOku.modelden_olustur(k) for k in servis.kural.tumunu_getir()]
 
 
 @router.put("/kural/{kimlik}", response_model=KuralOku)
 def kural_guncelle(kimlik: str, veri: KuralGuncelle, servis: Servis) -> KuralOku:
+    """Kural SILINEMEZ, yalnizca degeri degisir (SDD 3.2.1).
+
+    H1-H8 ve S1-S8 modelin yapisini olusturur ve kayit defterindeki siniflarla
+    eslesir; katalogda karsiligi olmayan bir kural satiri zaten yuklenemez.
+    Bu yuzden bu kaynakta DELETE yoktur — pasiflestirme `aktif` alaniyla
+    yapilir.
+    """
     mevcut = servis.kural.kimlige_gore_bul(kimlik)
     if mevcut is None:
         raise HTTPException(status_code=404, detail="Kural bulunamadi")
-    nesne = servis.kural.guncelle(mevcut.kural_id, **veri.model_dump(exclude_unset=True))
-    return nesne  # type: ignore[return-value]
+    alanlar = veri.model_dump(exclude_unset=True)
+    if "parametreler" in alanlar:
+        try:
+            alanlar["parametreler"] = servis.kural_parametrelerini_dogrula(
+                kimlik, alanlar["parametreler"]
+            )
+        except KuralParametresiError as hata:
+            raise HTTPException(status_code=400, detail=str(hata)) from hata
+    nesne = servis.kural.guncelle(mevcut.kural_id, **alanlar)
+    assert nesne is not None  # kimlige_gore_bul yukarida dogruladi
+    return KuralOku.modelden_olustur(nesne)
 
 
 # --- Musaitlik (FR-2.1, FR-2.2) -------------------------------------------

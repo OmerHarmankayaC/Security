@@ -12,7 +12,7 @@ from ortools.sat.python import cp_model
 
 from app.kurallar.baglam import AtamaKaydi, Baglam
 from app.kurallar.kayit_defteri import kayitli
-from app.kurallar.temel import Ihlal, XAnahtari, ZorunluKural
+from app.kurallar.temel import Ihlal, ParametreTanimi, XAnahtari, ZorunluKural
 from app.kurallar.yardimcilar import (
     ardisik_kosu_ihlalleri,
     calisilan_gunler,
@@ -27,6 +27,12 @@ from app.kurallar.yardimcilar import (
 @kayitli("H1")
 class H1GundeBirVardiya(ZorunluKural):
     """Bir personel bir takvim gununde en fazla bir vardiyaya atanabilir. Parametresizdir."""
+
+    ad = "Günde en fazla bir vardiya"
+    aciklama = (
+        "Bir personel bir takvim gününde en fazla bir vardiyaya ve o vardiya içinde en fazla "
+        "bir görev noktasına atanabilir."
+    )
 
     def modele_ekle(
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
@@ -60,6 +66,22 @@ class H1GundeBirVardiya(ZorunluKural):
 @kayitli("H2")
 class H2AsgariDinlenme(ZorunluKural):
     """Ardisik iki atama arasindaki bosluk asgari_dinlenme_saati degerinden az olamaz."""
+
+    ad = "Asgari dinlenme süresi"
+    aciklama = (
+        "Ardışık iki atama arasındaki boşluk, tanımlı asgari dinlenme süresinden az olamaz. "
+        "Gece vardiyasından çıkan personele ertesi sabah görev verilmesini engelleyen kuralın "
+        "genel biçimidir."
+    )
+    parametre_tanimlari = (
+        ParametreTanimi(
+            anahtar="asgari_dinlenme_saati",
+            etiket="Asgari dinlenme süresi",
+            birim="saat",
+            asgari=1,
+            azami=72,
+        ),
+    )
 
     def modele_ekle(
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
@@ -97,6 +119,18 @@ class H2AsgariDinlenme(ZorunluKural):
 class H3ArdisikGeceUstSiniri(ZorunluKural):
     """Bir personel ust uste azami_ardisik_gece degerinden fazla gece vardiyasi tutamaz."""
 
+    ad = "Ardışık gece üst sınırı"
+    aciklama = "Bir personel üst üste tanımlı sayıdan fazla gece vardiyası tutamaz."
+    parametre_tanimlari = (
+        ParametreTanimi(
+            anahtar="azami_ardisik_gece",
+            etiket="Azami ardışık gece",
+            birim="vardiya",
+            asgari=1,
+            azami=14,
+        ),
+    )
+
     def modele_ekle(
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
     ) -> None:
@@ -125,6 +159,18 @@ class H3ArdisikGeceUstSiniri(ZorunluKural):
 @kayitli("H4")
 class H4ArdisikCalismaGunuUstSiniri(ZorunluKural):
     """Bir personel ust uste azami_ardisik_calisma_gunu degerinden fazla gun calisamaz."""
+
+    ad = "Ardışık çalışma günü üst sınırı"
+    aciklama = "Bir personel üst üste tanımlı sayıdan fazla gün çalışamaz."
+    parametre_tanimlari = (
+        ParametreTanimi(
+            anahtar="azami_ardisik_calisma_gunu",
+            etiket="Azami ardışık çalışma günü",
+            birim="gün",
+            asgari=1,
+            azami=30,
+        ),
+    )
 
     def modele_ekle(
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
@@ -155,6 +201,18 @@ class H4ArdisikCalismaGunuUstSiniri(ZorunluKural):
 class H5KayanHaftalikSaatTavani(ZorunluKural):
     """Herhangi bir yedi gunluk pencerede toplam calisma saati azami_haftalik_saat'i asamaz."""
 
+    ad = "Kayan yedi günlük saat tavanı"
+    aciklama = "Herhangi bir yedi günlük pencerede toplam çalışma saati tavanı aşamaz."
+    parametre_tanimlari = (
+        ParametreTanimi(
+            anahtar="azami_haftalik_saat",
+            etiket="Azami haftalık saat",
+            birim="saat",
+            asgari=1,
+            azami=168,
+        ),
+    )
+
     def modele_ekle(
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
     ) -> None:
@@ -183,6 +241,21 @@ class H5KayanHaftalikSaatTavani(ZorunluKural):
 @kayitli("H6")
 class H6HaftalikAsgariIzinGunu(ZorunluKural):
     """Herhangi bir yedi gunluk pencerede en az haftalik_asgari_izin_gunu kadar bos gun olmali."""
+
+    ad = "Haftalık asgari izin günü"
+    aciklama = (
+        "Herhangi bir yedi günlük pencerede en az bir tam gün çalışılmamalıdır. Yasal "
+        "dayanağı H4’ten farklı olduğu için ayrı tutulur."
+    )
+    parametre_tanimlari = (
+        ParametreTanimi(
+            anahtar="haftalik_asgari_izin_gunu",
+            etiket="Haftalık asgari izin günü",
+            birim="gün",
+            asgari=0,
+            azami=6,
+        ),
+    )
 
     def modele_ekle(
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
@@ -222,6 +295,12 @@ class H7Musaitlik(ZorunluKural):
     karar degiskeni uretmez (SDD 5.3), bu yuzden ayrica bir kisit gerekmez.
     """
 
+    ad = "Müsaitlik"
+    aciklama = (
+        "Personel, müsait olmadığı zaman aralığıyla kesişen bir vardiyaya atanamaz. Aktiflik "
+        "tarih aralığı dışındaki günler de müsait değil sayılır."
+    )
+
     def modele_ekle(
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
     ) -> None:
@@ -248,6 +327,12 @@ class H8OnkosulYetkinligi(ZorunluKural):
     olmayan personel icin ilgili noktada hic karar degiskeni uretmez
     (SDD 5.3), bu yuzden ayrica bir kisit gerekmez.
     """
+
+    ad = "Ön koşul yetkinliği"
+    aciklama = (
+        "Bir görev noktasına atanan personel, o noktanın gerektirdiği yetkinliğe sahip olmak "
+        "zorundadır. Ön koşulu bulunmayan noktalara her personel atanabilir."
+    )
 
     def modele_ekle(
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam

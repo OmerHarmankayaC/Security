@@ -134,8 +134,13 @@ export const api = {
     gonder<TalepYaniti>('/api/talep', hucre, 'PUT'),
 
   kuralListele: () => istek<Kural[]>('/api/kural'),
-  kuralGuncelle: (kimlik: string, veri: Partial<Pick<Kural, 'agirlik' | 'aktif'>>) =>
-    gonder<Kural>(`/api/kural/${kimlik}`, veri, 'PUT'),
+  // Kuralda DELETE yoktur: H1–H8 ve S1–S8 modelin yapısını oluşturur ve
+  // kayıt defterindeki sınıflarla eşleşir (SDD 3.2.1). Devre dışı bırakma
+  // `aktif` alanıyla yapılır.
+  kuralGuncelle: (
+    kimlik: string,
+    veri: Partial<Pick<Kural, 'agirlik' | 'aktif' | 'parametreler'>>,
+  ) => gonder<Kural>(`/api/kural/${kimlik}`, veri, 'PUT'),
 
   personelOlustur: (govde: PersonelYazma) => gonder<Personel>('/api/personel', govde),
   personelGuncelle: (id: number, govde: Partial<PersonelYazma>) =>

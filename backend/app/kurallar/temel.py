@@ -49,12 +49,36 @@ class Ihlal:
     ceza: float | None = None
 
 
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ParametreTanimi:
+    """Bir kural parametresinin arayuzde nasil gosterilecegi.
+
+    Parametreler veritabaninda belge alaninda (JSONB) durur, cunku her
+    kuralin parametre kumesi farklidir (SDD 4.2.3). Ama kullaniciya ham JSON
+    gostermek NFR-5'e aykiri; alan-deger olarak duzenlenebilmesi icin her
+    anahtarin okunabilir bir etiketi ve siniri burada, kural sinifinin
+    yaninda tanimlanir. NFR-10 zaten yeni bir kuralin "kural tanimina bir
+    kayit eklemek" ile gelmesini ongoruyor — bu tanim o kaydin parcasi.
+    """
+
+    anahtar: str
+    etiket: str
+    birim: str | None = None
+    asgari: int | None = None
+    azami: int | None = None
+
+
 class Kural(ABC):
     """SDD 3.2.1'deki Kural sinifinin Python karsiligi."""
 
     kimlik: ClassVar[str]
     tip: ClassVar[KuralTipi]
     kapsam: ClassVar[KuralKapsami] = KuralKapsami.PENCERE
+    # Kural katalogundaki okunabilir ad ve kisa aciklama (SRS bolum 4).
+    # Arayuzde "H1" yerine bunlar gosterilir.
+    ad: ClassVar[str] = ""
+    aciklama: ClassVar[str] = ""
+    parametre_tanimlari: ClassVar[tuple[ParametreTanimi, ...]] = ()
 
     def __init__(self, parametreler: dict[str, Any], agirlik: int | None = None) -> None:
         self.parametreler = parametreler

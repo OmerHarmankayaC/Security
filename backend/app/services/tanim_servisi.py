@@ -1,9 +1,11 @@
 """Tanim yonetimi servis katmani (SDD 3.2: is mantigi burada, SQL depo katmaninda)."""
 
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.kurallar import kayit_defteri
 from app.models.tanim import Bina, GorevNoktasi, Personel, Talep, VardiyaTipi, Yetkinlik
 from app.repositories.girdi import MusaitlikDeposu, TercihDeposu
 from app.repositories.kural import KuralDeposu
@@ -28,6 +30,10 @@ from app.services.yuk_gostergesi import yuk_gostergesi_hesapla
 
 _VARSAYILAN_AZAMI_HAFTALIK_SAAT = Decimal(45)
 _VARSAYILAN_HAFTALIK_ASGARI_IZIN_GUNU = 1
+
+
+class KuralParametresiError(ValueError):
+    """Kural parametresi katalogdaki tanima uymuyor; mesaj kullaniciya gosterilir."""
 
 
 class TanimServisi:
@@ -102,6 +108,56 @@ class TanimServisi:
             bitis = alanlar.get("bitis_saati", mevcut.bitis_saati)
             alanlar["sure_saat"] = sure_saat_hesapla(baslangic, bitis)
         return self.vardiya_tipi.guncelle(id_, **alanlar)
+
+    # --- Kural (FR-1.11, FR-1.12) ------------------------------------------
+
+    def kural_parametrelerini_dogrula(
+        self, kimlik: str, parametreler: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Kural parametrelerini kayit defterindeki tanima gore dogrular.
+
+        Parametreler belge alaninda (JSONB) tutuldugu icin veritabani sema
+        dogrulamasi yapmaz; tanimsiz bir anahtar veya sinir disi bir deger
+        sessizce yazilabilir ve hatasi ancak cozum sirasinda (KeyError) ya da
+        hic ortaya cikmadan yanlis bir cizelge olarak gorunur. Dogrulama bu
+        yuzden yazma anindadir.
+        """
+        sinif = kayit_defteri.bul(kimlik)
+        if sinif is None:
+            raise KuralParametresiError(f"{kimlik} kural katalogunda tanimli degil.")
+
+        tanimlar = {t.anahtar: t for t in sinif.parametre_tanimlari}
+        bilinmeyen = set(parametreler) - set(tanimlar)
+        if bilinmeyen:
+            beklenen = ", ".join(sorted(tanimlar)) or "yok"
+            raise KuralParametresiError(
+                f"{kimlik} kuralinda tanimsiz parametre: {', '.join(sorted(bilinmeyen))}. "
+                f"Beklenen parametreler: {beklenen}."
+            )
+
+        temiz: dict[str, Any] = {}
+        for anahtar, deger in parametreler.items():
+            tanim = tanimlar[anahtar]
+            # bool, Python'da int'in alt tipidir; True'nun 1 olarak gecmesini
+            # engellemek icin ayrica elenir.
+            if isinstance(deger, bool) or not isinstance(deger, int):
+                raise KuralParametresiError(f"{tanim.etiket} bir tam sayi olmali.")
+            if tanim.asgari is not None and deger < tanim.asgari:
+                raise KuralParametresiError(
+                    f"{tanim.etiket} en az {tanim.asgari} olmali; girilen deger {deger}."
+                )
+            if tanim.azami is not None and deger > tanim.azami:
+                raise KuralParametresiError(
+                    f"{tanim.etiket} en fazla {tanim.azami} olabilir; girilen deger {deger}."
+                )
+            temiz[anahtar] = deger
+
+        # Eksik birakilan parametre mevcut degerini korur; kismi guncelleme
+        # (yalniz bir alanin degistirilmesi) arayuzun dogal davranisidir.
+        mevcut = self.kural.kimlige_gore_bul(kimlik)
+        birlesik = dict(mevcut.parametreler) if mevcut else {}
+        birlesik.update(temiz)
+        return birlesik
 
     # --- Talep + Yuk Gostergesi (FR-1.7, FR-1.8, FR-1.9) --------------------
 

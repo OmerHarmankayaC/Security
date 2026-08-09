@@ -24,6 +24,13 @@ from app.models.girdi import TercihTipi
 class S1TalepKarsilama(EsnekHedef):
     """Nokta bazinda kapsama acigi: baskin agirlikli, alt sinir esnek hedef."""
 
+    ad = "Talep karşılama"
+    aciklama = (
+        "Karşılanamayan her kişilik talep ceza üretir. Ağırlığı diğerlerinin toplamından "
+        "belirgin biçimde büyük seçilir; böylece çözücü başka bir hedefi iyileştirmek için "
+        "kapsama açığı bırakmaz."
+    )
+
     def modele_ekle(
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
     ) -> cp_model.LinearExprT:
@@ -79,6 +86,12 @@ class S2GeceAdaleti(EsnekHedef):
     en dusuk/en yuksek degerden turedigi icin pencereyle sinirlandirilamaz.
     """
 
+    ad = "Gece adaleti"
+    aciklama = (
+        "Kişi başına düşen gece sayısının hedeften sapması cezalandırılır. Hedef, yalnızca "
+        "gece görevi alabilecek personele bölünür."
+    )
+
     kapsam = KuralKapsami.DONEM_GENELI
 
     def modele_ekle(
@@ -119,6 +132,12 @@ class S3HaftaSonuAdaleti(EsnekHedef):
 
     SDD 5.5 (surum 1.3): donem geneli kapsamli, S2 ile ayni gerekce.
     """
+
+    ad = "Hafta sonu adaleti"
+    aciklama = (
+        "Kişi başına düşen hafta sonu ve resmî tatil vardiyası sayısının hedeften sapması "
+        "cezalandırılır."
+    )
 
     kapsam = KuralKapsami.DONEM_GENELI
 
@@ -188,6 +207,12 @@ class S4ToplamSaatDengesi(EsnekHedef):
     SDD 5.5 (surum 1.3): donem geneli kapsamli - kisinin donem toplam saatine
     baktigi icin pencereyle sinirlandirilamaz.
     """
+
+    ad = "Toplam saat dengesi"
+    aciklama = (
+        "Kişi başına toplam çalışma saatinin, haftalık hedef saatle orantılı adil paydan "
+        "sapması cezalandırılır."
+    )
 
     kapsam = KuralKapsami.DONEM_GENELI
 
@@ -260,6 +285,12 @@ class S4ToplamSaatDengesi(EsnekHedef):
 class S5TercihKarsilama(EsnekHedef):
     """Onaylanmis tercihlerin ihlal edilip edilmedigi (Baglam'a yalnizca onaylananlar girer)."""
 
+    ad = "Tercih karşılama"
+    aciklama = (
+        "Onaylanmış her tercih için ihlal göstergesi tanımlanır. Reddedilen veya bekleyen "
+        "tercihler ceza üretmez."
+    )
+
     def modele_ekle(
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
     ) -> cp_model.LinearExprT:
@@ -309,6 +340,11 @@ class S5TercihKarsilama(EsnekHedef):
 class S6VardiyaDeseniTutarliligi(EsnekHedef):
     """Ardisik gunlerde vardiya tipi degisimi. Bina tutarliligi S6b'de ayri degerlendirilir."""
 
+    ad = "Vardiya deseni tutarlılığı"
+    aciklama = (
+        "Ardışık günlerde vardiya tipi değiştirmek ergonomik olarak istenmez ve cezalandırılır."
+    )
+
     def modele_ekle(
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
     ) -> cp_model.LinearExprT:
@@ -352,6 +388,12 @@ class S6bBinaTutarliligi(EsnekHedef):
     formulasyonundaki iki ayri agirlik (w6, w6b) bu yuzden iki ayri kural kaydina
     bolunmustur (bkz. PROGRESS.md, Sprint 1 Gun 3/4).
     """
+
+    ad = "Bina tutarlılığı"
+    aciklama = (
+        "Ardışık günlerde farklı binalarda görevlendirilmek cezalandırılır. Mevcut uygulama "
+        "alanında bütün noktalar tesis geneli olduğundan bu bileşen ceza üretmez."
+    )
 
     def modele_ekle(
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
@@ -429,6 +471,12 @@ def _ardisik_gun_ciftleri(
 class S7IzoleGun(EsnekHedef):
     """Tek gunluk calisma bloklari ve tek gunluk izinler."""
 
+    ad = "İzole gün"
+    aciklama = (
+        "Tek günlük çalışma blokları ve tek günlük izinler cezalandırılır; ikisi de pratikte "
+        "istenmeyen desenlerdir."
+    )
+
     def modele_ekle(
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
     ) -> cp_model.LinearExprT:
@@ -504,6 +552,12 @@ class S7IzoleGun(EsnekHedef):
 @kayitli("S8")
 class S8DegisimMinimizasyonu(EsnekHedef):
     """Yeniden cozumde onceki cizelgeden sapan her atama (yalniz baglam.onceki_atamalar doluysa)."""
+
+    ad = "Değişim minimizasyonu"
+    aciklama = (
+        "Yeniden çözümde önceki çizelgeden sapan her atama cezalandırılır. Yalnızca yeniden "
+        "çözüm işlemlerinde etkindir."
+    )
 
     def modele_ekle(
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam

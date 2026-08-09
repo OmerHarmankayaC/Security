@@ -219,6 +219,17 @@ export interface TalepYaniti {
 
 export type KuralTipi = 'zorunlu' | 'esnek'
 
+// Parametreler veritabanında belge alanında durur (SDD 4.2.3) — her kuralın
+// parametre kümesi farklı. Ham JSON göstermek yerine alan-değer olarak
+// düzenlenebilmesi için şema kural sınıfından gelir (SDD 3.2.1).
+export interface ParametreTanimi {
+  anahtar: string
+  etiket: string
+  birim: string | null
+  asgari: number | null
+  azami: number | null
+}
+
 export interface Kural {
   kural_id: number
   kimlik: string
@@ -226,6 +237,14 @@ export interface Kural {
   parametreler: Record<string, unknown>
   agirlik: number | null
   aktif: boolean
+  // Katalog bilgisi (SRS bölüm 4), kayıt defterinden okuma anında eklenir.
+  ad: string
+  aciklama: string
+  parametre_tanimlari: ParametreTanimi[]
+  // H1–H8 ve S1–S8 modelin yapısını oluşturur; silinemez, yalnızca
+  // pasifleştirilir. Kayıt defterinde sınıfı olmayan bir kural zaten
+  // yüklenemediğinden bu alan bugün her katalog kuralında false'tur.
+  silinebilir_mi: boolean
 }
 
 // --- Müsaitlik (FR-2.x) ----------------------------------------------------
