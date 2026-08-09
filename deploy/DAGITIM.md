@@ -314,3 +314,78 @@ ssh root@SUNUCU 'cd /opt/vardiya/backend && .venv/bin/pip install -q -e ".[dev]"
 
 Şema değişikliği varsa `alembic upgrade head` yeniden başlatmadan **önce**
 koşulur (bölüm 5'teki komut).
+
+## 11. Arayüz turu güncellemesi (09.08.2026) — SUNUCUYA HENÜZ ÇIKMADI
+
+Bu tur sekiz madde getirdi (ayrıntı: PROGRESS.md, "Arayüz İyileştirme Turu").
+Sunucuya çıkış için gereken üç şey var: **bir veritabanı göçü**, **yeniden
+derlenmiş frontend** ve **servis yeniden başlatma**.
+
+Yeni bağımlılık yok, yeni sır yok, `.env` değişmiyor. Frontend'e eklenen iki
+paket (`@testing-library/react`, `jsdom`) yalnızca geliştirme
+bağımlılığıdır; derleme yerelde yapıldığı için sunucuya hiç gitmez.
+
+### Göç: `d5e70a91c26f`
+
+`yetkinlik`, `bina` ve `vardiya_tipi` tablolarına `aktif BOOLEAN NOT NULL
+DEFAULT TRUE` ekler. Eklemeli ve geri alınabilir bir göçtür; sunucu
+varsayılanı sayesinde mevcut satırlar tek adımda `aktif = TRUE` olur, ayrı
+bir veri doldurma adımı **gerekmez**.
+
+### Sıra
+
+Göç, servisler yeniden başlatılmadan **önce** koşar. Ters sırada yeni kod
+henüz var olmayan bir sütunu okur ve API açılışta çöker.
+
+```bash
+# 1) Yerelde derle ve testleri geçir (sunucuda Node yok)
+cd frontend && npm ci && npm run build && npm test
+cd ../backend && .venv/bin/python -m pytest -q   # 197 test
+
+# 2) Kodu yükle
+cd ..
+rsync -az --delete frontend/dist/ root@SUNUCU:/opt/vardiya/web/
+rsync -az --delete --exclude '.venv/' --exclude '__pycache__/' \
+      --exclude '.pytest_cache/' --exclude '.ruff_cache/' --exclude '.env' \
+      backend/ root@SUNUCU:/opt/vardiya/backend/
+
+# 3) Göçü uygula, SONRA servisleri yeniden başlat
+ssh root@SUNUCU 'set -a; . /opt/vardiya/.env; set +a
+  cd /opt/vardiya/backend
+  sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic upgrade head
+  sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic current
+  chown -R vardiya:vardiya /opt/vardiya/backend
+  systemctl restart vardiya-api vardiya-cozucu'
+```
+
+`alembic current` çıktısı `d5e70a91c26f (head)` olmalıdır.
+
+### Doğrulama
+
+```bash
+ssh root@SUNUCU 'systemctl is-active vardiya-api vardiya-cozucu'
+curl -s https://vardiya.omerharmankaya.com/api/donem | head -c 120
+
+# Yeni uç noktalar (tur boyunca eklenenler)
+curl -s https://vardiya.omerharmankaya.com/api/kural | head -c 200        # ad + parametre_tanimlari taşımalı
+curl -s https://vardiya.omerharmankaya.com/api/personel/1/kullanim        # kullanim dökümü
+```
+
+Arayüzde gözle bakılacaklar: Tanımlar sekmelerinde sağ üstteki
+**Ekle · Değiştir · Sil**, Kural sekmesinde kural adları ve parametre
+alanları (ham JSON kalmamalı), Çizelge ekranında yapışkan gün başlığı +
+**Nokta Görünümü** + **CSV** / **Yazdır**, Sürümler ekranında arşiv
+satırındaki **Taslak Olarak Kopyala**.
+
+### Geri alma
+
+Göç geri alınabilir (`downgrade` üç sütunu düşürür), ama önce eski kod
+sürümüne dönülmelidir — yeni kod `aktif` sütunu olmadan çalışmaz:
+
+```bash
+ssh root@SUNUCU 'cd /opt/vardiya/backend
+  sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic downgrade c8f2d1a45b73'
+```
+
+Pasifleştirilmiş tanımlar varsa geri almada o bilgi kaybolur (sütun
+düşer); kayıtların kendisi silinmez.
