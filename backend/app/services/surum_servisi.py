@@ -14,7 +14,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
-from app.models.sonuc import Atama, CizelgeSurumu
+from app.models.sonuc import Atama, CizelgeSurumu, CizelgeSurumuDurumu
 from app.repositories.sonuc import (
     AtamaDeposu,
     CizelgeSurumuDeposu,
@@ -28,11 +28,20 @@ from app.schemas.surum import (
     SurumOzetiOku,
 )
 
+# Taslak olarak kopyalanabilecek durumlar. Taslak ve cozuldu disarida: onlar
+# zaten duzenlenebilir, kopyalamak kullaniciya bir sey kazandirmaz ve ayni
+# donemde amacsiz kopyalar biriktirir.
+_KOPYALANABILIR_DURUMLAR = (CizelgeSurumuDurumu.ARSIV, CizelgeSurumuDurumu.YAYINLANDI)
+
 
 class SurumlerAyniDonemdeDegilError(Exception):
     """Farkli donemlerin surumleri karsilastirilamaz: atamalar farkli takvim
     gunlerine dustugu icin "degisen gun" diye bir sey tanimlanamaz
     (router 409'a cevirir)."""
+
+
+class KopyalanamazSurumDurumuError(Exception):
+    """Kaynak surum kopyalanabilir bir durumda degil (router 409'a cevirir)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,6 +83,75 @@ class SurumServisi:
             )
             for s in surumler
         ]
+
+    # --- Arsivden taslak kopyalama (madde 8) --------------------------------
+
+    def taslak_olarak_kopyala(self, kaynak_surum_id: int) -> CizelgeSurumu | None:
+        """Arsivlenmis bir surumden ATAMALARIYLA BIRLIKTE yeni taslak turetir.
+
+        Kaynak kayda DOKUNULMAZ. Arsiv kaydinin durumunu taslaga cevirmek iki
+        seyi birden bozardi ve ikisi de arsivin degismezligine dayanir:
+        calisan panelindeki karsilastirma tabani (ayni donemdeki en son arsiv,
+        FR-9.4) ve Surumler ekranindaki iki surum karsilastirmasi (SDD 6.3.5).
+        Geriye donuk degistirilen bir arsiv, yayinlanmis cizelgede "degisen
+        gunler" isaretini sessizce yanlislastirir.
+
+        Yeni taslak `onceki_surum_id` ile kaynagi gosterir. Bu alan zaten
+        "bu surumun turetildigi surum" demek (SDD 4.2.4); yeniden cozmede
+        "yeniden cozulen surum", burada "kopyalanan arsiv" anlamina gelir.
+        Ayni iliski oldugu icin ikinci bir sutun eklenmedi.
+
+        Atamalar `taslak_turet`in aksine KOPYALANIR: orada yeni surumun
+        atamalarini cozucu yazacaktir, burada ise kullanicinin istedigi sey
+        kaynagin cizelgesinin aynisidir.
+
+        Kopyalama TEK islemde tamamlanir. Yarim kopyalanmis bir taslak, kural
+        ihlali icermeyen ama kapsamasi eksik bir cizelgeden ayirt edilemez ve
+        yaniltir (SDD 5.4'te atamalarin yazilmasi icin verilen ayni gerekce).
+
+        Ayni donemde acik taslak bulunmasi engel DEGILDIR: her cozum
+        baslatma zaten yeni bir taslak aciyor (CozumServisi.baslat), yani
+        coklu taslak sistemin olagan hali; TD-8 de bir sinir koymuyor.
+        """
+        kaynak = self.surum.getir(kaynak_surum_id)
+        if kaynak is None:
+            return None
+        if kaynak.durum not in _KOPYALANABILIR_DURUMLAR:
+            raise KopyalanamazSurumDurumuError(
+                f"Sürüm {kaynak.surum_no} {kaynak.durum.value} durumunda; "
+                "yalnızca yayınlanmış veya arşivlenmiş bir sürüm taslak olarak kopyalanabilir."
+            )
+
+        yeni = self.surum.olustur(
+            donem_id=kaynak.donem_id,
+            surum_no=self.surum.donem_icin_sonraki_surum_no(kaynak.donem_id),
+            durum=CizelgeSurumuDurumu.TASLAK,
+            onceki_surum_id=kaynak.surum_id,
+        )
+        self.oturum.flush()
+
+        for a in self.atama.surume_gore_getir(kaynak_surum_id):
+            self.atama.olustur(
+                surum_id=yeni.surum_id,
+                personel_id=a.personel_id,
+                tarih=a.tarih,
+                vardiya_tipi_id=a.vardiya_tipi_id,
+                nokta_id=a.nokta_id,
+                # Kilit, kopyada TASINIR: kullanicinin "bu atama degismesin"
+                # karari kaynaga degil o atamaya aittir ve kopyanin yeniden
+                # cozulmesinde de gecerlidir.
+                kilitli=a.kilitli,
+                # Kaynak da korunur; atamayi cozucunun mu kullanicinin mi
+                # yazdigi bilgisi kopyalamayla degismez (NFR-13).
+                kaynak=a.kaynak,
+            )
+
+        # Kapsama acigi KOPYALANMAZ: o, bir cozum calistirmasinin ciktisidir
+        # (SDD 4.2.4, S1'in eksik degiskenlerinin karsiligi) ve henuz
+        # cozulmemis bir taslaga ait degildir. Kopya cozuldugunde kendi
+        # aciklari yazilir.
+        self.oturum.flush()
+        return yeni
 
     # --- Karsilastirma (SDD 6.3.5; Charter bolum 5, altinci kriter) ---------
 

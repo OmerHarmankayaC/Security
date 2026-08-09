@@ -193,6 +193,11 @@ export const api = {
   surumYayinla: (surumId: number) => gonder<CizelgeSurumu>(`/api/surum/${surumId}/yayinla`, {}),
   surumTaslakTuret: (oncekiSurumId: number) =>
     gonder<CizelgeSurumu>('/api/surum', { onceki_surum_id: oncekiSurumId }),
+  // Türetmeden farkı atamaların KOPYALANMASI: `surumTaslakTuret` çözücünün
+  // dolduracağı boş bir taslak açar, bu kaynağın çizelgesini olduğu gibi
+  // taşır. Kaynak sürüm her iki durumda da değişmez.
+  surumTaslakOlarakKopyala: (kaynakSurumId: number) =>
+    gonder<CizelgeSurumu>(`/api/surum/${kaynakSurumId}/kopyala`, {}),
   surumKarsilastir: (oncekiSurumId: number, yeniSurumId: number) =>
     istek<SurumKarsilastirmasi>(
       `/api/surum/karsilastir?onceki_surum_id=${oncekiSurumId}&yeni_surum_id=${yeniSurumId}`,

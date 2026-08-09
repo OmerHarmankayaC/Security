@@ -41,7 +41,11 @@ from app.services.dogrulama_servisi import (
     SurumTaslakDegilError,
 )
 from app.services.on_kontrol_servisi import OnKontrolServisi
-from app.services.surum_servisi import SurumlerAyniDonemdeDegilError, SurumServisi
+from app.services.surum_servisi import (
+    KopyalanamazSurumDurumuError,
+    SurumlerAyniDonemdeDegilError,
+    SurumServisi,
+)
 
 router = APIRouter(prefix="/api", tags=["cizelge"])
 
@@ -230,6 +234,29 @@ def surum_taslak_turet(veri: SurumTaslakTuretIstek, oturum: Oturum) -> CizelgeSu
     if surum is None:
         raise HTTPException(status_code=404, detail="Onceki surum bulunamadi")
     return CizelgeSurumuOku.model_validate(surum)
+
+
+@router.post("/surum/{surum_id}/kopyala", response_model=CizelgeSurumuOku, status_code=201)
+def surum_taslak_olarak_kopyala(surum_id: int, oturum: Oturum) -> CizelgeSurumuOku:
+    """Arsivlenmis (veya yayinlanmis) bir surumden atamalariyla birlikte yeni
+    bir taslak turetir. Kaynak kayit degismez.
+
+    `POST /api/surum`ten farki atamalarin KOPYALANMASI: orasi cozucunun
+    dolduracagi bos bir taslak acar, burasi kaynagin cizelgesini oldugu gibi
+    tasir.
+
+    Surum satiri ve atamalarin tamami TEK islemde yazilir; islem sinirini
+    `oturum_al` bagimliligi cizer (istek basariyla biterse onaylar, hata
+    halinde tamamini geri alir). Yari kopyalanmis bir taslak, kural ihlali
+    icermeyen ama kapsamasi eksik bir cizelgeden ayirt edilemez (SDD 5.4).
+    """
+    try:
+        yeni = SurumServisi(oturum).taslak_olarak_kopyala(surum_id)
+    except KopyalanamazSurumDurumuError as hata:
+        raise HTTPException(status_code=409, detail=str(hata)) from hata
+    if yeni is None:
+        raise HTTPException(status_code=404, detail="Cizelge surumu bulunamadi")
+    return CizelgeSurumuOku.model_validate(yeni)
 
 
 @router.post("/surum/{surum_id}/yayinla", response_model=CizelgeSurumuOku)

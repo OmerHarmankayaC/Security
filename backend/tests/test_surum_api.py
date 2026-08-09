@@ -289,3 +289,102 @@ def test_farkli_donemlerin_surumleri_karsilastirilamaz(istemci: TestClient) -> N
 
     yanit = istemci.get(f"/api/surum/karsilastir?onceki_surum_id={a}&yeni_surum_id={b}")
     assert yanit.status_code == 409
+
+
+# --- Arsivden taslak kopyalama (madde 8) -----------------------------------
+
+
+def _atama_kumesi(istemci: TestClient, surum_id: int) -> set[tuple[int, str, int, int, bool, str]]:
+    """Atamalari kimlikten bagimsiz, karsilastirilabilir bir kumeye cevirir."""
+    return {
+        (
+            a["personel_id"],
+            a["tarih"],
+            a["vardiya_tipi_id"],
+            a["nokta_id"],
+            a["kilitli"],
+            a["kaynak"],
+        )
+        for a in istemci.get(f"/api/surum/{surum_id}/atama").json()
+    }
+
+
+def test_arsivden_kopyalanan_taslak_kaynagi_gosterir(
+    istemci: TestClient, senaryo: dict[str, int]
+) -> None:
+    yanit = istemci.post(f"/api/surum/{senaryo['s1']}/kopyala")
+    assert yanit.status_code == 201
+    yeni = yanit.json()
+
+    assert yeni["durum"] == "taslak"
+    assert yeni["onceki_surum_id"] == senaryo["s1"]
+    assert yeni["donem_id"] == senaryo["donem_id"]
+    assert yeni["surum_id"] != senaryo["s1"]
+    # Donemde 1 ve 2 vardi; kopya siradaki numarayi alir.
+    assert yeni["surum_no"] == 3
+
+
+def test_kopyalanan_atamalar_kaynakla_birebir_ayni(
+    istemci: TestClient, senaryo: dict[str, int]
+) -> None:
+    kaynak_atamalari = _atama_kumesi(istemci, senaryo["s1"])
+    yeni_id = istemci.post(f"/api/surum/{senaryo['s1']}/kopyala").json()["surum_id"]
+
+    kopya_atamalari = _atama_kumesi(istemci, yeni_id)
+    assert len(kopya_atamalari) == len(kaynak_atamalari) == 4
+    assert kopya_atamalari == kaynak_atamalari
+
+
+def test_kopyalama_kaynak_surumu_degistirmez(istemci: TestClient, senaryo: dict[str, int]) -> None:
+    """Arsivin degismezligi calisan panelindeki karsilastirma tabaninin ve
+    Surumler ekranindaki karsilastirmanin dayanagi."""
+    once_atamalar = _atama_kumesi(istemci, senaryo["s1"])
+    once_durum = next(
+        s
+        for s in istemci.get(f"/api/surum?donem_id={senaryo['donem_id']}").json()
+        if s["surum_id"] == senaryo["s1"]
+    )
+
+    istemci.post(f"/api/surum/{senaryo['s1']}/kopyala")
+
+    sonra_durum = next(
+        s
+        for s in istemci.get(f"/api/surum?donem_id={senaryo['donem_id']}").json()
+        if s["surum_id"] == senaryo["s1"]
+    )
+    assert sonra_durum["durum"] == once_durum["durum"] == "arsiv"
+    assert sonra_durum["onceki_surum_id"] == once_durum["onceki_surum_id"]
+    assert _atama_kumesi(istemci, senaryo["s1"]) == once_atamalar
+
+
+def test_kopyaya_kapsama_acigi_tasinmaz(istemci: TestClient, senaryo: dict[str, int]) -> None:
+    """Kapsama acigi bir COZUM calistirmasinin ciktisidir; henuz cozulmemis
+    bir taslaga ait degildir."""
+    yeni_id = istemci.post(f"/api/surum/{senaryo['s1']}/kopyala").json()["surum_id"]
+    assert istemci.get(f"/api/surum/{yeni_id}/kapsama-acigi").json() == []
+
+
+def test_ayni_donemde_acik_taslak_varken_de_kopyalanir(
+    istemci: TestClient, senaryo: dict[str, int]
+) -> None:
+    """Coklu taslak sistemin olagan hali: her cozum baslatma zaten yeni bir
+    taslak aciyor. Kopyalamayi engellemek tek basina tutarsiz bir istisna
+    olurdu (TD-8 de bir sinir koymuyor)."""
+    # senaryo'daki s2 zaten taslak durumda.
+    ilk = istemci.post(f"/api/surum/{senaryo['s1']}/kopyala")
+    ikinci = istemci.post(f"/api/surum/{senaryo['s1']}/kopyala")
+    assert ilk.status_code == ikinci.status_code == 201
+    assert ilk.json()["surum_id"] != ikinci.json()["surum_id"]
+    assert ikinci.json()["surum_no"] == ilk.json()["surum_no"] + 1
+
+
+def test_taslak_surum_kopyalanamaz(istemci: TestClient, senaryo: dict[str, int]) -> None:
+    """Taslak zaten duzenlenebilir; kopyalamak amacsiz kopyalar biriktirir."""
+    yanit = istemci.post(f"/api/surum/{senaryo['s2']}/kopyala")
+    assert yanit.status_code == 409
+    assert "taslak" in yanit.json()["detail"].lower()
+
+
+def test_olmayan_surum_kopyalanamaz(istemci: TestClient) -> None:
+    pg_yoksa_atla()
+    assert istemci.post("/api/surum/999999/kopyala").status_code == 404

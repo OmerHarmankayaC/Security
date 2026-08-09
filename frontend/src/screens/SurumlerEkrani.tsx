@@ -50,6 +50,12 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
   // (tasarım referansında da yok), o yüzden onay satır içinde iki adımlı
   // yapılır: Yayınla → sonucu yazan bir şerit + Onayla / Vazgeç.
   const [onayBekleyenId, setOnayBekleyenId] = useState<number | null>(null)
+  // Kopyalama onayı da aynı iki adımlı deseni izler. Ayrı bir durumda
+  // tutulur: iki eylem aynı satırda ve onayları karışmamalı.
+  const [kopyaOnayBekleyenId, setKopyaOnayBekleyenId] = useState<number | null>(null)
+  // Onay metnindeki atama sayısı; onay açılınca çekilir. Sürüm listesi bu
+  // sayıyı taşımıyor ve her satır için önden çekmek gereksiz istek olurdu.
+  const [kopyalanacakAtamaSayisi, setKopyalanacakAtamaSayisi] = useState<number | null>(null)
 
   // Karşılaştırma paneli
   const [karsilastirmaAcik, setKarsilastirmaAcik] = useState(false)
@@ -117,6 +123,33 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
       if (donemId !== null) surumleriYukle(donemId)
     } catch (e) {
       setHata(e instanceof ApiHatasi ? e.message : 'Taslak türetilemedi')
+    } finally {
+      setIslenenId(null)
+    }
+  }
+
+  const kopyaOnayiniAc = async (surum: CizelgeSurumu) => {
+    setOnayBekleyenId(null)
+    setKopyaOnayBekleyenId(surum.surum_id)
+    setKopyalanacakAtamaSayisi(null)
+    setHata(null)
+    try {
+      setKopyalanacakAtamaSayisi((await api.surumAtamalari(surum.surum_id)).length)
+    } catch {
+      // Sayı yalnızca onay metnini somutlaştırır; alınamazsa onay metni
+      // sayısız gösterilir, eylem engellenmez.
+    }
+  }
+
+  const taslakOlarakKopyala = async (surum: CizelgeSurumu) => {
+    setIslenenId(surum.surum_id)
+    setHata(null)
+    try {
+      await api.surumTaslakOlarakKopyala(surum.surum_id)
+      setKopyaOnayBekleyenId(null)
+      if (donemId !== null) surumleriYukle(donemId)
+    } catch (e) {
+      setHata(e instanceof ApiHatasi ? e.message : 'Sürüm kopyalanamadı')
     } finally {
       setIslenenId(null)
     }
@@ -259,15 +292,26 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                   {s.kapsama_acigi_sayisi}
                 </Sayi>
               </div>
-              <div className="ml-auto shrink-0">
+              <div className="ml-auto flex shrink-0 gap-2">
                 {s.durum === 'yayinlandi' || s.durum === 'arsiv' ? (
-                  <Buton
-                    varyant="ikincil"
-                    disabled={islenenId === s.surum_id}
-                    onClick={() => taslakTuret(s)}
-                  >
-                    Taslak Türet
-                  </Buton>
+                  <>
+                    <Buton
+                      varyant="ikincil"
+                      disabled={islenenId === s.surum_id}
+                      title="Atamalarıyla birlikte kopyalar; kaynak sürüm değişmez"
+                      onClick={() => kopyaOnayiniAc(s)}
+                    >
+                      Taslak Olarak Kopyala
+                    </Buton>
+                    <Buton
+                      varyant="ikincil"
+                      disabled={islenenId === s.surum_id}
+                      title="Boş taslak açar; atamaları çözücü yazar"
+                      onClick={() => taslakTuret(s)}
+                    >
+                      Taslak Türet
+                    </Buton>
+                  </>
                 ) : (
                   <Buton
                     varyant="birincil"
@@ -279,6 +323,35 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                 )}
               </div>
             </div>
+
+            {kopyaOnayBekleyenId === s.surum_id && (
+              <div className="mt-4 flex items-center gap-4 border-t border-rule pt-4">
+                <p className="m-0 flex-1 text-sm text-ink">
+                  {/* Virgül şart: sürüm numarası ile atama sayısı ardışık iki
+                      sayı ve aralarında ayraç olmadan "Sürüm 1 4 atamasıyla"
+                      diye okunuyor. */}
+                  Sürüm {s.surum_no},{' '}
+                  {kopyalanacakAtamaSayisi !== null
+                    ? `${kopyalanacakAtamaSayisi} atamasıyla birlikte`
+                    : 'atamalarıyla birlikte'}{' '}
+                  yeni bir taslak sürüme kopyalanacak.{' '}
+                  <span className="text-ink-muted">
+                    Sürüm {s.surum_no} olduğu gibi kalır — durumu değişmez, atamalarına
+                    dokunulmaz. Düzenleme yeni taslak üzerinde yapılır.
+                  </span>
+                </p>
+                <Buton varyant="hayalet" onClick={() => setKopyaOnayBekleyenId(null)}>
+                  Vazgeç
+                </Buton>
+                <Buton
+                  varyant="birincil"
+                  disabled={islenenId === s.surum_id}
+                  onClick={() => taslakOlarakKopyala(s)}
+                >
+                  {islenenId === s.surum_id ? 'Kopyalanıyor…' : 'Onayla ve Kopyala'}
+                </Buton>
+              </div>
+            )}
 
             {onayBekleyenId === s.surum_id && (
               <div className="mt-4 flex items-center gap-4 border-t border-rule pt-4">
