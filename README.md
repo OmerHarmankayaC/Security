@@ -51,6 +51,23 @@ süreç yalnızca veritabanı üzerinden haberleşir. Bu işçi çalışmazsa ç
 istekleri `kuyrukta` durumunda bekler ve hiçbir çizelge üretilmez.
 Geliştirme ile sunucu böylece aynı yolu kullanır.
 
+İlk yönetim hesabı (SRS FR-10.10 — arayüzde hesap açan bir uç nokta
+**yoktur**, sistemin hesapsız anında hesap açmanın yolu budur):
+
+```bash
+cd backend && source .venv/bin/activate
+python scripts/yonetim_hesabi_olustur.py
+```
+
+Parola argüman olarak verilemez; betik onu ekrana yazmadan sorar (komut
+satırına yazılan parola kabuk geçmişine ve `ps` çıktısına düşerdi). Sonraki
+hesaplar arayüzdeki Kullanıcılar ekranından açılır.
+
+**Yerel geliştirmede `.env` içine `OTURUM_CEREZI_SECURE=false` yazın.**
+Oturum çerezi üretimde `Secure` niteliği taşır ve tarayıcı onu düz
+`http://localhost` adresine geri göndermez; ayar kapatılmazsa giriş hiçbir
+hata göstermeden başarısız olur.
+
 Gösterim amaçlı örnek veri (FR-1.14 — SRS 3.3'teki güvenlik personeli
 senaryosu: 44 personel, 6 görev noktası, talep matrisi, 17 kural; "rahat"
 ve "sıkışık" iki dönem):

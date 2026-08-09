@@ -3,17 +3,19 @@
 **Durum:** ✅ **dağıtım tamamlandı ve doğrulandı.** Site yayında:
 https://vardiya.omerharmankaya.com
 **Sunucu:** 46.225.109.40 (Hetzner), Ubuntu 26.04 LTS, 4 çekirdek / 7,6 GB
-**Son güncelleme:** 09.08.2026
+**Son güncelleme:** 09.08.2026 (kimlik doğrulama turu — bölüm 12, henüz çıkmadı)
 
 Bu dosya iki işi birden yapar: (a) yapılan her dağıtım adımının kaydı,
 (b) sıfırdan yeniden kurulum rehberi. Dağıtım ilerledikçe her adım
 gerçekte çalıştırılan komutla birlikte buraya işlenir; "şöyle yapılmalı"
 değil "şöyle yapıldı" yazılır.
 
-> **Sırlar bu dosyada yer almaz.** Veritabanı parolası, çalışan paneli
-> HMAC sırrı ve benzeri hiçbir değer bu dosyaya, bir betiğe veya kaynak
-> koda yazılmaz. Hepsi yalnızca sunucudaki `.env` içinde durur ve
-> uygulamayı kuran kişi tarafından doldurulur (bölüm 3).
+> **Sırlar bu dosyada yer almaz.** Veritabanı parolası ve benzeri hiçbir
+> değer bu dosyaya, bir betiğe veya kaynak koda yazılmaz. Hepsi yalnızca
+> sunucudaki `.env` içinde durur ve uygulamayı kuran kişi tarafından
+> doldurulur (bölüm 3). Kimlik doğrulama turundan sonra doldurulması
+> gereken tek sır `VERITABANI_URL`'dir; kullanıcı parolaları ve oturum
+> belirteçleri ortam değişkenine dayanmaz.
 
 ---
 
@@ -64,11 +66,11 @@ başlatılmamalıdır.
 | Değişken | Ne konacak | Nasıl üretilir |
 |---|---|---|
 | `VERITABANI_URL` | **Tam URL**: `postgresql+psycopg://vardiya:<PAROLA>@localhost:5432/vardiya` — yalnız `<PAROLA>` değişir | Parolayı siz belirleyip hem `CREATE USER` komutunda hem burada kullanın |
-| `CALISAN_PANELI_BAGLANTI_ANAHTARI` | Uzun, rastgele bir dize | `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
 
-`CALISAN_PANELI_BAGLANTI_ANAHTARI` sonradan değiştirilirse **daha önce
-dağıtılmış bütün çalışan paneli bağlantıları geçersiz olur**; yenileri
-`python scripts/calisan_baglantisi_uret.py` ile üretilir.
+**Doldurulması gereken tek sır budur.** Kimlik doğrulama turuyla birlikte
+`CALISAN_PANELI_BAGLANTI_ANAHTARI` **kaldırıldı** (bölüm 12): parolalar
+veritabanında Argon2id özeti olarak durur, oturum belirteci her girişte
+rastgele üretilir; ikisi de bir ortam değişkenine dayanmaz.
 
 **Sık yapılan hata:** `VERITABANI_URL` satırına yalnız parolayı yazmak.
 Uygulama o dizeyi URL olarak ayrıştıramaz ve `Could not parse SQLAlchemy
@@ -260,30 +262,17 @@ SDD 3.4.1/3.4.2 gereği diğer uygulamaların boşta olduğu bir anda ölçüld�
 (K1 1,12 → 2,73 sn; K5 0,038 → 0,116 sn) ama eşiklerin çok altında kaldı;
 kalite ölçütleri (K2, K3, K6) iki ortamda birebir aynı çıktı.
 
-## 9. Çalışan paneli bağlantıları
+## 9. Çalışan paneli bağlantıları — KALDIRILDI
 
-Panelde kimlik doğrulama yoktur (Backlog B-05); **bağlantının kendisi
-anahtardır**. Anahtar `HMAC-SHA256(sunucu_sırrı, personel_id)` ile türetilir,
-saklanmaz, her istekte yeniden hesaplanır.
+Bu bölüm kişiye özel bağlantı yöntemini anlatıyordu (`HMAC-SHA256(sunucu
+sırrı, personel_id)`). Yöntem, betiği ve sunucu sırrıyla birlikte tümüyle
+kaldırıldı; çalışan paneline artık kullanıcı adı ve parolayla girilir
+(bölüm 12).
 
-```bash
-ssh root@SUNUCU
-set -a; . /opt/vardiya/.env; set +a
-cd /opt/vardiya/backend
-sudo -u vardiya --preserve-env=VERITABANI_URL,CALISAN_PANELI_BAGLANTI_ANAHTARI \
-    .venv/bin/python scripts/calisan_baglantisi_uret.py \
-    --taban https://vardiya.omerharmankaya.com
-```
-
-**`--preserve-env` iki değişkeni de taşımalıdır.** Yalnız `VERITABANI_URL`
-geçirilirse sır ortama girmez, `config.py`'deki varsayılan devreye girer ve
-üretilen bağlantıları API kabul etmez (403). Betik bu durumu artık
-yakalayıp 2 ile çıkar — dağıtım sırasında tam olarak bu yaşandı.
-
-Çıktı sekmeyle ayrılmış üç sütundur: sicil, ad soyad, bağlantı. **Bağlantılar
-paroladır**: kişiye özel kanaldan iletilmeli, toplu çıktı dosyaya
-yazılmamalıdır. Sunucu sırrı değişirse dağıtılmış bütün bağlantılar geçersiz
-olur ve yenileri bu komutla üretilir.
+Kayıt olarak duruyor çünkü **dağıtılmış bağlantılar bir daha çalışmayacak**:
+elinde eski bir bağlantı olan personel `/calisan/12?anahtar=…` adresine
+gittiğinde giriş ekranını görür. Yeni dağıtımdan sonra herkese hesap
+açılması gerekir (bölüm 12.4).
 
 ## 10. Bakım notları
 
@@ -398,3 +387,175 @@ ssh root@SUNUCU 'cd /opt/vardiya/backend
 Pasifleştirilmiş tanımlar varsa geri almada o bilgi kaybolur (sütun
 düşer); kayıtların kendisi silinmez. `e3b81f47a95c`'nin geri alınması
 zararsızdır — yalnızca varsayılanı kaldırır.
+
+---
+
+## 12. Kimlik doğrulama turu (09.08.2026) — SUNUCUYA HENÜZ ÇIKMADI
+
+Sistem canlıda çalışıyor; bu tur üzerine eklenen bir katmandır (SRS 5.10,
+FR-10.1 – FR-10.10; SDD 4.2.1, 5.1b). Sunucuya çıkış için gereken beş şey
+var: **`.env`'den bir satırın silinmesi**, **iki yeni Python paketi**, **bir
+veritabanı göçü**, **yeniden derlenmiş frontend** ve **ilk yönetim
+hesabının açılması**.
+
+> **En kritik nokta baştan:** `.env` içindeki
+> `CALISAN_PANELI_BAGLANTI_ANAHTARI` satırı **silinmezse uygulama
+> açılmaz**. Yapılandırma tanımadığı bir anahtarı sessizce yok saymaz,
+> hata verip çıkar. Bu bilinçli — sessizce yok saymak, kaldırılmış bir
+> sırrın hâlâ işe yaradığı izlenimi bırakırdı — ama sıra önemli: satırı
+> servisleri yeniden başlatmadan **önce** silin.
+
+### 12.1 `.env` değişiklikleri
+
+**Silinecek satır** (tek satır, değeri önemsiz):
+
+```bash
+ssh root@SUNUCU "sed -i '/^CALISAN_PANELI_BAGLANTI_ANAHTARI=/d' /opt/vardiya/.env"
+ssh root@SUNUCU "grep -c CALISAN_PANELI /opt/vardiya/.env"   # 0 dönmeli
+```
+
+**Eklenecek satırlar.** Hiçbiri sır değildir ve hepsinin kodda bir
+varsayılanı vardır; `.env`'e yazılmaları yalnızca değerin sunucuda görünür
+olması içindir. `OTURUM_CEREZI_SECURE` dışındakiler atlanabilir.
+
+| Değişken | Değer | Anlamı |
+|---|---|---|
+| `OTURUM_HAREKETSIZLIK_DAKIKA` | `30` | Son istekten sonra oturumun düşme süresi |
+| `OTURUM_AZAMI_SAAT` | `12` | Mutlak son kullanma; hareketsizlikten **ayrı** uygulanır |
+| `GIRIS_KILIT_ESIGI` | `5` | Kaç ardışık başarısız denemeden sonra kilit (FR-10.8) |
+| `GIRIS_KILIT_DAKIKA` | `15` | Kilit süresi |
+| `OTURUM_CEREZI_SECURE` | `true` | **Sunucuda true kalmalı.** Site HTTPS'te; `false` yapmak oturum çerezini düz HTTP'de de göndermeye açar |
+
+```bash
+ssh root@SUNUCU "cat >> /opt/vardiya/.env <<'EOF'
+
+# --- Kimlik dogrulama (SRS 5.10) ---
+OTURUM_HAREKETSIZLIK_DAKIKA=30
+OTURUM_AZAMI_SAAT=12
+GIRIS_KILIT_ESIGI=5
+GIRIS_KILIT_DAKIKA=15
+OTURUM_CEREZI_SECURE=true
+EOF"
+```
+
+### 12.2 Yeni bağımlılık: `argon2-cffi==25.1.0`
+
+Parola özeti için (SDD 5.1b). `pip install -e ".[dev]"` yeterlidir —
+**sürüm yükseltme dansı gerekmiyor**: bağımlılığın derlenmiş parçası
+(`argon2-cffi-bindings`) kararlı ABI tekerleği yayınlıyor
+(`cp39-abi3-manylinux_2_28_x86_64`), yani Python 3.14'te de hazır tekerlek
+var. Bu, `ortools`/`psycopg`/`pydantic` üçlüsünde yaşanan durumun tersi;
+yerelde `pip download --python-version 314 --abi cp314` ile doğrulandı.
+
+### 12.3 Göç: `e3b81f47a95c` → `f7c1d9034ae6`
+
+Tek göç, **yalnızca ekleme yapar**: `kullanici` ve `oturum` tabloları.
+Mevcut hiçbir tablonun sütunu değişmez, hiçbir satır dönüştürülmez, veri
+kaybı riski yoktur. Geri alınabilir (`downgrade` iki tabloyu ve `rol`
+enum tipini düşürür); geri alınırsa yalnızca hesaplar kaybolur, çizelge
+verisi etkilenmez.
+
+İki CHECK kısıtı taşır: çalışan rolündeki hesap bir personel kaydına bağlı
+olmak zorunda (FR-10.6) ve kullanıcı adı küçük harfle saklanır.
+
+### 12.4 Sıra
+
+Göç ve `.env` düzeltmesi, servisler yeniden başlatılmadan **önce** koşar.
+
+```bash
+# 1) Yerelde derle ve testleri geçir (sunucuda Node yok)
+cd frontend && npm ci && npm run build && npm test   # 115 test
+cd ../backend && .venv/bin/python -m pytest -q       # 279 test
+
+# 2) .env'i düzelt — YENİDEN BAŞLATMADAN ÖNCE
+ssh root@SUNUCU "sed -i '/^CALISAN_PANELI_BAGLANTI_ANAHTARI=/d' /opt/vardiya/.env"
+# (12.1'deki yeni satırlar da burada eklenir)
+
+# 3) Kodu yükle
+cd ..
+rsync -az --delete frontend/dist/ root@SUNUCU:/opt/vardiya/web/
+rsync -az --delete --exclude '.venv/' --exclude '__pycache__/' \
+      --exclude '.pytest_cache/' --exclude '.ruff_cache/' --exclude '.env' \
+      backend/ root@SUNUCU:/opt/vardiya/backend/
+
+# 4) Bağımlılık, göç, sonra yeniden başlatma
+ssh root@SUNUCU 'set -a; . /opt/vardiya/.env; set +a
+  cd /opt/vardiya/backend
+  .venv/bin/pip install -q -e ".[dev]"
+  sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic upgrade head
+  sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic current
+  chown -R vardiya:vardiya /opt/vardiya/backend
+  systemctl restart vardiya-api vardiya-cozucu'
+```
+
+`alembic current` çıktısı `f7c1d9034ae6 (head)` olmalıdır.
+
+### 12.5 İlk yönetim hesabı (FR-10.10)
+
+Bu adım atlanırsa **sisteme kimse giremez**: arayüzde hesap açan bir uç
+nokta yoktur ve olmayacaktır. Hesap, sunucuda etkileşimli olarak açılır —
+**parola argüman olarak verilemez** (kabuk geçmişine ve `ps` çıktısına
+düşerdi), betik onu ekrana yazmadan sorar.
+
+```bash
+ssh -t root@SUNUCU 'set -a; . /opt/vardiya/.env; set +a
+  cd /opt/vardiya/backend
+  sudo -u vardiya --preserve-env=VERITABANI_URL \
+      .venv/bin/python scripts/yonetim_hesabi_olustur.py'
+```
+
+`ssh -t` gerekli: betik etkileşimli bir terminal ister ve bulamazsa 2 ile
+çıkar. Betik, sistemde zaten aktif bir yönetim hesabı varsa hiçbir şey
+yapmaz.
+
+Bundan sonraki bütün hesaplar arayüzdeki **Kullanıcılar** ekranından
+açılır. Çalışan rolündeki her hesap bir personel kaydına bağlanır
+(FR-10.6) ve bir personelin ikinci hesabı açılamaz.
+
+**Eski çalışan paneli bağlantıları artık çalışmıyor** (bölüm 9): panele
+girmesi gereken her personel için hesap açılmalıdır.
+
+### 12.6 Doğrulama
+
+```bash
+ssh root@SUNUCU 'systemctl is-active vardiya-api vardiya-cozucu'
+
+# Oturumsuz istek 401 dönmeli — 200 dönen bir uç nokta kalmamalı
+curl -s -o /dev/null -w '%{http_code}\n' https://vardiya.omerharmankaya.com/api/donem     # 401
+curl -s -o /dev/null -w '%{http_code}\n' https://vardiya.omerharmankaya.com/api/personel  # 401
+curl -s -o /dev/null -w '%{http_code}\n' https://vardiya.omerharmankaya.com/health        # 200
+
+# Eski bağlantı yolu artık veri vermiyor
+curl -s -o /dev/null -w '%{http_code}\n' \
+  'https://vardiya.omerharmankaya.com/api/calisan/vardiyalarim?personel_id=1&anahtar=x'   # 401
+```
+
+Arayüzde gözle bakılacaklar: kök adres giriş ekranını açar (kayıt bağlantısı
+**yok**), yönetim hesabıyla girişte sol menüde **Kullanıcılar** görünür,
+yönetici rolündeki bir hesapta **görünmez**. Yeni açılan bir hesapla ilk
+girişte doğrudan parola değiştirme ekranı gelir ve değiştirilene kadar
+başka bir ekrana geçilemez.
+
+Kayıtlar (FR-10.9):
+
+```bash
+ssh root@SUNUCU "journalctl -u vardiya-api --since today | grep 'olay=giris'"
+```
+
+`olay=giris_basarili kullanici=… rol=…` ve `olay=giris_basarisiz …
+neden=…` satırları görünmelidir. **Parola veya belirteç içeren bir satır
+görünmemelidir**; görünürse bu bir hatadır.
+
+### 12.7 Geri alma
+
+Sırayla: eski koda dön, göçü geri al, `.env`'e eski sırrı geri koy.
+
+```bash
+ssh root@SUNUCU 'cd /opt/vardiya/backend
+  sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic downgrade e3b81f47a95c'
+```
+
+Geri alma **hesapları siler** (tablolar düşer); çizelge, tanım ve girdi
+verisi etkilenmez. Eski kod `CALISAN_PANELI_BAGLANTI_ANAHTARI` olmadan
+çalışan paneli bağlantılarını doğrulayamaz, o yüzden geri dönülüyorsa o
+satırın da `.env`'e geri konması gerekir.

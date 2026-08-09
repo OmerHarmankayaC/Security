@@ -3143,3 +3143,108 @@ değiştiren bir dönem etiketinde kırpılmasın diye sarmalı yapıldı.
   yazılıydı ve veritabanı isteyen 56 test atlanıyordu. Kullanıcı yerelde
   PostgreSQL'i kurup göçleri uyguladı; **tam paket 190/190 geçti**, bu kayıt
   o doğrulamadan sonra yazıldı.
+
+---
+
+## 2026-08-09 — Kimlik Doğrulama ve Yetkilendirme Turu
+
+SRS 5.10 / FR-10.1 – FR-10.10 ve SDD 4.2.1 + 5.1b uygulandı. Sistem canlıda
+çalışıyordu; bu, üzerine eklenen bir katman. Yedi adım, yedi commit, her biri
+kendi testleriyle.
+
+**Testler:** backend 208 → **279**, frontend 100 → **115**. Hepsi yeşil.
+(Görev metnindeki "87 frontend testi" bir tur eskimişti; taban 100'dü.)
+
+**Belirsizlikler sorularak kapatıldı** — dokümanlar bu dördüne sayı
+vermiyordu: oturum süreleri (30 dk hareketsizlik / 12 saat mutlak), kilit
+eşiği (5 deneme / 15 dakika), parola kuralı (en az 12 karakter, karakter
+sınıfı zorunluluğu yok), çerezin `Secure` niteliği (ayar, varsayılan true).
+Hepsi `.env`'den ayarlanabilir.
+
+### Adım adım
+
+**1. Veri modeli ve göç** (`f7c1d9034ae6`). SDD 4.2.1'deki `kullanici` ve
+`oturum` tabloları. İki kural veritabanında CHECK kısıtı olarak duruyor:
+çalışan hesabı personelsiz açılamaz (FR-10.6) ve kullanıcı adı küçük harfle
+saklanır. İkincisi sonradan eklendi — girişin adı küçültüp eşlemesi, ancak
+saklanan değerin de küçük harf olduğu garantiliyse doğru sonuç verir; aksi
+halde "Ahmet" ile "ahmet" iki satır olurdu. ORM sınıfı `OturumKaydi`, tablo
+`oturum`: bu kod tabanında `oturum` baştan beri SQLAlchemy `Session`ını
+taşıyor ve `self.oturum.add(Oturum(...))` gibi satırlar üretecekti.
+
+**2. Oturum ve giriş.** Belirteç rastgele, yalnız çerezde; veritabanında
+SHA-256 özeti. Argon2id değil, çünkü belirteç 256 bit rastgele — yavaşlatılacak
+bir sözlük yok. Hareketsizlik ve mutlak son kullanma ayrı uygulanıyor.
+
+**3. Yetkilendirme.** Rol kapıları **router düzeyinde**: sonradan eklenen bir
+uç noktanın kapısız kalması bu biçimde mümkün değil. FR-9.1 parametreyi
+doğrulayarak değil **kaldırarak** çözüldü — çalışan uç noktaları artık
+`personel_id` almıyor.
+
+**4. HMAC yolunun kaldırılması.** Modül, betik, testler ve `.env` anahtarı
+gitti.
+
+**5. Ekranlar.** Giriş (kayıt bağlantısı yok), parola değiştirme (zorunlu ve
+isteğe bağlı tek ekran), Kullanıcılar (Tanımlar ekranının eylem çubuğu ve
+düzenleme kipi düzeniyle, aynı liste bileşeniyle).
+
+**6. İlk hesap betiği.** Parola argüman olarak alınmıyor; etkileşimli terminal
+şart.
+
+**7. Kayıt.** `olay=…` biçiminde, zaman damgalı. Parola, özet ve belirteç
+hiçbir yola yazılmıyor.
+
+### Yol boyunca çıkan üç gerçek hata
+
+**Başarısız giriş sayacı geri alınıyordu.** `oturum_al` bağımlılığı hata
+hâlinde işlemi geri alıyor ve başarısız giriş tam olarak bir hata — sayaç da
+onunla birlikte siliniyordu, yani FR-10.8 sessizce işlevsizdi. Servis o tek
+noktada kendisi `commit` çağırıyor; yaşaması gereken şey isteğin başarısı
+değil, denemenin kendisi.
+
+**`kullanici.personel_id` kullanım sayımına girmiyordu.** Hesabı olan bir
+personel "hiçbir kayıtta kullanılmıyor" görünüp gerçek silmeye gidiyor,
+yabancı anahtar kısıtına düşüyordu. Bunu `test_tanim_kullanimi`'ndeki mevcut
+koruma testi yakaladı — tam da bu iş için yazılmıştı.
+
+**Veri temizliği açık oturumu düşürüyordu.** Senaryo kuran testler `TRUNCATE
+personel CASCADE` çalıştırıyor, bu da `kullanici`yi siliyordu. Konusu çizelge
+olan testler artık bağımlılık ezmesiyle kapıdan geçiyor; ezme autouse bir
+fixture ile temizleniyor, yoksa kimlik doğrulamayı ölçen testler ezilmiş bir
+kapıyla yeşil görünürdü.
+
+### Sapmalar / notlar
+
+- **Yeni bağımlılık:** `argon2-cffi==25.1.0`. Sürüm dansı gerekmedi —
+  `argon2-cffi-bindings` kararlı ABI tekerleği yayınlıyor (`cp39-abi3`), yani
+  Python 3.14'te hazır tekerlek var. `ortools`/`psycopg`/`pydantic` üçlüsünde
+  yaşananın tersi; `pip download --python-version 314` ile doğrulandı.
+- **`/api/calisan/vardiya-tipi` eklendi.** Çalışan paneli tercih formu için
+  `/api/vardiya-tipi`yi çağırıyordu; o uç noktayı yöneticiye kapatmak paneli
+  kırıyor, çalışana açmak SRS 5.10'u deliyordu.
+- **SRS'te karşılığı olmayan iki kural** — bildirildi, dokümana işlenmesi
+  gerekebilir: kullanıcı adı ASCII kümesiyle sınırlı (Türkçe I/i çifti
+  PostgreSQL ve Python'da farklı küçültülür ve iki taraf birbirini bulamaz)
+  ve bir personelin ikinci hesabı açılamaz (FR-9.1'i ihlal etmezdi ama parola
+  sıfırlandığında hangi hesabın sıfırlandığı belirsizleşirdi).
+- **FR-10.8 ile SDD 5.1b arasındaki gerilim.** Biri kilit süresinin
+  bildirilmesini istiyor, öbürü yanıtın kullanıcının varlığını ele vermemesini.
+  Kilit ve "hesap devre dışı" mesajları yalnızca **parola doğruyken**
+  gösteriliyor: parolayı bilmeyen biri bu metinleri hiçbir kullanıcı adı için
+  göremiyor.
+- **Doğrulama.** Giriş ekranı tarayıcıda görüldü (accent `#0F6E63`, köşe 3px,
+  `box-shadow: none`, IBM Plex, sekme başlığı "Vardiya — Giriş"). Oturum
+  gerektiren ekranlar tarayıcıda çalıştırılmadı: geliştirme vekilinin baktığı
+  yerel portu bu projeyle ilgisiz bir sunucu tutuyordu ve giriş yapmak bir
+  kimlik bilgisi üretmeyi gerektirirdi. O yüzeyler backend paketiyle (gerçek
+  HTTP üzerinden) ve render testleriyle kapsanıyor.
+- **`docs/` altındaki dört kanonik dokümana dokunulmadı.** `deploy/DAGITIM.md`
+  bölüm 12 (dağıtım adımları), `README.md` ve `.env.example` güncellendi.
+
+### Sıradaki oturumun ilk işi
+
+Dağıtım kullanıcıda. DAGITIM.md bölüm 12'deki sıra kritik: `.env` içindeki
+`CALISAN_PANELI_BAGLANTI_ANAHTARI` satırı **servisler yeniden başlatılmadan
+önce** silinmeli, yoksa uygulama açılmaz (yapılandırma tanımadığı anahtarı yok
+saymaz). Ardından göç, sonra `scripts/yonetim_hesabi_olustur.py` — bu adım
+atlanırsa sisteme kimse giremez.
