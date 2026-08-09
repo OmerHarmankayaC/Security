@@ -3,7 +3,7 @@ import { api } from '../api/client'
 import type { Analiz, Atama, CizelgeSurumu, Donem, Personel, VardiyaTipi } from '../api/types'
 import { AppShell, type NavOgesi } from '../components/AppShell'
 import { Buton, Kart, KartEtiketi, Sayi } from '../components/app-ui'
-import { gunlerListesi } from '../lib/tarih'
+import { donemAraligiBicimle, gunlerListesi, isoAyristir } from '../lib/tarih'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -32,6 +32,12 @@ function sapmaBicimle(sapma: number): string {
 
 // SRS 7.2: çizelge dışa aktarma CSV biçimi, sicil/ad/tarih/vardiya_tipi/
 // gece_mi/hafta_sonu_mu/sure_saat sütunlarıyla, UTF-8, ISO 8601 tarih.
+//
+// Tarih burada BİLİNÇLİ olarak ISO (YYYY-AA-GG) kalır; arayüzün her yerinde
+// kullanılan Türkçe biçime (lib/tarih.ts) çevrilmez. Bu dosyanın okuyucusu
+// insan değil bir tablo programıdır: ISO sözlüksel sıralamada takvim
+// sırasıyla aynıdır ve yerel ayardan bağımsız olarak tarih tipine çözülür.
+// "9 Ağustos 2026" ise metin olarak açılır ve sıralaması bozulur.
 function csvOlustur(
   atamalar: Atama[],
   personelMap: Map<number, Personel>,
@@ -161,7 +167,7 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
       const gunler = new Set(gunlerListesi(donem.baslangic_tarihi, donem.bitis_tarihi))
       const haftaSonuMu = (tarih: string) => {
         if (!gunler.has(tarih)) return false
-        const gun = new Date(`${tarih}T00:00:00`).getDay()
+        const gun = isoAyristir(tarih).getDay()
         return gun === 0 || gun === 6
       }
       const csv = csvOlustur(atamalar, personelMap, vardiyaMap, haftaSonuMu)
@@ -180,6 +186,7 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
   return (
     <AppShell
       aktifEkran="Analiz"
+      donemId={donemId}
       ekranSec={ekranSec}
       baslik="Analiz"
       aksiyonlar={
@@ -203,7 +210,7 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
             >
               {donemler.map((d) => (
                 <option key={d.donem_id} value={d.donem_id}>
-                  {d.baslangic_tarihi} — {d.bitis_tarihi}
+                  {donemAraligiBicimle(d.baslangic_tarihi, d.bitis_tarihi)}
                 </option>
               ))}
             </select>

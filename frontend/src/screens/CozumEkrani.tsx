@@ -4,7 +4,7 @@ import type { CozumIsi, Donem, OnKontrolBulgu } from '../api/types'
 import { AppShell, type NavOgesi } from '../components/AppShell'
 import { Buton, BuyukRakam, Kart, KartEtiketi, Sayi } from '../components/app-ui'
 import { Input } from '@/components/ui/input'
-import { utcTarihiAyristir } from '../lib/tarih'
+import { donemAraligiBicimle, utcTarihiAyristir } from '../lib/tarih'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -139,7 +139,7 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
   const azamiCeza = cezaGirdileri.reduce((azami, [, deger]) => Math.max(azami, deger), 0)
 
   return (
-    <AppShell aktifEkran="Çözüm" ekranSec={ekranSec} baslik="Çözüm">
+    <AppShell aktifEkran="Çözüm" ekranSec={ekranSec} baslik="Çözüm" donemId={donemId}>
       <Kart>
         <KartEtiketi>çözüm ayarları</KartEtiketi>
         <div className="flex flex-wrap items-end gap-6">
@@ -155,7 +155,7 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
             >
               {donemler.map((d) => (
                 <option key={d.donem_id} value={d.donem_id}>
-                  {d.baslangic_tarihi} — {d.bitis_tarihi}
+                  {donemAraligiBicimle(d.baslangic_tarihi, d.bitis_tarihi)}
                 </option>
               ))}
             </select>

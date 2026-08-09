@@ -1,3 +1,28 @@
+/**
+ * Arayüzdeki BÜTÜN tarih ve saat biçimlemesinin tek kaynağı.
+ *
+ * Kural: hiçbir ekran `new Date(...)`, `toLocaleDateString` veya elle dize
+ * birleştirme ile tarih üretmez; hepsi buradan geçer. `tarih.guard.test.ts`
+ * bunu kaynak dosyaları tarayarak doğrular — kural bir yorum değil, testtir.
+ *
+ * Biçimler:
+ *   tarihBicimle              "9 Ağustos 2026"      tekil tarih, genel kullanım
+ *   donemAraligiBicimle       "03 – 09 Ağu 2026"    dönem aralığı
+ *   gunKisaltmasiVeNumarasi   "PZT 3"               çizelge ızgarası sütun başlığı
+ *   tarihUzunBicim            "03 Ağustos Pazartesi" çalışan paneli, gün adı belirleyici
+ *   zamanBicimle              "9 Ağustos 2026 14:20" tarih + saat
+ *   goreliZaman               "bugün 14:20"          aynı gün üretilen kayıtlar
+ *
+ * Son dördü tekil tarihin kısaltılmış biçimleri değil, ayrı bağlamların
+ * gerektirdiği ayrı bilgilerdir (sütun başlığında yıl yeri yok; çalışan
+ * panelinde gün adı tarihten daha ayırt edici). Hepsi aynı ay/gün adı
+ * tablolarını kullanır, yani biçimleme yolu tektir.
+ *
+ * ISO (YYYY-AA-GG) yalnızca iki yerde kalır ve bu BİLİNÇLİ bir ayrımdır:
+ * (1) API ile veri alışverişi, (2) CSV dışa aktarma. CSV'nin okuyucusu insan
+ * değil bir tablo programıdır ve SRS 7.2 bu dosya için ISO 8601 şart koşar;
+ * makine okunur çıktıyı yerelleştirmek onu bozar.
+ */
 const GUN_KISALTMALARI = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt']
 const GUN_TAM_ADLARI = [
   'Pazar',
@@ -41,6 +66,14 @@ export function isoAyristir(iso: string): Date {
   return new Date(`${iso}T00:00:00`)
 }
 
+// Yerel saate göre bugünün ISO tarihi. `new Date().toISOString().slice(0, 10)`
+// KULLANILMAZ: o UTC'ye göre keser ve Türkiye'de (UTC+3) gece yarısı ile 03:00
+// arasında bir önceki günü verir — "bugün" kıyaslamaları o üç saat boyunca
+// sessizce yanlış olur.
+export function bugunIso(): string {
+  return isoBicimle(new Date())
+}
+
 export function isoBicimle(tarih: Date): string {
   const yil = tarih.getFullYear()
   const ay = String(tarih.getMonth() + 1).padStart(2, '0')
@@ -58,8 +91,16 @@ export function gunlerListesi(baslangicIso: string, bitisIso: string): string[] 
   return gunler
 }
 
-// "03 - 09 Ağu 2026" (Dönem bloğu, Sayfa İskeleti — Yan menü). Ayrı ay/yıl
-// gerektiren nadir durumlarda her iki uca ay adı eklenir.
+// "9 Ağustos 2026" — tekil tarihin genel biçimi. Gün başında sıfır yoktur;
+// aralık biçiminden (iki ucun hizalanması için sıfırlı) bilinçli olarak ayrılır.
+export function tarihBicimle(iso: string): string {
+  const tarih = isoAyristir(iso)
+  return `${tarih.getDate()} ${AY_TAM_ADLARI[tarih.getMonth()]} ${tarih.getFullYear()}`
+}
+
+// "03 – 09 Ağu 2026" (Dönem bloğu, Sayfa İskeleti — Yan menü). Ayrı ay/yıl
+// gerektiren nadir durumlarda her iki uca ay adı eklenir. Ayraç en tiredir
+// (–), kısa tire değil: iki tarih arasındaki aralığın tipografik karşılığı.
 export function donemAraligiBicimle(baslangicIso: string, bitisIso: string): string {
   const b = isoAyristir(baslangicIso)
   const s = isoAyristir(bitisIso)
@@ -67,10 +108,10 @@ export function donemAraligiBicimle(baslangicIso: string, bitisIso: string): str
   const sGun = String(s.getDate()).padStart(2, '0')
   const sAy = AY_KISALTMALARI[s.getMonth()]
   if (b.getFullYear() === s.getFullYear() && b.getMonth() === s.getMonth()) {
-    return `${bGun} - ${sGun} ${sAy} ${s.getFullYear()}`
+    return `${bGun} – ${sGun} ${sAy} ${s.getFullYear()}`
   }
   const bAy = AY_KISALTMALARI[b.getMonth()]
-  return `${bGun} ${bAy} - ${sGun} ${sAy} ${s.getFullYear()}`
+  return `${bGun} ${bAy} – ${sGun} ${sAy} ${s.getFullYear()}`
 }
 
 export function gunKisaltmasiVeNumarasi(iso: string): string {
@@ -120,7 +161,7 @@ export function utcTarihiAyristir(iso: string): Date {
 // arka arkaya üretildiğinden mutlak tarih ayırt edici değil.
 export function goreliZaman(iso: string): string {
   const zaman = utcTarihiAyristir(iso)
-  const saat = zaman.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })
+  const saat = saatBicimle(zaman)
 
   const bugun = new Date()
   const gunBasi = (t: Date) => new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime()
@@ -131,11 +172,13 @@ export function goreliZaman(iso: string): string {
   return `${gunFarki} gün önce`
 }
 
+// "9 Ağustos 2026 14:20" — tarih + saat. Tarih kısmı tarihBicimle'den gelir;
+// `toLocaleString` ile ayrı bir sayısal biçim ("09.08 14:20") üretilmez.
 export function zamanBicimle(iso: string): string {
-  return utcTarihiAyristir(iso).toLocaleString('tr-TR', {
-    hour: '2-digit',
-    minute: '2-digit',
-    day: '2-digit',
-    month: '2-digit',
-  })
+  const zaman = utcTarihiAyristir(iso)
+  return `${tarihBicimle(isoBicimle(zaman))} ${saatBicimle(zaman)}`
+}
+
+function saatBicimle(zaman: Date): string {
+  return `${String(zaman.getHours()).padStart(2, '0')}:${String(zaman.getMinutes()).padStart(2, '0')}`
 }

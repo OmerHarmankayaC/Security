@@ -3,7 +3,7 @@ import { api } from '@/api/client'
 import type { CalisanTercihListesi, KarsilanmaDurumu, TercihTipi, VardiyaTipi } from '@/api/types'
 import { Buton, Kart, KartEtiketi, Rozet } from '@/components/app-ui'
 import { Input } from '@/components/ui/input'
-import { gunFarki, gunKisaltmasiVeNumarasi, isoBicimle } from '@/lib/tarih'
+import { bugunIso, gunFarki, gunKisaltmasiVeNumarasi } from '@/lib/tarih'
 import { buyukHarf } from '@/lib/metin'
 import { cn } from '@/lib/utils'
 
@@ -74,7 +74,7 @@ export function TercihlerimEkrani({ personelId, anahtar }: Props) {
 
   if (!liste) return null
 
-  const bugun = isoBicimle(new Date())
+  const bugun = bugunIso()
   const kalanGun = liste.acik_donem ? gunFarki(bugun, liste.acik_donem.tercih_son_tarihi) : null
 
   return (

@@ -3,7 +3,7 @@ import { api } from '@/api/client'
 import type { Donem, VardiyaTipi } from '@/api/types'
 import { cn } from '@/lib/utils'
 import { buyukHarf } from '@/lib/metin'
-import { donemAraligiBicimle, gunlerListesi } from '@/lib/tarih'
+import { bugunIso, donemAraligiBicimle, gunlerListesi } from '@/lib/tarih'
 import { NAV_GRUPLARI, type NavOgesi } from './nav'
 
 export type { NavOgesi }
@@ -14,9 +14,34 @@ interface AppShellProps {
   baslik: string
   altBaslik?: ReactNode
   aksiyonlar?: ReactNode
-  // Yan menünün altındaki eylem butonu — yalnızca Tanımlar alt sekmelerinde
-  // kullanılır (bkz. TASARIM_REFERANSI.md, "Alt grubu").
-  altEylem?: ReactNode
+  // Yan menüdeki "Planlama Dönemi" bloğunun göstereceği dönem. Dönem seçimi
+  // olan ekranlar kendi seçimlerini geçirir; geçirmeyen ekranlarda blok
+  // aşağıdaki geçerli-dönem kuralına düşer.
+  donemId?: number | null
+}
+
+/**
+ * Yan menüdeki dönem bloğunun hangi dönemi göstereceği.
+ *
+ * Ekran bir dönem seçmişse o gösterilir. Seçmemişse `/api/donem`'in dönüş
+ * SIRASINA GÜVENİLMEZ (sorgu sırasızdır); bunun yerine backend'in çalışan
+ * panelinde uyguladığı kuralın aynısı işletilir: bugünü içeren dönem, yoksa
+ * en yakın gelecek dönem, o da yoksa en son geçmiş dönem.
+ */
+function donemSec(donemler: Donem[], donemId: number | null | undefined): Donem | undefined {
+  if (donemId != null) {
+    const secili = donemler.find((d) => d.donem_id === donemId)
+    if (secili) return secili
+  }
+  const bugun = bugunIso()
+  const sirali = [...donemler].sort((a, b) =>
+    a.baslangic_tarihi.localeCompare(b.baslangic_tarihi),
+  )
+  return (
+    sirali.find((d) => d.baslangic_tarihi <= bugun && d.bitis_tarihi >= bugun) ??
+    sirali.find((d) => d.baslangic_tarihi > bugun) ??
+    sirali[sirali.length - 1]
+  )
 }
 
 export function AppShell({
@@ -25,7 +50,7 @@ export function AppShell({
   baslik,
   altBaslik,
   aksiyonlar,
-  altEylem,
+  donemId,
   children,
 }: PropsWithChildren<AppShellProps>) {
   const [donemler, setDonemler] = useState<Donem[]>([])
@@ -43,7 +68,7 @@ export function AppShell({
       })
   }, [])
 
-  const donem = donemler[0]
+  const donem = donemSec(donemler, donemId)
   const ilkVardiya = vardiyaTipleri[0]
   const vardiyaOzeti = ilkVardiya
     ? `${vardiyaTipleri.length}×${Number(ilkVardiya.sure_saat)}`
@@ -87,7 +112,6 @@ export function AppShell({
         </div>
 
         <div className="flex flex-col gap-[22px]">
-          {altEylem}
           <div className="border-t border-chrome-line pt-3">
             <p className="m-0 font-condensed text-[10px] tracking-[0.14em] text-chrome-ink-muted">
               {buyukHarf('Planlama Dönemi')}

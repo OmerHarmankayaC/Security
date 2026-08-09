@@ -15,6 +15,7 @@ import { AppShell, type NavOgesi } from '../components/AppShell'
 import { Buton, Kart, KartEtiketi, Rozet, Sayi } from '../components/app-ui'
 import { Input } from '@/components/ui/input'
 import { cn } from '../lib/utils'
+import { bugunIso } from '../lib/tarih'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -142,9 +143,9 @@ export function TanimlarEkrani({ ekranSec }: Props) {
       aktifEkran="Tanımlar"
       ekranSec={ekranSec}
       baslik="Tanımlar"
-      altEylem={
+      aksiyonlar={
         eylemEtiketi[sekme] && (
-          <Buton varyant="birincil" className="w-fit" onClick={() => setEkleAcik(true)}>
+          <Buton varyant="birincil" onClick={() => setEkleAcik(true)}>
             {eylemEtiketi[sekme]}
           </Buton>
         )
@@ -283,7 +284,7 @@ export function TanimlarEkrani({ ekranSec }: Props) {
             </thead>
             <tbody>
               {personelListesi.map((p) => {
-                const aktifMi = !p.aktif_bitis || p.aktif_bitis >= new Date().toISOString().slice(0, 10)
+                const aktifMi = !p.aktif_bitis || p.aktif_bitis >= bugunIso()
                 return (
                   <tr key={p.personel_id} className="border-t border-rule">
                     <td className="px-3 py-3 text-sm font-medium text-ink">{p.ad_soyad}</td>
@@ -483,7 +484,7 @@ function EkleFormu({ sekme, binalar, yetkinlikler, onIptal, onKaydedildi, onHata
           ad_soyad: ad,
           sicil_no: ikinciAlan,
           haftalik_hedef_saat: Number(ucuncuAlan) || 40,
-          aktif_baslangic: new Date().toISOString().slice(0, 10),
+          aktif_baslangic: bugunIso(),
           yetkinlik_idleri: yetkinlikId ? [Number(yetkinlikId)] : [],
         })
       } else if (sekme === 'Yetkinlik') {

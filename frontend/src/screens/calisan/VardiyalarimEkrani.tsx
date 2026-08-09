@@ -3,11 +3,11 @@ import type { KaldirilanGun, Vardiyalarim, Vardiyam } from '@/api/types'
 import { Kart, KartEtiketi, Rozet, Sayi } from '@/components/app-ui'
 import { buyukHarf } from '@/lib/metin'
 import {
+  bugunIso,
   gunEtiketi,
   gunKisaltmasiVeNumarasi,
   gunlerListesi,
   isoAyristir,
-  isoBicimle,
   tarihUzunBicim,
   zamanBicimle,
 } from '@/lib/tarih'
@@ -37,7 +37,7 @@ function sondakiBosHucreSayisi(gunler: string[]): number {
 }
 
 export function VardiyalarimEkrani({ veri }: Props) {
-  const bugun = isoBicimle(new Date())
+  const bugun = bugunIso()
   const vardiyaMap = useMemo(
     () => new Map(veri.vardiyalar.map((v) => [v.tarih, v])),
     [veri.vardiyalar],

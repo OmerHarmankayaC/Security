@@ -14,7 +14,7 @@ import { AppShell, type NavOgesi } from '../components/AppShell'
 import { Buton, Kart, KartEtiketi, Sayi } from '../components/app-ui'
 import { cn } from '../lib/utils'
 import { buyukHarf } from '../lib/metin'
-import { gunKisaltmasiVeNumarasi, gunlerListesi } from '../lib/tarih'
+import { donemAraligiBicimle, gunKisaltmasiVeNumarasi, gunlerListesi } from '../lib/tarih'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -236,6 +236,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
   return (
     <AppShell
       aktifEkran="Çizelge"
+      donemId={donemId}
       ekranSec={ekranSec}
       baslik="Çizelge"
       altBaslik={
@@ -276,7 +277,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
             >
               {donemler.map((d) => (
                 <option key={d.donem_id} value={d.donem_id}>
-                  {d.baslangic_tarihi} — {d.bitis_tarihi}
+                  {donemAraligiBicimle(d.baslangic_tarihi, d.bitis_tarihi)}
                 </option>
               ))}
             </select>

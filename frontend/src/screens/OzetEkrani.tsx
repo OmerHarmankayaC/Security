@@ -12,7 +12,7 @@ import type {
 } from '../api/types'
 import { AppShell, type NavOgesi } from '../components/AppShell'
 import { Kart, KartEtiketi, Rozet, Sayi } from '../components/app-ui'
-import { gunKisaltmasiVeNumarasi, isoAyristir } from '../lib/tarih'
+import { bugunIso, gunKisaltmasiVeNumarasi, isoAyristir } from '../lib/tarih'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -96,7 +96,7 @@ export function OzetEkrani({ ekranSec }: Props) {
 
   const bekleyenTercihSayisi = tercihler.filter((t) => t.durum === 'beklemede').length
 
-  const bugun = isoAyristir(new Date().toISOString().slice(0, 10))
+  const bugun = isoAyristir(bugunIso())
   const yaklasanMusaitlikler = [...musaitlikler]
     .filter((m) => isoAyristir(m.bitis_tarihi) >= bugun)
     .sort((a, b) => a.baslangic_tarihi.localeCompare(b.baslangic_tarihi))
