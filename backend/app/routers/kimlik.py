@@ -71,7 +71,7 @@ def giris(veri: GirisIstegi, yanit: Response, oturum: Oturum) -> BenOku:
 def cikis(baglam: Baglam, yanit: Response, oturum: Oturum) -> None:
     """Oturum kaydini SILER. Yalniz cerezi silmek yetmezdi: elinde belirtecin
     kopyasi olan biri onu kullanmaya devam edebilirdi."""
-    KimlikServisi(oturum).cikis(baglam.oturum_id)
+    KimlikServisi(oturum).cikis(baglam.kullanici, baglam.oturum_id)
     cerez_sil(yanit)
 
 

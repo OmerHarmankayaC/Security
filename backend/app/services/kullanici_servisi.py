@@ -14,6 +14,7 @@ import re
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.kayit import olay
 from app.models.kimlik import Kullanici, Rol
 from app.services import parola as parola_araclari
 from app.services.oturum_servisi import OturumServisi
@@ -73,6 +74,8 @@ class KullaniciServisi:
         parola: str,
         rol: Rol,
         personel_id: int | None = None,
+        *,
+        isteyen: Kullanici | None = None,
     ) -> Kullanici:
         ad = self._adi_dogrula(kullanici_adi)
         self._benzersizligi_dogrula(ad)
@@ -91,6 +94,16 @@ class KullaniciServisi:
         )
         self.oturum.add(kullanici)
         self.oturum.flush()
+        # FR-10.9. Parola ve ozeti KAYDEDILMEZ. `isteyen` bos kalabilir:
+        # ilk yonetim hesabini acan kurulum betiginin arkasinda bir hesap
+        # yoktur (FR-10.10).
+        olay(
+            "hesap_olusturuldu",
+            kullanici=ad,
+            rol=rol.value,
+            personel_id=personel_id,
+            yapan=isteyen.kullanici_adi if isteyen else "kurulum_betigi",
+        )
         return kullanici
 
     # --- Guncelleme (FR-10.5) -----------------------------------------------
@@ -123,10 +136,23 @@ class KullaniciServisi:
             yeni_rol, yeni_personel, mevcut_kullanici_id=kullanici.kullanici_id
         )
 
+        if yeni_rol is not kullanici.rol:
+            olay(
+                "rol_degistirildi",
+                kullanici=kullanici.kullanici_adi,
+                onceki=kullanici.rol.value,
+                yeni=yeni_rol.value,
+                yapan=isteyen.kullanici_adi,
+            )
         kullanici.rol = yeni_rol
         kullanici.personel_id = yeni_personel
         if aktif is not None and aktif != kullanici.aktif:
             kullanici.aktif = aktif
+            olay(
+                "hesap_aktif_edildi" if aktif else "hesap_devre_disi_birakildi",
+                kullanici=kullanici.kullanici_adi,
+                yapan=isteyen.kullanici_adi,
+            )
             if not aktif:
                 # Devre disi birakma ACIK OTURUMLARI da kapatir. Yalniz
                 # bayragi cevirmek, elindeki cerezle calisan birinin oturum
@@ -138,7 +164,9 @@ class KullaniciServisi:
 
     # --- Parola sifirlama (FR-10.5, FR-10.7) --------------------------------
 
-    def parola_sifirla(self, kullanici_id: int, yeni_parola: str) -> Kullanici:
+    def parola_sifirla(
+        self, kullanici_id: int, yeni_parola: str, *, isteyen: Kullanici
+    ) -> Kullanici:
         kullanici = self._getir(kullanici_id)
         kullanici.parola_ozeti = parola_araclari.ozetle(yeni_parola)
         kullanici.parola_degistirmeli = True
@@ -151,6 +179,11 @@ class KullaniciServisi:
         # sifirlama hicbir sey cozmezdi.
         self.oturumlar.kullanicinin_oturumlarini_sil(kullanici.kullanici_id)
         self.oturum.flush()
+        olay(
+            "parola_sifirlandi",
+            kullanici=kullanici.kullanici_adi,
+            yapan=isteyen.kullanici_adi,
+        )
         return kullanici
 
     # --- Yardimcilar --------------------------------------------------------

@@ -79,10 +79,14 @@ def listele(oturum: Oturum) -> list[KullaniciOku]:
 
 
 @router.post("", response_model=KullaniciOku, status_code=201)
-def olustur(veri: KullaniciOlustur, oturum: Oturum) -> KullaniciOku:
+def olustur(veri: KullaniciOlustur, baglam: GirisYapan, oturum: Oturum) -> KullaniciOku:
     try:
         kullanici = KullaniciServisi(oturum).olustur(
-            veri.kullanici_adi, veri.parola, veri.rol, veri.personel_id
+            veri.kullanici_adi,
+            veri.parola,
+            veri.rol,
+            veri.personel_id,
+            isteyen=baglam.kullanici,
         )
     except _ISTEK_HATALARI as hata:
         raise HTTPException(status_code=400, detail=str(hata)) from hata
@@ -115,11 +119,15 @@ def guncelle(
 
 
 @router.post("/{kullanici_id}/parola-sifirla", response_model=KullaniciOku)
-def parola_sifirla(kullanici_id: int, veri: ParolaSifirla, oturum: Oturum) -> KullaniciOku:
+def parola_sifirla(
+    kullanici_id: int, veri: ParolaSifirla, baglam: GirisYapan, oturum: Oturum
+) -> KullaniciOku:
     """Parolayi degistirir, ilk giriste degistirme borcu yukler (FR-10.7) ve
     o kullanicinin ACIK OTURUMLARINI kapatir."""
     try:
-        kullanici = KullaniciServisi(oturum).parola_sifirla(kullanici_id, veri.yeni_parola)
+        kullanici = KullaniciServisi(oturum).parola_sifirla(
+            kullanici_id, veri.yeni_parola, isteyen=baglam.kullanici
+        )
     except KullaniciBulunamadiError as hata:
         raise HTTPException(status_code=404, detail="Kullanici bulunamadi") from hata
     except _ISTEK_HATALARI as hata:

@@ -23,6 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import ayarlar
+from app.kayit import olay
 from app.models.kimlik import Kullanici
 from app.services import parola as parola_araclari
 from app.services.oturum_servisi import OturumServisi
@@ -75,6 +76,9 @@ class KimlikServisi:
 
         if kullanici is None:
             parola_araclari.bosa_dogrula()
+            # Kullanici adi SALDIRGANIN yazdigi metin; kayit onu
+            # temizleyerek yazar (app/kayit.py).
+            olay("giris_basarisiz", kullanici=kullanici_adi, neden="kullanici_yok")
             raise GirisBasarisizError
 
         kilitli = kullanici.kilit_bitis is not None and simdi < kullanici.kilit_bitis
@@ -90,6 +94,12 @@ class KimlikServisi:
         dogru = parola_araclari.dogrula(kullanici.parola_ozeti, parola)
 
         if kilitli:
+            olay(
+                "giris_basarisiz",
+                kullanici=kullanici.kullanici_adi,
+                neden="kilitli",
+                parola_dogru=dogru,
+            )
             if not dogru:
                 raise GirisBasarisizError
             assert kullanici.kilit_bitis is not None
@@ -97,14 +107,30 @@ class KimlikServisi:
 
         if not dogru:
             self._basarisizligi_isle(kullanici, simdi)
+            olay(
+                "giris_basarisiz",
+                kullanici=kullanici.kullanici_adi,
+                neden="parola_hatali",
+                ardisik_hata=kullanici.basarisiz_deneme,
+                kilitlendi=kullanici.kilit_bitis is not None,
+            )
             raise GirisBasarisizError
 
         if not kullanici.aktif:
+            olay("giris_basarisiz", kullanici=kullanici.kullanici_adi, neden="hesap_pasif")
             raise HesapPasifError
 
         kullanici.basarisiz_deneme = 0
         kullanici.kilit_bitis = None
         belirtec = self.oturumlar.olustur(kullanici.kullanici_id, simdi=simdi)
+        # Belirtec KAYDEDILMEZ - gunlugu okuyan biri onunla oturumu
+        # devralabilirdi.
+        olay(
+            "giris_basarili",
+            kullanici=kullanici.kullanici_adi,
+            rol=kullanici.rol.value,
+            parola_degistirmeli=kullanici.parola_degistirmeli,
+        )
         return GirisSonucu(kullanici=kullanici, belirtec=belirtec)
 
     def _basarisizligi_isle(self, kullanici: Kullanici, simdi: datetime) -> None:
@@ -134,8 +160,9 @@ class KimlikServisi:
 
     # --- Cikis (FR-10.3) ----------------------------------------------------
 
-    def cikis(self, oturum_id: str) -> None:
+    def cikis(self, kullanici: Kullanici, oturum_id: str) -> None:
         self.oturumlar.sil(oturum_id)
+        olay("cikis", kullanici=kullanici.kullanici_adi)
 
     # --- Parola degistirme (FR-10.7) ----------------------------------------
 
@@ -161,6 +188,7 @@ class KimlikServisi:
         kullanici.parola_degistirmeli = False
 
         self.oturumlar.kullanicinin_oturumlarini_sil(kullanici.kullanici_id)
+        olay("parola_degistirildi", kullanici=kullanici.kullanici_adi, yapan="kendisi")
         return self.oturumlar.olustur(kullanici.kullanici_id)
 
     # --- Yardimcilar --------------------------------------------------------
