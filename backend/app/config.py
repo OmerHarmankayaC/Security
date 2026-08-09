@@ -7,7 +7,6 @@ class Ayarlar(BaseSettings):
     veritabani_url: str = "postgresql+psycopg://vardiya:vardiya@localhost:5432/vardiya"
     cozucu_zaman_limiti_saniye: int = 60
     cozucu_arama_iscisi_sayisi: int = 3
-    calisan_paneli_baglanti_anahtari: str = "degistirilmeli"
 
     # --- Kimlik dogrulama (SRS 5.10; SDD 5.1b) ------------------------------
     # SRS ve SDD bu dordune sayi vermez; degerler urun karari olarak burada

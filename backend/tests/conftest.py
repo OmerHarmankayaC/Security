@@ -11,6 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
+from app.config import ayarlar
 from app.db import OturumYerel, engine
 from app.guvenlik import oturum_baglami
 from app.main import app
@@ -96,6 +97,21 @@ def _durumu_oku(is_id: int) -> CozumIsiDurumu | None:
 # temizligi acik oturumu dusurur. Konusu cizelge olan bir testin kimlik
 # tablolarinin silinme sirasina bagimli olmasi, testi olctugu seyden baska
 # bir sebeple kirilgan yapardi.
+
+
+@pytest.fixture(autouse=True)
+def _cerez_uretim_ayariyla_olculsun():  # noqa: ANN202 - pytest fixture
+    """Testler cerezi HER ZAMAN uretim ayariyla (Secure) olcer.
+
+    Yerel `.env` bu ayari false yapar - gelistirme http://localhost
+    uzerinden yurur ve tarayici Secure bir cerezi oraya geri gondermez.
+    Testlerin o yerel ayara tabi olmasi, uretimde gecerli olan yolun HIC
+    olculmemesi demekti; ayari kapatan tek test bunu kendisi yapar.
+    """
+    onceki = ayarlar.oturum_cerezi_secure
+    ayarlar.oturum_cerezi_secure = True
+    yield
+    ayarlar.oturum_cerezi_secure = onceki
 
 
 @pytest.fixture(autouse=True)

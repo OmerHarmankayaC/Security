@@ -121,6 +121,21 @@ def test_giris_cerez_yazar_ve_rolu_dondurur(istemci: TestClient) -> None:
     assert "samesite=lax" in cerez.lower()
 
 
+def test_secure_niteligi_ayardan_gelir(
+    istemci: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Yerel gelistirmenin ihtiyaci: http://localhost'a Secure cerez geri
+    gonderilmez. Ayar YALNIZCA bu nitelige dokunur - ikinci bir erisim yolu
+    acmaz, kapiyi gevsetmez."""
+    _kullanici_olustur("cerez-ayari")
+    monkeypatch.setattr(ayarlar, "oturum_cerezi_secure", False)
+    cerez = _giris(istemci, "cerez-ayari").headers["set-cookie"]
+    assert "Secure" not in cerez
+    # HttpOnly ve SameSite ayardan bagimsiz, her zaman yerinde.
+    assert "HttpOnly" in cerez
+    assert "samesite=lax" in cerez.lower()
+
+
 def test_belirtec_veritabaninda_duz_durmaz_yalniz_ozeti_durur(istemci: TestClient) -> None:
     """SDD 5.1b'nin gerekcesi: veritabani okunsa bile acik oturumlar ele
     gecirilemez."""
