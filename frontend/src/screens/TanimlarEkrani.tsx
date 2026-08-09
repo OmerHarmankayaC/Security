@@ -7,11 +7,18 @@ import type {
   Kural,
   Personel,
   TalepHucresi,
+  TanimYolu,
   VardiyaTipi,
   Yetkinlik,
   YukGostergesi,
 } from '../api/types'
 import { AppShell, type NavOgesi } from '../components/AppShell'
+import {
+  SilmeOnayi,
+  TanimListesi,
+  gorunumKur,
+  type TanimGorunumu,
+} from '../components/TanimYonetimi'
 import { Buton, Kart, KartEtiketi, Rozet, Sayi } from '../components/app-ui'
 import { Input } from '@/components/ui/input'
 import { cn } from '../lib/utils'
@@ -32,6 +39,14 @@ const SEKMELER = [
   'Kural',
 ] as const
 type Sekme = (typeof SEKMELER)[number]
+
+// Ekle/Değiştir/Sil üçlüsünün geçerli olduğu sekmeler. Talep ve Kural dışarıda
+// kalır ve bu bilinçli bir ayrımdır: talep matrisinde eklenecek bağımsız bir
+// kayıt yoktur (satırlar görev noktalarından türer, hücreler yerinde
+// düzenlenir); kural kataloğunda ise H1–H8/S1–S8 kodda tanımlı sınıflarla
+// eşleşir, eklenip silinemez, yalnızca pasifleştirilir (SDD 3.2.1).
+const TANIM_SEKMELERI = ['Personel', 'Yetkinlik', 'Bina', 'Görev Noktası', 'Vardiya Tipi'] as const
+type TanimSekmesi = (typeof TANIM_SEKMELERI)[number]
 
 const GUN_VARDIYA_SUTUNLARI: { baslik: string; gunTipi: GunTipi; vardiyaAdi: string }[] = [
   { baslik: 'GÜNDÜZ', gunTipi: 'hafta_ici', vardiyaAdi: 'Gündüz' },
@@ -58,6 +73,13 @@ export function TanimlarEkrani({ ekranSec }: Props) {
   const [yukGostergesi, setYukGostergesi] = useState<YukGostergesi | null>(null)
   const [kurallar, setKurallar] = useState<Kural[]>([])
   const [hata, setHata] = useState<string | null>(null)
+
+  const [seciliId, setSeciliId] = useState<number | null>(null)
+  const [duzenleniyor, setDuzenleniyor] = useState(false)
+  const [silinecek, setSilinecek] = useState<{ yol: TanimYolu; id: number; ad: string } | null>(
+    null,
+  )
+  const [pasifleriGoster, setPasifleriGoster] = useState(false)
 
   const hepsiniYukle = () => {
     Promise.all([
@@ -132,13 +154,96 @@ export function TanimlarEkrani({ ekranSec }: Props) {
     }
   }
 
-  const eylemEtiketi: Partial<Record<Sekme, string>> = {
-    Personel: 'Personel Ekle',
-    Yetkinlik: 'Yetkinlik Ekle',
-    Bina: 'Bina Ekle',
-    'Görev Noktası': 'Görev Noktası Ekle',
-    'Vardiya Tipi': 'Vardiya Tipi Ekle',
+  // Her sekmenin satırı NASIL görüneceğini tarif eder; düzeni ve eylem
+  // çubuğunu TanimYonetimi kurar, böylece üçlü bütün sekmelerde aynı yerde
+  // ve aynı görünümde kalır.
+  const gorunumler: Record<TanimSekmesi, TanimGorunumu<unknown>> = {
+    Personel: gorunumKur({
+      yol: 'personel',
+      kayitlar: personelListesi,
+      kimlik: (p: Personel) => p.personel_id,
+      baslik: (p: Personel) => p.ad_soyad,
+      ozet: (p: Personel) => (
+        <>
+          {p.sicil_no} · <Sayi>{p.haftalik_hedef_saat}</Sayi> sa ·{' '}
+          {p.yetkinlik_idleri.map((id) => yetkinlikMap.get(id)?.ad ?? id).join(', ') ||
+            'yetkinlik yok'}
+          {p.sabit_vardiya_tipi_id
+            ? ` · sabit: ${vardiyaTipleri.find((v) => v.vardiya_tipi_id === p.sabit_vardiya_tipi_id)?.ad ?? '—'}`
+            : ''}
+        </>
+      ),
+      // Personelin `aktif` bayrağı yoktur; aktiflik tarih aralığıyla ifade
+      // edilir (SDD 4.2.1) ve pasifleştirme aralığı dünde kapatır.
+      aktifMi: (p: Personel) => !p.aktif_bitis || p.aktif_bitis >= bugunIso(),
+    }),
+    Yetkinlik: gorunumKur({
+      yol: 'yetkinlik',
+      kayitlar: yetkinlikler,
+      kimlik: (y: Yetkinlik) => y.yetkinlik_id,
+      baslik: (y: Yetkinlik) => y.ad,
+      ozet: (y: Yetkinlik) => (
+        <>
+          {y.aciklama ? `${y.aciklama} · ` : ''}
+          <Sayi>
+            {personelListesi.filter((p) => p.yetkinlik_idleri.includes(y.yetkinlik_id)).length}
+          </Sayi>{' '}
+          personel
+        </>
+      ),
+      aktifMi: (y: Yetkinlik) => y.aktif,
+    }),
+    Bina: gorunumKur({
+      yol: 'bina',
+      kayitlar: binalar,
+      kimlik: (b: Bina) => b.bina_id,
+      baslik: (b: Bina) => b.ad,
+      ozet: (b: Bina) => `${noktalar.filter((n) => n.bina_id === b.bina_id).length} görev noktası`,
+      aktifMi: (b: Bina) => b.aktif,
+      bosMesaji:
+        'Bina tanımlı değil — mevcut uygulama alanında bütün noktalar tesis geneli (SRS 3.3.3).',
+    }),
+    'Görev Noktası': gorunumKur({
+      yol: 'nokta',
+      kayitlar: noktalar,
+      kimlik: (n: GorevNoktasi) => n.nokta_id,
+      baslik: (n: GorevNoktasi) => n.ad,
+      ozet: (n: GorevNoktasi) =>
+        `${n.bina_id ? (binalar.find((b) => b.bina_id === n.bina_id)?.ad ?? 'Bina') : 'Tesis geneli'} · ${
+          n.onkosul_yetkinlik_id
+            ? (yetkinlikMap.get(n.onkosul_yetkinlik_id)?.ad ?? 'Ön koşul var')
+            : 'Ön koşul yok'
+        }`,
+      aktifMi: (n: GorevNoktasi) => n.aktif,
+    }),
+    'Vardiya Tipi': gorunumKur({
+      yol: 'vardiya-tipi',
+      kayitlar: vardiyaTipleri,
+      kimlik: (v: VardiyaTipi) => v.vardiya_tipi_id,
+      baslik: (v: VardiyaTipi) => v.ad,
+      ozet: (v: VardiyaTipi) => (
+        <span className="font-mono">
+          {v.baslangic_saati.slice(0, 5)} – {v.bitis_saati.slice(0, 5)} ·{' '}
+          <Sayi>{v.sure_saat}</Sayi> saat
+        </span>
+      ),
+      aktifMi: (v: VardiyaTipi) => v.aktif,
+      ekRozet: (v: VardiyaTipi) =>
+        v.gece_mi ? (
+          <Rozet varyant="kilitli" genislik={64}>
+            Gece
+          </Rozet>
+        ) : null,
+    }),
   }
+
+  const tanimSekmesiMi = (s: Sekme): s is TanimSekmesi =>
+    (TANIM_SEKMELERI as readonly string[]).includes(s)
+  const gorunum = tanimSekmesiMi(sekme) ? gorunumler[sekme] : null
+  const seciliKayit =
+    gorunum && seciliId !== null
+      ? (gorunum.kayitlar.find((k) => gorunum.kimlik(k) === seciliId) ?? null)
+      : null
 
   const zorunluKurallar = kurallar.filter((k) => k.tip === 'zorunlu')
   const esnekKurallar = kurallar.filter((k) => k.tip === 'esnek')
@@ -153,42 +258,102 @@ export function TanimlarEkrani({ ekranSec }: Props) {
       aktifEkran="Tanımlar"
       ekranSec={ekranSec}
       baslik="Tanımlar"
+      // Ekle/Değiştir/Sil üçlüsü üst çubuğun sağında; beş tanım sekmesinin
+      // hepsinde aynı konum, aynı sıra, aynı görünüm. Önceki hâlinde "Ekle"
+      // yan menünün altındaydı ve yalnız bazı sekmelerde vardı.
       aksiyonlar={
-        eylemEtiketi[sekme] && (
-          <Buton varyant="birincil" onClick={() => setEkleAcik(true)}>
-            {eylemEtiketi[sekme]}
-          </Buton>
+        gorunum && (
+          <>
+            <Buton
+              varyant="birincil"
+              onClick={() => {
+                setSeciliId(null)
+                setDuzenleniyor(false)
+                setEkleAcik(true)
+              }}
+            >
+              Ekle
+            </Buton>
+            <Buton
+              varyant="ikincil"
+              disabled={seciliKayit === null}
+              title={seciliKayit === null ? 'Önce listeden bir kayıt seçin' : undefined}
+              onClick={() => {
+                setDuzenleniyor(true)
+                setEkleAcik(true)
+              }}
+            >
+              Değiştir
+            </Buton>
+            <Buton
+              varyant="ikincil"
+              disabled={seciliKayit === null}
+              title={seciliKayit === null ? 'Önce listeden bir kayıt seçin' : undefined}
+              onClick={() => {
+                if (!gorunum || seciliKayit === null || seciliId === null) return
+                setEkleAcik(false)
+                setSilinecek({
+                  yol: gorunum.yol,
+                  id: seciliId,
+                  ad: gorunum.baslik(seciliKayit),
+                })
+              }}
+            >
+              Sil
+            </Buton>
+          </>
         )
       }
     >
       {hata && <p className="text-sm text-signal">{hata}</p>}
 
-      <div className="flex gap-0.5 border-b border-rule pb-0">
-        {SEKMELER.map((s) => (
-          <button
-            key={s}
-            type="button"
-            className={cn(
-              'rounded-t-sm px-4 py-2.5 text-sm text-ink-muted transition-colors',
-              s === sekme && 'bg-chrome-base font-medium text-chrome-ink',
-            )}
-            onClick={() => {
-              setSekme(s)
-              setEkleAcik(false)
-            }}
-          >
-            {s}
-          </button>
-        ))}
+      <div className="flex items-center justify-between gap-4 border-b border-rule pb-0">
+        <div className="flex gap-0.5">
+          {SEKMELER.map((s) => (
+            <button
+              key={s}
+              type="button"
+              className={cn(
+                'rounded-t-sm px-4 py-2.5 text-sm text-ink-muted transition-colors',
+                s === sekme && 'bg-chrome-base font-medium text-chrome-ink',
+              )}
+              onClick={() => {
+                setSekme(s)
+                setEkleAcik(false)
+                setDuzenleniyor(false)
+                setSeciliId(null)
+                setSilinecek(null)
+              }}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+        {gorunum && (
+          <label className="flex shrink-0 items-center gap-2 pb-2 text-sm text-ink-muted">
+            <input
+              type="checkbox"
+              checked={pasifleriGoster}
+              onChange={(e) => setPasifleriGoster(e.target.checked)}
+              className="accent-accent"
+            />
+            Pasifleri göster
+          </label>
+        )}
       </div>
 
-      {ekleAcik && eylemEtiketi[sekme] && (
+      {ekleAcik && gorunum && (
         <EkleFormu
           sekme={sekme}
           binalar={binalar}
           yetkinlikler={yetkinlikler}
-          onIptal={() => setEkleAcik(false)}
+          duzenlenen={duzenleniyor ? seciliKayit : null}
+          onIptal={() => {
+            setEkleAcik(false)
+            setDuzenleniyor(false)
+          }}
           onKaydedildi={() => {
+            setDuzenleniyor(false)
             setEkleAcik(false)
             hepsiniYukle()
           }}
@@ -277,131 +442,28 @@ export function TanimlarEkrani({ ekranSec }: Props) {
         </>
       )}
 
-      {sekme === 'Personel' && (
-        <Kart>
-          <table className="w-full min-w-[720px] border-collapse">
-            <thead>
-              <tr className="bg-sunken">
-                {['AD', 'SİCİL', 'YETKİNLİKLER', 'HEDEF SAAT', 'SABİT VARDİYA', 'DURUM'].map((b) => (
-                  <th
-                    key={b}
-                    className="whitespace-nowrap px-3 py-2 text-left font-condensed text-[10px] tracking-[0.1em] text-ink-muted"
-                  >
-                    {b}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {personelListesi.map((p) => {
-                const aktifMi = !p.aktif_bitis || p.aktif_bitis >= bugunIso()
-                return (
-                  <tr key={p.personel_id} className="border-t border-rule">
-                    <td className="px-3 py-3 text-sm font-medium text-ink">{p.ad_soyad}</td>
-                    <td className="px-3 py-3 font-mono text-sm text-ink-muted">{p.sicil_no}</td>
-                    <td className="px-3 py-3 text-sm text-ink-muted">
-                      {p.yetkinlik_idleri.map((id) => yetkinlikMap.get(id)?.ad ?? id).join(', ') || '—'}
-                    </td>
-                    <td className="px-3 py-3 font-mono text-sm text-ink">
-                      <Sayi>{p.haftalik_hedef_saat}</Sayi> sa
-                    </td>
-                    <td className="px-3 py-3 text-sm text-ink-muted">
-                      {vardiyaTipleri.find((v) => v.vardiya_tipi_id === p.sabit_vardiya_tipi_id)?.ad ?? '—'}
-                    </td>
-                    <td className="px-3 py-3">
-                      <Rozet varyant={aktifMi ? 'dolu' : 'notr'} genislik={64}>
-                        {aktifMi ? 'Aktif' : 'İzinli'}
-                      </Rozet>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </Kart>
-      )}
-
-      {sekme === 'Yetkinlik' && (
-        <div className="flex flex-col gap-3">
-          {yetkinlikler.map((y) => (
-            <Kart key={y.yetkinlik_id}>
-              <div className="flex items-start justify-between gap-6">
-                <div>
-                  <p className="m-0 text-base font-semibold text-ink">{y.ad}</p>
-                  {y.aciklama && <p className="mt-1 text-sm text-ink-muted">{y.aciklama}</p>}
-                </div>
-                <div className="text-right">
-                  <Sayi className="text-2xl font-semibold text-ink">
-                    {personelListesi.filter((p) => p.yetkinlik_idleri.includes(y.yetkinlik_id)).length}
-                  </Sayi>
-                  <p className="m-0 font-condensed text-[10px] tracking-[0.1em] text-ink-muted">PERSONEL</p>
-                </div>
-              </div>
-            </Kart>
-          ))}
-        </div>
-      )}
-
-      {sekme === 'Bina' && (
-        <div className="flex flex-col gap-3">
-          {binalar.length === 0 && (
-            <p className="text-sm text-ink-muted">
-              Bina tanımlı değil — mevcut uygulama alanında bütün noktalar tesis geneli (SRS 3.3.3).
-            </p>
+      {TANIM_SEKMELERI.includes(sekme as TanimSekmesi) && (
+        <>
+          {silinecek && (
+            <SilmeOnayi
+              yol={silinecek.yol}
+              id={silinecek.id}
+              ad={silinecek.ad}
+              onIptal={() => setSilinecek(null)}
+              onSilindi={() => {
+                setSilinecek(null)
+                setSeciliId(null)
+                hepsiniYukle()
+              }}
+            />
           )}
-          {binalar.map((b) => (
-            <Kart key={b.bina_id}>
-              <p className="m-0 text-base font-semibold text-ink">{b.ad}</p>
-            </Kart>
-          ))}
-        </div>
-      )}
-
-      {sekme === 'Görev Noktası' && (
-        <div className="flex flex-col gap-3">
-          {noktalar.map((n) => (
-            <Kart key={n.nokta_id}>
-              <div className="flex items-center justify-between gap-6">
-                <div>
-                  <p className="m-0 text-base font-semibold text-ink">{n.ad}</p>
-                  <p className="mt-1 text-sm text-ink-muted">
-                    {n.bina_id ? binalar.find((b) => b.bina_id === n.bina_id)?.ad : 'Tesis geneli'}
-                    {' · '}
-                    {n.onkosul_yetkinlik_id
-                      ? (yetkinlikMap.get(n.onkosul_yetkinlik_id)?.ad ?? 'Ön koşul var')
-                      : 'Ön koşul yok'}
-                  </p>
-                </div>
-                <Rozet varyant={n.aktif ? 'dolu' : 'notr'} genislik={64}>
-                  {n.aktif ? 'Aktif' : 'Pasif'}
-                </Rozet>
-              </div>
-            </Kart>
-          ))}
-        </div>
-      )}
-
-      {sekme === 'Vardiya Tipi' && (
-        <div className="flex flex-col gap-3">
-          {vardiyaTipleri.map((v) => (
-            <Kart key={v.vardiya_tipi_id}>
-              <div className="flex items-center justify-between gap-6">
-                <div>
-                  <p className="m-0 text-base font-semibold text-ink">{v.ad}</p>
-                  <p className="mt-1 font-mono text-sm text-ink-muted">
-                    {v.baslangic_saati.slice(0, 5)} – {v.bitis_saati.slice(0, 5)} ·{' '}
-                    <Sayi>{v.sure_saat}</Sayi> saat
-                  </p>
-                </div>
-                {v.gece_mi && (
-                  <Rozet varyant="kilitli" genislik={64}>
-                    Gece
-                  </Rozet>
-                )}
-              </div>
-            </Kart>
-          ))}
-        </div>
+          <TanimListesi
+            gorunum={gorunum!}
+            seciliId={seciliId}
+            seciliIdDegistir={setSeciliId}
+            pasifleriGoster={pasifleriGoster}
+          />
+        </>
       )}
 
       {sekme === 'Kural' && (
@@ -564,42 +626,111 @@ interface EkleFormuProps {
   sekme: Sekme
   binalar: Bina[]
   yetkinlikler: Yetkinlik[]
+  /** Dolu ise form düzenleme kipindedir; boş ise yeni kayıt açar. */
+  duzenlenen: unknown | null
   onIptal: () => void
   onKaydedildi: () => void
   onHata: (mesaj: string) => void
 }
 
-function EkleFormu({ sekme, binalar, yetkinlikler, onIptal, onKaydedildi, onHata }: EkleFormuProps) {
-  const [ad, setAd] = useState('')
-  const [ikinciAlan, setIkinciAlan] = useState('')
-  const [ucuncuAlan, setUcuncuAlan] = useState('')
-  const [binaId, setBinaId] = useState('')
-  const [yetkinlikId, setYetkinlikId] = useState('')
+/**
+ * Ekleme ve değiştirme aynı formdan yürür (madde 1).
+ *
+ * İki ayrı form yazmak, alanların ve doğrulamaların iki yerde tanımlanması
+ * demek olurdu; bu projede aynı kalıp daha önce birkaç kez soruna yol açtı.
+ * Kip yalnızca başlangıç değerlerini ve POST/PUT seçimini değiştirir.
+ */
+function EkleFormu({
+  sekme,
+  binalar,
+  yetkinlikler,
+  duzenlenen,
+  onIptal,
+  onKaydedildi,
+  onHata,
+}: EkleFormuProps) {
+  const mevcut = duzenlenen as Record<string, unknown> | null
+  const kimlikAlani: Partial<Record<Sekme, string>> = {
+    Personel: 'personel_id',
+    Yetkinlik: 'yetkinlik_id',
+    Bina: 'bina_id',
+    'Görev Noktası': 'nokta_id',
+    'Vardiya Tipi': 'vardiya_tipi_id',
+  }
+  const id = mevcut ? Number(mevcut[kimlikAlani[sekme] ?? '']) : null
+
+  const ilkDeger = (anahtar: string, varsayilan = '') =>
+    mevcut && mevcut[anahtar] != null ? String(mevcut[anahtar]) : varsayilan
+
+  const [ad, setAd] = useState(() =>
+    ilkDeger(sekme === 'Personel' ? 'ad_soyad' : 'ad'),
+  )
+  const [ikinciAlan, setIkinciAlan] = useState(() =>
+    sekme === 'Personel'
+      ? ilkDeger('sicil_no')
+      : sekme === 'Yetkinlik'
+        ? ilkDeger('aciklama')
+        : sekme === 'Vardiya Tipi'
+          ? ilkDeger('baslangic_saati').slice(0, 5)
+          : '',
+  )
+  const [ucuncuAlan, setUcuncuAlan] = useState(() =>
+    sekme === 'Personel'
+      ? ilkDeger('haftalik_hedef_saat')
+      : sekme === 'Vardiya Tipi'
+        ? ilkDeger('bitis_saati').slice(0, 5)
+        : '',
+  )
+  const [binaId, setBinaId] = useState(() => ilkDeger('bina_id'))
+  const [yetkinlikId, setYetkinlikId] = useState(() =>
+    sekme === 'Görev Noktası'
+      ? ilkDeger('onkosul_yetkinlik_id')
+      : sekme === 'Personel' && Array.isArray(mevcut?.yetkinlik_idleri)
+        ? String((mevcut.yetkinlik_idleri as number[])[0] ?? '')
+        : '',
+  )
   const [gonderiliyor, setGonderiliyor] = useState(false)
 
   const kaydet = async () => {
     setGonderiliyor(true)
     try {
       if (sekme === 'Personel') {
-        await api.personelOlustur({
+        const govde = {
           ad_soyad: ad,
           sicil_no: ikinciAlan,
           haftalik_hedef_saat: Number(ucuncuAlan) || 40,
-          aktif_baslangic: bugunIso(),
           yetkinlik_idleri: yetkinlikId ? [Number(yetkinlikId)] : [],
-        })
+        }
+        if (id !== null) await api.personelGuncelle(id, govde)
+        else await api.personelOlustur({ ...govde, aktif_baslangic: bugunIso() })
       } else if (sekme === 'Yetkinlik') {
-        await api.yetkinlikOlustur(ad, ikinciAlan || undefined)
+        if (id !== null) await api.yetkinlikGuncelle(id, { ad, aciklama: ikinciAlan || null })
+        else await api.yetkinlikOlustur(ad, ikinciAlan || undefined)
       } else if (sekme === 'Bina') {
-        await api.binaOlustur(ad)
+        if (id !== null) await api.binaGuncelle(id, { ad })
+        else await api.binaOlustur(ad)
       } else if (sekme === 'Görev Noktası') {
-        await api.noktaOlustur(ad, binaId ? Number(binaId) : null, yetkinlikId ? Number(yetkinlikId) : null)
+        const binaDegeri = binaId ? Number(binaId) : null
+        const yetkinlikDegeri = yetkinlikId ? Number(yetkinlikId) : null
+        if (id !== null)
+          await api.noktaGuncelle(id, {
+            ad,
+            bina_id: binaDegeri,
+            onkosul_yetkinlik_id: yetkinlikDegeri,
+          })
+        else await api.noktaOlustur(ad, binaDegeri, yetkinlikDegeri)
       } else if (sekme === 'Vardiya Tipi') {
-        await api.vardiyaTipiOlustur(ad, ikinciAlan, ucuncuAlan)
+        if (id !== null)
+          await api.vardiyaTipiGuncelle(id, {
+            ad,
+            baslangic_saati: ikinciAlan,
+            bitis_saati: ucuncuAlan,
+          })
+        else await api.vardiyaTipiOlustur(ad, ikinciAlan, ucuncuAlan)
       }
       onKaydedildi()
     } catch (e) {
-      onHata(e instanceof Error ? e.message : 'Kayıt oluşturulamadı')
+      onHata(e instanceof Error ? e.message : 'Kayıt kaydedilemedi')
     } finally {
       setGonderiliyor(false)
     }
@@ -607,7 +738,9 @@ function EkleFormu({ sekme, binalar, yetkinlikler, onIptal, onKaydedildi, onHata
 
   return (
     <Kart vurgulu>
-      <KartEtiketi renk="accent">{sekme.toLocaleLowerCase('tr-TR')} ekle</KartEtiketi>
+      <KartEtiketi renk="accent">
+        {sekme.toLocaleLowerCase('tr-TR')} {id !== null ? 'değiştir' : 'ekle'}
+      </KartEtiketi>
       <div className="flex flex-wrap items-end gap-4">
         <div className="flex flex-col gap-1">
           <label className="text-sm text-ink-muted">Ad</label>

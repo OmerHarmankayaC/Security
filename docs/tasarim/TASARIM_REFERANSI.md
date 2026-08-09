@@ -132,20 +132,36 @@ Toplam 1440×900. İki sütun: yan menü 260px sabit, ana alan kalan 1180px.
   - Öğeler arası 2px, öğe yüksekliği 34px, yarıçap 3px
   - **Aktif öğe:** zemin `chrome/raised`, metin `chrome/ink`
   - **Pasif öğe:** zemin yok, metin `chrome/ink-muted`
-- **Alt grubu** (en altta, dikey, 22px aralık):
-  1. Eylem butonu — yalnızca Tanımlar alt sekmelerinde ("Personel Ekle"
-     gibi). Zemin `accent`, yarıçap 3, yükseklik 32, iç boşluk 8/14,
-     genişlik içeriğe göre (tam genişlik **değil**)
-  2. **Dönem bloğu** — üstte 1px `chrome/line` ayraç, altında
-     "PLANLAMA DÖNEMİ" (`etiket/caps`), tarih aralığı (`sayı/orta`,
-     mono), "7 gün · 3×8 vardiya" (`veri/mono-küçük`)
+- **Alt grubu** (en altta): **Dönem bloğu** — üstte 1px `chrome/line`
+  ayraç, altında "PLANLAMA DÖNEMİ" (`etiket/caps`), tarih aralığı
+  (`sayı/orta`, mono), "7 gün · 3×8 vardiya" (`veri/mono-küçük`)
 
-Dönem bloğu her zaman **en altta**, varsa butonun altındadır.
+  Blok, ekranda **seçili** olan dönemi gösterir. Dönem seçimi olmayan
+  ekranlarda geçerli dönem kuralına düşer: bugünü içeren dönem, yoksa en
+  yakın gelecek dönem, o da yoksa en son geçmiş dönem.
+
+> **Değişiklik (arayüz turu).** Tanımlar sekmelerinin eylem butonu artık
+> yan menünün altında **değil**, üst çubuğun sağındadır — bkz. "Ana alan
+> → Üst çubuk". Neden: buton yalnızca bazı sekmelerde vardı ve
+> "Değiştir"/"Sil" eklenince üçlü, üzerinde işlem yaptığı listeden iki
+> sütun uzakta kalıyordu. Yan menü bağlam taşır, eylem taşımaz.
 
 ### Ana alan
 
 - **Üst çubuk:** 64px yükseklik, yatay iç boşluk 28. Solda ekran adı
-  (`başlık/ekran`). Gerekirse sağda eylemler.
+  (`başlık/ekran`). Sağda ekranın eylemleri, aralarında 8px.
+
+  Tanımlar ekranında bu eylemler **Ekle · Değiştir · Sil** üçlüsüdür ve
+  beş tanım sekmesinin (Personel, Yetkinlik, Bina, Görev Noktası, Vardiya
+  Tipi) hepsinde aynı sırada, aynı konumda ve aynı görünümdedir. "Ekle"
+  birincil (`accent` zemin), diğer ikisi ikincildir; "Değiştir" ve "Sil"
+  listeden bir kayıt seçilene kadar pasiftir.
+
+  Talep ve Kural sekmeleri bu üçlünün dışındadır: talep matrisinde
+  eklenecek bağımsız bir kayıt yoktur (satırlar görev noktalarından
+  türer, hücreler yerinde düzenlenir), kural kataloğunda ise H1–H8 ve
+  S1–S8 kodda tanımlı sınıflarla eşleşir; eklenip silinemez, yalnızca
+  pasifleştirilir.
 - **İçerik:** iç boşluk 28 dikey / 32 yatay, kartlar arası 20px.
   Kart genişliği 1116px (içerik alanının tamamı).
 
