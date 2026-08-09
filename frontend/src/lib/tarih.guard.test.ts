@@ -1,3 +1,8 @@
+// @vitest-environment node
+//
+// Bu dosya kaynak ağacını dosya sisteminden tarar. jsdom ortamında
+// `import.meta.url` file: şeması taşımadığından yol çözümü kırılıyor;
+// bileşen testleri için açılan jsdom'un bu teste ihtiyacı yok.
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'

@@ -163,3 +163,53 @@ input,
 select {
   font-family: var(--font-sans);
 }
+
+/* --- Yazdırma (madde 7b) --------------------------------------------------
+   Duvara asılan çizelge yatay A4'e basılır. Kenar boşluğu 8mm: 28 günlük
+   dönemde 281mm'lik yazım alanı, personel adı sütunu düştükten sonra sütun
+   başına ~8,5mm bırakıyor — vardiya ve nokta kısaltmaları bu genişliğe
+   sığıyor, tam adlar sığmıyordu.
+
+   Görünürlük hilesi (body gizli, yazdırma alanı görünür) bilinçli: uygulama
+   kabuğunu ayrı bir baskı ağacına taşımak yerine yerinde bırakır, böylece
+   ekrandaki bileşenle basılan bileşen AYNI olur ve ikisi zamanla ayrışmaz. */
+@page {
+  size: A4 landscape;
+  margin: 8mm;
+}
+
+@media print {
+  body {
+    visibility: hidden;
+    background: white;
+  }
+
+  .yazdirma-alani,
+  .yazdirma-alani * {
+    visibility: visible;
+  }
+
+  .yazdirma-alani {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    overflow: visible;
+  }
+
+  /* Ekranda görünen ama kâğıtta işi olmayan öğeler (kapat/yazdır butonları). */
+  .yazdirma-gizle {
+    display: none !important;
+  }
+
+  /* Satırlar sayfaya sığmadığında bölünür; gün başlığı her sayfada
+     yeniden basılsın, yoksa ikinci sayfadaki hücreler hangi güne ait
+     olduğunu kaybeder. */
+  .yazdirma-tablo thead {
+    display: table-header-group;
+  }
+
+  .yazdirma-tablo tr {
+    break-inside: avoid;
+  }
+}

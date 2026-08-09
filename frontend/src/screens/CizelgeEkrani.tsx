@@ -11,6 +11,8 @@ import type {
   VardiyaTipi,
 } from '../api/types'
 import { AppShell, type NavOgesi } from '../components/AppShell'
+import { YazdirmaOnizlemesi } from '../components/YazdirmaOnizlemesi'
+import { csvDisaAktar, type CizelgeVerisi } from '../lib/disaAktarma'
 import { Buton, Kart, KartEtiketi, Sayi } from '../components/app-ui'
 import { cn } from '../lib/utils'
 import { buyukHarf, kisalt } from '../lib/metin'
@@ -89,6 +91,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
   const [hata, setHata] = useState<string | null>(null)
 
   const [gorunum, setGorunum] = useState<Gorunum>('personel')
+  const [yazdirmaAcik, setYazdirmaAcik] = useState(false)
   const [seciliHucre, setSeciliHucre] = useState<SeciliHucre | null>(null)
   const [seciliVardiyaTipiId, setSeciliVardiyaTipiId] = useState<string>(BOSALT_DEGERI)
   const [seciliNoktaId, setSeciliNoktaId] = useState<string>(BOSALT_DEGERI)
@@ -289,6 +292,21 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
     }
   }
 
+  // Dışa aktarma verisi Çizelge ve Analiz ekranlarında aynı biçimde kurulur;
+  // biçimleme ve indirme lib/disaAktarma.ts'te ortaktır.
+  const disaAktarmaVerisi: CizelgeVerisi | null =
+    donem && surum
+      ? {
+          donem,
+          surum,
+          atamalar,
+          kapsamaAcigi,
+          personelMap,
+          vardiyaMap,
+          noktaMap,
+        }
+      : null
+
   const seciliPersonel = seciliHucre ? personelMap.get(seciliHucre.personelId) : null
   const seciliMevcutAtama = seciliHucre ? atamaBul(seciliHucre.personelId, seciliHucre.tarih) : null
 
@@ -318,6 +336,22 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
             {gorunum === 'personel' ? 'Nokta Görünümü' : 'Personel Görünümü'}
           </Buton>
           <Buton
+            varyant="ikincil"
+            disabled={disaAktarmaVerisi === null}
+            title="Uzun biçim CSV + kapsama açığı dosyası"
+            onClick={() => disaAktarmaVerisi && csvDisaAktar(disaAktarmaVerisi)}
+          >
+            CSV
+          </Buton>
+          <Buton
+            varyant="ikincil"
+            disabled={disaAktarmaVerisi === null}
+            title="Personel × gün matrisi, yatay A4"
+            onClick={() => setYazdirmaAcik(true)}
+          >
+            Yazdır
+          </Buton>
+          <Buton
             varyant="birincil"
             disabled={donemId === null}
             onClick={() => donemId !== null && yenidenCozIste(donemId)}
@@ -327,6 +361,10 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
         </>
       }
     >
+      {yazdirmaAcik && disaAktarmaVerisi && (
+        <YazdirmaOnizlemesi veri={disaAktarmaVerisi} onKapat={() => setYazdirmaAcik(false)} />
+      )}
+
       <Kart>
         <KartEtiketi>seçim</KartEtiketi>
         <div className="flex flex-wrap items-end gap-6">

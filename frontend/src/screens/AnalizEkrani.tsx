@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api/client'
-import type { Analiz, Atama, CizelgeSurumu, Donem, Personel, VardiyaTipi } from '../api/types'
+import type { Analiz, CizelgeSurumu, Donem, Personel, VardiyaTipi } from '../api/types'
 import { AppShell, type NavOgesi } from '../components/AppShell'
 import { Buton, Kart, KartEtiketi, Sayi } from '../components/app-ui'
-import { donemAraligiBicimle, gunlerListesi, isoAyristir } from '../lib/tarih'
+import { donemAraligiBicimle } from '../lib/tarih'
+import { csvDisaAktar } from '../lib/disaAktarma'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -28,42 +29,6 @@ function yuzdeBicimle(oran: number | null): string {
 function sapmaBicimle(sapma: number): string {
   const isaret = sapma > 0 ? '+' : ''
   return `${isaret}${sapma.toFixed(1)} sa`
-}
-
-// SRS 7.2: çizelge dışa aktarma CSV biçimi, sicil/ad/tarih/vardiya_tipi/
-// gece_mi/hafta_sonu_mu/sure_saat sütunlarıyla, UTF-8, ISO 8601 tarih.
-//
-// Tarih burada BİLİNÇLİ olarak ISO (YYYY-AA-GG) kalır; arayüzün her yerinde
-// kullanılan Türkçe biçime (lib/tarih.ts) çevrilmez. Bu dosyanın okuyucusu
-// insan değil bir tablo programıdır: ISO sözlüksel sıralamada takvim
-// sırasıyla aynıdır ve yerel ayardan bağımsız olarak tarih tipine çözülür.
-// "9 Ağustos 2026" ise metin olarak açılır ve sıralaması bozulur.
-function csvOlustur(
-  atamalar: Atama[],
-  personelMap: Map<number, Personel>,
-  vardiyaMap: Map<number, VardiyaTipi>,
-  haftaSonuMu: (tarih: string) => boolean,
-): string {
-  const basliklar = ['sicil', 'ad', 'tarih', 'vardiya_tipi', 'gece_mi', 'hafta_sonu_mu', 'sure_saat']
-  const satirlar = atamalar
-    .slice()
-    .sort((a, b) => a.tarih.localeCompare(b.tarih) || a.personel_id - b.personel_id)
-    .map((a) => {
-      const personel = personelMap.get(a.personel_id)
-      const vardiya = vardiyaMap.get(a.vardiya_tipi_id)
-      return [
-        personel?.sicil_no ?? '',
-        personel?.ad_soyad ?? '',
-        a.tarih,
-        vardiya?.ad ?? '',
-        vardiya?.gece_mi ? 'evet' : 'hayir',
-        haftaSonuMu(a.tarih) ? 'evet' : 'hayir',
-        vardiya?.sure_saat ?? '',
-      ]
-        .map((deger) => `"${String(deger).replaceAll('"', '""')}"`)
-        .join(',')
-    })
-  return [basliklar.join(','), ...satirlar].join('\n')
 }
 
 export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
@@ -160,24 +125,26 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
     : []
   const azamiCeza = cezaGirdileri.reduce((m, [, deger]) => Math.max(m, deger), 0)
 
+  // Dışa aktarma Çizelge ekranıyla ortak (lib/disaAktarma.ts). Analiz ekranı
+  // atamaları ve kapsama açığını kendi durumunda tutmadığından istek anında
+  // çeker; biçimleme ve indirme yolunun kendisi paylaşılır.
   const disaAktar = async () => {
-    if (surumId === null || !donem) return
+    if (surumId === null || !donem || !surum) return
     try {
-      const atamalar = await api.surumAtamalari(surumId)
-      const gunler = new Set(gunlerListesi(donem.baslangic_tarihi, donem.bitis_tarihi))
-      const haftaSonuMu = (tarih: string) => {
-        if (!gunler.has(tarih)) return false
-        const gun = isoAyristir(tarih).getDay()
-        return gun === 0 || gun === 6
-      }
-      const csv = csvOlustur(atamalar, personelMap, vardiyaMap, haftaSonuMu)
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-      const url = URL.createObjectURL(blob)
-      const baglanti = document.createElement('a')
-      baglanti.href = url
-      baglanti.download = `cizelge-surum-${surum?.surum_no ?? surumId}.csv`
-      baglanti.click()
-      URL.revokeObjectURL(url)
+      const [atamalar, kapsamaAcigi, noktalar] = await Promise.all([
+        api.surumAtamalari(surumId),
+        api.surumKapsamaAcigi(surumId),
+        api.noktaListele(),
+      ])
+      csvDisaAktar({
+        donem,
+        surum,
+        atamalar,
+        kapsamaAcigi,
+        personelMap,
+        vardiyaMap,
+        noktaMap: new Map(noktalar.map((n) => [n.nokta_id, n])),
+      })
     } catch (e) {
       setHata(e instanceof Error ? e.message : 'Dışa aktarma başarısız')
     }
