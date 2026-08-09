@@ -28,6 +28,7 @@ import {
   s1BaskinligiKayboldu,
   s1PasifUyarisi,
 } from '../lib/kuralAgirlik'
+import { degisiklikleriBul, kirliMi, yazilacaklariBul } from '../lib/kuralDuzenleme'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -84,6 +85,16 @@ export function TanimlarEkrani({ ekranSec }: Props) {
     null,
   )
   const [pasifleriGoster, setPasifleriGoster] = useState(false)
+
+  // Kural sekmesi düzenleme kipi (madde 3a). Kip kapalıyken hiçbir alan tek
+  // tıkla değişmez; değişiklikler `kuralTaslagi` içinde birikir ve yalnızca
+  // onaydan sonra sunucuya gider.
+  const [kuralKipi, setKuralKipi] = useState<'okuma' | 'duzenleme'>('okuma')
+  const [kuralTaslagi, setKuralTaslagi] = useState<Kural[]>([])
+  // Onay şeridi. `hedefSekme` doluysa onay, sekmeden ayrılma isteğinden
+  // doğmuştur ve kaydetme/atma sonrası o sekmeye geçilir.
+  const [kuralOnayi, setKuralOnayi] = useState<{ hedefSekme: Sekme | null } | null>(null)
+  const [kuralKaydediliyor, setKuralKaydediliyor] = useState(false)
 
   const hepsiniYukle = () => {
     Promise.all([
@@ -145,16 +156,61 @@ export function TanimlarEkrani({ ekranSec }: Props) {
     }
   }
 
-  const kuralGuncelle = async (
+  const kuralDuzenlemeAc = () => {
+    setKuralTaslagi(kurallar.map((k) => ({ ...k, parametreler: { ...k.parametreler } })))
+    setKuralKipi('duzenleme')
+    setHata(null)
+  }
+
+  const kuralTaslaginiDegistir = (
     kimlik: string,
     veri: Partial<Pick<Kural, 'agirlik' | 'aktif' | 'parametreler'>>,
   ) => {
+    setKuralTaslagi((mevcut) =>
+      mevcut.map((k) =>
+        k.kimlik === kimlik
+          ? {
+              ...k,
+              ...veri,
+              parametreler: veri.parametreler
+                ? { ...k.parametreler, ...veri.parametreler }
+                : k.parametreler,
+            }
+          : k,
+      ),
+    )
+  }
+
+  const kuralKirli = kirliMi(kurallar, kuralTaslagi)
+  const kuralDegisiklikleri = degisiklikleriBul(kurallar, kuralTaslagi)
+
+  const kuralKipiniKapat = (hedefSekme: Sekme | null) => {
+    setKuralKipi('okuma')
+    setKuralTaslagi([])
+    setKuralOnayi(null)
+    if (hedefSekme) setSekme(hedefSekme)
+  }
+
+  /** Kipten çıkış isteği: kirliyse onay ister, temizse doğrudan kapatır. */
+  const kuralCikisIste = (hedefSekme: Sekme | null) => {
+    if (kuralKirli) setKuralOnayi({ hedefSekme })
+    else kuralKipiniKapat(hedefSekme)
+  }
+
+  const kuralKaydet = async (hedefSekme: Sekme | null) => {
+    setKuralKaydediliyor(true)
+    setHata(null)
     try {
-      const guncel = await api.kuralGuncelle(kimlik, veri)
-      setKurallar((mevcut) => mevcut.map((k) => (k.kimlik === kimlik ? guncel : k)))
-      setHata(null)
+      // Kural başına tek istek, yalnızca değişen alanlarla.
+      for (const { kimlik, govde } of yazilacaklariBul(kurallar, kuralTaslagi)) {
+        await api.kuralGuncelle(kimlik, govde)
+      }
+      setKurallar(await api.kuralListele())
+      kuralKipiniKapat(hedefSekme)
     } catch (e) {
       setHata(e instanceof Error ? e.message : 'Kural güncellenemedi')
+    } finally {
+      setKuralKaydediliyor(false)
     }
   }
 
@@ -249,14 +305,18 @@ export function TanimlarEkrani({ ekranSec }: Props) {
       ? (gorunum.kayitlar.find((k) => gorunum.kimlik(k) === seciliId) ?? null)
       : null
 
-  const zorunluKurallar = kurallar.filter((k) => k.tip === 'zorunlu')
-  const esnekKurallar = kurallar.filter((k) => k.tip === 'esnek')
+  // Ekranda gösterilen liste: düzenleme kipinde taslak, okuma kipinde kayıtlı
+  // hâl. Uyarılar da bundan hesaplanır, böylece kullanıcı KAYDEDECEĞİ durumun
+  // sonucunu görür.
+  const gosterilenKurallar = kuralKipi === 'duzenleme' ? kuralTaslagi : kurallar
+  const zorunluKurallar = gosterilenKurallar.filter((k) => k.tip === 'zorunlu')
+  const esnekKurallar = gosterilenKurallar.filter((k) => k.tip === 'esnek')
 
   // S1 uyarısının ölçüsü (madde 2d) — hesap lib/kuralAgirlik.ts'te, orada
   // testleri var.
   const s1Agirligi = esnekKurallar.find((k) => k.kimlik === 'S1')?.agirlik ?? null
-  const esnekAgirlikToplami = digerEsnekAgirlikToplami(kurallar)
-  const s1Uyarisi = s1PasifUyarisi(kurallar)
+  const esnekAgirlikToplami = digerEsnekAgirlikToplami(gosterilenKurallar)
+  const s1Uyarisi = s1PasifUyarisi(gosterilenKurallar)
 
   return (
     <AppShell
@@ -267,7 +327,28 @@ export function TanimlarEkrani({ ekranSec }: Props) {
       // hepsinde aynı konum, aynı sıra, aynı görünüm. Önceki hâlinde "Ekle"
       // yan menünün altındaydı ve yalnız bazı sekmelerde vardı.
       aksiyonlar={
-        gorunum && (
+        sekme === 'Kural' ? (
+          kuralKipi === 'okuma' ? (
+            <Buton varyant="birincil" onClick={kuralDuzenlemeAc}>
+              Değiştir
+            </Buton>
+          ) : (
+            <>
+              <Buton
+                varyant="birincil"
+                disabled={kuralKaydediliyor || !kuralKirli}
+                title={kuralKirli ? undefined : 'Değişiklik yok'}
+                onClick={() => setKuralOnayi({ hedefSekme: null })}
+              >
+                Kaydet
+              </Buton>
+              <Buton varyant="ikincil" onClick={() => kuralCikisIste(null)}>
+                Vazgeç
+              </Buton>
+            </>
+          )
+        ) : (
+          gorunum && (
           <>
             <Buton
               varyant="birincil"
@@ -307,6 +388,7 @@ export function TanimlarEkrani({ ekranSec }: Props) {
               Sil
             </Buton>
           </>
+          )
         )
       }
     >
@@ -323,6 +405,13 @@ export function TanimlarEkrani({ ekranSec }: Props) {
                 s === sekme && 'bg-chrome-base font-medium text-chrome-ink',
               )}
               onClick={() => {
+                // Kaydedilmemiş kural değişikliğiyle sekmeden ayrılmak sessizce
+                // veri kaybettirir; onay istenir ve geçiş ona bağlanır.
+                if (sekme === 'Kural' && kuralKipi === 'duzenleme' && kuralKirli) {
+                  setKuralOnayi({ hedefSekme: s })
+                  return
+                }
+                if (sekme === 'Kural') kuralKipiniKapat(null)
                 setSekme(s)
                 setEkleAcik(false)
                 setDuzenleniyor(false)
@@ -473,6 +562,62 @@ export function TanimlarEkrani({ ekranSec }: Props) {
 
       {sekme === 'Kural' && (
         <>
+          {kuralOnayi && (
+            <Kart vurgulu>
+              <KartEtiketi renk="accent">değişiklikleri kaydet</KartEtiketi>
+              <p className="m-0 text-sm text-ink">
+                {kuralDegisiklikleri.length} değişiklik kaydedilecek
+                {kuralOnayi.hedefSekme
+                  ? `, ardından ${kuralOnayi.hedefSekme} sekmesine geçilecek.`
+                  : '.'}
+              </p>
+              <ul className="m-0 mt-2 flex list-none flex-col gap-1 p-0">
+                {kuralDegisiklikleri.map((d, i) => (
+                  <li key={i} className="text-sm text-ink-muted">
+                    <span className="font-mono text-ink">{d.kimlik}</span> · {d.etiket}:{' '}
+                    {d.onceki} → <span className="font-medium text-ink">{d.yeni}</span>
+                  </li>
+                ))}
+              </ul>
+              {/* S1 uyarıları onay anında da görünür: kullanıcı sonucunu
+                  görerek onaylasın, kaydettikten sonra öğrenmesin. */}
+              {s1Uyarisi && (
+                <p className="mt-3 border-l-2 border-signal pl-3 text-sm text-signal">
+                  {s1Uyarisi}
+                </p>
+              )}
+              {s1BaskinligiKayboldu(s1Agirligi, esnekAgirlikToplami) && (
+                <p className="mt-3 border-l-2 border-signal pl-3 text-sm text-signal">
+                  S1 ağırlığı (<Sayi>{s1Agirligi}</Sayi>) diğer aktif esnek hedeflerin
+                  toplamının (<Sayi>{esnekAgirlikToplami}</Sayi>) üzerinde değil; talep
+                  karşılama baskınlığını kaybeder.
+                </p>
+              )}
+              <div className="mt-4 flex gap-2">
+                <Buton
+                  varyant="birincil"
+                  disabled={kuralKaydediliyor}
+                  onClick={() => kuralKaydet(kuralOnayi.hedefSekme)}
+                >
+                  {kuralKaydediliyor ? 'Kaydediliyor…' : 'Kaydet'}
+                </Buton>
+                <Buton
+                  varyant="ikincil"
+                  disabled={kuralKaydediliyor}
+                  onClick={() => kuralKipiniKapat(kuralOnayi.hedefSekme)}
+                >
+                  Kaydetme, at
+                </Buton>
+                <Buton
+                  varyant="hayalet"
+                  disabled={kuralKaydediliyor}
+                  onClick={() => setKuralOnayi(null)}
+                >
+                  Düzenlemeye dön
+                </Buton>
+              </div>
+            </Kart>
+          )}
           <Kart>
             <KartEtiketi>H1–H8 · zorunlu kısıtlar</KartEtiketi>
             <p className="-mt-2 mb-4 text-sm text-ink-muted">
@@ -486,7 +631,8 @@ export function TanimlarEkrani({ ekranSec }: Props) {
                   kural={k}
                   s1Agirligi={s1Agirligi}
                   esnekAgirlikToplami={esnekAgirlikToplami}
-                  onGuncelle={kuralGuncelle}
+                  duzenlenebilir={kuralKipi === 'duzenleme'}
+                  onGuncelle={kuralTaslaginiDegistir}
                 />
               ))}
             </div>
@@ -505,7 +651,8 @@ export function TanimlarEkrani({ ekranSec }: Props) {
                   kural={k}
                   s1Agirligi={s1Agirligi}
                   esnekAgirlikToplami={esnekAgirlikToplami}
-                  onGuncelle={kuralGuncelle}
+                  duzenlenebilir={kuralKipi === 'duzenleme'}
+                  onGuncelle={kuralTaslaginiDegistir}
                 />
               ))}
             </div>
@@ -520,6 +667,8 @@ interface KuralSatiriProps {
   kural: Kural
   s1Agirligi: number | null
   esnekAgirlikToplami: number
+  /** Düzenleme kipi açık mı? Kapalıyken satırda hiçbir etkileşimli alan yoktur. */
+  duzenlenebilir: boolean
   onGuncelle: (
     kimlik: string,
     veri: Partial<Pick<Kural, 'agirlik' | 'aktif' | 'parametreler'>>,
@@ -537,6 +686,7 @@ function KuralSatiri({
   kural,
   s1Agirligi,
   esnekAgirlikToplami,
+  duzenlenebilir,
   onGuncelle,
 }: KuralSatiriProps) {
   const esnek = kural.tip === 'esnek'
@@ -568,20 +718,28 @@ function KuralSatiri({
               {tanim.etiket}
               {tanim.birim ? ` (${tanim.birim})` : ''}
             </label>
-            <Input
-              id={`${kural.kimlik}-${tanim.anahtar}`}
-              type="number"
-              min={tanim.asgari ?? undefined}
-              max={tanim.azami ?? undefined}
-              className="w-24 rounded-sm border-rule text-right font-mono"
-              defaultValue={Number(kural.parametreler[tanim.anahtar] ?? 0)}
-              onBlur={(e) => {
-                const deger = Number(e.target.value)
-                if (deger !== Number(kural.parametreler[tanim.anahtar])) {
-                  onGuncelle(kural.kimlik, { parametreler: { [tanim.anahtar]: deger } })
+            {duzenlenebilir ? (
+              <Input
+                id={`${kural.kimlik}-${tanim.anahtar}`}
+                type="number"
+                min={tanim.asgari ?? undefined}
+                max={tanim.azami ?? undefined}
+                className="w-24 rounded-sm border-rule text-right font-mono"
+                // value + onChange (controlled): taslak tek doğruluk kaynağı.
+                // defaultValue ile bırakılırsa "kaydetme, at" sonrası alanda
+                // eski değer görünmeye devam ederdi.
+                value={String(kural.parametreler[tanim.anahtar] ?? '')}
+                onChange={(e) =>
+                  onGuncelle(kural.kimlik, {
+                    parametreler: { [tanim.anahtar]: Number(e.target.value) },
+                  })
                 }
-              }}
-            />
+              />
+            ) : (
+              <Sayi className="w-24 py-1 text-right text-sm text-ink">
+                {String(kural.parametreler[tanim.anahtar] ?? '—')}
+              </Sayi>
+            )}
           </div>
         ))}
 
@@ -590,34 +748,41 @@ function KuralSatiri({
             <label htmlFor={`${kural.kimlik}-agirlik`} className="text-sm text-ink-muted">
               Ağırlık
             </label>
-            <Input
-              id={`${kural.kimlik}-agirlik`}
-              type="number"
-              min={0}
-              className="w-24 rounded-sm border-rule text-right font-mono"
-              defaultValue={kural.agirlik ?? 0}
-              onBlur={(e) => {
-                const deger = Number(e.target.value)
-                if (deger !== kural.agirlik) onGuncelle(kural.kimlik, { agirlik: deger })
-              }}
-            />
+            {duzenlenebilir ? (
+              <Input
+                id={`${kural.kimlik}-agirlik`}
+                type="number"
+                min={0}
+                className="w-24 rounded-sm border-rule text-right font-mono"
+                value={String(kural.agirlik ?? '')}
+                onChange={(e) => onGuncelle(kural.kimlik, { agirlik: Number(e.target.value) })}
+              />
+            ) : (
+              <Sayi className="w-24 py-1 text-right text-sm text-ink">
+                {kural.agirlik ?? '—'}
+              </Sayi>
+            )}
           </div>
         )}
 
-        <button
-          type="button"
-          onClick={() => onGuncelle(kural.kimlik, { aktif: !kural.aktif })}
-          className="shrink-0"
-          title={
-            kural.aktif
-              ? 'Kuralı devre dışı bırak — kayıt silinmez, yalnızca modele eklenmez'
-              : 'Kuralı yeniden etkinleştir'
-          }
-        >
+        {/* Kip kapalıyken rozet salt gösterimdir. Tek tıkla değişen bir
+            anahtar, yanlış bir tıkta kuralı sessizce ve geri dönüşsüz
+            değiştiriyordu (canlıda S1 böyle pasifleşti). */}
+        {duzenlenebilir ? (
+          <label className="flex shrink-0 items-center gap-2 text-sm text-ink">
+            <input
+              type="checkbox"
+              checked={kural.aktif}
+              onChange={(e) => onGuncelle(kural.kimlik, { aktif: e.target.checked })}
+              className="accent-accent"
+            />
+            Aktif
+          </label>
+        ) : (
           <Rozet varyant={kural.aktif ? 'dolu' : 'notr'} genislik={64}>
             {kural.aktif ? 'Aktif' : 'Pasif'}
           </Rozet>
-        </button>
+        )}
       </div>
 
       {baskinlikUyarisi && (
@@ -701,6 +866,21 @@ function EkleFormu({
   )
   const [gonderiliyor, setGonderiliyor] = useState(false)
 
+  // Aktiflik, DÜZENLEME kipinde görünür bir alandır (madde 3b). Pasifleştirmenin
+  // tek yolu Sil'di ve geri dönüşün yolu yoktu — kapı tek yönlüydü.
+  //
+  // Personel istisnadır: aktiflik orada bayrakla değil tarih aralığıyla ifade
+  // edilir (SDD 4.2.1). Oradaki geri alma `aktif_bitis` alanını TEMİZLEMEKTİR;
+  // bir bayrak eklemek aynı bilgiyi iki kaynağa ayırırdı.
+  const personelMi = sekme === 'Personel'
+  const [aktif, setAktif] = useState(() =>
+    mevcut === null
+      ? true
+      : personelMi
+        ? mevcut.aktif_bitis == null || String(mevcut.aktif_bitis) >= bugunIso()
+        : mevcut.aktif !== false,
+  )
+
   const kaydet = async () => {
     setGonderiliyor(true)
     try {
@@ -711,13 +891,20 @@ function EkleFormu({
           haftalik_hedef_saat: Number(ucuncuAlan) || 40,
           yetkinlik_idleri: yetkinlikId ? [Number(yetkinlikId)] : [],
         }
-        if (id !== null) await api.personelGuncelle(id, govde)
-        else await api.personelOlustur({ ...govde, aktif_baslangic: bugunIso() })
+        if (id !== null) {
+          // Aktifleştirme = aktiflik penceresini yeniden açmak. Pasifleştirme
+          // (aktif_bitis'i düne yazmak) sunucudaki DELETE yoluna aittir;
+          // buradan yalnızca geri alınır.
+          await api.personelGuncelle(id, aktif ? { ...govde, aktif_bitis: null } : govde)
+        } else {
+          await api.personelOlustur({ ...govde, aktif_baslangic: bugunIso() })
+        }
       } else if (sekme === 'Yetkinlik') {
-        if (id !== null) await api.yetkinlikGuncelle(id, { ad, aciklama: ikinciAlan || null })
+        if (id !== null)
+          await api.yetkinlikGuncelle(id, { ad, aciklama: ikinciAlan || null, aktif })
         else await api.yetkinlikOlustur(ad, ikinciAlan || undefined)
       } else if (sekme === 'Bina') {
-        if (id !== null) await api.binaGuncelle(id, { ad })
+        if (id !== null) await api.binaGuncelle(id, { ad, aktif })
         else await api.binaOlustur(ad)
       } else if (sekme === 'Görev Noktası') {
         const binaDegeri = binaId ? Number(binaId) : null
@@ -727,6 +914,7 @@ function EkleFormu({
             ad,
             bina_id: binaDegeri,
             onkosul_yetkinlik_id: yetkinlikDegeri,
+            aktif,
           })
         else await api.noktaOlustur(ad, binaDegeri, yetkinlikDegeri)
       } else if (sekme === 'Vardiya Tipi') {
@@ -735,6 +923,7 @@ function EkleFormu({
             ad,
             baslangic_saati: ikinciAlan,
             bitis_saati: ucuncuAlan,
+            aktif,
           })
         else await api.vardiyaTipiOlustur(ad, ikinciAlan, ucuncuAlan)
       }
@@ -855,6 +1044,19 @@ function EkleFormu({
             </div>
           </>
         )}
+        {/* Aktiflik yalnızca DÜZENLEMEDE görünür: yeni kayıt zaten aktif
+            doğar, kutuyu ekleme formunda göstermek anlamsız bir seçim sunardı. */}
+        {id !== null && (
+          <label className="flex items-center gap-2 self-end pb-2 text-sm text-ink">
+            <input
+              type="checkbox"
+              checked={aktif}
+              onChange={(e) => setAktif(e.target.checked)}
+              className="accent-accent"
+            />
+            Aktif
+          </label>
+        )}
         <Buton varyant="birincil" onClick={kaydet} disabled={gonderiliyor || !ad}>
           Kaydet
         </Buton>
@@ -862,6 +1064,12 @@ function EkleFormu({
           İptal
         </Buton>
       </div>
+      {id !== null && !aktif && (
+        <p className="mt-3 text-sm text-ink-muted">
+          Pasif kayıt yeni çözümlerde kullanılmaz; mevcut çizelgelerde görünmeye devam eder.
+          {personelMi && ' Personelde bu, aktiflik penceresinin kapalı olması demektir.'}
+        </p>
+      )}
     </Kart>
   )
 }
