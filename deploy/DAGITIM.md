@@ -325,12 +325,20 @@ Yeni bağımlılık yok, yeni sır yok, `.env` değişmiyor. Frontend'e eklenen 
 paket (`@testing-library/react`, `jsdom`) yalnızca geliştirme
 bağımlılığıdır; derleme yerelde yapıldığı için sunucuya hiç gitmez.
 
-### Göç: `d5e70a91c26f`
+### Göçler: `d5e70a91c26f` → `e3b81f47a95c`
 
-`yetkinlik`, `bina` ve `vardiya_tipi` tablolarına `aktif BOOLEAN NOT NULL
-DEFAULT TRUE` ekler. Eklemeli ve geri alınabilir bir göçtür; sunucu
-varsayılanı sayesinde mevcut satırlar tek adımda `aktif = TRUE` olur, ayrı
-bir veri doldurma adımı **gerekmez**.
+İki göç var, sırayla uygulanır. `alembic upgrade head` ikisini de yapar.
+
+**`d5e70a91c26f`** — `yetkinlik`, `bina` ve `vardiya_tipi` tablolarına
+`aktif BOOLEAN NOT NULL DEFAULT TRUE` ekler. Eklemeli ve geri alınabilir;
+sunucu varsayılanı sayesinde mevcut satırlar tek adımda `aktif = TRUE`
+olur, ayrı bir veri doldurma adımı **gerekmez**.
+
+**`e3b81f47a95c`** — `kural` ve `gorev_noktasi` tablolarındaki mevcut
+`aktif` sütunlarına aynı sunucu varsayılanını ekler. Bu ikisi ilk şemada
+(b413bb80a4bd) varsayılansız oluşturulmuştu; beş tablo artık aynı
+sözleşmede. Yalnızca varsayılanı değiştirir, **satırlara dokunmaz** —
+pasifleştirilmiş bir kural veya görev noktası pasif kalır.
 
 ### Sıra
 
@@ -358,7 +366,7 @@ ssh root@SUNUCU 'set -a; . /opt/vardiya/.env; set +a
   systemctl restart vardiya-api vardiya-cozucu'
 ```
 
-`alembic current` çıktısı `d5e70a91c26f (head)` olmalıdır.
+`alembic current` çıktısı `e3b81f47a95c (head)` olmalıdır.
 
 ### Doğrulama
 
@@ -388,4 +396,5 @@ ssh root@SUNUCU 'cd /opt/vardiya/backend
 ```
 
 Pasifleştirilmiş tanımlar varsa geri almada o bilgi kaybolur (sütun
-düşer); kayıtların kendisi silinmez.
+düşer); kayıtların kendisi silinmez. `e3b81f47a95c`'nin geri alınması
+zararsızdır — yalnızca varsayılanı kaldırır.
