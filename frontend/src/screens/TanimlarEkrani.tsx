@@ -62,6 +62,21 @@ const GUN_VARDIYA_SUTUNLARI: { baslik: string; gunTipi: GunTipi; vardiyaAdi: str
   { baslik: 'H.SONU GECE', gunTipi: 'hafta_sonu', vardiyaAdi: 'Gece' },
 ]
 
+// --- Kural satırının sütun genişlikleri -------------------------------------
+// Sabit genişlik zorunlu: alanlar içeriğine göre büyüdüğünde her kuralın
+// etiketi farklı uzunlukta olduğu için parametre kutuları satırdan satıra
+// kayıyordu (TASARIM_REFERANSI'ndaki "genişleyen bileşenlere sabit genişlik"
+// uyarısının aynısı). 240px, en uzun etiketi ("Azami ardışık çalışma günü
+// (gün)") tek satırda tutar.
+const PARAMETRE_SUTUNU = 'w-[240px] shrink-0'
+const AGIRLIK_SUTUNU = 'w-[92px] shrink-0'
+// Rozet 64px, düzenleme kipindeki "☑ Aktif" ~62px; ikisi de aynı yuvada
+// sağa yaslanır, böylece sütun kip değiştirince oynamaz.
+const AKTIFLIK_SUTUNU = 'w-[92px] shrink-0'
+// Etiket üstte, değer altta; ikisi de sağa yaslı.
+const ALAN_YIGINI = 'flex flex-col items-end gap-1'
+const DEGER_ALANI = 'w-24 text-right'
+
 const INPUT_SINIFI =
   'h-8 w-full rounded-sm border border-rule bg-surface px-2.5 font-mono text-sm text-ink outline-none focus-visible:border-accent focus-visible:ring-3 focus-visible:ring-accent/30'
 
@@ -316,6 +331,13 @@ export function TanimlarEkrani({ ekranSec }: Props) {
   // testleri var.
   const s1Agirligi = esnekKurallar.find((k) => k.kimlik === 'S1')?.agirlik ?? null
   const esnekAgirlikToplami = digerEsnekAgirlikToplami(gosterilenKurallar)
+  // Sütun sayısı KART BAŞINA hesaplanır: iki kart ayrı tablolar, hizalanması
+  // gereken de kartın kendi içidir. Ortak bir sayı, parametresi hiç olmayan
+  // esnek hedefler kartında boş bir sütun bırakırdı.
+  const azamiParametre = (liste: Kural[]) =>
+    liste.reduce((azami, k) => Math.max(azami, k.parametre_tanimlari.length), 0)
+  const zorunluParametreSutunu = azamiParametre(zorunluKurallar)
+  const esnekParametreSutunu = azamiParametre(esnekKurallar)
   const s1Uyarisi = s1PasifUyarisi(gosterilenKurallar)
 
   return (
@@ -632,6 +654,7 @@ export function TanimlarEkrani({ ekranSec }: Props) {
                   s1Agirligi={s1Agirligi}
                   esnekAgirlikToplami={esnekAgirlikToplami}
                   duzenlenebilir={kuralKipi === 'duzenleme'}
+                  parametreSutunu={zorunluParametreSutunu}
                   onGuncelle={kuralTaslaginiDegistir}
                 />
               ))}
@@ -652,6 +675,7 @@ export function TanimlarEkrani({ ekranSec }: Props) {
                   s1Agirligi={s1Agirligi}
                   esnekAgirlikToplami={esnekAgirlikToplami}
                   duzenlenebilir={kuralKipi === 'duzenleme'}
+                  parametreSutunu={esnekParametreSutunu}
                   onGuncelle={kuralTaslaginiDegistir}
                 />
               ))}
@@ -669,6 +693,15 @@ interface KuralSatiriProps {
   esnekAgirlikToplami: number
   /** Düzenleme kipi açık mı? Kapalıyken satırda hiçbir etkileşimli alan yoktur. */
   duzenlenebilir: boolean
+  /**
+   * Bu karttaki kuralların EN ÇOK kaç parametresi var.
+   *
+   * Satır kendi parametre sayısı kadar değil, bu sayı kadar sütun çizer;
+   * eksik kalanlar boş bırakılır. Aksi hâlde parametresiz bir kuralın
+   * (H1, H7, H8) ağırlık ve aktiflik alanları sola kayar ve sütunlar
+   * satırdan satıra oynar.
+   */
+  parametreSutunu: number
   onGuncelle: (
     kimlik: string,
     veri: Partial<Pick<Kural, 'agirlik' | 'aktif' | 'parametreler'>>,
@@ -687,6 +720,7 @@ function KuralSatiri({
   s1Agirligi,
   esnekAgirlikToplami,
   duzenlenebilir,
+  parametreSutunu,
   onGuncelle,
 }: KuralSatiriProps) {
   const esnek = kural.tip === 'esnek'
@@ -695,7 +729,7 @@ function KuralSatiri({
 
   return (
     <div className="border-t border-rule py-3 first:border-none">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <div className="flex items-center gap-x-4">
         <span
           className={cn(
             'w-10 shrink-0 font-mono text-sm font-semibold',
@@ -709,43 +743,50 @@ function KuralSatiri({
           <p className="m-0 mt-0.5 text-sm text-ink-muted">{kural.aciklama}</p>
         </div>
 
-        {kural.parametre_tanimlari.map((tanim) => (
-          <div key={tanim.anahtar} className="flex flex-col gap-1">
-            <label
-              htmlFor={`${kural.kimlik}-${tanim.anahtar}`}
-              className="text-sm text-ink-muted"
-            >
-              {tanim.etiket}
-              {tanim.birim ? ` (${tanim.birim})` : ''}
-            </label>
-            {duzenlenebilir ? (
-              <Input
-                id={`${kural.kimlik}-${tanim.anahtar}`}
-                type="number"
-                min={tanim.asgari ?? undefined}
-                max={tanim.azami ?? undefined}
-                className="w-24 rounded-sm border-rule text-right font-mono"
-                // value + onChange (controlled): taslak tek doğruluk kaynağı.
-                // defaultValue ile bırakılırsa "kaydetme, at" sonrası alanda
-                // eski değer görünmeye devam ederdi.
-                value={String(kural.parametreler[tanim.anahtar] ?? '')}
-                onChange={(e) =>
-                  onGuncelle(kural.kimlik, {
-                    parametreler: { [tanim.anahtar]: Number(e.target.value) },
-                  })
-                }
-              />
-            ) : (
-              <Sayi className="w-24 py-1 text-right text-sm text-ink">
-                {String(kural.parametreler[tanim.anahtar] ?? '—')}
-              </Sayi>
-            )}
-          </div>
-        ))}
+        {Array.from({ length: parametreSutunu }, (_, i) => {
+          const tanim = kural.parametre_tanimlari[i]
+          if (!tanim) return <div key={`bos-${i}`} className={PARAMETRE_SUTUNU} />
+          return (
+            <div key={tanim.anahtar} className={cn(PARAMETRE_SUTUNU, ALAN_YIGINI)}>
+              <label
+                htmlFor={`${kural.kimlik}-${tanim.anahtar}`}
+                className="text-right text-sm text-ink-muted"
+              >
+                {tanim.etiket}
+                {tanim.birim ? ` (${tanim.birim})` : ''}
+              </label>
+              {duzenlenebilir ? (
+                <Input
+                  id={`${kural.kimlik}-${tanim.anahtar}`}
+                  type="number"
+                  min={tanim.asgari ?? undefined}
+                  max={tanim.azami ?? undefined}
+                  className={cn(DEGER_ALANI, 'rounded-sm border-rule font-mono')}
+                  // value + onChange (controlled): taslak tek doğruluk kaynağı.
+                  // defaultValue ile bırakılırsa "kaydetme, at" sonrası alanda
+                  // eski değer görünmeye devam ederdi.
+                  value={String(kural.parametreler[tanim.anahtar] ?? '')}
+                  onChange={(e) =>
+                    onGuncelle(kural.kimlik, {
+                      parametreler: { [tanim.anahtar]: Number(e.target.value) },
+                    })
+                  }
+                />
+              ) : (
+                <Sayi className={cn(DEGER_ALANI, 'py-1 text-sm text-ink')}>
+                  {String(kural.parametreler[tanim.anahtar] ?? '—')}
+                </Sayi>
+              )}
+            </div>
+          )
+        })}
 
         {esnek && (
-          <div className="flex flex-col gap-1">
-            <label htmlFor={`${kural.kimlik}-agirlik`} className="text-sm text-ink-muted">
+          <div className={cn(AGIRLIK_SUTUNU, ALAN_YIGINI)}>
+            <label
+              htmlFor={`${kural.kimlik}-agirlik`}
+              className="text-right text-sm text-ink-muted"
+            >
               Ağırlık
             </label>
             {duzenlenebilir ? (
@@ -753,12 +794,12 @@ function KuralSatiri({
                 id={`${kural.kimlik}-agirlik`}
                 type="number"
                 min={0}
-                className="w-24 rounded-sm border-rule text-right font-mono"
+                className={cn(DEGER_ALANI, 'rounded-sm border-rule font-mono')}
                 value={String(kural.agirlik ?? '')}
                 onChange={(e) => onGuncelle(kural.kimlik, { agirlik: Number(e.target.value) })}
               />
             ) : (
-              <Sayi className="w-24 py-1 text-right text-sm text-ink">
+              <Sayi className={cn(DEGER_ALANI, 'py-1 text-sm text-ink')}>
                 {kural.agirlik ?? '—'}
               </Sayi>
             )}
@@ -768,21 +809,23 @@ function KuralSatiri({
         {/* Kip kapalıyken rozet salt gösterimdir. Tek tıkla değişen bir
             anahtar, yanlış bir tıkta kuralı sessizce ve geri dönüşsüz
             değiştiriyordu (canlıda S1 böyle pasifleşti). */}
-        {duzenlenebilir ? (
-          <label className="flex shrink-0 items-center gap-2 text-sm text-ink">
-            <input
-              type="checkbox"
-              checked={kural.aktif}
-              onChange={(e) => onGuncelle(kural.kimlik, { aktif: e.target.checked })}
-              className="accent-accent"
-            />
-            Aktif
-          </label>
-        ) : (
-          <Rozet varyant={kural.aktif ? 'dolu' : 'notr'} genislik={64}>
-            {kural.aktif ? 'Aktif' : 'Pasif'}
-          </Rozet>
-        )}
+        <div className={cn(AKTIFLIK_SUTUNU, 'flex justify-end')}>
+          {duzenlenebilir ? (
+            <label className="flex items-center gap-2 text-sm text-ink">
+              <input
+                type="checkbox"
+                checked={kural.aktif}
+                onChange={(e) => onGuncelle(kural.kimlik, { aktif: e.target.checked })}
+                className="accent-accent"
+              />
+              Aktif
+            </label>
+          ) : (
+            <Rozet varyant={kural.aktif ? 'dolu' : 'notr'} genislik={64}>
+              {kural.aktif ? 'Aktif' : 'Pasif'}
+            </Rozet>
+          )}
+        </div>
       </div>
 
       {baskinlikUyarisi && (
