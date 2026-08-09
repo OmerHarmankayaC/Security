@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react'
 import { api } from '@/api/client'
-import type { CalisanTercihListesi, KarsilanmaDurumu, TercihTipi, VardiyaTipi } from '@/api/types'
+import type {
+  CalisanTercihListesi,
+  CalisanVardiyaTipi,
+  KarsilanmaDurumu,
+  TercihTipi,
+} from '@/api/types'
 import { Buton, Kart, KartEtiketi, Rozet } from '@/components/app-ui'
 import { Input } from '@/components/ui/input'
 import { bugunIso, gunFarki, gunKisaltmasiVeNumarasi } from '@/lib/tarih'
 import { buyukHarf } from '@/lib/metin'
 import { cn } from '@/lib/utils'
-
-interface Props {
-  personelId: number
-  anahtar: string
-}
 
 const DURUM_ROZET: Record<string, { varyant: 'notr' | 'kilitli' | 'eksik'; etiket: string }> = {
   beklemede: { varyant: 'notr', etiket: 'Beklemede' },
@@ -29,9 +29,9 @@ function tercihAciklamasi(tip: TercihTipi, vardiyaTipiAd: string | null): string
   return vardiyaTipiAd ? `${vardiyaTipiAd} istiyorum` : 'Vardiya tipi istiyorum'
 }
 
-export function TercihlerimEkrani({ personelId, anahtar }: Props) {
+export function TercihlerimEkrani() {
   const [liste, setListe] = useState<CalisanTercihListesi | null>(null)
-  const [vardiyaTipleri, setVardiyaTipleri] = useState<VardiyaTipi[]>([])
+  const [vardiyaTipleri, setVardiyaTipleri] = useState<CalisanVardiyaTipi[]>([])
   const [hata, setHata] = useState<string | null>(null)
 
   const [tip, setTip] = useState<TercihTipi>('calismama')
@@ -41,7 +41,9 @@ export function TercihlerimEkrani({ personelId, anahtar }: Props) {
   const [gonderiliyor, setGonderiliyor] = useState(false)
 
   const yukle = () => {
-    Promise.all([api.calisanTercihlerim(personelId, anahtar), api.vardiyaTipiListele()])
+    // `/api/vardiya-tipi` (tanımlar) çalışan rolüne kapalı (SRS 5.10);
+    // liste çalışan yüzeyinin kendi ucundan gelir.
+    Promise.all([api.calisanTercihlerim(), api.calisanVardiyaTipleri()])
       .then(([t, v]) => {
         setListe(t)
         setVardiyaTipleri(v)
@@ -50,14 +52,14 @@ export function TercihlerimEkrani({ personelId, anahtar }: Props) {
       .catch((e) => setHata(e instanceof Error ? e.message : 'Tercihler yüklenemedi'))
   }
 
-  useEffect(yukle, [personelId, anahtar])
+  useEffect(yukle, [])
 
   const gonder = async () => {
     if (!tarih) return
     setGonderiliyor(true)
     setHata(null)
     try {
-      await api.calisanTercihBildir(personelId, anahtar, {
+      await api.calisanTercihBildir({
         tarih,
         tip,
         vardiya_tipi_id: tip === 'vardiya_tipi_tercihi' ? Number(vardiyaTipiId) || null : null,

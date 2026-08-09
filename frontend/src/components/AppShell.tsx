@@ -1,12 +1,20 @@
 import { type PropsWithChildren, type ReactNode, useEffect, useState } from 'react'
 import { api } from '@/api/client'
-import type { Donem, VardiyaTipi } from '@/api/types'
+import type { Donem, Rol, VardiyaTipi } from '@/api/types'
 import { cn } from '@/lib/utils'
 import { buyukHarf } from '@/lib/metin'
 import { bugunIso, donemAraligiBicimle, gunlerListesi } from '@/lib/tarih'
-import { NAV_GRUPLARI, type NavOgesi } from './nav'
+import { navGruplari } from '@/lib/yetki'
+import { useOturum } from './OturumBaglami'
+import { type NavOgesi } from './nav'
 
 export type { NavOgesi }
+
+const ROL_ETIKETI: Record<Rol, string> = {
+  calisan: 'Çalışan',
+  yonetici: 'Yönetici',
+  yonetim: 'Yönetim',
+}
 
 interface AppShellProps {
   aktifEkran: NavOgesi
@@ -53,6 +61,7 @@ export function AppShell({
   donemId,
   children,
 }: PropsWithChildren<AppShellProps>) {
+  const { ben, cikis, parolaDegistir } = useOturum()
   const [donemler, setDonemler] = useState<Donem[]>([])
   const [vardiyaTipleri, setVardiyaTipleri] = useState<VardiyaTipi[]>([])
 
@@ -84,7 +93,7 @@ export function AppShell({
           <p className="m-0 mt-[3px] text-xs text-chrome-ink-muted">karar destek aracı</p>
 
           <nav className="mt-6 flex flex-col">
-            {NAV_GRUPLARI.map((grup, i) => (
+            {navGruplari(ben.rol).map((grup, i) => (
               <div key={grup.baslik ?? `grup-${i}`} className={cn(i > 0 && 'mt-3.5')}>
                 {grup.baslik && (
                   <p className="mb-1 font-condensed text-[10px] tracking-[0.14em] text-chrome-ink-muted">
@@ -112,6 +121,38 @@ export function AppShell({
         </div>
 
         <div className="flex flex-col gap-[22px]">
+          {/* Oturum bloğu, dönem bloğunun üstünde ve aynı "Alt grubu"
+              düzeninde: 1px ayraç + etiket/caps başlık. Yan menü bağlam
+              taşır ve giriş yapan kişi de bir bağlamdır — ekran eylemleri
+              üst çubukta kalır (Tasarım Referansı, arayüz turu notu). */}
+          <div className="border-t border-chrome-line pt-3">
+            <p className="m-0 font-condensed text-[10px] tracking-[0.14em] text-chrome-ink-muted">
+              {buyukHarf('Oturum')}
+            </p>
+            <p className="m-0 mt-1.5 truncate text-sm font-medium text-chrome-ink">
+              {ben.ad_soyad ?? ben.kullanici_adi}
+            </p>
+            <p className="m-0 mt-0.5 font-mono text-[10px] text-chrome-ink-muted">
+              {ben.kullanici_adi} · {ROL_ETIKETI[ben.rol]}
+            </p>
+            <div className="mt-2 flex gap-3">
+              <button
+                type="button"
+                onClick={parolaDegistir}
+                className="text-xs text-chrome-ink-muted underline-offset-2 transition-colors hover:text-chrome-ink hover:underline"
+              >
+                Parola değiştir
+              </button>
+              <button
+                type="button"
+                onClick={cikis}
+                className="text-xs text-chrome-ink-muted underline-offset-2 transition-colors hover:text-chrome-ink hover:underline"
+              >
+                Çıkış
+              </button>
+            </div>
+          </div>
+
           <div className="border-t border-chrome-line pt-3">
             <p className="m-0 font-condensed text-[10px] tracking-[0.14em] text-chrome-ink-muted">
               {buyukHarf('Planlama Dönemi')}

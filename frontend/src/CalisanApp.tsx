@@ -1,35 +1,35 @@
 import { useEffect, useState } from 'react'
-import { api, ApiHatasi } from './api/client'
-import type { Vardiyalarim } from './api/types'
+import { api } from './api/client'
+import type { Ben, Vardiyalarim } from './api/types'
 import { CalisanShell, type CalisanSekmesi } from './components/CalisanShell'
+import { OturumBaglami } from './components/OturumBaglami'
 import { DonemOzetimEkrani } from './screens/calisan/DonemOzetimEkrani'
 import { TercihlerimEkrani } from './screens/calisan/TercihlerimEkrani'
 import { VardiyalarimEkrani } from './screens/calisan/VardiyalarimEkrani'
 
 interface Props {
-  personelId: number
-  anahtar: string
+  ben: Ben
+  cikis: () => void
+  parolaDegistir: () => void
 }
 
-export function CalisanApp({ personelId, anahtar }: Props) {
+// Panel artık personel kimliği ALMAZ. Hangi personelin verisinin geleceğini
+// sunucu oturumdan belirliyor (SRS FR-9.1); istemcinin kimliği taşıması,
+// sunucu onu yok saysa bile "seçimi istemci yapıyor" izlenimi verirdi.
+export function CalisanApp({ ben, cikis, parolaDegistir }: Props) {
   const [sekme, setSekme] = useState<CalisanSekmesi>('Vardiyalarım')
   const [veri, setVeri] = useState<Vardiyalarim | null>(null)
   const [hata, setHata] = useState<string | null>(null)
 
   useEffect(() => {
     api
-      .calisanVardiyalarim(personelId, anahtar)
+      .calisanVardiyalarim()
       .then(setVeri)
-      .catch((e) => {
-        if (e instanceof ApiHatasi && e.status === 403) {
-          setHata('Bu bağlantı geçersiz.')
-        } else if (e instanceof ApiHatasi && e.status === 404) {
-          setHata('Personel bulunamadı.')
-        } else {
-          setHata(e instanceof Error ? e.message : 'Veriler yüklenemedi')
-        }
-      })
-  }, [personelId, anahtar])
+      // 401 buraya düşmez: oturum düştüğünde kök bileşen giriş ekranına
+      // döner (api/client.ts, `oturumDustugunde`). Kalan hatalar gerçek
+      // hatadır ve kullanıcıya söylenir.
+      .catch((e) => setHata(e instanceof Error ? e.message : 'Veriler yüklenemedi'))
+  }, [])
 
   if (hata) {
     return (
@@ -42,18 +42,20 @@ export function CalisanApp({ personelId, anahtar }: Props) {
   if (!veri) return null
 
   return (
-    <CalisanShell
-      adSoyad={veri.ad_soyad}
-      sicilNo={veri.sicil_no}
-      yetkinlikler={veri.yetkinlikler}
-      donemBaslangic={veri.donem_baslangic_tarihi}
-      donemBitis={veri.donem_bitis_tarihi}
-      aktifSekme={sekme}
-      sekmeSec={setSekme}
-    >
-      {sekme === 'Vardiyalarım' && <VardiyalarimEkrani veri={veri} />}
-      {sekme === 'Dönem Özetim' && <DonemOzetimEkrani veri={veri} />}
-      {sekme === 'Tercihlerim' && <TercihlerimEkrani personelId={personelId} anahtar={anahtar} />}
-    </CalisanShell>
+    <OturumBaglami.Provider value={{ ben, cikis, parolaDegistir }}>
+      <CalisanShell
+        adSoyad={veri.ad_soyad}
+        sicilNo={veri.sicil_no}
+        yetkinlikler={veri.yetkinlikler}
+        donemBaslangic={veri.donem_baslangic_tarihi}
+        donemBitis={veri.donem_bitis_tarihi}
+        aktifSekme={sekme}
+        sekmeSec={setSekme}
+      >
+        {sekme === 'Vardiyalarım' && <VardiyalarimEkrani veri={veri} />}
+        {sekme === 'Dönem Özetim' && <DonemOzetimEkrani veri={veri} />}
+        {sekme === 'Tercihlerim' && <TercihlerimEkrani />}
+      </CalisanShell>
+    </OturumBaglami.Provider>
   )
 }

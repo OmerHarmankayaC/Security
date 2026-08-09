@@ -20,8 +20,16 @@ import { cn } from '@/lib/utils'
  * (SDD 3.2.1).
  */
 export interface TanimGorunumu<T> {
-  /** API yolu — silme ve kullanım sorgusu buradan geçer. */
-  yol: TanimYolu
+  /**
+   * API yolu — silme ve kullanım sorgusu buradan geçer.
+   *
+   * İsteğe bağlı, çünkü `TanimListesi` onu hiç kullanmaz; yalnızca silme
+   * yolu kullanır. Silinemeyen listeler (hesaplar: FR-10.5 gereği hesap
+   * silinmez, devre dışı bırakılır) böylece aynı liste bileşenini uydurma
+   * bir yol vermeden kullanabiliyor — kopyalanmış ikinci bir liste, iki
+   * ekranın görünümünün zamanla ayrışması demekti.
+   */
+  yol?: TanimYolu
   kayitlar: T[]
   kimlik: (kayit: T) => number
   baslik: (kayit: T) => string

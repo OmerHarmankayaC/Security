@@ -409,3 +409,39 @@ export interface CalisanTercihListesi {
   acik_donem: AcikDonem | null
   tercihler: CalisanTercih[]
 }
+
+// --- Kimlik ve hesaplar (SRS 5.10, FR-10.x) --------------------------------
+
+export type Rol = 'calisan' | 'yonetici' | 'yonetim'
+
+/** `/api/ben` — giriş yapan kullanıcının kendi tanımı. */
+export interface Ben {
+  kullanici_adi: string
+  rol: Rol
+  parola_degistirmeli: boolean
+  // Bilgilendirme amaçlı. Çalışan isteklerinde hangi personelin verisinin
+  // döneceği SUNUCUDA oturumdan belirlenir (FR-9.1); bu alanın istemciye
+  // dönmesi o seçime hiçbir şekilde girmez.
+  personel_id: number | null
+  ad_soyad: string | null
+}
+
+export interface Kullanici {
+  kullanici_id: number
+  kullanici_adi: string
+  rol: Rol
+  personel_id: number | null
+  ad_soyad: string | null
+  aktif: boolean
+  parola_degistirmeli: boolean
+  kilitli_mi: boolean
+}
+
+/** Tercih formundaki vardiya tipi listesi — çalışan yüzeyinin kendi ucu. */
+export interface CalisanVardiyaTipi {
+  vardiya_tipi_id: number
+  ad: string
+  baslangic_saati: string
+  bitis_saati: string
+  gece_mi: boolean
+}

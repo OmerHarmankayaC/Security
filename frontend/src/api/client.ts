@@ -2,19 +2,23 @@ import type {
   Analiz,
   Atama,
   AtamaDegisikligiIstek,
+  Ben,
   Bina,
   CalisanTercihListesi,
+  CalisanVardiyaTipi,
   CizelgeSurumu,
   CozumIsi,
   Donem,
   DogrulamaSonucu,
   GorevNoktasi,
   KapsamaAcigi,
+  Kullanici,
   Kural,
   Musaitlik,
   MusaitlikOlusturIstek,
   OnKontrolBulgu,
   Personel,
+  Rol,
   SurumKarsilastirmasi,
   TalepHucresi,
   TalepYaniti,
@@ -49,12 +53,27 @@ export class ApiHatasi extends Error {
   }
 }
 
+// Oturum düştüğünde (401) tek bir yerden haber verilir; kök bileşen buna
+// abone olup giriş ekranına döner. Her ekranın 401'i kendi başına ele
+// alması, birini atlayan ekranda kullanıcıyı boş bir sayfayla baş başa
+// bırakırdı — oturum zaman aşımı her ekranda olabilir.
+let _oturumDustuDinleyicisi: (() => void) | null = null
+
+export function oturumDustugunde(dinleyici: (() => void) | null): void {
+  _oturumDustuDinleyicisi = dinleyici
+}
+
+const GIRIS_YOLU = '/api/giris'
+
 async function istek<T>(yol: string, secenekler?: RequestInit): Promise<T> {
   const yanit = await fetch(yol, {
     ...secenekler,
     headers: { 'Content-Type': 'application/json', ...secenekler?.headers },
   })
   if (!yanit.ok) {
+    // Giriş isteğinin 401'i "oturum düştü" değil "kimlik bilgisi yanlış"tır;
+    // dinleyiciye haber vermek, giriş ekranını kendi kendine sıfırlardı.
+    if (yanit.status === 401 && yol !== GIRIS_YOLU) _oturumDustuDinleyicisi?.()
     const govde = await yanit.json().catch(() => null)
     throw new ApiHatasi(yanit.status, govde?.detail ?? govde)
   }
@@ -207,21 +226,52 @@ export const api = {
   analizGetir: (surumId: number) => istek<Analiz>(`/api/analiz/${surumId}`),
 
   // --- Çalışan Paneli (SDD 6.1, Ek B; SRS FR-9.x) -------------------------
-  calisanVardiyalarim: (personelId: number, anahtar: string) =>
-    istek<Vardiyalarim>(
-      `/api/calisan/vardiyalarim?personel_id=${personelId}&anahtar=${encodeURIComponent(anahtar)}`,
-    ),
-  calisanTercihlerim: (personelId: number, anahtar: string) =>
-    istek<CalisanTercihListesi>(
-      `/api/calisan/tercih?personel_id=${personelId}&anahtar=${encodeURIComponent(anahtar)}`,
-    ),
-  calisanTercihBildir: (
-    personelId: number,
-    anahtar: string,
-    govde: { tarih: string; tip: TercihTipi; vardiya_tipi_id?: number | null; calisan_notu?: string | null },
-  ) =>
-    gonder(
-      `/api/calisan/tercih?personel_id=${personelId}&anahtar=${encodeURIComponent(anahtar)}`,
-      govde,
-    ),
+  // Hiçbiri `personel_id` GÖNDERMEZ ve göndermemelidir: hangi personelin
+  // verisinin döneceği sunucuda yalnızca oturumdan belirlenir (FR-9.1).
+  // Kimliği burada taşımak, sunucunun onu yok saydığı bilinse bile,
+  // "istemci kimliği seçiyor" izlenimi verirdi.
+  calisanVardiyalarim: () => istek<Vardiyalarim>('/api/calisan/vardiyalarim'),
+  calisanTercihlerim: () => istek<CalisanTercihListesi>('/api/calisan/tercih'),
+  calisanTercihBildir: (govde: {
+    tarih: string
+    tip: TercihTipi
+    vardiya_tipi_id?: number | null
+    calisan_notu?: string | null
+  }) => gonder('/api/calisan/tercih', govde),
+  // Tanımlar yönlendiricisindeki `/api/vardiya-tipi` çalışan rolüne kapalı
+  // (SRS 5.10); tercih formunun ihtiyacı olan liste çalışan yüzeyinin
+  // kendi ucundan gelir.
+  calisanVardiyaTipleri: () => istek<CalisanVardiyaTipi[]>('/api/calisan/vardiya-tipi'),
+
+  // --- Kimlik (SRS FR-10.1, FR-10.3, FR-10.7) -----------------------------
+  // Belirteç HttpOnly çerezde taşınır; JavaScript onu ne okur ne yazar.
+  // Bu yüzden burada bir "token" parametresi yoktur ve olmayacaktır.
+  // Kayıt uç noktası da yoktur (FR-10.1): hesapları yönetim rolü açar.
+  giris: (kullaniciAdi: string, parola: string) =>
+    gonder<Ben>('/api/giris', { kullanici_adi: kullaniciAdi, parola }),
+  cikis: () => gonder<void>('/api/cikis', {}),
+  ben: () => istek<Ben>('/api/ben'),
+  parolaDegistir: (mevcutParola: string, yeniParola: string) =>
+    gonder<Ben>('/api/parola-degistir', {
+      mevcut_parola: mevcutParola,
+      yeni_parola: yeniParola,
+    }),
+
+  // --- Hesap yönetimi (yalnız yönetim rolü — SRS FR-10.5) -----------------
+  // Silme YOKTUR: hesap devre dışı bırakılır, kayıt durur.
+  kullaniciListele: () => istek<Kullanici[]>('/api/kullanici'),
+  kullaniciOlustur: (govde: {
+    kullanici_adi: string
+    parola: string
+    rol: Rol
+    personel_id?: number | null
+  }) => gonder<Kullanici>('/api/kullanici', govde),
+  kullaniciGuncelle: (
+    kullaniciId: number,
+    govde: { rol?: Rol; aktif?: boolean; personel_id?: number | null },
+  ) => gonder<Kullanici>(`/api/kullanici/${kullaniciId}`, govde, 'PUT'),
+  kullaniciParolaSifirla: (kullaniciId: number, yeniParola: string) =>
+    gonder<Kullanici>(`/api/kullanici/${kullaniciId}/parola-sifirla`, {
+      yeni_parola: yeniParola,
+    }),
 }

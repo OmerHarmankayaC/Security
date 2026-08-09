@@ -8,6 +8,7 @@ import type { PropsWithChildren } from 'react'
 import { buyukHarf } from '@/lib/metin'
 import { donemAraligiBicimle } from '@/lib/tarih'
 import { cn } from '@/lib/utils'
+import { useOturum } from './OturumBaglami'
 
 export type CalisanSekmesi = 'Vardiyalarım' | 'Dönem Özetim' | 'Tercihlerim'
 
@@ -33,6 +34,7 @@ export function CalisanShell({
   sekmeSec,
   children,
 }: PropsWithChildren<Props>) {
+  const { cikis, parolaDegistir } = useOturum()
   return (
     <div className="min-h-svh bg-canvas text-ink">
       <header className="bg-chrome-base">
@@ -53,6 +55,25 @@ export function CalisanShell({
                 ? buyukHarf(donemAraligiBicimle(donemBaslangic, donemBitis))
                 : '—'}
             </p>
+            {/* Oturum eylemleri üst çubukta, dönem bilgisinin altında:
+                mobil öncelikli tek sütunda ayrı bir menü açmak, üç sekmelik
+                bir panelde taşıdığından fazla yapı olurdu. */}
+            <div className="mt-2 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={parolaDegistir}
+                className="text-xs text-chrome-ink-muted underline-offset-2 transition-colors hover:text-chrome-ink hover:underline"
+              >
+                Parola
+              </button>
+              <button
+                type="button"
+                onClick={cikis}
+                className="text-xs text-chrome-ink-muted underline-offset-2 transition-colors hover:text-chrome-ink hover:underline"
+              >
+                Çıkış
+              </button>
+            </div>
           </div>
         </div>
         <nav className="mx-auto flex max-w-[720px] gap-6 px-6">

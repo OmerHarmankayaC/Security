@@ -7,6 +7,9 @@ export const NAV_OGELERI = [
   'Çözüm',
   'Analiz',
   'Sürümler',
+  // Yalnız yönetim rolünde menüye girer (bkz. lib/yetki.ts). Listede
+  // bulunması bir yetki değildir; kapı sunucudadır (FR-10.4).
+  'Kullanıcılar',
 ] as const
 
 export type NavOgesi = (typeof NAV_OGELERI)[number]

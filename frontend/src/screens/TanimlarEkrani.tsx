@@ -398,7 +398,7 @@ export function TanimlarEkrani({ ekranSec }: Props) {
               disabled={seciliKayit === null}
               title={seciliKayit === null ? 'Önce listeden bir kayıt seçin' : undefined}
               onClick={() => {
-                if (!gorunum || seciliKayit === null || seciliId === null) return
+                if (!gorunum?.yol || seciliKayit === null || seciliId === null) return
                 setEkleAcik(false)
                 setSilinecek({
                   yol: gorunum.yol,
