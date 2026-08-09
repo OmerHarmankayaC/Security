@@ -29,6 +29,8 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 07.08.2026 | Çalışan paneli boşlukları kapatıldı: tercih kaydına çalışan notu ve ret gerekçesi alanları eklendi (FR-3.4), karşılanma durumu TD-12 olarak türetilmiş ve üç değerli biçimde tanımlandı (FR-3.6, FR-9.6), FR-9.4'ün karşılaştırma tabanı ve değişim türleri netleştirildi, FR-9.3'teki aylık görünüm dönem görünümüne çevrildi | 1.4 |
 | Ömer HARMANKAYA | 07.08.2026 | S2 ve S3'ün hedefi bütün personel yerine uygun havuz (P_gece, P_hs) üzerinden hesaplanacak biçimde düzeltildi; yetkinliği gereği gece veya hafta sonu talebi bulunan hiçbir noktada çalışamayan personel paydaya dahil edildiğinde hedef ulaşılamaz hâle geliyor ve ayırt ediciliğini kaybediyordu | 1.5 |
 | Ömer HARMANKAYA | 09.08.2026 | Arayüz turunun gereksinim etkileri işlendi: FR-4.2'nin varsayılanı bir haftaya çekildi ve otuz bir günlük azami dönem tanımlandı; kapsama açığı dışa aktarımı (FR-8.7) ve yazdırılabilir görünüm (FR-8.8) eklendi; arşivlenmiş sürümden taslak türetme (FR-7.6) eklendi; 7.2'deki çizelge dışa aktarma biçimi görev noktası sütunu, noktalı virgül ayracı ve bayt sırası imi ile güncellendi | 1.6 |
+| Ömer HARMANKAYA | 09.08.2026 | Kimlik doğrulama ve yetkilendirme gereksinimleri eklendi (5.10, FR-10.1 – FR-10.10); üç rol tanımlandı; FR-9.1'in kapsamı, gösterilecek personelin yalnızca oturumdan belirlenmesini içerecek biçimde zorunlu seviyeye çekildi | 1.7 |
+| Ömer HARMANKAYA | 09.08.2026 | Uygulama sırasında ortaya çıkan üç sınır tanımlandı: kullanıcı adlarının ASCII kümesiyle sınırlanması (FR-10.11), personel başına tek hesap (FR-10.6) ve kilit/devre dışı bildirimlerinin yalnızca doğru parolada gösterilmesi (FR-10.8) | 1.8 |
 
 
 
@@ -661,12 +663,42 @@ Ağırlıkların tamamı kullanıcı tarafından ayarlanabilir. Sistem hangi hed
 
 | Kimlik | Gereksinim | Öncelik |
 | --- | --- | --- |
-| FR-9.1 | Sistem, personelin yalnızca kendi çizelgesini görüntülemesine imkân vermelidir. | Yüksek |
+| FR-9.1 | Sistem, personelin yalnızca kendi çizelgesini görüntülemesine imkân vermelidir. Hangi personelin verisinin gösterileceği yalnızca oturumdan belirlenir; istek içindeki hiçbir alan bu seçimi değiştiremez. | Zorunlu |
 | FR-9.2 | Sistem, personele yalnızca yayınlanmış durumdaki çizelge sürümünü göstermelidir. | Zorunlu |
 | FR-9.3 | Sistem, personelin çizelgesini dönem görünümünde (dönem uzunluğu ne ise o kadar) ve liste görünümünde sunmalı, sıradaki vardiyayı öne çıkarmalıdır. | Yüksek |
 | FR-9.4 | Sistem, yayınlanmış çizelgede, aynı dönemde en son arşive alınmış sürüme göre değişen günleri işaretlemelidir. Değişim üç biçimde ayrışır: eklendi, kaldırıldı, değişti (vardiya tipi veya görev noktası farklı). Dönemin ilk yayınında karşılaştırma tabanı bulunmadığından hiçbir gün işaretlenmez. | Yüksek |
 | FR-9.5 | Sistem, personelin dönem içindeki gece, hafta sonu ve toplam saat sayısını ekip ortalamasıyla birlikte göstermelidir. | Orta |
 | FR-9.6 | Sistem, personelin tercih bildirmesine ve bildirdiği tercihlerin durumunu görmesine imkân vermelidir. | Yüksek |
+
+
+
+## 5.10 Kimlik Doğrulama ve Yetkilendirme
+
+Sistem bir kurum içi araçtır; kullanıcılar kendi kendilerine kayıt olmaz, hesapları yönetim tarafından oluşturulur. Bu nedenle sistemde kayıt ekranı bulunmaz, yalnızca giriş ekranı vardır.
+
+Üç kullanıcı rolü tanımlıdır:
+
+| Rol | Kapsam |
+| --- | --- |
+| Çalışan | Yalnızca kendi çizelgesini, dönem özetini ve tercihlerini görür ve yönetir (5.9). Tanım, çözüm ve yayın işlevlerine erişemez. |
+| Yönetici | Vardiya yöneticisinin bütün işlevlerine erişir: tanımlar, talep, kural, çözüm, manuel düzenleme, sürüm yönetimi, analiz ve dışa aktarma. Kullanıcı hesaplarını yönetemez. |
+| Yönetim (admin) | Yöneticinin bütün yetkilerine ek olarak kullanıcı hesaplarını oluşturur, rolünü değiştirir, parolasını sıfırlar ve hesabı devre dışı bırakır. |
+
+Roller kapsayıcıdır: yönetim rolü, yönetici rolünün yetkilerini içerir. Çalışan rolü diğerlerinin alt kümesi değildir; kendi verisine erişim, personel kaydına bağlı ayrı bir yetkidir.
+
+| Kimlik | Gereksinim | Öncelik |
+| --- | --- | --- |
+| FR-10.1 | Sistem, kullanıcı adı ve parola ile giriş yapılan tek bir giriş ekranı sunmalı, kayıt ekranı içermemelidir. | Zorunlu |
+| FR-10.2 | Sistem, parolaları yalnızca özet (hash) biçiminde saklamalı, geri çevrilebilir hiçbir biçimde tutmamalıdır. | Zorunlu |
+| FR-10.3 | Sistem, giriş yapan kullanıcı için sunucu tarafında bir oturum kaydı oluşturmalı; oturumun süresi dolduğunda veya çıkış yapıldığında oturum geçersiz hâle gelmelidir. | Zorunlu |
+| FR-10.4 | Sistem, her isteğin yetkisini oturumdaki role göre sunucu tarafında denetlemelidir. Arayüzün bir işlevi gizlemesi yetkilendirme sayılmaz. | Zorunlu |
+| FR-10.5 | Sistem, yönetim rolündeki kullanıcının hesap oluşturmasına, rol atamasına, parola sıfırlamasına ve hesabı devre dışı bırakmasına imkân vermelidir. Hesap silme yerine devre dışı bırakma kullanılır. | Zorunlu |
+| FR-10.6 | Sistem, çalışan rolündeki her hesabı bir personel kaydına bağlamalıdır; bağlantısı olmayan bir çalışan hesabı oluşturulamaz. Bir personelin birden fazla hesabı bulunamaz: iki hesap da yalnızca kendi verisini göreceğinden erişim açısından sakınca doğmaz, ancak parola sıfırlandığında hangi hesabın sıfırlandığı belirsizleşir. | Zorunlu |
+| FR-10.7 | Sistem, yönetim tarafından oluşturulan veya sıfırlanan parolanın ilk girişte değiştirilmesini zorunlu tutmalıdır. | Yüksek |
+| FR-10.8 | Sistem, ardışık başarısız giriş denemelerinde hesabı geçici olarak kilitlemeli ve kilit süresini bildirmelidir. Kilit bildirimi ile hesabın devre dışı olduğu bildirimi yalnızca parola doğru girildiğinde gösterilir; parolayı bilmeyen bir kullanıcı bu metinleri hiçbir kullanıcı adı için göremez. Aksi hâlde bildirim, hesabın var olup olmadığını ele veren bir sinyale dönüşür. | Yüksek |
+| FR-10.9 | Sistem, başarılı ve başarısız giriş denemeleri ile hesap yönetimi işlemlerini zaman damgasıyla kaydetmelidir. | Orta |
+| FR-10.10 | Sistem, ilk yönetim hesabının arayüz dışı bir kurulum adımıyla oluşturulmasına imkân vermelidir. | Zorunlu |
+| FR-10.11 | Kullanıcı adları ASCII karakter kümesiyle sınırlandırılmalıdır. Türkçe karakterlerin küçültülmesi veritabanı ile uygulama katmanında farklı sonuç verebildiğinden, sınır olmadan açılan bir hesabın sahibi doğru parolayla dahi giriş yapamayabilir. | Zorunlu |
 
 
 
@@ -842,6 +874,7 @@ Aşağıdaki tablo, proje tanım dokümanındaki hedefleri bu dokümandaki gerek
 | Tercih Yönetimi | FR-3.1 – FR-3.6, S5 | Onay durumu ve karşılanma durumu ayrı ayrı gösterilir |
 | Analiz ve Raporlama | FR-8.1 – FR-8.8, FR-4.8 | Ceza dökümü hedef bazında ayrıştırılır |
 | Çalışan Görünürlüğü | FR-9.1 – FR-9.6 | Yalnızca yayınlanmış sürüm görünür; değişen günler işaretlenir |
+| Kimlik Doğrulama ve Yetkilendirme | FR-10.1 – FR-10.10 | Yetkisiz rol, yetkisi dışındaki uç noktalardan veri alamaz |
 
 
 

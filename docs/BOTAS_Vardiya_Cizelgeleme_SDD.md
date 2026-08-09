@@ -34,6 +34,8 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 08.08.2026 | Gösterim ortamının paylaşımlı bir sunucu olduğu ve ölçümün izole olmadığı 3.4.1 ile 3.4.2'ye işlendi; çözüm işinin iptal mekanizması (veritabanı üzerinden bayrak okuma) ve gecikme sınırı 5.4'e eklendi | 1.9 |
 | Ömer HARMANKAYA | 09.08.2026 | Arayüz turunun tasarım etkileri işlendi: yetkinlik, bina ve vardiya tipi tablolarına aktif alanı eklendi ve personel pasifleştirmesinin aktif_bitis'i bir önceki güne yazması tanımlandı (4.2.1); kural sınıflarının katalog üst verisini taşıması ve kural kaydı oluşturma/silmenin mimari olarak mümkün olmaması 3.2.1'e yazıldı; Tanımlar ekranındaki eylem çubuğu ile silme davranışı (6.3.1), Çizelge ekranına eklenen dışa aktarma ve yazdırma (6.3.4) ve arşivden taslak kopyalama (6.3.5) tanımlandı | 1.10 |
 | Ömer HARMANKAYA | 09.08.2026 | Ön kontrol bulguları yapısal engel ve yapılandırma uyarısı olarak iki seviyeye ayrıldı; iş yalnızca engelleyici bulgularda düşer. Talep karşılama kuralının pasifleştirilmesi ilk yapılandırma uyarısı olarak tanımlandı (5.2) | 1.11 |
+| Ömer HARMANKAYA | 09.08.2026 | Kimlik doğrulama ve yetkilendirme tasarımı eklendi: kullanici ve oturum tabloları (4.2.1), oturum yönetimi, parola saklama ve rol denetimi (5.1b) | 1.12 |
+| Ömer HARMANKAYA | 09.08.2026 | Kilit bildirimi ile kullanıcı varlığının gizlenmesi arasındaki gerilimin çözümü ve başarısız giriş sayacının kalıcılığı 5.1b'ye yazıldı | 1.13 |
 
 
 
@@ -307,6 +309,32 @@ Aşağıdaki tablolar veritabanı şemasını alan düzeyinde tanımlar. Bütün
 | aktif_baslangic | DATE | Personelin çizelgeye dahil edildiği ilk tarih |
 | aktif_bitis | DATE, NULL | Personelin çizelgeden çıkarıldığı tarih; boş ise süresizdir. Pasifleştirme işlemi bu alana bir önceki günü yazar: bugünün tarihi yazıldığında personel bugünü kapsayan çözümlerde hâlâ müsait sayılır ve pasifleştirme aynı gün için etkisiz kalır |
 
+**kullanici**
+
+| Alan | Tip | Açıklama |
+| --- | --- | --- |
+| kullanici_id | INT (PK) | Hesabın benzersiz kimliği |
+| kullanici_adi | VARCHAR, benzersiz | Girişte kullanılan ad |
+| parola_ozeti | VARCHAR | Argon2id ile üretilmiş parola özeti; parolanın kendisi hiçbir biçimde saklanmaz |
+| rol | ENUM | calisan, yonetici, yonetim |
+| personel_id | INT (FK), NULL | Çalışan rolündeki hesabın bağlı olduğu personel; diğer rollerde boş olabilir |
+| parola_degistirmeli | BOOLEAN | Yönetim tarafından atanan veya sıfırlanan parolada true; ilk girişte değiştirilene kadar diğer işlevler açılmaz |
+| aktif | BOOLEAN | Devre dışı bırakılan hesap giriş yapamaz; kayıt silinmez |
+| basarisiz_deneme | INT | Ardışık başarısız giriş sayısı; başarılı girişte sıfırlanır |
+| kilit_bitis | TIMESTAMPTZ, NULL | Geçici kilidin bitiş anı |
+
+**oturum**
+
+| Alan | Tip | Açıklama |
+| --- | --- | --- |
+| oturum_id | VARCHAR (PK) | Rastgele üretilmiş belirteç özeti; belirtecin kendisi yalnızca çerezde durur |
+| kullanici_id | INT (FK) | Oturumun sahibi |
+| olusturma | TIMESTAMPTZ | Oturumun açıldığı an |
+| son_erisim | TIMESTAMPTZ | Hareketsizlik süresinin ölçüldüğü an |
+| gecerlilik_bitis | TIMESTAMPTZ | Mutlak son kullanma anı |
+
+Oturumun veritabanında tutulmasının nedeni geri alınabilirliktir: bir hesap devre dışı bırakıldığında veya parolası sıfırlandığında açık oturumların anında geçersiz kılınabilmesi gerekir. Kendi kendini doğrulayan bir belirteç (JWT) bu iptali ayrı bir kara liste altyapısı olmadan sağlayamaz; sistemde zaten bir veritabanı bulunduğundan oturum tablosu daha az parça ile aynı işi görür.
+
 
 
 #### yetkinlik
@@ -534,6 +562,20 @@ FONKSİYON kurallari_yukle():
 
 
 Tanımsız bir kimliğin hata vermesi bilinçlidir. Veritabanında kodda karşılığı olmayan bir kural bulunması, sessizce göz ardı edilmesi durumunda kullanıcının aktif sandığı bir kuralın uygulanmamasına yol açar. Bu, çizelgenin geçerli olduğuna dair yanlış bir güven üretir.
+
+## 5.1b Kimlik Doğrulama ve Yetkilendirme
+
+Giriş isteği kullanıcı adı ve parolayı alır, parolayı saklanan özetle karşılaştırır ve eşleşme hâlinde bir oturum kaydı oluşturur. Belirteç yalnızca çereze yazılır; çerez HttpOnly, Secure ve SameSite=Lax niteliklerini taşır. Belirtecin kendisi veritabanında değil, özeti tutulur — veritabanı okunsa bile mevcut oturumlar ele geçirilemez.
+
+Parola özeti için Argon2id kullanılır. Başarısız girişte yanıt, kullanıcının var olup olmadığını ayırt etmez; her iki durumda aynı mesaj ve benzer süre döner, aksi hâlde giriş ekranı bir kullanıcı adı sayacına dönüşür. Ardışık başarısız denemelerde hesap geçici olarak kilitlenir.
+
+Kilit süresinin bildirilmesi (FR-10.8) ile kullanıcının varlığının gizlenmesi ilk bakışta çelişir. Çözüm, bildirimi parolanın doğruluğuna bağlamaktır: kilit ve hesabın devre dışı olduğu mesajları yalnızca parola doğru girildiğinde gösterilir. Böylece bilgi, zaten hesabın sahibi olduğu anlaşılan kullanıcıya ulaşır; parolayı bilmeyen biri aynı metinleri hiçbir kullanıcı adı için göremez.
+
+Başarısız giriş sayacının yazılması, isteğin başarısızlıkla sonuçlanmasından bağımsız olmalıdır. Hata yolunda işlemin geri alınması sayacı da siler ve kilitleme sessizce işlevsiz kalır; sayaç bu nedenle kendi başına kalıcı hâle getirilir.
+
+Yetkilendirme sunucu tarafında, uç nokta düzeyinde yapılır. Arayüzün bir düğmeyi gizlemesi yetkilendirme değildir; bir rolün erişemeyeceği uç nokta, istek doğrudan gönderildiğinde de reddedilmelidir. Çalışan rolündeki isteklerde hangi personelin verisinin döneceği yalnızca oturumdaki bağlantıdan belirlenir; istek gövdesinde veya adresinde gelen personel kimliği bu seçimi hiçbir koşulda değiştirmez (SRS FR-9.1). Bu kural, kimlik doğrulamanın kendisi kadar önemlidir: doğru kimlikle giriş yapmış bir kullanıcının başkasının verisini istemesi, kimliksiz erişimle aynı sonucu doğurur.
+
+İlk yönetim hesabı arayüzden oluşturulamaz; kurulum sırasında çalıştırılan ayrı bir betikle açılır. Böylece sistemin hesapsız bir anında kendi kendine hesap açan bir uç nokta bulunmaz.
 
 ## 5.2 Ön Kontrol
 

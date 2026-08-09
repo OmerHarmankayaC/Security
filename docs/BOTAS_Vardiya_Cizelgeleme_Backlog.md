@@ -25,6 +25,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 05.08.2026 | İlk sürüm — kapsam dışı maddeler, ertelenen özellikler ve karar günlüğü kayda alındı | 1.0 |
 | Ömer HARMANKAYA | 08.08.2026 | T-06 (iptal gecikmesi) eklendi; dağıtım öncesi alınan kararlar karar günlüğüne işlendi | 1.1 |
 | Ömer HARMANKAYA | 09.08.2026 | Arayüz turunda alınan beş karar (azami dönem, kural kaydı yetkisi, çoklu taslak, arşivden kopyalama, tanım pasifleştirme) karar günlüğüne işlendi | 1.2 |
+| Ömer HARMANKAYA | 09.08.2026 | B-05 kapsama alındı; kimlik doğrulama kararları ve ertelenen maddeler (B-15 – B-18) eklendi | 1.3 |
 
 
 
@@ -62,7 +63,7 @@ Bu maddeler değerli bulunmuş ancak ilk sürüme alınmamıştır. Her biri, ç
 | B-02 | Otomatik çakışma teşhisi. Çelişkili kural kümelerinde hangi kısıt alt kümesinin çözümü imkânsız kıldığının otomatik olarak bulunması (unsat core analizi). İlk sürümde bu ihtiyaç, çözüm öncesi ön kontrol katmanı ve S1'in esnek tanımıyla karşılanmaktadır. | Ön kontrol katmanının yetersiz kaldığı somut bir örnekle karşılaşıldığında | Orta / Yüksek |
 | B-03 | Eş zamanlı düzenleme. Birden fazla yöneticinin aynı çizelge sürümü üzerinde aynı anda çalışabilmesi. Tek kullanıcı varsayımı gösterim için yeterlidir. | Sistemin birden fazla vardiya yöneticisi tarafından kullanılacağı kesinleştiğinde | Düşük / Yüksek |
 | B-04 | Senaryo karşılaştırma. Aynı veri üzerinde farklı ağırlık setleriyle üretilen çizelgelerin yan yana değerlendirilmesi. Ağırlık ayarlama işlevi ilk sürümde vardır; eksik olan yalnızca karşılaştırmalı görünümdür. | Ağırlık ayarlamanın gerçek kullanımda sık tekrarlandığı gözlendiğinde | Orta / Düşük |
-| B-05 | Çalışan paneli kimlik doğrulaması. İlk sürümde panel, kişiye özel bağlantı üzerinden erişilir. Kurumsal kimlik doğrulama beklentisi mentör görüşmesinde netleşecektir. | Mentör kimlik doğrulama gereksinimi bildirdiğinde | Orta / Orta |
+| B-05 | ~~Çalışan paneli kimlik doğrulaması.~~ **Kapsama alındı (09.08.2026).** Kişiye özel bağlantı yerine kullanıcı adı ve parola ile giriş getirildi; çalışan hesabı personel kaydına bağlanır (SRS 5.10). | — | — |
 | B-06 | Görev noktası adaleti. Aynı personelin dönem boyunca sürekli aynı noktada (örneğin kontrol odasında) görevlendirilmemesi. İlk sürümde adalet yalnızca gece, hafta sonu ve toplam saat eksenlerinde ölçülür. | Yetkinlik havuzları, aynı kişiyi aynı noktaya zorlamayacak kadar genişlediğinde | Orta / Düşük |
 | B-07 | Yetkinlik seviyeleri. Yetkinlikler şu anda seviyesizdir (TD-9); personel bir yetkinliğe ya sahiptir ya değildir. Kıdem veya sertifika derecesi ayrımı yapılmaz. | Aynı görevde farklı yetki derecelerinin belirleyici olduğu bir kural ortaya çıktığında | Düşük / Orta |
 | B-08 | Saat bazlı müsaitlik. Müsaitlik şu anda tam gün, öğleden önce ve öğleden sonra dilimleriyle tanımlanır (TD-4). Serbest saat aralığı desteklenmez. | Yarım gün çözünürlüğünün yetersiz kaldığı bir izin tipi ortaya çıktığında | Düşük / Orta |
@@ -72,6 +73,10 @@ Bu maddeler değerli bulunmuş ancak ilk sürüme alınmamıştır. Her biri, ç
 | B-12 | Çoklu tesis desteği. Sistem şu anda tek tesis ve o tesise bağlı binalar üzerinden çalışır. Farklı tesislerin ayrı personel havuzlarıyla yönetilmesi desteklenmez. | İkinci bir tesisin sisteme dahil edilmesi gündeme geldiğinde | Orta / Orta |
 | B-13 | Talep tahmini. Ziyaretçi yoğunluğu gibi değişkenlere göre kadro sayısının önerilmesi. Talep ilk sürümde tamamen kullanıcı tarafından tanımlanır. | Talep değişkenliğini gösteren geçmiş veri erişilebilir olduğunda | Düşük / Yüksek |
 | B-14 | Ön kontrole beşinci bir kontrol: yetkinlik başına kayan haftalık pencere kapasitesi. Mevcut dört kontrol (SDD 5.2) dönem geneli veya gün bazında bakar; küçük bir yetkinlik havuzunun belirli bir haftada (örneğin eş zamanlı izin nedeniyle) yetersiz kalması, dönemin geri kalanındaki serbestlikle sayısal olarak örtülüp yakalanamayabilir. Sprint 2 Gün 7'de gerçek demo senaryosuyla gözlemlendi. | Ön kontrolün kaçırdığı bir açık, çözücü çalıştırılmadan önce sık tekrar ediyorsa | Orta / Orta |
+| B-15 | Kurumsal kimlik sağlayıcıya bağlanma (LDAP, Active Directory veya tek oturum açma). İlk sürüm parolaları kendi tutar; kurum dizinine bağlanmak hesap yönetimini tamamen ortadan kaldırır ancak kurum altyapısına bağımlılık yaratır. | Kurum, sistemin dizine bağlanmasını istediğinde | Orta / Yüksek |
+| B-16 | İki aşamalı doğrulama. Yönetim ve yönetici rolleri için ikinci bir doğrulama adımı. İlk sürümde parola tek etkendir. | Sistem gerçek kurum verisiyle çalışmaya başladığında | Orta / Orta |
+| B-17 | Kullanıcının kendi parolasını sıfırlaması. İlk sürümde unutulan parolayı yalnızca yönetim rolü sıfırlar; kendi kendine sıfırlama e-posta altyapısı gerektirir (K-04). | Bildirim altyapısı kapsama girdiğinde | Düşük / Orta |
+| B-18 | Ayrıntılı yetki matrisi. Roller şu anda üç adet ve sabittir; işlev başına yetki ataması yapılamaz. | Üç rolün ayıramadığı somut bir yetki ihtiyacı ortaya çıktığında | Düşük / Yüksek |
 
 
 
@@ -119,6 +124,10 @@ Aşağıdaki tablo, tasarım sürecinde alınan ve sonradan değiştirilen karar
 | 09.08.2026 | Aynı dönemde birden fazla taslağın bir arada bulunmasına izin verildi | TD-8'deki sürüm durum makinesi taslak sayısına sınır koymaz ve her çözüm başlatma zaten yeni bir taslak açar; sınır getirmek mevcut davranışı bozardı |
 | 09.08.2026 | Arşivlenmiş sürüm geri döndürülmek yerine yeni taslağa kopyalanır | Yayınlanmış ve arşivlenmiş sürüm tarihsel kayıttır. Durumunun geri alınması, çalışan panelindeki "en son arşiv" karşılaştırma tabanını ve iki sürüm arasındaki karşılaştırmayı dayanaksız bırakır |
 | 09.08.2026 | Kullanımda olan bir tanım silinmez, pasifleştirilir | Atamalarda kullanılan bir tanımın gerçekten silinmesi geçmiş çizelgeleri okunamaz hâle getirir. Hiçbir yerde kullanılmayan tanım için gerçek silme korunmuştur |
+| 09.08.2026 | Kimlik doğrulama kapsama alındı; kayıt ekranı yok, hesapları yönetim rolü açar | Sistem kurum içi bir araçtır ve kullanıcı kitlesi bellidir. Kendi kendine kayıt, kurumda karşılığı olmayan bir yetki yaratırdı |
+| 09.08.2026 | Çalışan paneline erişim, kişiye özel bağlantıdan kullanıcı girişine taşındı | Hesap altyapısı kurulduktan sonra iki ayrı erişim yolu tutmak, aynı yetkilendirmeyi iki yerde tanımlamak olurdu. Bağlantı yolu kaldırılır |
+| 09.08.2026 | Oturum, kendi kendini doğrulayan belirteç yerine veritabanı kaydı olarak tutuldu | Hesap devre dışı bırakıldığında veya parola sıfırlandığında açık oturumların anında geçersiz kılınması gerekir; belirteç bunu ayrı bir kara liste altyapısı olmadan sağlayamaz |
+| 09.08.2026 | Hesaplar silinmez, devre dışı bırakılır | Tanımlarda alınan kararla aynı gerekçe: giriş kayıtları ve geçmiş işlemler hesabın kimliğine bağlıdır |
 
 
 
