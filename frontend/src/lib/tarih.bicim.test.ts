@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   donemAraligiBicimle,
   gunKisaltmasiVeNumarasi,
+  haftaSonuMu,
   tarihBicimle,
   tarihUzunBicim,
   zamanBicimle,
@@ -54,6 +55,19 @@ describe('bağlama özgü biçimler', () => {
 
   it('çalışan panelinde gün adı belirleyicidir', () => {
     expect(tarihUzunBicim('2026-08-03')).toBe('03 Ağustos Pazartesi')
+  })
+})
+
+describe('haftaSonuMu', () => {
+  it('cumartesi ve pazarı hafta sonu sayar (SRS TD-3)', () => {
+    expect(haftaSonuMu('2026-08-08')).toBe(true) // cumartesi
+    expect(haftaSonuMu('2026-08-09')).toBe(true) // pazar
+  })
+
+  it('hafta içi günleri hafta sonu saymaz', () => {
+    for (const gun of ['2026-08-03', '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07']) {
+      expect(haftaSonuMu(gun), gun).toBe(false)
+    }
   })
 })
 

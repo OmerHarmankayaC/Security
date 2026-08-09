@@ -114,6 +114,14 @@ export function donemAraligiBicimle(baslangicIso: string, bitisIso: string): str
   return `${bGun} ${bAy} – ${sGun} ${sAy} ${s.getFullYear()}`
 }
 
+// SRS TD-3: hafta sonu cumartesi ve pazardır. Resmî tatiller ayrı bir tanım
+// varlığıdır (ozel_gun) ve burada hesaba katılmaz — bu yardımcı yalnızca
+// takvimsel hafta sonunu bilir.
+export function haftaSonuMu(iso: string): boolean {
+  const gun = isoAyristir(iso).getDay()
+  return gun === 0 || gun === 6
+}
+
 export function gunKisaltmasiVeNumarasi(iso: string): string {
   const tarih = isoAyristir(iso)
   return `${GUN_KISALTMALARI[tarih.getDay()]} ${tarih.getDate()}`.toLocaleUpperCase('tr-TR')

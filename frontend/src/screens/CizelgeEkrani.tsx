@@ -13,8 +13,14 @@ import type {
 import { AppShell, type NavOgesi } from '../components/AppShell'
 import { Buton, Kart, KartEtiketi, Sayi } from '../components/app-ui'
 import { cn } from '../lib/utils'
-import { buyukHarf } from '../lib/metin'
-import { donemAraligiBicimle, gunKisaltmasiVeNumarasi, gunlerListesi } from '../lib/tarih'
+import { buyukHarf, kisalt } from '../lib/metin'
+import {
+  donemAraligiBicimle,
+  gunKisaltmasiVeNumarasi,
+  gunlerListesi,
+  haftaSonuMu,
+  tarihBicimle,
+} from '../lib/tarih'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -40,6 +46,24 @@ interface SeciliHucre {
   tarih: string
 }
 
+type Gorunum = 'personel' | 'nokta'
+
+// --- Izgara yogunlugu (madde 3) ------------------------------------------
+// Degerler 28 gunluk donem (kabul kriteri olcegi) uzerinden olculdu: 28 sutun
+// x 60px + 180px ad sutunu = 1860px. Onceki 96px'lik hucrelerle ayni tablo
+// 2838px genisligindeydi ve yatay kaydirma sirasinda hangi satirda olundugu
+// kayboluyordu; ad sutununun yapiskanlastirilmasi bu yuzden genislik
+// azaltmasiyla birlikte anlam kazaniyor.
+//
+// Ad sutunu 180px: gosterim verisindeki en uzun ad ("Demo Personel GG-001")
+// 150px'te kesiliyor ve tam da ayirt edici sicil ekini kaybediyordu.
+const AD_SUTUNU = 'w-[180px] min-w-[180px] max-w-[180px]'
+const GUN_SUTUNU = 'w-[60px] min-w-[60px] max-w-[60px]'
+// Kaydirilabilir alanin yuksekligi: ust cubuk (64) + icerik dolgusu (56) +
+// secim karti (~140) + kart araligi (20). Izgara kendi icinde kaydigi icin
+// yapiskan baslik satiri gorunur kalir.
+const IZGARA_YUKSEKLIGI = 'max-h-[calc(100svh-280px)]'
+
 // Vardiya kodlaması yalnızca Çizelge ızgarasında kullanılır (TASARIM_REFERANSI.md):
 // gündüz açık/beyaz, akşam sage, gece koyu — vardiya tipinin kendisi bunu
 // taşımadığından (yalnızca gece_mi var) başlangıç saatinden yaklaştırılır.
@@ -64,6 +88,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
   const [yukleniyor, setYukleniyor] = useState(false)
   const [hata, setHata] = useState<string | null>(null)
 
+  const [gorunum, setGorunum] = useState<Gorunum>('personel')
   const [seciliHucre, setSeciliHucre] = useState<SeciliHucre | null>(null)
   const [seciliVardiyaTipiId, setSeciliVardiyaTipiId] = useState<string>(BOSALT_DEGERI)
   const [seciliNoktaId, setSeciliNoktaId] = useState<string>(BOSALT_DEGERI)
@@ -148,16 +173,50 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
       .sort((a, b) => a.ad_soyad.localeCompare(b.ad_soyad, 'tr'))
   }, [atamalar, personelMap])
 
+  // Izgara hucre basina arama yapar; 36 personel x 28 gun = 1008 hucrenin her
+  // birinde atama listesini bastan taramak (dogrusal arama) 28 gunluk donemde
+  // gorunur gecikme yaratiyordu. Uc indeks bir kez kurulur.
+  const atamaIndeksi = useMemo(() => {
+    const indeks = new Map<string, Atama>()
+    for (const a of atamalar) indeks.set(`${a.personel_id}|${a.tarih}`, a)
+    return indeks
+  }, [atamalar])
+
+  const noktaIndeksi = useMemo(() => {
+    const indeks = new Map<string, Atama[]>()
+    for (const a of atamalar) {
+      const anahtar = `${a.tarih}|${a.vardiya_tipi_id}|${a.nokta_id}`
+      const mevcut = indeks.get(anahtar)
+      if (mevcut) mevcut.push(a)
+      else indeks.set(anahtar, [a])
+    }
+    return indeks
+  }, [atamalar])
+
+  const kapsamaIndeksi = useMemo(() => {
+    const indeks = new Map<string, KapsamaAcigi>()
+    for (const k of kapsamaAcigi) {
+      indeks.set(`${k.tarih}|${k.vardiya_tipi_id}|${k.nokta_id}`, k)
+    }
+    return indeks
+  }, [kapsamaAcigi])
+
   const atamaBul = (personelId: number, tarih: string): Atama | undefined =>
-    atamalar.find((a) => a.personel_id === personelId && a.tarih === tarih)
+    atamaIndeksi.get(`${personelId}|${tarih}`)
 
   const kapsamaBul = (atama: Atama): KapsamaAcigi | undefined =>
-    kapsamaAcigi.find(
-      (k) =>
-        k.tarih === atama.tarih &&
-        k.vardiya_tipi_id === atama.vardiya_tipi_id &&
-        k.nokta_id === atama.nokta_id,
-    )
+    kapsamaIndeksi.get(`${atama.tarih}|${atama.vardiya_tipi_id}|${atama.nokta_id}`)
+
+  // Nokta gorunumunun satirlari (SDD 6.3.3). Talep nokta VE vardiya kiriliminda
+  // tanimli oldugundan (SDD 4.2.1 talep) satir ekseni de bu ikilidir; yalniz
+  // nokta satiri, uc vardiyayi tek hucrede toplamak zorunda kalirdi.
+  const noktaSatirlari = useMemo(
+    () =>
+      noktalar.flatMap((n) =>
+        vardiyaTipleri.map((v) => ({ nokta: n, vardiya: v })),
+      ),
+    [noktalar, vardiyaTipleri],
+  )
 
   const hucreSec = (personelId: number, tarih: string) => {
     setSeciliHucre({ personelId, tarih })
@@ -249,8 +308,14 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
       }
       aksiyonlar={
         <>
-          <Buton varyant="hayalet" disabled title="Sprint 3'te eklenecek">
-            Nokta Görünümü
+          {/* SDD 6.3.3 Görünüm Anahtarı: ızgarayı personel ekseninden görev
+              noktası eksenine çevirir ve geri alır. */}
+          <Buton
+            varyant="hayalet"
+            aria-pressed={gorunum === 'nokta'}
+            onClick={() => setGorunum(gorunum === 'personel' ? 'nokta' : 'personel')}
+          >
+            {gorunum === 'personel' ? 'Nokta Görünümü' : 'Personel Görünümü'}
           </Buton>
           <Buton
             varyant="birincil"
@@ -310,15 +375,29 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
         ) : izgaraPersonelleri.length === 0 ? (
           <p className="text-sm text-ink-muted">Bu sürümde henüz atama yok.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-max min-w-full border-collapse">
+          // Kaydirma kabi: yatay VE dikey. Yapiskan hucreler konumlarini bu
+          // kaba gore alir, o yuzden yukseklik sinirli olmak zorunda — sinirsiz
+          // yukseklikte kap hic dikey kaymaz ve `sticky top-0` etkisiz kalir.
+          // border-separate: border-collapse ile yapiskan hucrelerin kenarligi
+          // kaydirma sirasinda tabloda kalip hucreyle birlikte gitmiyor.
+          <div className={cn('relative overflow-auto', IZGARA_YUKSEKLIGI)}>
+            <table className="w-max border-separate border-spacing-0">
               <thead>
                 <tr>
-                  <th className="p-2" />
+                  <th
+                    className={cn(
+                      'sticky top-0 left-0 z-30 border-b border-r border-rule bg-surface',
+                      AD_SUTUNU,
+                    )}
+                  />
                   {gunler.map((gun) => (
                     <th
                       key={gun}
-                      className="whitespace-nowrap p-2 text-center font-mono text-xs font-medium text-ink-muted"
+                      className={cn(
+                        'sticky top-0 z-20 h-8 border-b border-rule bg-surface text-center font-mono text-[10px] font-medium whitespace-nowrap text-ink-muted',
+                        GUN_SUTUNU,
+                        haftaSonuMu(gun) && 'bg-sunken',
+                      )}
                     >
                       {gunKisaltmasiVeNumarasi(gun)}
                     </th>
@@ -326,46 +405,126 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                 </tr>
               </thead>
               <tbody>
-                {izgaraPersonelleri.map((p) => (
-                  <tr key={p.personel_id} className="border-t border-rule">
-                    <td className="whitespace-nowrap px-3 py-2 text-right text-sm text-ink">
-                      {p.ad_soyad}
-                    </td>
-                    {gunler.map((gun) => {
-                      const atama = atamaBul(p.personel_id, gun)
-                      const kapsama = atama ? kapsamaBul(atama) : undefined
-                      const vardiya = atama ? vardiyaMap.get(atama.vardiya_tipi_id) : undefined
-                      const seciliMi =
-                        seciliHucre?.personelId === p.personel_id && seciliHucre?.tarih === gun
-                      return (
-                        <td key={gun} className="p-0.5">
-                          <button
-                            type="button"
-                            className={cn(
-                              'box-border h-11 w-24 rounded-sm border border-rule p-1 text-center font-mono text-xs',
-                              !atama && 'border-transparent bg-transparent',
-                              atama && !kapsama && vardiyaHucreSinifi(vardiya),
-                              kapsama && 'border-signal bg-signal-soft font-medium text-signal',
-                              atama?.kilitli && 'outline-2 outline-offset-[-2px] outline-accent',
-                              seciliMi && 'ring-2 ring-offset-1 ring-ink',
-                            )}
-                            onClick={() => hucreSec(p.personel_id, gun)}
-                          >
-                            {atama && (
-                              <>
-                                {vardiya?.ad}
-                                <br />
-                                {kapsama
-                                  ? `${kapsama.eksik_sayi} eksik`
-                                  : noktaMap.get(atama.nokta_id)?.ad}
-                              </>
-                            )}
-                          </button>
+                {gorunum === 'personel'
+                  ? izgaraPersonelleri.map((p) => (
+                      <tr key={p.personel_id}>
+                        <td
+                          className={cn(
+                            'sticky left-0 z-10 truncate border-b border-r border-rule bg-surface px-2 text-right text-xs text-ink',
+                            AD_SUTUNU,
+                          )}
+                          title={p.ad_soyad}
+                        >
+                          {p.ad_soyad}
                         </td>
-                      )
-                    })}
-                  </tr>
-                ))}
+                        {gunler.map((gun) => {
+                          const atama = atamaBul(p.personel_id, gun)
+                          const kapsama = atama ? kapsamaBul(atama) : undefined
+                          const vardiya = atama ? vardiyaMap.get(atama.vardiya_tipi_id) : undefined
+                          const nokta = atama ? noktaMap.get(atama.nokta_id) : undefined
+                          const seciliMi =
+                            seciliHucre?.personelId === p.personel_id && seciliHucre?.tarih === gun
+                          return (
+                            <td
+                              key={gun}
+                              className={cn(
+                                'border-b border-rule p-0',
+                                GUN_SUTUNU,
+                                haftaSonuMu(gun) && 'bg-sunken',
+                              )}
+                            >
+                              <button
+                                type="button"
+                                className={cn(
+                                  'box-border h-7 w-full rounded-sm px-1 text-center font-mono text-[10px] leading-none whitespace-nowrap',
+                                  // Bos hucre: kenarlik ve zemin yok — goz yalniz
+                                  // dolu hucreleri gorur, 28 gunluk izgarada
+                                  // bosluklar arka plana cekilir.
+                                  atama && !kapsama && vardiyaHucreSinifi(vardiya),
+                                  atama && !kapsama && 'border border-rule',
+                                  kapsama && 'border border-signal bg-signal-soft font-medium text-signal',
+                                  atama?.kilitli && 'outline-2 outline-offset-[-2px] outline-accent',
+                                  seciliMi && 'ring-2 ring-inset ring-ink',
+                                )}
+                                onClick={() => hucreSec(p.personel_id, gun)}
+                                title={
+                                  atama
+                                    ? `${p.ad_soyad} — ${tarihBicimle(gun)} · ${vardiya?.ad ?? ''} · ${nokta?.ad ?? ''}${kapsama ? ` · ${kapsama.eksik_sayi} kişi eksik` : ''}`
+                                    : `${p.ad_soyad} — ${tarihBicimle(gun)} · atama yok`
+                                }
+                              >
+                                {atama &&
+                                  (kapsama
+                                    ? `−${kapsama.eksik_sayi}`
+                                    : `${kisalt(vardiya?.ad ?? '')} ${kisalt(nokta?.ad ?? '')}`)}
+                              </button>
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    ))
+                  : noktaSatirlari.map(({ nokta, vardiya }) => (
+                      <tr key={`${nokta.nokta_id}-${vardiya.vardiya_tipi_id}`}>
+                        <td
+                          className={cn(
+                            'sticky left-0 z-10 truncate border-b border-r border-rule bg-surface px-2 text-right text-xs text-ink',
+                            AD_SUTUNU,
+                          )}
+                          title={`${nokta.ad} — ${vardiya.ad}`}
+                        >
+                          {nokta.ad}{' '}
+                          <span className="font-mono text-[10px] text-ink-muted">
+                            {kisalt(vardiya.ad)}
+                          </span>
+                        </td>
+                        {gunler.map((gun) => {
+                          const anahtar = `${gun}|${vardiya.vardiya_tipi_id}|${nokta.nokta_id}`
+                          const hucreAtamalari = noktaIndeksi.get(anahtar) ?? []
+                          const kapsama = kapsamaIndeksi.get(anahtar)
+                          return (
+                            <td
+                              key={gun}
+                              className={cn(
+                                'border-b border-rule p-0.5 align-top',
+                                GUN_SUTUNU,
+                                haftaSonuMu(gun) && 'bg-sunken',
+                              )}
+                            >
+                              {/* SDD 6.3.3: nokta gorunumunde hucre, o vardiyaya
+                                  atanan personeldir. Ad yerine sicil yazilir —
+                                  yedi kisilik bir Guvenlik hucresi tam adlarla
+                                  sutuna sigmaz; sicil zaten kisa ve tekildir. */}
+                              <div
+                                className={cn(
+                                  'flex flex-col gap-px rounded-sm px-1 py-0.5 font-mono text-[10px] leading-tight',
+                                  hucreAtamalari.length > 0 && vardiyaHucreSinifi(vardiya),
+                                  hucreAtamalari.length > 0 && 'border border-rule',
+                                  kapsama && 'border-signal',
+                                )}
+                                title={
+                                  hucreAtamalari.length === 0
+                                    ? `${nokta.ad} — ${vardiya.ad} · ${tarihBicimle(gun)} · atama yok`
+                                    : `${nokta.ad} — ${vardiya.ad} · ${tarihBicimle(gun)}\n${hucreAtamalari
+                                        .map((a) => personelMap.get(a.personel_id)?.ad_soyad ?? '')
+                                        .join('\n')}`
+                                }
+                              >
+                                {hucreAtamalari.map((a) => (
+                                  <span key={a.atama_id} className="truncate">
+                                    {personelMap.get(a.personel_id)?.sicil_no ?? '—'}
+                                  </span>
+                                ))}
+                                {kapsama && (
+                                  <span className="font-medium text-signal">
+                                    −{kapsama.eksik_sayi}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    ))}
               </tbody>
             </table>
           </div>
