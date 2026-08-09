@@ -37,6 +37,11 @@ class Yetkinlik(Base, ZamanDamgasiKarisimi):
     yetkinlik_id: Mapped[int] = mapped_column(primary_key=True)
     ad: Mapped[str] = mapped_column(unique=True)
     aciklama: Mapped[str | None]
+    # Kullanimda olan bir tanim SILINMEZ, pasiflestirilir: gecmis cizelgeler
+    # tanim satirlarina referansla durur (SDD 4.1) ve satir gidince atamalar
+    # okunamaz hale gelir. gorev_noktasi'nda hali hazirda bulunan bu bayrak
+    # (SDD 4.2.1) yetkinlik, bina ve vardiya_tipi'ne de eklendi.
+    aktif: Mapped[bool] = mapped_column(default=True)
 
 
 class PersonelYetkinlik(Base, ZamanDamgasiKarisimi):
@@ -55,6 +60,7 @@ class Bina(Base, ZamanDamgasiKarisimi):
 
     bina_id: Mapped[int] = mapped_column(primary_key=True)
     ad: Mapped[str]
+    aktif: Mapped[bool] = mapped_column(default=True)
 
 
 class GorevNoktasi(Base, ZamanDamgasiKarisimi):
@@ -76,6 +82,7 @@ class VardiyaTipi(Base, ZamanDamgasiKarisimi):
     bitis_saati: Mapped[time] = mapped_column(Time)
     sure_saat: Mapped[Decimal] = mapped_column(Numeric(4, 2))
     gece_mi: Mapped[bool]
+    aktif: Mapped[bool] = mapped_column(default=True)
 
 
 class Talep(Base, ZamanDamgasiKarisimi):

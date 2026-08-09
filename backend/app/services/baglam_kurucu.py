@@ -43,25 +43,47 @@ def zaman_ekseni_olustur(donem: Donem, *, isitma_penceresi_gun: int = 7) -> list
     return isitma_gunleri + donem_gunlerini_uret(donem.baslangic_tarihi, donem.bitis_tarihi)
 
 
-def baglam_olustur(oturum: Session, donem: Donem, *, isitma_penceresi_gun: int = 7) -> Baglam:
+def baglam_olustur(
+    oturum: Session,
+    donem: Donem,
+    *,
+    isitma_penceresi_gun: int = 7,
+    yalniz_aktif: bool = True,
+) -> Baglam:
     """Donem icin Baglam'i kurar.
 
     Talep, isitma penceresini de kapsayan tam zaman ekseni icin cozulur
     (model_kur'un karar degiskeni uretimi zaman_ekseni'nin tamami uzerinde
     calisir); donem_baslangic/donem_bitis ise yalnizca donemi isaretler
     (TD-6: adalet sayaclari isitma penceresini kapsamaz).
+
+    yalniz_aktif (madde 1): pasiflestirilmis tanimlarin ("yeni cozumlerde
+    kullanilmaz, mevcut kayitlarda gorunmeye devam eder") ele alinisi.
+    Cozum ve on kontrol yollari True verir; MEVCUT bir surumu okuyan
+    analiz ve dogrulama yollari False verir, cunku o surumun atamalari
+    pasiflestirmeden onceki tanimlara referans verebilir ve tanim
+    kumeden dusurulurse atama sessizce sayilmaz hale gelir.
+
+    Pasif bir vardiya tipi icin karar degiskeni uretilmez; isitma
+    penceresindeki veya kilitli atamalar arasinda o tipe ait bir kayit
+    varsa model_kur onu zaten sessizce atlar (talebin sifira dusmesi
+    durumuyla ayni yol).
     """
+    vardiya_sorgusu = select(VardiyaTipi)
+    nokta_sorgusu = select(GorevNoktasi)
+    if yalniz_aktif:
+        vardiya_sorgusu = vardiya_sorgusu.where(VardiyaTipi.aktif.is_(True))
+        nokta_sorgusu = nokta_sorgusu.where(GorevNoktasi.aktif.is_(True))
+
     vardiya_tipleri = {
         v.vardiya_tipi_id: VardiyaTipiBilgisi(
             v.vardiya_tipi_id, v.baslangic_saati, v.bitis_saati, float(v.sure_saat), v.gece_mi
         )
-        for v in oturum.execute(select(VardiyaTipi)).scalars().all()
+        for v in oturum.execute(vardiya_sorgusu).scalars().all()
     }
     gorev_noktalari = {
         n.nokta_id: GorevNoktasiBilgisi(n.nokta_id, n.onkosul_yetkinlik_id, n.bina_id)
-        for n in oturum.execute(select(GorevNoktasi).where(GorevNoktasi.aktif.is_(True)))
-        .scalars()
-        .all()
+        for n in oturum.execute(nokta_sorgusu).scalars().all()
     }
     personel = {
         p.personel_id: PersonelBilgisi(

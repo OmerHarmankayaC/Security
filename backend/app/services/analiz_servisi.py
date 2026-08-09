@@ -48,7 +48,10 @@ class AnalizServisi:
         if donem is None:
             return None
 
-        baglam = baglam_olustur(self.oturum, donem)
+        # yalniz_aktif=False: analiz MEVCUT bir surumu okur. Pasiflestirilmis
+        # bir vardiya tipi veya noktaya yapilmis gecmis atamalar kumeden
+        # dusurulurse kapsama orani ve adalet sayaclari sessizce eksik cikar.
+        baglam = baglam_olustur(self.oturum, donem, yalniz_aktif=False)
         donem_gun_sayisi = (donem.bitis_tarihi - donem.baslangic_tarihi).days + 1
 
         atama_satirlari: Sequence[Atama] = [

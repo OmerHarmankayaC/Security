@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db import oturum_al
+from app.repositories.tanim import SilmeSonucu, TanimDeposu
 from app.schemas.girdi import (
     MusaitlikOku,
     MusaitlikOlustur,
@@ -25,6 +26,8 @@ from app.schemas.tanim import (
     GorevNoktasiGuncelle,
     GorevNoktasiOku,
     GorevNoktasiOlustur,
+    KullanimKalemi,
+    KullanimOku,
     PersonelGuncelle,
     PersonelOku,
     PersonelOlustur,
@@ -37,6 +40,7 @@ from app.schemas.tanim import (
     YetkinlikOku,
     YetkinlikOlustur,
 )
+from app.services.tanim_kullanimi import kullanimi_olc
 from app.services.tanim_servisi import TanimServisi
 
 router = APIRouter(prefix="/api", tags=["tanim"])
@@ -49,6 +53,31 @@ def _servis(oturum: Oturum) -> TanimServisi:
 
 
 Servis = Annotated[TanimServisi, Depends(_servis)]
+
+
+def _sil(depo: TanimDeposu, id_: int, bulunamadi: str) -> None:
+    """Ortak silme yolu.
+
+    Yanit kodu her iki sonucta da 204'tur: istemci acisindan "tanim artik
+    listede degil/pasif" ayni sonuctur ve arayuz zaten silmeden ONCE
+    /kullanim'a sorup kullaniciya ne olacagini soylemis olur. Ayri bir kod
+    dondurmek, mevcut istemcilerin sozlesmesini bir bilgi kazandirmadan
+    degistirirdi.
+    """
+    if depo.sil(id_) is SilmeSonucu.BULUNAMADI:
+        raise HTTPException(status_code=404, detail=bulunamadi)
+
+
+def _kullanim(depo: TanimDeposu, id_: int, bulunamadi: str) -> KullanimOku:
+    if depo.getir(id_) is None:
+        raise HTTPException(status_code=404, detail=bulunamadi)
+    olcum = kullanimi_olc(depo.oturum, depo.model, id_)
+    return KullanimOku(
+        kullanimda_mi=olcum.kullanimda_mi,
+        toplam=olcum.toplam,
+        kalemler=[KullanimKalemi(kayit_turu=t, sayi=s) for t, s in olcum.kalemler],
+    )
+
 
 # --- Yetkinlik (FR-1.2) ------------------------------------------------
 
@@ -71,10 +100,14 @@ def yetkinlik_guncelle(yetkinlik_id: int, veri: YetkinlikGuncelle, servis: Servi
     return nesne  # type: ignore[return-value]
 
 
+@router.get("/yetkinlik/{yetkinlik_id}/kullanim", response_model=KullanimOku)
+def yetkinlik_kullanimi(yetkinlik_id: int, servis: Servis) -> KullanimOku:
+    return _kullanim(servis.yetkinlik, yetkinlik_id, "Yetkinlik bulunamadi")
+
+
 @router.delete("/yetkinlik/{yetkinlik_id}", status_code=204)
 def yetkinlik_sil(yetkinlik_id: int, servis: Servis) -> None:
-    if not servis.yetkinlik.sil(yetkinlik_id):
-        raise HTTPException(status_code=404, detail="Yetkinlik bulunamadi")
+    _sil(servis.yetkinlik, yetkinlik_id, "Yetkinlik bulunamadi")
 
 
 # --- Bina (FR-1.5) -------------------------------------------------------
@@ -98,10 +131,14 @@ def bina_guncelle(bina_id: int, veri: BinaGuncelle, servis: Servis) -> BinaOku:
     return nesne  # type: ignore[return-value]
 
 
+@router.get("/bina/{bina_id}/kullanim", response_model=KullanimOku)
+def bina_kullanimi(bina_id: int, servis: Servis) -> KullanimOku:
+    return _kullanim(servis.bina, bina_id, "Bina bulunamadi")
+
+
 @router.delete("/bina/{bina_id}", status_code=204)
 def bina_sil(bina_id: int, servis: Servis) -> None:
-    if not servis.bina.sil(bina_id):
-        raise HTTPException(status_code=404, detail="Bina bulunamadi")
+    _sil(servis.bina, bina_id, "Bina bulunamadi")
 
 
 # --- Gorev Noktasi (FR-1.6) ----------------------------------------------
@@ -125,11 +162,14 @@ def nokta_guncelle(nokta_id: int, veri: GorevNoktasiGuncelle, servis: Servis) ->
     return nesne  # type: ignore[return-value]
 
 
+@router.get("/nokta/{nokta_id}/kullanim", response_model=KullanimOku)
+def nokta_kullanimi(nokta_id: int, servis: Servis) -> KullanimOku:
+    return _kullanim(servis.nokta, nokta_id, "Gorev noktasi bulunamadi")
+
+
 @router.delete("/nokta/{nokta_id}", status_code=204)
 def nokta_sil(nokta_id: int, servis: Servis) -> None:
-    """DELETE, noktayi pasiflestirir (aktif=False); satir silinmez."""
-    if not servis.nokta.sil(nokta_id):
-        raise HTTPException(status_code=404, detail="Gorev noktasi bulunamadi")
+    _sil(servis.nokta, nokta_id, "Gorev noktasi bulunamadi")
 
 
 # --- Vardiya Tipi (FR-1.3, FR-1.4) ---------------------------------------
@@ -155,10 +195,14 @@ def vardiya_tipi_guncelle(
     return nesne  # type: ignore[return-value]
 
 
+@router.get("/vardiya-tipi/{vardiya_tipi_id}/kullanim", response_model=KullanimOku)
+def vardiya_tipi_kullanimi(vardiya_tipi_id: int, servis: Servis) -> KullanimOku:
+    return _kullanim(servis.vardiya_tipi, vardiya_tipi_id, "Vardiya tipi bulunamadi")
+
+
 @router.delete("/vardiya-tipi/{vardiya_tipi_id}", status_code=204)
 def vardiya_tipi_sil(vardiya_tipi_id: int, servis: Servis) -> None:
-    if not servis.vardiya_tipi.sil(vardiya_tipi_id):
-        raise HTTPException(status_code=404, detail="Vardiya tipi bulunamadi")
+    _sil(servis.vardiya_tipi, vardiya_tipi_id, "Vardiya tipi bulunamadi")
 
 
 # --- Personel (FR-1.1, FR-1.2) -------------------------------------------
@@ -182,11 +226,14 @@ def personel_guncelle(personel_id: int, veri: PersonelGuncelle, servis: Servis) 
     return PersonelOku.modelden_olustur(personel)
 
 
+@router.get("/personel/{personel_id}/kullanim", response_model=KullanimOku)
+def personel_kullanimi(personel_id: int, servis: Servis) -> KullanimOku:
+    return _kullanim(servis.personel, personel_id, "Personel bulunamadi")
+
+
 @router.delete("/personel/{personel_id}", status_code=204)
 def personel_sil(personel_id: int, servis: Servis) -> None:
-    """DELETE, personeli pasiflestirir (FR-1.1); satir silinmez."""
-    if not servis.personel.sil(personel_id):
-        raise HTTPException(status_code=404, detail="Personel bulunamadi")
+    _sil(servis.personel, personel_id, "Personel bulunamadi")
 
 
 # --- Talep + Yuk Gostergesi (FR-1.7, FR-1.8, FR-1.9) ----------------------

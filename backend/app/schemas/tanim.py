@@ -7,6 +7,31 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.tanim import GunTipi, Personel
 
+# --- Silme on kontrolu -----------------------------------------------------
+
+
+class KullanimKalemi(BaseModel):
+    """Tanimin tek bir kayit turunde kac kez gectigi."""
+
+    # Kullaniciya gosterilecek ad ("atama", "talep satiri", ...); alan adi degil,
+    # operasyon dili (NFR-5).
+    kayit_turu: str
+    sayi: int
+
+
+class KullanimOku(BaseModel):
+    """Bir tanimin silinmeye calisildiginda ne olacagini onceden bildirir.
+
+    Arayuz, onay kutusunun metnini bundan kurar: kullanimda olan bir tanim
+    silinmez, pasiflestirilir. DELETE'in kendisi de ayni hesabi yapar; bu uc
+    nokta yalnizca kullaniciya sonucu ONCEDEN gostermek icindir.
+    """
+
+    kullanimda_mi: bool
+    toplam: int
+    kalemler: list[KullanimKalemi]
+
+
 # --- Yetkinlik ---------------------------------------------------------
 
 
@@ -18,6 +43,7 @@ class YetkinlikOlustur(BaseModel):
 class YetkinlikGuncelle(BaseModel):
     ad: str | None = None
     aciklama: str | None = None
+    aktif: bool | None = None
 
 
 class YetkinlikOku(BaseModel):
@@ -26,6 +52,7 @@ class YetkinlikOku(BaseModel):
     yetkinlik_id: int
     ad: str
     aciklama: str | None
+    aktif: bool
 
 
 # --- Bina ----------------------------------------------------------------
@@ -37,6 +64,7 @@ class BinaOlustur(BaseModel):
 
 class BinaGuncelle(BaseModel):
     ad: str | None = None
+    aktif: bool | None = None
 
 
 class BinaOku(BaseModel):
@@ -44,6 +72,7 @@ class BinaOku(BaseModel):
 
     bina_id: int
     ad: str
+    aktif: bool
 
 
 # --- Vardiya Tipi ----------------------------------------------------------
@@ -61,6 +90,7 @@ class VardiyaTipiGuncelle(BaseModel):
     baslangic_saati: time | None = None
     bitis_saati: time | None = None
     gece_mi: bool | None = None
+    aktif: bool | None = None
 
 
 class VardiyaTipiOku(BaseModel):
@@ -72,6 +102,7 @@ class VardiyaTipiOku(BaseModel):
     bitis_saati: time
     sure_saat: Decimal
     gece_mi: bool
+    aktif: bool
 
 
 # --- Gorev Noktasi -----------------------------------------------------

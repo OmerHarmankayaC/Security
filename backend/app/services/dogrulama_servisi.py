@@ -74,7 +74,9 @@ class DogrulamaServisi:
                 f"Surum {surum.surum_id} duzenlenebilir durumda degil (durum={surum.durum})"
             )
         donem = self.donem.getir(surum.donem_id)
-        baglam = baglam_olustur(self.oturum, donem)
+        # yalniz_aktif=False: dogrulama var olan bir taslak uzerinde calisir;
+        # o taslaktaki atamalarin tanimlari sonradan pasiflestirilmis olabilir.
+        baglam = baglam_olustur(self.oturum, donem, yalniz_aktif=False)
         kurallar = kurallari_yukle(self.kural.aktif_kurallari_getir())
 
         pencere_baslangic = degisiklik.tarih - timedelta(days=_PENCERE_GUN)

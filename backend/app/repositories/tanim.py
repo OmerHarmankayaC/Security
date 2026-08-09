@@ -1,49 +1,74 @@
 """Tanim varliklari icin depo katmani (SDD 3.2, SDD 4.2.1)."""
 
-from datetime import date
+import enum
+from datetime import date, timedelta
+from typing import TypeVar
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.db import Base
 from app.models.tanim import Bina, GorevNoktasi, GunTipi, Personel, Talep, VardiyaTipi, Yetkinlik
 from app.repositories.taban import TabanDepo
+from app.services.tanim_kullanimi import kullanimi_olc
+
+M_Tanim = TypeVar("M_Tanim", bound=Base)
 
 
-class YetkinlikDeposu(TabanDepo[Yetkinlik]):
+class SilmeSonucu(enum.StrEnum):
+    """DELETE'in tanim uzerinde fiilen yaptigi sey."""
+
+    SILINDI = "silindi"
+    PASIFLESTIRILDI = "pasiflestirildi"
+    BULUNAMADI = "bulunamadi"
+
+
+class TanimDeposu(TabanDepo[M_Tanim]):
+    """Silme kurali ortak olan tanim depolarinin tabani.
+
+    Kural (madde 1): tanim baska bir kayitta kullaniliyorsa satir SILINMEZ,
+    pasiflestirilir; hic kullanilmamis bir tanim gercekten silinir. Kullanim
+    sayimi ile silme karari tek yerden (tanim_kullanimi) besleniyor.
+    """
+
+    def pasiflestir(self, nesne: M_Tanim) -> None:
+        """Varsayilan pasiflestirme: `aktif` bayragi. Personel bunu ezer."""
+        nesne.aktif = False  # type: ignore[attr-defined]
+
+    def sil(self, id_: int) -> SilmeSonucu:
+        nesne = self.getir(id_)
+        if nesne is None:
+            return SilmeSonucu.BULUNAMADI
+        if kullanimi_olc(self.oturum, self.model, id_).kullanimda_mi:
+            self.pasiflestir(nesne)
+            self.oturum.flush()
+            return SilmeSonucu.PASIFLESTIRILDI
+        self.oturum.delete(nesne)
+        self.oturum.flush()
+        return SilmeSonucu.SILINDI
+
+
+class YetkinlikDeposu(TanimDeposu[Yetkinlik]):
     def __init__(self, oturum: Session) -> None:
         super().__init__(oturum, Yetkinlik)
 
 
-class BinaDeposu(TabanDepo[Bina]):
+class BinaDeposu(TanimDeposu[Bina]):
     def __init__(self, oturum: Session) -> None:
         super().__init__(oturum, Bina)
 
 
-class VardiyaTipiDeposu(TabanDepo[VardiyaTipi]):
+class VardiyaTipiDeposu(TanimDeposu[VardiyaTipi]):
     def __init__(self, oturum: Session) -> None:
         super().__init__(oturum, VardiyaTipi)
 
 
-class GorevNoktasiDeposu(TabanDepo[GorevNoktasi]):
+class GorevNoktasiDeposu(TanimDeposu[GorevNoktasi]):
     def __init__(self, oturum: Session) -> None:
         super().__init__(oturum, GorevNoktasi)
 
-    def sil(self, id_: int) -> bool:
-        """DELETE, gorev_noktasi icin pasiflestirmedir (aktif=False); satir silinmez.
 
-        Nokta kimligi talep ve atama tablolarindan referans aldigi ve gecmis
-        cizelgeler tanim degisikliginden etkilenmemesi gerektigi icin (SDD 4.1)
-        gercek silme yerine SDD 4.2.1'deki `aktif` bayragi kullanilir.
-        """
-        nokta = self.getir(id_)
-        if nokta is None:
-            return False
-        nokta.aktif = False
-        self.oturum.flush()
-        return True
-
-
-class PersonelDeposu(TabanDepo[Personel]):
+class PersonelDeposu(TanimDeposu[Personel]):
     def __init__(self, oturum: Session) -> None:
         super().__init__(oturum, Personel)
 
@@ -58,14 +83,18 @@ class PersonelDeposu(TabanDepo[Personel]):
         personel.yetkinlikler = list(yetkinlikler)
         self.oturum.flush()
 
-    def sil(self, id_: int) -> bool:
-        """DELETE, personel icin pasiflestirmedir (FR-1.1: 'pasiflestirilmesine imkan')."""
-        personel = self.getir(id_)
-        if personel is None:
-            return False
-        personel.aktif_bitis = date.today()
-        self.oturum.flush()
-        return True
+    def pasiflestir(self, nesne: Personel) -> None:
+        """Personelin `aktif` bayragi yok; aktiflik tarih araligiyla ifade edilir
+        (SDD 4.2.1). Pasiflestirme, aktiflik penceresini DUNDE kapatmaktir.
+
+        Bugun yazilamaz: aktif_bitis dahil son gun oldugundan (H7, SRS 3.2)
+        bugun yazmak personeli bugun hala musait birakir ve pasiflestirme
+        istegi bugunku cozumde karsiliksiz kalir.
+        """
+        dun = date.today() - timedelta(days=1)
+        # Zaten daha erken kapanmis bir pencere ileri tasinmaz.
+        if nesne.aktif_bitis is None or nesne.aktif_bitis > dun:
+            nesne.aktif_bitis = dun
 
 
 class TalepDeposu(TabanDepo[Talep]):
