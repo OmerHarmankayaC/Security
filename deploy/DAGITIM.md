@@ -63,12 +63,26 @@ başlatılmamalıdır.
 
 | Değişken | Ne konacak | Nasıl üretilir |
 |---|---|---|
-| `VERITABANI_URL` | PostgreSQL `vardiya` kullanıcısının parolası (URL içindeki `PAROLA` yerine) | Parolayı siz belirleyip hem `CREATE USER` komutunda hem burada kullanın |
+| `VERITABANI_URL` | **Tam URL**: `postgresql+psycopg://vardiya:<PAROLA>@localhost:5432/vardiya` — yalnız `<PAROLA>` değişir | Parolayı siz belirleyip hem `CREATE USER` komutunda hem burada kullanın |
 | `CALISAN_PANELI_BAGLANTI_ANAHTARI` | Uzun, rastgele bir dize | `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
 
 `CALISAN_PANELI_BAGLANTI_ANAHTARI` sonradan değiştirilirse **daha önce
 dağıtılmış bütün çalışan paneli bağlantıları geçersiz olur**; yenileri
 `python scripts/calisan_baglantisi_uret.py` ile üretilir.
+
+**Sık yapılan hata:** `VERITABANI_URL` satırına yalnız parolayı yazmak.
+Uygulama o dizeyi URL olarak ayrıştıramaz ve `Could not parse SQLAlchemy
+URL` ile düşer. Satır tam URL taşımalıdır. Doğruluğu şöyle kontrol edilir
+(değer ekrana basılmaz):
+
+```bash
+val=$(grep '^VERITABANI_URL=' /opt/vardiya/.env | cut -d= -f2-)
+case "$val" in postgresql+psycopg://*) echo "tam URL";; *) echo "EKSIK";; esac
+```
+
+Parola `@ : / ? #` gibi karakterler içeriyorsa URL kodlaması gerekir
+(`@` → `%40`). Ayrıca systemd `EnvironmentFile` bu dosyayı okur: değerler
+tırnaksız yazılır ve `#` geçen bir değerin kalanı yorum sayılır.
 
 ## 4. Ön koşullar — YAPILDI
 
