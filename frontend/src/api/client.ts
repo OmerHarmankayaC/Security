@@ -18,6 +18,8 @@ import type {
   SurumKarsilastirmasi,
   TalepHucresi,
   TalepYaniti,
+  TanimKullanimi,
+  TanimYolu,
   Tercih,
   TercihDurumu,
   TercihTipi,
@@ -25,6 +27,16 @@ import type {
   VardiyaTipi,
   Yetkinlik,
 } from './types'
+
+interface PersonelYazma {
+  ad_soyad: string
+  sicil_no: string
+  haftalik_hedef_saat: number
+  aktif_baslangic: string
+  aktif_bitis?: string | null
+  sabit_vardiya_tipi_id?: number | null
+  yetkinlik_idleri?: number[]
+}
 
 export class ApiHatasi extends Error {
   status: number
@@ -57,6 +69,11 @@ const silIste = (yol: string) => istek<void>(yol, { method: 'DELETE' })
 
 export const api = {
   donemler: () => istek<Donem[]>('/api/donem'),
+  donemOlustur: (govde: {
+    baslangic_tarihi: string
+    bitis_tarihi: string
+    tercih_son_tarihi: string
+  }) => gonder<Donem>('/api/donem', govde),
   surumler: (donemId: number) => istek<CizelgeSurumu[]>(`/api/surum?donem_id=${donemId}`),
   surumAtamalari: (surumId: number) => istek<Atama[]>(`/api/surum/${surumId}/atama`),
   surumKapsamaAcigi: (surumId: number) =>
@@ -94,12 +111,23 @@ export const api = {
     }),
 
   // --- Tanımlar (Sprint 3 Ara İş) -----------------------------------------
+  // Silme her tanımda iki adımdır: önce /kullanim sorulur (kullanıcıya ne
+  // olacağı söylenebilsin diye), sonra DELETE gönderilir. DELETE'in kendisi
+  // aynı hesabı tekrar yapar; ön kontrol bir izin değil, bilgilendirmedir.
+  tanimKullanimi: (yol: TanimYolu, id: number) =>
+    istek<TanimKullanimi>(`/api/${yol}/${id}/kullanim`),
+  tanimSil: (yol: TanimYolu, id: number) => silIste(`/api/${yol}/${id}`),
+
   yetkinlikListele: () => istek<Yetkinlik[]>('/api/yetkinlik'),
   yetkinlikOlustur: (ad: string, aciklama?: string) =>
     gonder<Yetkinlik>('/api/yetkinlik', { ad, aciklama: aciklama ?? null }),
+  yetkinlikGuncelle: (id: number, veri: Partial<Pick<Yetkinlik, 'ad' | 'aciklama' | 'aktif'>>) =>
+    gonder<Yetkinlik>(`/api/yetkinlik/${id}`, veri, 'PUT'),
 
   binaListele: () => istek<Bina[]>('/api/bina'),
   binaOlustur: (ad: string) => gonder<Bina>('/api/bina', { ad }),
+  binaGuncelle: (id: number, veri: Partial<Pick<Bina, 'ad' | 'aktif'>>) =>
+    gonder<Bina>(`/api/bina/${id}`, veri, 'PUT'),
 
   talepGetir: () => istek<TalepYaniti>('/api/talep'),
   talepHucresiGuncelle: (hucre: Omit<TalepHucresi, 'talep_id'>) =>
@@ -109,13 +137,9 @@ export const api = {
   kuralGuncelle: (kimlik: string, veri: Partial<Pick<Kural, 'agirlik' | 'aktif'>>) =>
     gonder<Kural>(`/api/kural/${kimlik}`, veri, 'PUT'),
 
-  personelOlustur: (govde: {
-    ad_soyad: string
-    sicil_no: string
-    haftalik_hedef_saat: number
-    aktif_baslangic: string
-    yetkinlik_idleri?: number[]
-  }) => gonder<Personel>('/api/personel', govde),
+  personelOlustur: (govde: PersonelYazma) => gonder<Personel>('/api/personel', govde),
+  personelGuncelle: (id: number, govde: Partial<PersonelYazma>) =>
+    gonder<Personel>(`/api/personel/${id}`, govde, 'PUT'),
 
   noktaOlustur: (ad: string, binaId: number | null, onkosulYetkinlikId: number | null) =>
     gonder<GorevNoktasi>('/api/nokta', {
@@ -123,6 +147,10 @@ export const api = {
       bina_id: binaId,
       onkosul_yetkinlik_id: onkosulYetkinlikId,
     }),
+  noktaGuncelle: (
+    id: number,
+    veri: Partial<Pick<GorevNoktasi, 'ad' | 'bina_id' | 'onkosul_yetkinlik_id' | 'aktif'>>,
+  ) => gonder<GorevNoktasi>(`/api/nokta/${id}`, veri, 'PUT'),
 
   vardiyaTipiOlustur: (ad: string, baslangicSaati: string, bitisSaati: string) =>
     gonder<VardiyaTipi>('/api/vardiya-tipi', {
@@ -130,6 +158,10 @@ export const api = {
       baslangic_saati: baslangicSaati,
       bitis_saati: bitisSaati,
     }),
+  vardiyaTipiGuncelle: (
+    id: number,
+    veri: Partial<Pick<VardiyaTipi, 'ad' | 'baslangic_saati' | 'bitis_saati' | 'gece_mi' | 'aktif'>>,
+  ) => gonder<VardiyaTipi>(`/api/vardiya-tipi/${id}`, veri, 'PUT'),
 
   // --- Müsaitlik (FR-2.x) --------------------------------------------------
   musaitlikListele: () => istek<Musaitlik[]>('/api/musaitlik'),

@@ -143,6 +143,13 @@ export function gunEtiketi(iso: string, bugunIso: string): string {
   return GUN_TAM_ADLARI[isoAyristir(iso).getDay()] ?? ''
 }
 
+// ISO tarihe gün ekler (negatif değer geriye gider).
+export function gunEkle(iso: string, gun: number): string {
+  const tarih = isoAyristir(iso)
+  tarih.setDate(tarih.getDate() + gun)
+  return isoBicimle(tarih)
+}
+
 // İki ISO tarih arasındaki tam gün farkı (b - a), negatif olabilir.
 export function gunFarki(aIso: string, bIso: string): number {
   const MS_GUN = 86_400_000

@@ -92,6 +92,7 @@ export interface VardiyaTipi {
   bitis_saati: string
   sure_saat: string
   gece_mi: boolean
+  aktif: boolean
 }
 
 export interface GorevNoktasi {
@@ -164,15 +165,34 @@ export interface AtamaDegisikligiIstek {
 
 // --- Tanımlar (Sprint 3 Ara İş) --------------------------------------------
 
+// Tanım varlıklarının API yolu. Silme ve kullanım sorgusu beş varlıkta da aynı
+// biçimde çalıştığından tek bir yol üzerinden geçer.
+export type TanimYolu = 'yetkinlik' | 'bina' | 'nokta' | 'vardiya-tipi' | 'personel'
+
+export interface TanimKullanimiKalemi {
+  kayit_turu: string
+  sayi: number
+}
+
+// Silmeden ÖNCE sorulur: kullanımda olan bir tanım silinmez, pasifleştirilir.
+// Onay kutusunun metni bundan kurulur.
+export interface TanimKullanimi {
+  kullanimda_mi: boolean
+  toplam: number
+  kalemler: TanimKullanimiKalemi[]
+}
+
 export interface Yetkinlik {
   yetkinlik_id: number
   ad: string
   aciklama: string | null
+  aktif: boolean
 }
 
 export interface Bina {
   bina_id: number
   ad: string
+  aktif: boolean
 }
 
 export type GunTipi = 'hafta_ici' | 'hafta_sonu' | 'resmi_tatil'

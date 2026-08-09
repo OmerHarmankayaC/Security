@@ -4,7 +4,13 @@ import type { CozumIsi, Donem, OnKontrolBulgu } from '../api/types'
 import { AppShell, type NavOgesi } from '../components/AppShell'
 import { Buton, BuyukRakam, Kart, KartEtiketi, Sayi } from '../components/app-ui'
 import { Input } from '@/components/ui/input'
-import { donemAraligiBicimle, utcTarihiAyristir } from '../lib/tarih'
+import { bugunIso, donemAraligiBicimle, gunEkle, utcTarihiAyristir } from '../lib/tarih'
+import {
+  AZAMI_DONEM_GUN,
+  VARSAYILAN_DONEM_GUN,
+  araligiDenetle,
+  gunSayisi,
+} from '../lib/donemAraligi'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -40,6 +46,11 @@ function sureBicimle(saniye: number): string {
 export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
   const [donemler, setDonemler] = useState<Donem[]>([])
   const [zamanLimiti, setZamanLimiti] = useState(60)
+
+  const [yeniDonemAcik, setYeniDonemAcik] = useState(false)
+  const [yeniBaslangic, setYeniBaslangic] = useState('')
+  const [yeniBitis, setYeniBitis] = useState('')
+  const [donemOlusturuluyor, setDonemOlusturuluyor] = useState(false)
 
   const [bulgular, setBulgular] = useState<OnKontrolBulgu[] | null>(null)
   const [onKontrolYukleniyor, setOnKontrolYukleniyor] = useState(false)
@@ -129,6 +140,43 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
     }
   }
 
+  const yeniDonemiAc = () => {
+    // Varsayılan seçim bir hafta (Backlog 07.08.2026): bugünden başlayan yedi
+    // günlük aralık. Kullanıcı iki ucu da takvimden değiştirebilir.
+    const bugun = bugunIso()
+    setYeniBaslangic(bugun)
+    setYeniBitis(gunEkle(bugun, VARSAYILAN_DONEM_GUN - 1))
+    setYeniDonemAcik(true)
+    setHata(null)
+  }
+
+  const yeniDonemOlustur = async () => {
+    if (araligiDenetle(yeniBaslangic, yeniBitis)) return
+    setDonemOlusturuluyor(true)
+    setHata(null)
+    try {
+      const yeni = await api.donemOlustur({
+        baslangic_tarihi: yeniBaslangic,
+        bitis_tarihi: yeniBitis,
+        // Tercih son bildirim tarihi ayrı bir karar (FR-3.3); dönem
+        // oluştururken başlangıç günü varsayılır, Tercihler ekranından
+        // değiştirilir.
+        tercih_son_tarihi: yeniBaslangic,
+      })
+      setDonemler((mevcut) => [...mevcut, yeni])
+      donemIdSec(yeni.donem_id)
+      setYeniDonemAcik(false)
+    } catch (e) {
+      setHata(e instanceof Error ? e.message : 'Dönem oluşturulamadı')
+    } finally {
+      setDonemOlusturuluyor(false)
+    }
+  }
+
+  const aralikHatasi = yeniDonemAcik ? araligiDenetle(yeniBaslangic, yeniBitis) : null
+  const secilenGunSayisi =
+    yeniDonemAcik && yeniBaslangic && yeniBitis ? gunSayisi(yeniBaslangic, yeniBitis) : null
+
   const donem = donemler.find((d) => d.donem_id === donemId) ?? null
   const calisiyorMu = isKaydi !== null && CALISAN_DURUMLAR.has(isKaydi.durum)
   const sonuclandiMi = isKaydi !== null && !CALISAN_DURUMLAR.has(isKaydi.durum)
@@ -160,6 +208,9 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
               ))}
             </select>
           </div>
+          <Buton varyant="ikincil" onClick={yeniDonemiAc} disabled={yeniDonemAcik}>
+            Yeni Dönem
+          </Buton>
           <div className="flex flex-col gap-1">
             <label htmlFor="zaman-limiti" className="text-sm text-ink-muted">
               Zaman Limiti (saniye)
@@ -190,6 +241,62 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
             </Buton>
           </div>
         </div>
+
+        {yeniDonemAcik && (
+          <div className="mt-5 border-t border-rule pt-4">
+            <KartEtiketi>yeni planlama dönemi</KartEtiketi>
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="flex flex-col gap-1">
+                <label htmlFor="donem-baslangic" className="text-sm text-ink-muted">
+                  Başlangıç
+                </label>
+                <Input
+                  id="donem-baslangic"
+                  type="date"
+                  className="w-44 rounded-sm border-rule font-mono"
+                  value={yeniBaslangic}
+                  onChange={(e) => setYeniBaslangic(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label htmlFor="donem-bitis" className="text-sm text-ink-muted">
+                  Bitiş
+                </label>
+                <Input
+                  id="donem-bitis"
+                  type="date"
+                  className="w-44 rounded-sm border-rule font-mono"
+                  value={yeniBitis}
+                  // Takvim, kabul edilemez tarihleri en baştan göstermesin;
+                  // aralık denetimi yine de kalır (kullanıcı elle yazabilir).
+                  min={yeniBaslangic || undefined}
+                  max={
+                    yeniBaslangic ? gunEkle(yeniBaslangic, AZAMI_DONEM_GUN - 1) : undefined
+                  }
+                  onChange={(e) => setYeniBitis(e.target.value)}
+                />
+              </div>
+              <Buton
+                varyant="birincil"
+                onClick={yeniDonemOlustur}
+                disabled={donemOlusturuluyor || aralikHatasi !== null}
+              >
+                Dönemi Oluştur
+              </Buton>
+              <Buton varyant="hayalet" onClick={() => setYeniDonemAcik(false)}>
+                İptal
+              </Buton>
+            </div>
+            {aralikHatasi ? (
+              <p className="mt-2 text-sm text-signal">{aralikHatasi}</p>
+            ) : (
+              <p className="mt-2 text-sm text-ink-muted">
+                Seçilen aralık <Sayi>{secilenGunSayisi}</Sayi> gün · en fazla{' '}
+                <Sayi>{AZAMI_DONEM_GUN}</Sayi> gün
+              </p>
+            )}
+          </div>
+        )}
 
         {bulgular && (
           <div className="mt-4">

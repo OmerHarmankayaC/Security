@@ -1,17 +1,41 @@
 """/api/donem, /api/surum, /api/surum/{id}/atama+kapsama-acigi semalari (SDD Ek B)."""
 
 from datetime import date, datetime
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from app.models.sonuc import AtamaKaynagi, CizelgeSurumuDurumu
+
+# Planlama doneminin azami uzunlugu (gun). Kabul kriteri 28 gunluk referans
+# ornekle olculur (NFR-1); 31 gun onu kapsar ve takvimsel olarak "en uzun bir
+# ay" karsiligidir. Ust sinirin varlik nedeni cozum suresinin donem uzunluguyla
+# birlikte hizla buyumesi: sinir kaldirildiginda kullanici, arayuzden hicbir
+# uyari almadan saatlerce donecek bir is baslatabilir.
+#
+# Bu deger dort kanonik dokumanda TANIMLI DEGILDIR; karar gunlugune islenmek
+# uzere kullaniciya bildirildi.
+AZAMI_DONEM_GUN = 31
 
 
 class DonemOlustur(BaseModel):
     baslangic_tarihi: date
     bitis_tarihi: date
     tercih_son_tarihi: date
+
+    @model_validator(mode="after")
+    def _araligi_dogrula(self) -> Self:
+        if self.bitis_tarihi < self.baslangic_tarihi:
+            raise ValueError("Bitiş tarihi başlangıç tarihinden önce olamaz.")
+        gun_sayisi = (self.bitis_tarihi - self.baslangic_tarihi).days + 1
+        if gun_sayisi > AZAMI_DONEM_GUN:
+            raise ValueError(
+                f"Planlama dönemi en fazla {AZAMI_DONEM_GUN} gün olabilir; "
+                f"seçilen aralık {gun_sayisi} gün."
+            )
+        if self.tercih_son_tarihi > self.bitis_tarihi:
+            raise ValueError("Tercih son bildirim tarihi dönemin bitişinden sonra olamaz.")
+        return self
 
 
 class DonemOku(BaseModel):
