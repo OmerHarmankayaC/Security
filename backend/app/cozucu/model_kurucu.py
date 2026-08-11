@@ -20,6 +20,7 @@ def model_kur(
     kurallar: list[Kural],
     isitma_penceresi_atamalari: list[AtamaKaydi] | None = None,
     kilitli_atamalar: list[AtamaKaydi] | None = None,
+    cozum_ipucu: list[AtamaKaydi] | None = None,
 ) -> tuple[
     cp_model.CpModel, dict[XAnahtari, cp_model.IntVar], Baglam, dict[str, cp_model.LinearExprT]
 ]:
@@ -34,6 +35,9 @@ def model_kur(
     kilitledigi onceki atamalar - isitma penceresiyle ayni mekanizmayla
     (x=1'e sabitlenerek) modele islenir, ama farkli bir nedenden (kullanici
     tercihi, gecmis bir zorunluluk degil) ayri bir parametre olarak tutulur.
+
+    cozum_ipucu (SDD 5.4.1, "devam et"): durdurulan bir isten devralinan
+    cozum. Sabitleme DEGILDIR - cozucuye nereden baslayacagini soyler.
 
     Dorduncu donus degeri, esnek hedeflerin (agirliksiz) ceza ifadelerini
     kural kimligine gore tasir; SDD 5.4'teki 'cozum.hedef_bazinda_ceza()'
@@ -67,6 +71,15 @@ def model_kur(
         # Anahtar x'te yoksa (ör. talep artik sifir), isitma penceresi/kilitli
         # atama listesindeki bu atama icin zaten sabitlenecek bir karar
         # degiskeni yok demektir; sessizce atlanir.
+
+    # SDD 5.4.1 "devam et": durdurulan isin bulundugu cozum, yeni aramanin
+    # BASLANGIC IPUCUDUR. Kisit degil ipucudur - cozucu onu tutmak zorunda
+    # degil, ama oradan basladigi icin sonuc ipucundan kotu olmaz.
+    # Sabitlenmis anahtarlar disarida birakilir: onlar zaten x == 1.
+    for atama in cozum_ipucu or []:
+        anahtar = (atama.personel_id, atama.tarih, atama.vardiya_tipi_id, atama.nokta_id)
+        if anahtar in x and anahtar not in sabit_kumesi:
+            model.add_hint(x[anahtar], 1)
 
     y: dict[tuple[int, date, int], cp_model.LinearExprT] = {}
     for p in baglam.personel:

@@ -8,6 +8,8 @@ import type {
   CalisanVardiyaTipi,
   CizelgeSurumu,
   CozumIsi,
+  CozumKarari,
+  CozumKarariYaniti,
   Donem,
   DogrulamaSonucu,
   GorevNoktasi,
@@ -117,7 +119,16 @@ export const api = {
       zaman_limiti_saniye: zamanLimitiSaniye,
     }),
   cozumDurumu: (isId: number) => istek<CozumIsi>(`/api/cozum/${isId}`),
-  cozumIptalEt: (isId: number) => gonder<CozumIsi>(`/api/cozum/${isId}/iptal`, {}),
+  // "Durdur" iptal değil SONLANDIRMADIR: bulunmuş çözüm atılmaz, iş karar
+  // bekleyen duruma geçer (SRS FR-4.9).
+  cozumDurdur: (isId: number) => gonder<CozumIsi>(`/api/cozum/${isId}/durdur`, {}),
+  // Zaman limiti yalnızca `devam` kararında gönderilir: yeni bir arama
+  // başlar ve süre sıfırdan işler ("kaldığı yerden devam" değildir).
+  cozumKarari: (isId: number, karar: CozumKarari, zamanLimitiSaniye?: number) =>
+    gonder<CozumKarariYaniti>(`/api/cozum/${isId}/karar`, {
+      karar,
+      ...(karar === 'devam' && zamanLimitiSaniye ? { zaman_limiti_saniye: zamanLimitiSaniye } : {}),
+    }),
 
   atamaDogrula: (istekGovdesi: AtamaDegisikligiIstek) =>
     gonder<DogrulamaSonucu>('/api/atama/dogrula', istekGovdesi),

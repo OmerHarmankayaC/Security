@@ -22,7 +22,12 @@ from app.repositories.sonuc import (
     FazlaKadroDeposu,
     KapsamaAcigiDeposu,
 )
-from app.schemas.cozum import CozumBaslatIstek, CozumOku
+from app.schemas.cozum import (
+    CozumBaslatIstek,
+    CozumKarariIstek,
+    CozumKarariYaniti,
+    CozumOku,
+)
 from app.schemas.dogrulama import (
     AtamaDegisikligiIstek,
     CezaKalemiOku,
@@ -42,7 +47,11 @@ from app.schemas.surum import (
     SurumOzetiOku,
     SurumTaslakTuretIstek,
 )
-from app.services.cozum_servisi import CozumServisi
+from app.services.cozum_servisi import (
+    CozumServisi,
+    KararUygulanamazError,
+    durdurma_karari_uygula,
+)
 from app.services.dogrulama_servisi import (
     AtamaDegisikligi,
     DogrulamaServisi,
@@ -92,39 +101,80 @@ def cozum_baslat(istek: CozumBaslatIstek, oturum: Oturum) -> CozumOku:
     return CozumOku.model_validate(is_kaydi)
 
 
+@router.get("/cozum/aktif", response_model=CozumOku | None)
+def cozum_aktif(oturum: Oturum) -> CozumOku | None:
+    """Devam eden ya da karar bekleyen is; yoksa bos (SDD 6.1, SRS FR-4.11).
+
+    Yonetici kabugundaki calisan is gostergesi bunu yoklar. Uc noktanin
+    varlik nedeni, IS KIMLIGININ ISTEMCIDE TUTULMAMASIDIR: isin varligi
+    zaten veritabaninda kayitli ve tek dogru kaynak orasi. Kimligin
+    tarayicida ikinci bir kopyasinin durmasi, sayfa yenilendiginde veya
+    baska bir cihazdan girildiginde iki kaynagi ayristirir - is gercekte
+    surerken arayuzden kaybolmasinin nedeni tam olarak buydu.
+
+    Yol, /cozum/{is_id} deseninden ONCE tanimlanmak zorunda: aksi halde
+    FastAPI "aktif" dizesini is_id olarak ayristirmaya calisir.
+    """
+    is_kaydi = CozumIsiDeposu(oturum).aktif_isi_getir()
+    return None if is_kaydi is None else CozumOku.kayittan(is_kaydi)
+
+
 @router.get("/cozum/{is_id}", response_model=CozumOku)
 def cozum_durumu(is_id: int, oturum: Oturum) -> CozumOku:
     is_kaydi = CozumIsiDeposu(oturum).getir(is_id)
     if is_kaydi is None:
         raise HTTPException(status_code=404, detail="Cozum isi bulunamadi")
-    return CozumOku.model_validate(is_kaydi)
+    return CozumOku.kayittan(is_kaydi)
 
 
-@router.post("/cozum/{is_id}/iptal", response_model=CozumOku)
-def cozum_iptal(is_id: int, oturum: Oturum) -> CozumOku:
-    """Durdurma istegini VERITABANINA yazar: isin durumunu IPTAL'e ceker.
+@router.post("/cozum/{is_id}/durdur", response_model=CozumOku)
+def cozum_durdur(is_id: int, oturum: Oturum) -> CozumOku:
+    """Durdurma istegini VERITABANINA yazar: isin durumunu DURDURULDU'ya ceker.
+
+    Bu bir IPTAL DEGIL, SONLANDIRMADIR (SRS FR-4.9). Isci aramayi
+    sonlandirir, elindeki en iyi cozumu `gecici_sonuc`a yazar ve is
+    kullanicinin kararini bekler; surume hicbir sey yazilmaz.
 
     Cozum isci ayri bir SERVIS oldugundan (SDD 3.4.4) API o sureci
-    olduremez; iki surec arasindaki tek kanal veritabanidir. Isci bu
-    durumu cozum geri cagiriminda okur, aramayi sonlandirir ve HICBIR
-    atama yazmadan cikar (SDD 6.3.2: "iptal edilen is, o ana kadar
-    bulunmus en iyi cozumu kaydetmeden sonlanir").
-
-    Durum degisikligi aninda gorunur, ama aramanin fiilen durmasi bir
-    sonraki iyilesmis cozuma ya da zaman limitine kadar surebilir (bkz.
-    cozucu/adaptor.py, _IlerlemeGeriCagrisi'nin SINIR notu).
+    olduremez; iki surec arasindaki tek kanal veritabanidir. Isci durumu
+    arama surerken duzenli araliklarla taze okur ve gordugunde aramayi
+    disaridan sonlandirir - olculen gecikme yarim saniye mertebesinde
+    (SDD 5.4.2, SRS NFR-14).
 
     Is zaten sonuclanmissa (tamamlandi/basarisiz/vb.) hicbir sey degismez.
-    Henuz kuyruktaki bir is IPTAL'e cekilirse isci onu hic almaz: kapma
-    sorgusu yalnizca `kuyrukta` durumundakileri secer.
+    Henuz kuyruktaki bir is DURDURULDU'ya cekilirse isci onu hic almaz:
+    kapma sorgusu yalnizca `kuyrukta` durumundakileri secer - is, elinde
+    sonuc olmadan karar bekler.
     """
     depo = CozumIsiDeposu(oturum)
     is_kaydi = depo.getir(is_id)
     if is_kaydi is None:
         raise HTTPException(status_code=404, detail="Cozum isi bulunamadi")
     if is_kaydi.durum not in _TAMAMLANMIS_DURUMLAR:
-        is_kaydi.durum = CozumIsiDurumu.IPTAL
-    return CozumOku.model_validate(is_kaydi)
+        is_kaydi.durum = CozumIsiDurumu.DURDURULDU
+    return CozumOku.kayittan(is_kaydi)
+
+
+@router.post("/cozum/{is_id}/karar", response_model=CozumKarariYaniti)
+def cozum_karari(is_id: int, istek: CozumKarariIstek, oturum: Oturum) -> CozumKarariYaniti:
+    """Durdurulan iste kullanici karari: kullan | at | devam (SRS FR-4.10).
+
+    SDD 5.4.1'deki `durdurma_karari_uygula` yordami. "devam", aramanin
+    kaldigi yerden surdurulmesi DEGILDIR: bulunan cozum ipucu verilerek
+    yeni bir arama baslatilir ve sure sifirdan isler.
+    """
+    try:
+        is_kaydi, yeni_is = durdurma_karari_uygula(
+            oturum, is_id, istek.karar, zaman_limiti_saniye=istek.zaman_limiti_saniye
+        )
+    except LookupError as hata:
+        raise HTTPException(status_code=404, detail=str(hata)) from hata
+    except KararUygulanamazError as hata:
+        raise HTTPException(status_code=409, detail=str(hata)) from hata
+    return CozumKarariYaniti(
+        is_kaydi=CozumOku.kayittan(is_kaydi),
+        yeni_is=None if yeni_is is None else CozumOku.kayittan(yeni_is),
+    )
 
 
 def _degisiklige_cevir(istek: AtamaDegisikligiIstek) -> AtamaDegisikligi:

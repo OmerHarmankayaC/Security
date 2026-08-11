@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
-import type { CozumIsi, Donem, OnKontrolBulgu } from '../api/types'
+import type { CozumIsi, CozumKarari, Donem, OnKontrolBulgu } from '../api/types'
 import { AppShell, type NavOgesi } from '../components/AppShell'
 import { Buton, BuyukRakam, Kart, KartEtiketi, Sayi } from '../components/app-ui'
 import { Input } from '@/components/ui/input'
@@ -26,6 +26,7 @@ const DURUM_METNI: Record<string, string> = {
   kuyrukta: 'Kuyrukta',
   on_kontrol: 'Ön Kontrol',
   cozuluyor: 'Çözülüyor',
+  durduruldu: 'Karar Bekleniyor',
   tamamlandi: 'Tamamlandı',
   uyarili: 'Uyarılı Tamamlandı',
   basarisiz: 'Başarısız',
@@ -45,6 +46,33 @@ function sureBicimle(saniye: number): string {
   return `${String(dk).padStart(2, '0')}:${String(sn).padStart(2, '0')}`
 }
 
+/**
+ * Hedef bazında ceza dökümü (FR-4.8).
+ *
+ * Karar paneli ile sonuç özeti aynı dökümü gösterir — panel, çözüm
+ * tamamlanmış gibi TAM AYRINTI vermek zorunda (SDD 6.3.2), kullanıcı
+ * kararını buna bakarak veriyor. İki kopya bırakmak, birinin sessizce
+ * geride kalması demekti.
+ */
+function CezaDokumu({ girdiler, azami }: { girdiler: [string, number][]; azami: number }) {
+  return (
+    <ul className="m-0 flex list-none flex-col gap-2 p-0">
+      {girdiler.map(([kimlik, deger]) => (
+        <li key={kimlik} className="flex items-center gap-3 py-1 text-sm">
+          <span className="w-28 shrink-0 text-ink-muted">{kimlik}</span>
+          <span className="h-2 flex-1 overflow-hidden rounded-sm bg-sunken">
+            <span
+              className={kimlik === 'S1' ? 'block h-full bg-signal' : 'block h-full bg-accent'}
+              style={{ width: azami > 0 ? `${Math.max(2, (deger / azami) * 100)}%` : '0%' }}
+            />
+          </span>
+          <Sayi className="w-16 shrink-0 text-right text-ink">{deger}</Sayi>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
   const [donemler, setDonemler] = useState<Donem[]>([])
   const [zamanLimiti, setZamanLimiti] = useState(60)
@@ -61,6 +89,8 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
   const [kapsamaSayisi, setKapsamaSayisi] = useState<number | null>(null)
   const [hata, setHata] = useState<string | null>(null)
   const [gecenSure, setGecenSure] = useState(0)
+  const [kararIsleniyor, setKararIsleniyor] = useState(false)
+  const [devamZamanLimiti, setDevamZamanLimiti] = useState(60)
 
   const anketAraligi = useRef<ReturnType<typeof setInterval> | null>(null)
   const saatAraligi = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -94,9 +124,13 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
         setIsKaydi(guncel)
         setGecenSure(gecenSureSaniye(guncel.baslangic_zamani))
         if (!CALISAN_DURUMLAR.has(guncel.durum)) {
+          // Karar bekleyen işte de yoklama durur: iş, kullanıcı karar
+          // verene kadar kendiliğinden değişmez.
           anketiDurdur()
-          const kapsama = await api.surumKapsamaAcigi(guncel.surum_id)
-          setKapsamaSayisi(kapsama.length)
+          if (guncel.durum !== 'durduruldu') {
+            const kapsama = await api.surumKapsamaAcigi(guncel.surum_id)
+            setKapsamaSayisi(kapsama.length)
+          }
         }
       } catch (e) {
         anketiDurdur()
@@ -136,9 +170,38 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
   const durdur = async () => {
     if (!isKaydi) return
     try {
-      await api.cozumIptalEt(isKaydi.is_id)
+      await api.cozumDurdur(isKaydi.is_id)
     } catch (e) {
-      setHata(e instanceof Error ? e.message : 'İptal isteği başarısız')
+      setHata(e instanceof Error ? e.message : 'Durdurma isteği başarısız')
+    }
+  }
+
+  const kararVer = async (karar: CozumKarari) => {
+    if (!isKaydi) return
+    if (karar === 'at' && !window.confirm('Bulunan çözüm silinecek. Bu işlem geri alınamaz.')) {
+      return
+    }
+    setKararIsleniyor(true)
+    setHata(null)
+    try {
+      const yanit = await api.cozumKarari(isKaydi.is_id, karar, devamZamanLimiti)
+      if (yanit.yeni_is) {
+        // Yeni bir ARAMA başladı: süre sıfırdan işler, ekran yeni işi izler.
+        setIsKaydi(yanit.yeni_is)
+        setGecenSure(0)
+        setKapsamaSayisi(null)
+        isiIzle(yanit.yeni_is.is_id)
+      } else {
+        setIsKaydi(yanit.is_kaydi)
+        if (yanit.is_kaydi.durum !== 'iptal') {
+          const kapsama = await api.surumKapsamaAcigi(yanit.is_kaydi.surum_id)
+          setKapsamaSayisi(kapsama.length)
+        }
+      }
+    } catch (e) {
+      setHata(e instanceof Error ? e.message : 'Karar uygulanamadı')
+    } finally {
+      setKararIsleniyor(false)
     }
   }
 
@@ -181,7 +244,8 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
 
   const donem = donemler.find((d) => d.donem_id === donemId) ?? null
   const calisiyorMu = isKaydi !== null && CALISAN_DURUMLAR.has(isKaydi.durum)
-  const sonuclandiMi = isKaydi !== null && !CALISAN_DURUMLAR.has(isKaydi.durum)
+  const kararBekliyorMu = isKaydi !== null && isKaydi.durum === 'durduruldu'
+  const sonuclandiMi = isKaydi !== null && !calisiyorMu && !kararBekliyorMu
 
   const cezaGirdileri = isKaydi?.ceza_dokumu
     ? Object.entries(isKaydi.ceza_dokumu).sort(([a], [b]) => a.localeCompare(b))
@@ -350,8 +414,86 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
             Durdur
           </Buton>
           <p className="mt-2 text-sm text-ink-muted">
-            Durdur, işi "iptal" olarak işaretler; ayrı süreçte fiilen çalışan arama en iyi çaba
-            ile sonlanır, süre limitine kadar arka planda devam edebilir.
+            Durdur, aramayı sonlandırır; o ana kadar bulunmuş çözüm atılmaz, kararınız için
+            saklanır.
+          </p>
+        </Kart>
+      )}
+
+      {isKaydi && kararBekliyorMu && (
+        <Kart vurgulu>
+          <KartEtiketi renk="warn">karar bekleniyor</KartEtiketi>
+          <p className="mb-4 text-sm text-ink-muted">
+            Arama sonlandırıldı. Bulunan çözüm henüz çizelgeye yazılmadı; sürüm durdurma
+            öncesindeki hâlinde duruyor.
+          </p>
+          <div className="mb-4 flex gap-10">
+            <BuyukRakam deger={sureBicimle(gecenSure)} etiket="Geçen Süre" />
+            <BuyukRakam
+              deger={isKaydi.en_iyi_ceza !== null ? isKaydi.en_iyi_ceza : '—'}
+              etiket="Toplam Ceza"
+            />
+            <BuyukRakam
+              deger={isKaydi.gecici_kapsama_acigi_sayisi?.toString() ?? '—'}
+              etiket="Kapsama Açığı"
+            />
+          </div>
+
+          {cezaGirdileri.length > 0 && <CezaDokumu girdiler={cezaGirdileri} azami={azamiCeza} />}
+
+          {!isKaydi.kullanilabilir_sonuc_var && (
+            <p className="mt-4 text-sm text-signal">
+              {isKaydi.hata_mesaji ??
+                'Çözücü ilk uygun çizelgeye ulaşmadan durduruldu; kullanılabilir bir sonuç yok.'}{' '}
+              Bu nedenle "Sonucu kullan" seçilemiyor.
+            </p>
+          )}
+
+          <div className="mt-5 flex flex-wrap items-end gap-3">
+            <Buton
+              varyant="birincil"
+              onClick={() => kararVer('kullan')}
+              disabled={kararIsleniyor || !isKaydi.kullanilabilir_sonuc_var}
+            >
+              Sonucu kullan
+            </Buton>
+            <Buton
+              varyant="hayalet"
+              onClick={() => kararVer('at')}
+              disabled={kararIsleniyor}
+            >
+              Sonucu at
+            </Buton>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="devam-zaman-limiti" className="text-sm text-ink-muted">
+                Yeni zaman limiti (saniye)
+              </label>
+              <Input
+                id="devam-zaman-limiti"
+                type="number"
+                min={1}
+                className="w-32 rounded-sm border-rule font-mono"
+                value={devamZamanLimiti}
+                onChange={(e) => setDevamZamanLimiti(Number(e.target.value))}
+              />
+            </div>
+            <Buton
+              varyant="ikincil"
+              onClick={() => kararVer('devam')}
+              disabled={kararIsleniyor || devamZamanLimiti < 1}
+            >
+              Bu çözümden devam et
+            </Buton>
+          </div>
+          {/* SDD 5.4.1: "kaldığı yerden devam" DEĞİLDİR. Çözücü
+              sonlandırıldıktan sonra iç arama durumu geri yüklenemez;
+              bulunan çözüm ipucu verilerek YENİ bir arama başlar. Ekranın
+              bunu yazması, kullanıcının sürenin kaldığı yerden işlediğini
+              sanmasını engeller. */}
+          <p className="mt-3 text-sm text-ink-muted">
+            "Devam et", bulunan çözümü başlangıç ipucu olarak veren{' '}
+            <strong className="font-medium text-ink">yeni bir arama</strong> başlatır; süre
+            sıfırdan işler ve sonuç bu çözümden kötü olmaz.
           </p>
         </Kart>
       )}
@@ -362,24 +504,7 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
             sonuç özeti — {DURUM_METNI[isKaydi.durum] ?? isKaydi.durum}
           </KartEtiketi>
           {isKaydi.hata_mesaji && <p className="text-sm text-signal">{isKaydi.hata_mesaji}</p>}
-          {cezaGirdileri.length > 0 && (
-            <ul className="m-0 flex list-none flex-col gap-2 p-0">
-              {cezaGirdileri.map(([kimlik, deger]) => (
-                <li key={kimlik} className="flex items-center gap-3 py-1 text-sm">
-                  <span className="w-28 shrink-0 text-ink-muted">{kimlik}</span>
-                  <span className="h-2 flex-1 overflow-hidden rounded-sm bg-sunken">
-                    <span
-                      className={kimlik === 'S1' ? 'block h-full bg-signal' : 'block h-full bg-accent'}
-                      style={{
-                        width: azamiCeza > 0 ? `${Math.max(2, (deger / azamiCeza) * 100)}%` : '0%',
-                      }}
-                    />
-                  </span>
-                  <Sayi className="w-16 shrink-0 text-right text-ink">{deger}</Sayi>
-                </li>
-              ))}
-            </ul>
-          )}
+          {cezaGirdileri.length > 0 && <CezaDokumu girdiler={cezaGirdileri} azami={azamiCeza} />}
           {kapsamaSayisi !== null && kapsamaSayisi > 0 && (
             <p className="mt-2 text-sm text-ink-muted">
               {kapsamaSayisi} kapsama açığı bulundu → Çizelge ekranında ilgili hücreler

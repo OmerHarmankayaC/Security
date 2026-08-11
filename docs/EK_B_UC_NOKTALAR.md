@@ -10,8 +10,13 @@
 > diğerlerinin alt kümesi DEĞİLDİR ve tersi de geçerlidir — yönetim
 > rolü çalışan panelinden geçemez.
 
-**Toplam 70 uç nokta.** SDD Ek B'nin önceki hâli 21 satır
+**Toplam 72 uç nokta.** SDD Ek B'nin önceki hâli 21 satır
 listeliyordu ve kimlik doğrulama turunu hiç içermiyordu.
+
+> 11.08.2026 — durdurma turu: `/api/cozum/{id}/iptal` **kaldırıldı**,
+> yerine `/durdur` (sonlandırma, sonuç atılmaz), `/karar` (kullan / at /
+> devam) ve `/cozum/aktif` (kabuktaki çalışan iş göstergesi) geldi.
+> Uç nokta sayısı 70 → 72.
 
 ## Kimlik dogrulama (FR-10.1 - FR-10.3, FR-10.7)
 
@@ -100,8 +105,10 @@ listeliyordu ve kimlik doğrulama turunu hiç içermiyordu.
 | Uç Nokta | Yöntem | Gereken Rol | İşlev |
 | --- | --- | --- | --- |
 | `/api/cozum` | POST | yonetici + yonetim | Cozum isinin baslatilmasi; is kimligi dondurur (FR-4.1) |
+| `/api/cozum/aktif` | GET | yonetici + yonetim | Devam eden ya da karar bekleyen is; kabuktaki gosterge bunu yoklar (FR-4.11) |
 | `/api/cozum/{is_id}` | GET | yonetici + yonetim | Cozum isinin durumu ve ilerlemesi (FR-4.7) |
-| `/api/cozum/{is_id}/iptal` | POST | yonetici + yonetim | Calisan cozum isinin iptali |
+| `/api/cozum/{is_id}/durdur` | POST | yonetici + yonetim | Aramanin sonlandirilmasi; sonuc atilmaz, karar beklenir (FR-4.9) |
+| `/api/cozum/{is_id}/karar` | POST | yonetici + yonetim | Durdurulan iste kullanici karari: kullan / at / devam (FR-4.10) |
 | `/api/on-kontrol` | POST | yonetici + yonetim | Cozucu calistirmadan on kontrol (FR-5.1) |
 
 ## Manuel duzenleme (FR-6.x)

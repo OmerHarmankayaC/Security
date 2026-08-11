@@ -126,6 +126,9 @@ export type CozumIsiDurumu =
   | 'kuyrukta'
   | 'on_kontrol'
   | 'cozuluyor'
+  // Arama sonlandı, sonuç saklandı, KULLANICI KARARI bekleniyor. Terminal
+  // bir durum değildir (SDD 5.4.1).
+  | 'durduruldu'
   | 'tamamlandi'
   | 'uyarili'
   | 'basarisiz'
@@ -142,6 +145,21 @@ export interface CozumIsi {
   en_iyi_ceza: string | null
   ceza_dokumu: Record<string, number> | null
   hata_mesaji: string | null
+  // "Devam et" kararıyla açılmış işlerde, ipucunun alındığı önceki iş.
+  devam_kaynagi_is_id: number | null
+  // Geçici sonucun KENDİSİ değil, yalnızca var olup olmadığı — sunucu onu
+  // hiçbir okuma yüzeyine vermez (SDD 4.2.4). Arayüzün tek ihtiyacı,
+  // "Sonucu kullan" seçeneğini etkinleştirip etkinleştirmeyeceğidir.
+  kullanilabilir_sonuc_var: boolean
+  // Karar panelinin gösterdiği kapsama açığı sayısı; yine içerik değil özet.
+  gecici_kapsama_acigi_sayisi: number | null
+}
+
+export type CozumKarari = 'kullan' | 'at' | 'devam'
+
+export interface CozumKarariYaniti {
+  is_kaydi: CozumIsi
+  yeni_is: CozumIsi | null
 }
 
 export type OnKontrolBulguTipi =

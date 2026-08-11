@@ -172,15 +172,18 @@ def test_ayni_is_iki_kez_kapilamaz(kurulum: dict[str, int]) -> None:
         ikinci.close()
 
 
-def test_kuyruktayken_iptal_edilen_is_hic_alinmaz(kurulum: dict[str, int]) -> None:
+def test_kuyruktayken_durdurulan_is_hic_alinmaz(kurulum: dict[str, int]) -> None:
     """Kapma sorgusu yalnizca `kuyrukta` durumundakileri secer; API'nin
-    IPTAL'e cektigi bir is isciye hic gitmez."""
+    DURDURULDU'ya cektigi bir is isciye hic gitmez.
+
+    Is, elinde hicbir sonuc olmadan karar bekler - cozucu hic calismadigi
+    icin `gecici_sonuc` bostur ve arayuz "kullan"i pasif gosterir."""
     oturum = OturumYerel()
     try:
         is_kaydi = CozumServisi(oturum).baslat(kurulum["donem_id"], zaman_limiti_saniye=10)
         is_id = is_kaydi.is_id
-        # API'nin /iptal ucunun yaptigi sey:
-        is_kaydi.durum = CozumIsiDurumu.IPTAL
+        # API'nin /durdur ucunun yaptigi sey:
+        is_kaydi.durum = CozumIsiDurumu.DURDURULDU
         oturum.commit()
     finally:
         oturum.close()
@@ -193,20 +196,24 @@ def test_kuyruktayken_iptal_edilen_is_hic_alinmaz(kurulum: dict[str, int]) -> No
 
     oturum = OturumYerel()
     try:
-        assert CozumIsiDeposu(oturum).getir(is_id).durum == CozumIsiDurumu.IPTAL
+        is_son = CozumIsiDeposu(oturum).getir(is_id)
+        assert is_son.durum == CozumIsiDurumu.DURDURULDU
+        assert is_son.gecici_sonuc is None
     finally:
         oturum.close()
 
 
-def test_cozum_sirasinda_iptal_yarim_sonuc_yazmaz(
+def test_cozum_sirasinda_durdurma_surume_hicbir_sey_yazmaz(
     kurulum: dict[str, int], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """SDD 6.3.2: "Iptal edilen is, o ana kadar bulunmus en iyi cozumu
-    KAYDETMEDEN sonlanir."
+    """SDD 5.4.1: durdurma cozumu ATMAZ ama SURUME DE YAZMAZ.
 
-    Durdurma istegi cozum SURERKEN gelmis gibi davranmak icin, iptal
-    kontrolu ilk cagrisinda dogru doner - yani cozucu ilk iyilesmis
-    cozumu bulur bulmaz arama sonlandirilir.
+    Bulunan cozum `gecici_sonuc`a gider ve kullanici karari beklenir;
+    atama, kapsama acigi ve surum durumu dokunulmamis kalir. "At" kararinin
+    bedelsiz olmasi tam olarak buna dayanir.
+
+    Durdurma istegi cozum SURERKEN gelmis gibi davranmak icin, kontrol
+    ilk cagrisinda dogru doner - yani arama ilk yoklamada sonlandirilir.
     """
     import app.services.cozum_servisi as cozum_modulu
 
@@ -218,16 +225,16 @@ def test_cozum_sirasinda_iptal_yarim_sonuc_yazmaz(
     finally:
         oturum.close()
 
-    gercek_kontrol = cozum_modulu._iptal_istendi_mi
+    gercek_kontrol = cozum_modulu._durdurma_istendi_mi
 
     def sahte_kontrol(oturum_, is_kaydi_):  # noqa: ANN001, ANN202 - test sahtesi
-        # Model kurulduktan SONRAKI ilk kontrolde henuz iptal yok; cozucu
-        # geri cagirimindaki kontrolde iptal istenmis gibi davranilir.
+        # Model kurulduktan SONRAKI ilk kontrolde henuz istek yok; arama
+        # basladiktan sonraki yoklamada durdurma istenmis gibi davranilir.
         if is_kaydi_.durum == CozumIsiDurumu.COZULUYOR:
             return True
         return gercek_kontrol(oturum_, is_kaydi_)
 
-    monkeypatch.setattr(cozum_modulu, "_iptal_istendi_mi", sahte_kontrol)
+    monkeypatch.setattr(cozum_modulu, "_durdurma_istendi_mi", sahte_kontrol)
 
     calisan = OturumYerel()
     try:
@@ -238,7 +245,7 @@ def test_cozum_sirasinda_iptal_yarim_sonuc_yazmaz(
     oturum = OturumYerel()
     try:
         is_son = CozumIsiDeposu(oturum).getir(is_id)
-        assert is_son.durum == CozumIsiDurumu.IPTAL
+        assert is_son.durum == CozumIsiDurumu.DURDURULDU
         assert is_son.bitis_zamani is not None
 
         atamalar = oturum.execute(select(Atama).where(Atama.surum_id == surum_id)).scalars().all()
@@ -247,13 +254,17 @@ def test_cozum_sirasinda_iptal_yarim_sonuc_yazmaz(
             .scalars()
             .all()
         )
-        assert atamalar == [], "Iptal edilen is atama YAZMAMALI"
-        assert acilar == [], "Iptal edilen is kapsama acigi YAZMAMALI"
+        assert atamalar == [], "Durdurulan is atama YAZMAMALI"
+        assert acilar == [], "Durdurulan is kapsama acigi YAZMAMALI"
 
         surum = oturum.execute(
             select(CizelgeSurumu).where(CizelgeSurumu.surum_id == surum_id)
         ).scalar_one()
-        assert surum.durum.value == "taslak", "Iptal edilen is surumu cozuldu'ye cekmemeli"
+        assert surum.durum.value == "taslak", "Durdurulan is surumu cozuldu'ye cekmemeli"
+
+        # Cozum ATILMADI: karar verilene kadar gecici sonucta duruyor.
+        assert is_son.gecici_sonuc is not None
+        assert is_son.gecici_sonuc["atamalar"], "Bulunmus cozum gecici sonuca yazilmali"
     finally:
         oturum.close()
 
@@ -302,8 +313,8 @@ def test_durdurma_yeni_bir_ara_cozum_beklemeden_uygulanir(kurulum: dict[str, int
         is_calisan.durum = CozumIsiDurumu.COZULUYOR
         isci_oturumu.commit()
 
-        # API'nin /iptal ucunun yaptigi sey - BASKA bir baglantidan:
-        CozumIsiDeposu(api_oturumu).getir(is_id).durum = CozumIsiDurumu.IPTAL
+        # API'nin /durdur ucunun yaptigi sey - BASKA bir baglantidan:
+        CozumIsiDeposu(api_oturumu).getir(is_id).durum = CozumIsiDurumu.DURDURULDU
         api_oturumu.commit()
 
         kol = _SahteKol()

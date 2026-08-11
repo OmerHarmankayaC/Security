@@ -26,6 +26,10 @@ class CozumIsiDurumu(enum.StrEnum):
     KUYRUKTA = "kuyrukta"
     ON_KONTROL = "on_kontrol"
     COZULUYOR = "cozuluyor"
+    # Arama sonlandi, sonuc `gecici_sonuc`ta duruyor ve KULLANICI KARARI
+    # bekleniyor (SDD 5.4.1). Terminal bir durum degildir: karar `kullan`
+    # ise tamamlandi/uyarili'ya, `at` ve `devam` ise iptal'e gider.
+    DURDURULDU = "durduruldu"
     TAMAMLANDI = "tamamlandi"
     UYARILI = "uyarili"
     BASARISIZ = "basarisiz"
@@ -81,6 +85,16 @@ class CozumIsi(Base, ZamanDamgasiKarisimi):
     en_iyi_ceza: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
     ceza_dokumu: Mapped[dict | None] = mapped_column(JSONB)
     kural_anlik_goruntu: Mapped[dict] = mapped_column(JSONB)
+    # SDD 4.2.4: durdurulan isin, kullanici karari beklerken ATAMALARA
+    # YAZILMAMIS cozumu. HICBIR OKUMA YUZEYININ KAYNAGI DEGILDIR - cizelge
+    # izgarasi, analiz, surum karsilastirmasi, disa aktarma ve calisan
+    # paneli atama tablosundan beslenir. Tek yonlu, tek seferlik bir
+    # aktarim tamponudur: isci bir kez yazar, karar bir kez okuyup
+    # bosaltir. "Devam et" kararinda ayni alan yeni isin cozucu ipucunu
+    # tasir ve model kurulur kurulmaz bosaltilir.
+    gecici_sonuc: Mapped[dict | None] = mapped_column(JSONB)
+    # "Devam et" karariyla turetilmis islerde, ipucunun alindigi onceki is.
+    devam_kaynagi_is_id: Mapped[int | None] = mapped_column(ForeignKey("cozum_isi.is_id"))
     hata_mesaji: Mapped[str | None]
 
 

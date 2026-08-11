@@ -25,7 +25,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.cozum_iscisi import siradaki_isi_isle  # noqa: E402
 
+# Iscinin bir daha DOKUNMAYACAGI durumlar. `durduruldu` terminal degildir -
+# is orada kullanici kararini bekler (SDD 5.4.1) - ama isci acisindan
+# bitmistir; testin beklemesi gereken nokta da odur.
 SONUCLANMIS_DURUMLAR = (
+    CozumIsiDurumu.DURDURULDU,
     CozumIsiDurumu.TAMAMLANDI,
     CozumIsiDurumu.UYARILI,
     CozumIsiDurumu.BASARISIZ,

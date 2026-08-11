@@ -11,11 +11,22 @@ from app.models.sonuc import (
     CizelgeSurumu,
     CizelgeSurumuDurumu,
     CozumIsi,
+    CozumIsiDurumu,
     Donem,
     FazlaKadro,
     KapsamaAcigi,
 )
 from app.repositories.taban import TabanDepo
+
+# Kullanicinin hala ilgilendigi isler: yurumekte olanlar ve KARAR BEKLEYEN
+# (SDD 5.4.1) is. Terminal durumlar (tamamlandi/uyarili/basarisiz/iptal)
+# disaridadir.
+AKTIF_DURUMLAR = (
+    CozumIsiDurumu.KUYRUKTA,
+    CozumIsiDurumu.ON_KONTROL,
+    CozumIsiDurumu.COZULUYOR,
+    CozumIsiDurumu.DURDURULDU,
+)
 
 
 class DonemDeposu(TabanDepo[Donem]):
@@ -146,6 +157,24 @@ class CizelgeSurumuDeposu(TabanDepo[CizelgeSurumu]):
 class CozumIsiDeposu(TabanDepo[CozumIsi]):
     def __init__(self, oturum: Session) -> None:
         super().__init__(oturum, CozumIsi)
+
+    def aktif_isi_getir(self) -> CozumIsi | None:
+        """Devam eden ya da karar bekleyen is (SDD 6.1, SRS FR-4.11).
+
+        Kabuktaki calisan is gostergesinin kaynagi. Karar bekleyen is de
+        aktiftir: kullanici baska bir ekrandayken durdurup unutursa, is
+        sessizce askida kalmamali.
+
+        Kuramsal olarak birden fazla olabilir (iki isin ayni anda kuyruga
+        yazilmasi engellenmis degil); gostergede tek bir is durdugu icin en
+        yenisi secilir.
+        """
+        stmt = (
+            select(CozumIsi)
+            .where(CozumIsi.durum.in_(AKTIF_DURUMLAR))
+            .order_by(CozumIsi.is_id.desc())
+        )
+        return self.oturum.execute(stmt).scalars().first()
 
     def surume_gore_en_son(self, surum_id: int) -> CozumIsi | None:
         """Bir surumun (yeniden calistirma ile birden fazla olabilecek) cozum
