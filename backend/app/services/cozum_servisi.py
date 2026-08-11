@@ -9,8 +9,8 @@ sonuc yalnizca veritabani uzerinden aktarilir. Bu yuzden:
   - `scripts/cozum_iscisi.py` kuyruktan is alip `cozum_isini_calistir`i
     cagirir.
   - Durdurma istegi de ayni kanaldan gelir: API isin durumunu IPTAL'e
-    ceker, isci bunu cozum geri cagiriminda okuyup aramayi sonlandirir
-    ve HICBIR sonuc yazmadan cikar (bkz. _iptal_istendi_mi).
+    ceker, isci bunu ARAMA SURERKEN duzenli araliklarla taze okur ve
+    aramayi disaridan sonlandirir (SDD 5.4.2, bkz. _aramayi_sur).
 Sprint 2 Gun 8'deki multiprocessing.Process ara cozumu kaldirildi.
 """
 
@@ -21,7 +21,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.config import ayarlar
-from app.cozucu import CozucuAdaptoru, model_kur
+from app.cozucu import AramaKolu, CozucuAdaptoru, Ilerleme, model_kur
 from app.kurallar.baglam import AtamaKaydi
 from app.kurallar.kayit_defteri import kurallari_yukle
 from app.models.kural import Kural
@@ -47,6 +47,8 @@ from app.services.baglam_kurucu import baglam_olustur, donem_gunlerini_uret, zam
 from app.services.on_kontrol import Bulgu, engelleyenler, on_kontrol_yap
 
 _VARSAYILAN_ZAMAN_LIMITI_SANIYE = 60
+# SDD 5.4.2: ana dongunun durdurma istegini yoklama araligi (saniye).
+_DURDURMA_YOKLAMA_ARALIGI_SANIYE = 0.5
 _VARSAYILAN_AZAMI_HAFTALIK_SAAT = Decimal(45)
 _VARSAYILAN_HAFTALIK_ASGARI_IZIN_GUNU = 1
 
@@ -176,24 +178,20 @@ def cozum_isini_calistir(oturum: Session, is_id: int) -> None:
     is_kaydi.durum = CozumIsiDurumu.COZULUYOR
     oturum.commit()
 
-    def ara_cozum_geri_cagirma(ceza: float, _gecen_sure: float) -> None:
-        is_kaydi.en_iyi_ceza = _ondalik(ceza)
-        oturum.commit()
-
-    sonuc = CozucuAdaptoru.coz(
+    kol = CozucuAdaptoru.aramayi_baslat(
         model,
         x,
         zaman_limiti_saniye=is_kaydi.zaman_limiti_saniye,
         arama_iscisi_sayisi=ayarlar.cozucu_arama_iscisi_sayisi,
-        ara_cozum_geri_cagirma=ara_cozum_geri_cagirma,
-        iptal_kontrolu=lambda: _iptal_istendi_mi(oturum, is_kaydi),
         ceza_terimleri=ceza_terimleri,
         kapsama_degiskenleri=baglam.kapsama_eksikleri,
     )
+    _aramayi_sur(oturum, is_kaydi, kol)
+    sonuc = kol.sonuc()
 
     # SDD 6.3.2: "Iptal edilen is, o ana kadar bulunmus en iyi cozumu
     # KAYDETMEDEN sonlanir." Bu kontrol atama yazma blogundan once gelir.
-    if sonuc.iptal_edildi or _iptal_istendi_mi(oturum, is_kaydi):
+    if sonuc.durduruldu or _iptal_istendi_mi(oturum, is_kaydi):
         _iptal_olarak_kapat(oturum, is_kaydi)
         return
 
@@ -243,6 +241,32 @@ def cozum_isini_calistir(oturum: Session, is_id: int) -> None:
     is_kaydi.bitis_zamani = datetime.now(UTC)
     surum.durum = CizelgeSurumuDurumu.COZULDU
     oturum.commit()
+
+
+def _aramayi_sur(oturum: Session, is_kaydi: CozumIsi, kol: AramaKolu) -> None:
+    """Arama surerken ilerlemeyi yazar ve durdurma istegini yoklar (SDD 5.4.2).
+
+    Bu dongu oturumun TEK sahibidir; arama ayri bir is parcaciginda yurur ve
+    veritabanina hic dokunmaz (SQLAlchemy oturumu is parcaciklari arasinda
+    paylasilamaz). Ilerleme koldan okunur, durdurma istegi kayittan TAZE
+    okunur, istek gorulunce arama disaridan sonlandirilir.
+
+    Yoklama araligi, durdurmanin olculen gecikmesinin ust siniridir: istek
+    en kotu ihtimalle bir aralik kadar bekler, `stop_search` sonrasi arama
+    milisaniyeler icinde doner. Eski yolda gecikmenin ust siniri iki
+    iyilesme arasindaki sessizlikti - yani zaman limitinin kendisi.
+    """
+    yazilan: Ilerleme | None = None
+    durduruldu = False
+    while not kol.bekle(_DURDURMA_YOKLAMA_ARALIGI_SANIYE):
+        ilerleme = kol.son_ilerleme()
+        if ilerleme is not None and ilerleme != yazilan:
+            yazilan = ilerleme
+            is_kaydi.en_iyi_ceza = _ondalik(ilerleme.ceza)
+            oturum.commit()
+        if not durduruldu and _iptal_istendi_mi(oturum, is_kaydi):
+            kol.durdur()
+            durduruldu = True
 
 
 def _iptal_istendi_mi(oturum: Session, is_kaydi: CozumIsi) -> bool:

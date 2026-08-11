@@ -8,6 +8,7 @@ HICBIR sonuc yazmamasi.
 Canli bir PostgreSQL gerektirir; baglanamiyorsa atlanir.
 """
 
+import time as zaman
 import uuid
 from datetime import date, timedelta
 
@@ -255,3 +256,63 @@ def test_cozum_sirasinda_iptal_yarim_sonuc_yazmaz(
         assert surum.durum.value == "taslak", "Iptal edilen is surumu cozuldu'ye cekmemeli"
     finally:
         oturum.close()
+
+
+def test_durdurma_yeni_bir_ara_cozum_beklemeden_uygulanir(kurulum: dict[str, int]) -> None:
+    """SDD 5.4.2 / SRS NFR-14: istek, cozucu daha iyi bir cozum bulmasa da
+    uygulanir.
+
+    Eski yolda durdurma yalnizca ara cozum geri cagiriminda okunuyordu;
+    geri cagirim da yalnizca cozucu DAHA IYI bir cozum buldugunda
+    tetikleniyor, dolayisiyla istek iki iyilesme arasindaki sessizlikte
+    zaman limitine kadar bekleyebiliyordu. Buradaki sahte kol HIC ilerleme
+    bildirmez - eski yolda bu test sonsuza kadar beklerdi.
+    """
+    from app.services.cozum_servisi import _aramayi_sur
+
+    oturum = OturumYerel()
+    try:
+        is_kaydi = CozumServisi(oturum).baslat(kurulum["donem_id"], zaman_limiti_saniye=600)
+        is_id = is_kaydi.is_id
+    finally:
+        oturum.close()
+
+    class _SahteKol:
+        """Durdurulana kadar bitmeyen, hic ara cozum bildirmeyen arama."""
+
+        def __init__(self) -> None:
+            self.durduruldu = False
+
+        def bekle(self, saniye: float) -> bool:
+            if self.durduruldu:
+                return True
+            zaman.sleep(saniye)
+            return False
+
+        def son_ilerleme(self) -> None:
+            return None
+
+        def durdur(self) -> None:
+            self.durduruldu = True
+
+    isci_oturumu = OturumYerel()
+    api_oturumu = OturumYerel()
+    try:
+        is_calisan = CozumIsiDeposu(isci_oturumu).getir(is_id)
+        is_calisan.durum = CozumIsiDurumu.COZULUYOR
+        isci_oturumu.commit()
+
+        # API'nin /iptal ucunun yaptigi sey - BASKA bir baglantidan:
+        CozumIsiDeposu(api_oturumu).getir(is_id).durum = CozumIsiDurumu.IPTAL
+        api_oturumu.commit()
+
+        kol = _SahteKol()
+        basla = zaman.monotonic()
+        _aramayi_sur(isci_oturumu, is_calisan, kol)  # type: ignore[arg-type]
+        gecen = zaman.monotonic() - basla
+
+        assert kol.durduruldu, "Ana dongu durdurma istegini gormeli"
+        assert gecen < 5, f"Durdurma {gecen:.1f} saniye surdu; yoklama araligi kadar olmali"
+    finally:
+        isci_oturumu.close()
+        api_oturumu.close()
