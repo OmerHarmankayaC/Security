@@ -129,8 +129,13 @@ describe('YazdirilabilirCizelge — başlık', () => {
   it('dönemi, sürüm numarasını ve üretim tarihini yazar', () => {
     ciz(ATAMALAR)
     expect(screen.getByRole('heading', { level: 1 })?.textContent).toContain('02 – 08 Şub 2026')
-    expect(screen.getByText(/Sürüm 3/)).toBeDefined()
-    expect(screen.getByText(/1 Şubat 2026 tarihinde üretildi/)).toBeDefined()
+    // Özet satırındaki SAYILAR ayrı mono <span>'lardadır (TASARIM_REFERANSI.md
+    // — "Düz cümle asla Mono değildir"), yani "Sürüm 3" tek bir metin
+    // düğümünde DURMAZ. getByText düğüm bazında eşleştiği için satırın
+    // tamamı textContent üzerinden okunur.
+    const ozet = screen.getByText(/tarihinde üretildi/)
+    expect(ozet.textContent).toContain('Sürüm 3')
+    expect(ozet.textContent).toContain('1 Şubat 2026 tarihinde üretildi')
   })
 
   it('tarihleri Türkçe biçimde yazar — okuyucu insan (madde 5)', () => {
