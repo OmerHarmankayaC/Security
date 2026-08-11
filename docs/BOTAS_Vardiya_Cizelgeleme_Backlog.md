@@ -27,6 +27,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 09.08.2026 | Arayüz turunda alınan beş karar (azami dönem, kural kaydı yetkisi, çoklu taslak, arşivden kopyalama, tanım pasifleştirme) karar günlüğüne işlendi | 1.2 |
 | Ömer HARMANKAYA | 09.08.2026 | B-05 kapsama alındı; kimlik doğrulama kararları ve ertelenen maddeler (B-15 – B-18) eklendi | 1.3 |
 | Ömer HARMANKAYA | 11.08.2026 | Manuel düzenlemede fazla kadro, ayrı tablo ve cezasızlık kararları ile FR-1.10/FR-2.3 kapsam kararı işlendi; B-19 eklendi | 1.4 |
+| Ömer HARMANKAYA | 11.08.2026 | Durdurma ve karar akışı kararları işlendi; T-06 kapsama alındı, T-02 sıcak başlangıç "devam et" seçeneği kapsamında kısmen kapsama alındı | 1.5 |
 
 
 
@@ -89,11 +90,11 @@ Bu maddeler kullanıcıya doğrudan yeni bir işlev sunmaz; çözüm kalitesini,
 | Kimlik | Madde | Gündeme Gelme Koşulu |
 | --- | --- | --- |
 | T-01 | Simetri kırma kısıtları. Birbirinin yerine geçebilen personel arasındaki eşdeğer çözümlerin elenmesiyle arama uzayının daraltılması. | Çözüm süresi kabul kriterine yaklaştığında |
-| T-02 | Sıcak başlangıç. Önceki çözümün çözücüye başlangıç ipucu olarak verilmesi; özellikle yeniden çözme senaryosunda süreyi kısaltır. | Yeniden çözme süresi ilk çözümü aştığında |
+| T-02 | Sıcak başlangıç. Önceki çözümün çözücüye başlangıç ipucu olarak verilmesi. **Kısmen kapsama alındı (11.08.2026):** durdurulan bir işte "devam et" kararı bu mekanizmayı kullanır. Yeniden çözme senaryosunda (SDD 5.6) ipucu verilmesi hâlâ açıktır. | Yeniden çözme süresi ilk çözümü aştığında |
 | T-03 | Çoklu çözüm sunumu. Aynı ceza seviyesinde birden fazla alternatif çizelgenin üretilip kullanıcıya seçtirilmesi. | Çözüm süresi tek çözüm için kriterin belirgin altında kaldığında |
 | T-04 | Ağırlık kalibrasyon önerisi. Kullanıcının seçtiği ağırlıkların sonuç üzerindeki etkisinin duyarlılık analiziyle raporlanması. | Ağırlık ayarlamanın deneme yanılmaya dönüştüğü gözlendiğinde |
 | T-05 | Kural kataloğu şema doğrulaması. Katalog verisinin biçimsel şemayla doğrulanması ve hatalı tanımların çözücüye ulaşmadan yakalanması. | Kataloğa üçüncü bir yorumlayıcı eklendiğinde |
-| T-06 | İptal gecikmesinin giderilmesi. İptal isteği şu anda ara çözüm geri çağırması içinde okunur; geri çağırma yalnızca daha iyi bir çözüm bulunduğunda tetiklendiğinden istek iki iyileşme arasında bekleyebilir (SDD 5.4). Öneri: çözüm çağrısı işçi içinde ayrı bir iş parçacığında yürütülür, ana döngü iş durumunu düzenli aralıklarla yoklar ve çözücünün aramayı dışarıdan sonlandıran çağrısını kullanır. Kütüphane sürümünde bu çağrının davranışı önce doğrulanmalıdır. | Kullanıcı iptalin geç yanıt verdiğini gerçek kullanımda bildirdiğinde |
+| T-06 | ~~İptal gecikmesinin giderilmesi.~~ **Kapsama alındı (11.08.2026).** Durdurma artık sonucu atmak yerine kullanıcıya karar ekranı açtığından, gecikme katlanılabilir olmaktan çıktı: kullanıcı bir yanıt bekliyor. Çözüm çağrısı işçi içinde ayrı bir iş parçacığına alınır, ana döngü iş durumunu yoklar (SDD 5.4.2, SRS NFR-14). | — |
 
 
 
@@ -134,6 +135,10 @@ Aşağıdaki tablo, tasarım sürecinde alınan ve sonradan değiştirilen karar
 | 11.08.2026 | Fazla kadro kayıtları, kapsama açığı tablosuna tür sütunu eklenmek yerine ayrı bir tabloda tutuldu | İki kaydın kökeni farklıdır: kapsama açığı çözücünün eksik değişkeninin karşılığıdır, fazla kadronun çözücüde karşılığı yoktur. Ayrıca kapsama açığı tablosunu okuyan her sorgu "her satır bir açıktır" varsayımını taşır; tür sütunu bu varsayımı sessizce geçersiz kılardı |
 | 11.08.2026 | Fazla kadro ceza üretmez | Amaç fonksiyonunda karşılığı olan bir terim yoktur; uydurulacak bir sayı, aynı çizelge için çözücü ile doğrulayıcının farklı toplam raporlamasına yol açardı |
 | 11.08.2026 | Resmî tatil tanımı (FR-1.10) kapsama alındı, müsaitlik toplu içe aktarma (FR-2.3) ertelendi (B-19) | Tatilde tablo, çözücü okuması ve TD-3'ün hükmü zaten vardı; eksik olan yalnızca yazma yoluydu ve yokluğunda talep matrisinin resmî tatil sütunu hiç tetiklenemiyordu. Toplu içe aktarmada ise eksik olan, ürün kararları gerektiren bir akışın tamamıdır |
+| 11.08.2026 | Durdurma tek yönlü iptal olmaktan çıkarıldı; üç seçenekli bir karar noktasına dönüştürüldü (kullan / at / devam) | Çözücünün dakikalarca çalışıp bulduğu kullanılabilir bir çizelgenin kullanıcı ona hiç bakmadan atılması bilgi kaybıdır. Durdurma kararı "aramanın devam etmesini istemiyorum" demektir, "bu çözümü istemiyorum" demek değildir; ikisini tek eyleme bağlamak, sistemin kullanıcı adına karar vermesidir |
+| 11.08.2026 | Durdurulan işin çözümü atamalara değil iş kaydındaki `gecici_sonuc` alanına yazılır | "At" kararının bedelsiz olması için sürümün hiç değişmemiş olması gerekir; sonuç doğrudan atamalara yazılsaydı sürümün önceki hâli ayrıca saklanmak zorunda kalırdı. Alan tek yönlü bir aktarım tamponudur: hiçbir okuma yüzeyi (çizelge, analiz, dışa aktarma, çalışan paneli) buradan beslenmez, tek doğru kaynak atama tablosu olarak kalır |
+| 11.08.2026 | "Devam et" seçeneği, aramanın sürdürülmesi değil bulunan çözümün ipucu verilerek yeniden başlatılması olarak tanımlandı | Çözücü sonlandırıldıktan sonra iç arama durumu geri yüklenemez. Kullanıcının beklediği sonucu verir (çözüm kötüleşmez) ancak süre sıfırdan işler; bu nedenle yeni zaman limiti sorulur ve arayüzde "kaldığı yerden devam" denmez. Aksi hâlde arayüz, sistemin yapamayacağı bir şeyi vaat eder |
+| 11.08.2026 | Çalışan işin kimliği istemcide tutulmaz; kabuk sunucuya "devam eden iş var mı" diye sorar | İşin varlığı zaten veritabanında kayıtlı ve tek doğru kaynak orası. Tarayıcı belleğindeki ikinci kopya, sayfa yenilendiğinde veya başka bir cihazdan girildiğinde ayrışır; işin sürdüğü hâlde arayüzde kaybolmasının nedeni buydu |
 
 
 

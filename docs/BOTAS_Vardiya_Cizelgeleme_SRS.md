@@ -34,6 +34,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 11.08.2026 | S1'in üst sınırının çözüm ile manuel düzenlemede farklı bağlayıcılıkta olduğu 4.3'e yazıldı: çözücüde zorunlu, manuel düzenlemede cezasız uyarı; uyarının sürüm raporunda kalıcı olması istendi | 1.9 |
 | Ömer HARMANKAYA | 11.08.2026 | Kapsama açığı dışa aktarma biçimi fazla kadro kayıtlarını da taşıyacak biçimde genişletildi (tür sütunu, kisi_sayisi); uygulamada karşılığı bulunmayan sözleşme tipi alanı 3.1 ve FR-1.1'den çıkarıldı | 1.10 |
 | Ömer HARMANKAYA | 11.08.2026 | Talep kayıtlarının gün tipi başına ayrı satırlar hâlinde tutulduğu ve resmî tatil satırlarının zorunluluğu 3.3.4'e yazıldı | 1.11 |
+| Ömer HARMANKAYA | 11.08.2026 | Çözüm işinin durdurulması tek yönlü iptal olmaktan çıkarıldı: durdurma anında bulunmuş çözüm kullanıcının kararına sunulur (FR-4.9, FR-4.10). Çalışan işin ekran değişiminden bağımsız izlenebilirliği (FR-4.11) ve durdurmanın yanıt süresi (NFR-14) tanımlandı | 1.12 |
 
 
 
@@ -610,8 +611,25 @@ Ağırlıkların tamamı kullanıcı tarafından ayarlanabilir. Sistem hangi hed
 | FR-4.6 | Sistem, çözüm için üst zaman limiti tanımlanmasına imkân vermeli; limit dolduğunda o ana kadar bulunan en iyi çözümü döndürmelidir. | Yüksek |
 | FR-4.7 | Sistem, çözüm tamamlandığında çözüm süresini, çözüm durumunu ve toplam ceza puanını raporlamalıdır. | Zorunlu |
 | FR-4.8 | Sistem, toplam ceza puanını esnek hedef bazında ayrıştırarak göstermelidir. | Yüksek |
+| FR-4.9 | Sistem, çalışan bir çözüm işinin kullanıcı tarafından durdurulmasına imkân vermelidir. Durdurma anında bulunmuş en iyi çözüm atılmaz; karar verilene kadar saklanır ve kullanıcıya sunulur. | Zorunlu |
+| FR-4.10 | Sistem, durdurulan bir işte kullanıcıya üç seçenek sunmalıdır: sonucu kullanmak, sonucu atmak ve bulunan çözümden devam etmek. Karar verilene kadar çizelge sürümü değişmez. Çözücü henüz hiçbir çözüm bulmamışsa "kullan" seçeneği sunulmaz ve bunun nedeni yazılır. | Zorunlu |
+| FR-4.11 | Sistem, çalışan veya karar bekleyen bir çözüm işini kullanıcının hangi ekranda olduğundan bağımsız olarak izlenebilir kılmalıdır. Ekran değiştirmek, sayfayı yenilemek veya oturumu başka bir cihazdan açmak işi durdurmaz ve ilerleme görünürlüğünü kaybettirmez. | Zorunlu |
 
 
+
+Durdurmanın tek yönlü bir iptal olarak tanımlanması, çözücünün dakikalarca çalışıp
+ürettiği kullanılabilir bir çizelgenin kullanıcı ona hiç bakmadan atılması anlamına
+gelir. Bu, sistemin karar veren kişiyi desteklemesi ilkesiyle bağdaşmaz: durdurma
+kararı "bu çözümü istemiyorum" değil, "aramanın devam etmesini istemiyorum"
+demektir. İkisi ayrı sorulardır ve ikincisinin yanıtı birincisini belirlemez.
+
+FR-4.10'daki üçüncü seçeneğin adı "devam et" olmakla birlikte, aramanın kaldığı
+yerden sürdürülmesi değildir; çözücü sonlandırıldıktan sonra iç durumu geri
+yüklenemez. Seçenek, bulunan çözümün başlangıç ipucu olarak verilmesiyle yeni bir
+çözüm işinin başlatılmasıdır. Sonuç bulunmuş çözümden daha kötü olmaz, ancak süre
+sayacı sıfırdan başlar ve çözücü aynı arama yolunu izlemeyebilir. Bu nedenle
+seçenek kullanıcıya yeni bir zaman limiti sorularak sunulur ve arayüzde
+"kaldığı yerden devam" ifadesi kullanılmaz.
 
 ## 5.5 Fizibilite Geri Bildirimi
 
@@ -865,6 +883,7 @@ Dosya karakter kodlaması UTF-8 olmalı ve bayt sırası imi (BOM) içermelidir;
 | NFR-11 | Sürdürülebilirlik | Vardiya yapısının değişmesi (3x8, 2x12 veya başka bir düzen) kod değişikliği gerektirmemelidir. |
 | NFR-12 | Taşınabilirlik | Sistem gerçek kurum verisi olmadan, uygulama içinden üretilen örnek veriyle çalıştırılabilmelidir. |
 | NFR-13 | İzlenebilirlik | Her atamanın çözücü tarafından mı yoksa manuel olarak mı oluşturulduğu kayıt altında tutulmalıdır. |
+| NFR-14 | Performans | Durdurma isteği, çözücünün yeni bir ara çözüm bulmasını beklemeden birkaç saniye içinde etkili olmalıdır. Kullanıcı durdurmanın ardından bir karar ekranı beklediğinden, isteğin iki iyileşme arasında sessizce beklemesi kabul edilemez. |
 
 
 

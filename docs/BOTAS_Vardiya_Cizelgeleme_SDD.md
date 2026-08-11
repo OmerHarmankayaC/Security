@@ -41,6 +41,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 11.08.2026 | fazla_kadro tablosu ve ayrı tablo gerekçesi 4.2.4'e eklendi; manuel düzenlemenin sapma tablolarını yenilediği 5.5'e yazıldı; Ek B'nin tam uç nokta listesinin ayrı ve üretilen bir belgede tutulduğu belirtildi | 1.16 |
 | Ömer HARMANKAYA | 11.08.2026 | Talep matrisinin gün tipi ekseni üç değerli olarak tanımlandı ve resmî tatil sütunlarının zorunluluğu 6.3.1'e yazıldı | 1.17 |
 | Ömer HARMANKAYA | 11.08.2026 | Diyagramlar güncel mimariye göre yeniden üretildi ve veritabanı şeması diyagramı eklendi; 3.1'deki çözücünün süreç içi kütüphane olduğu ifadesi ile 3.2'deki yönlendirici ve servis sayıları düzeltildi | 1.18 |
+| Ömer HARMANKAYA | 11.08.2026 | Durdurma ve karar akışı tasarlandı: `durduruldu` durumu ile `gecici_sonuc` alanı 4.2.4'e, karar yordamı ve iptal gecikmesinin giderilmesi (T-06) 5.4'e, karar paneli 6.3.2'ye, çalışan iş göstergesinin uygulama kabuğunda tutulması 6.1'e eklendi | 1.19 |
 
 
 
@@ -518,15 +519,30 @@ Parametrelerin belge alanında tutulmasının nedeni, her kural tipinin farklı 
 | --- | --- | --- |
 | is_id | INT (PK) | Çözüm işinin benzersiz kimliği |
 | surum_id | INT (FK → cizelge_surumu) | İşin ürettiği çizelge sürümü |
-| durum | ENUM | kuyrukta \| on_kontrol \| cozuluyor \| tamamlandi \| uyarili \| basarisiz \| iptal |
+| durum | ENUM | kuyrukta \| on_kontrol \| cozuluyor \| durduruldu \| tamamlandi \| uyarili \| basarisiz \| iptal |
 | baslangic_zamani | TIMESTAMPTZ | İşin başlatıldığı an |
-| bitis_zamani | TIMESTAMP, NULL | İşin sonlandığı an |
+| bitis_zamani | TIMESTAMPTZ, NULL | İşin sonlandığı an |
 | sure_saniye | NUMERIC, NULL | Çözüm süresi |
 | zaman_limiti_saniye | INT | Çözücüye verilen üst süre sınırı |
 | en_iyi_ceza | NUMERIC, NULL | Bulunan en iyi çözümün toplam ceza puanı |
 | ceza_dokumu | JSONB, NULL | Hedef bazında ceza dağılımı (S1…S8) |
 | kural_anlik_goruntu | JSONB | Çalıştırma anındaki kural parametreleri ve ağırlıkları |
+| gecici_sonuc | JSONB, NULL | Durdurulan işin, kullanıcı kararı beklerken atamalara yazılmamış çözümü (atama listesi + kapsama açıkları + fazla kadro + ceza dökümü). Karar verildiğinde boşaltılır |
+| devam_kaynagi_is_id | INT (FK → cozum_isi), NULL | "Devam et" kararıyla türetilmiş işlerde, ipucunun alındığı önceki iş |
 | hata_mesaji | TEXT, NULL | Başarısızlık durumunda açıklama |
+
+**Geçici sonuç bir okuma kaynağı değildir.** `gecici_sonuc`, atama tablosuyla aynı
+bilgiyi taşıdığı için ilk bakışta aynı verinin iki yerde durması gibi görünür; bu
+projede birkaç kez bedeli ödenmiş bir kalıptır. Ayrım şudur: geçici sonuç tek yönlü
+ve tek seferlik bir aktarım tamponudur. Çizelge ızgarası, analiz servisi, sürüm
+karşılaştırması, dışa aktarma ve çalışan paneli — hiçbiri bu alanı okumaz; hepsi
+atama tablosundan beslenir. Alan yalnızca iki işlemde kullanılır: işçi tarafından
+bir kez yazılır, kullanıcı kararında bir kez okunup boşaltılır.
+
+Sonucun doğrudan atamalara yazılmaması, "at" kararının bedelsiz olmasını sağlar.
+Sürüm, kilitli atamaları ve önceki sürümden kopyalanan içeriğiyle birlikte hiç
+dokunulmamış hâlde kalır; geri alınacak bir şey yoktur. Aksi hâlde "at" işlemi
+sürümün önceki hâlinin ayrıca saklanmasını gerektirirdi.
 
 
 
@@ -744,9 +760,87 @@ YORDAM cozum_isini_calistir(is_id):
 
 Atamaların yazılması tek bir veritabanı işlemi içinde yapılır. Bunun nedeni, sürecin yazma sırasında kesilmesi durumunda çizelgenin yarı dolu kalmasını engellemektir; yarım bir çizelge, kural ihlali içermeyen fakat kapsaması eksik bir çizelgeden ayırt edilemez ve yanıltıcıdır.
 
-**İptal.** Kullanıcının çalışan bir işi durdurma isteği, uygulama sunucusu tarafından iş kaydının durumu `iptal` olarak yazılarak bildirilir. Ayrı bir iptal bayrağı tutulmaz: durum alanı bu bilgiyi zaten taşır ve aynı bilginin ikinci bir alanda tekrarlanması iki kaynağın ayrışması riskini doğurur. Çözüm işçisi, ara çözüm geri çağırması içinde iş kaydının durumunu veritabanından **taze** okur ve `iptal` gördüğünde aramayı sonlandırır; sonuç yazılmaz, iş bu durumda kalır. Kaydın oturum önbelleğinden değil veritabanından okunması zorunludur, aksi hâlde işçi uygulama sunucusunun yazdığı değeri hiç görmez.
+### 5.4.1 Durdurma ve Kullanıcı Kararı
 
-Bu mekanizmanın bilinen bir sınırı vardır: geri çağırma yalnızca çözücü daha iyi bir çözüm bulduğunda tetiklenir, dolayısıyla iptal isteği iki iyileşme arasındaki sessizlikte bekleyebilir. Süreçler arası iletişimin yalnızca veritabanı üzerinden kurulması (3.4.4) tercih edildiği ve uygulama sunucusu çözüm sürecini doğrudan sonlandırmadığı için bu gecikme mimarinin kabul edilmiş bir sonucudur. Giderilmesi Ürün Backlog'u T-06'da kayıtlıdır.
+Kullanıcının çalışan bir işi durdurma isteği, uygulama sunucusu tarafından iş
+kaydının durumu `durduruldu` olarak yazılarak bildirilir. Ayrı bir durdurma bayrağı
+tutulmaz: durum alanı bu bilgiyi zaten taşır ve aynı bilginin ikinci bir alanda
+tekrarlanması iki kaynağın ayrışması riskini doğurur. Kaydın işçi tarafında oturum
+önbelleğinden değil veritabanından **taze** okunması zorunludur, aksi hâlde işçi
+uygulama sunucusunun yazdığı değeri hiç görmez.
+
+Durdurma, çözümü atmaz. İşçi aramayı sonlandırdığında elindeki en iyi çözümü
+atamalara değil `gecici_sonuc` alanına yazar ve iş `durduruldu` durumunda kalarak
+kullanıcı kararını bekler. Durdurma kararı "aramanın devam etmesini istemiyorum"
+demektir; "bu çözümü istemiyorum" demek değildir (SRS FR-4.9).
+
+```
+YORDAM durdurma_karari_uygula(is_id, karar, yeni_zaman_limiti):
+    is ← CozumDeposu.getir(is_id)
+    EĞER is.durum ≠ durduruldu: HATA VER 'İş karar bekleyen durumda değil'
+
+    EĞER karar = KULLAN:
+        EĞER is.gecici_sonuc BOŞ: HATA VER 'Kullanılabilir çözüm yok'
+        İŞLEM BAŞLAT:
+            sonucu_yaz(is.surum_id, is.gecici_sonuc)   # 5.4'teki aynı yazma bloğu
+            is.gecici_sonuc ← BOŞ
+            is.durum ← EĞER kapsama_acigi VAR İSE uyarili DEĞİLSE tamamlandi
+            surum.durum ← cozuldu
+        İŞLEM BİTİR
+
+    EĞER karar = AT:
+        is.gecici_sonuc ← BOŞ
+        is.durum ← iptal          # sürüm hiç değişmedi
+        KAYDET(is)
+
+    EĞER karar = DEVAM:
+        yeni_is ← CozumServisi.baslat(is.surum_id,
+                      zaman_limiti = yeni_zaman_limiti,
+                      cozum_ipucu  = is.gecici_sonuc,
+                      devam_kaynagi = is.is_id)
+        is.gecici_sonuc ← BOŞ
+        is.durum ← iptal
+        KAYDET(is)
+        DÖNDÜR yeni_is
+```
+
+Sonucun yazılması, 5.4'teki çözüm tamamlanma yolunun kullandığı yazma bloğunun
+aynısıdır; ikinci bir kopyası çıkarılmaz. Aksi hâlde atamaların, kapsama
+açıklarının ve fazla kadro kayıtlarının birlikte yazılması kuralı iki yerde
+tanımlanmış olurdu ve biri güncellenirken diğeri geride kalabilirdi.
+
+**Çözüm bulunamadan durdurma.** Çözücü ilk uygun çözüme ulaşmadan durdurulursa
+`gecici_sonuc` boş kalır. Bu durumda kullanıcıya "kullan" seçeneği sunulmaz ve
+nedeni yazılır. Boş bir sonucun sessizce boş bir çizelge olarak yazılması, kural
+ihlali içermeyen fakat kapsaması sıfır olan bir sürüm üretir; bu, gerçekten
+çözülmüş bir çizelgeden ayırt edilemez.
+
+**"Devam et" kaldığı yerden sürdürme değildir.** Çözücü sonlandırıldıktan sonra iç
+arama durumu geri yüklenemez. Karar, bulunan çözümün başlangıç ipucu olarak
+verilmesiyle yeni bir çözüm işinin başlatılmasıdır (Ürün Backlog'u T-02, sıcak
+başlangıç). Yeni işin sonucu ipucundan kötü olmaz, ancak süre sayacı sıfırdan
+başlar; bu nedenle karar kullanıcıdan yeni bir zaman limiti alınarak uygulanır ve
+arayüzde "kaldığı yerden devam" ifadesi kullanılmaz (SRS 5.4). İki iş arasındaki
+bağ `devam_kaynagi_is_id` ile izlenir.
+
+### 5.4.2 Durdurmanın Gecikmesiz Uygulanması
+
+Durdurma isteğinin ara çözüm geri çağırması içinde okunması yeterli değildir: geri
+çağırma yalnızca çözücü daha iyi bir çözüm bulduğunda tetiklenir, dolayısıyla istek
+iki iyileşme arasındaki sessizlikte dakikalarca bekleyebilir. Sonucun atıldığı eski
+tasarımda bu katlanılabilir bir gecikmeydi; kullanıcı artık bir karar ekranı
+beklediği için değildir (SRS NFR-14).
+
+Çözüm çağrısı bu nedenle işçi sürecinde ayrı bir iş parçacığında yürütülür. Ana
+döngü, iş kaydının durumunu düzenli aralıklarla veritabanından taze okur ve
+`durduruldu` gördüğünde çözücünün aramayı dışarıdan sonlandıran çağrısını tetikler.
+Süreçler arası iletişim yine yalnızca veritabanı üzerindendir (3.4.4); eklenen
+iş parçacığı tek bir sürecin içindedir ve mimariyi değiştirmez.
+
+Çözücü kütüphanesinin dışarıdan sonlandırma çağrısının, arama başka bir iş
+parçacığında yürürken beklenen biçimde davrandığı uygulamadan önce doğrulanmalıdır.
+Davranmadığı durumda geri çağırma yolu yedek olarak korunur; iki yol birlikte
+bırakılmaz, biri seçilir.
 
 ## 5.5 Manuel Düzenleme Doğrulaması
 
@@ -853,6 +947,23 @@ Yönetici arayüzü sekiz ekrandan oluşur. Ekranların sırası, tipik bir çiz
 
 
 
+#### Çalışan İş Göstergesi
+
+Çözüm işi dakikalar sürebildiğinden, kullanıcının bu süre boyunca Çözüm ekranında
+beklemesi beklenemez; tanım düzeltmek veya bir önceki sürüme bakmak için başka
+ekranlara geçer. Bu nedenle çalışan veya karar bekleyen bir işin göstergesi tek bir
+ekrana değil, yönetici arayüzünün kabuğuna (üst çubuk) bağlanır: durum, geçen süre
+ve o ana kadarki en iyi ceza her ekranda görünür, göstergeye tıklandığında Çözüm
+ekranı açılır (SRS FR-4.11).
+
+Bunun tasarımsal sonucu, çalışan işin kimliğinin istemci tarafında tutulmamasıdır.
+Kabuk, açılışta ve düzenli aralıklarla sunucuya "devam eden veya karar bekleyen bir
+iş var mı" diye sorar; iş kimliği yanıtın içinden gelir. İşin varlığı zaten
+veritabanında kayıtlıdır ve tek doğru kaynak orasıdır — aynı bilginin tarayıcı
+belleğinde ikinci bir kopyasının tutulması, sayfa yenilendiğinde veya başka bir
+cihazdan girildiğinde iki kaynağın ayrışmasına yol açar. Bu ayrışma, işin gerçekte
+sürdüğü hâlde arayüzde kaybolmasının doğrudan nedenidir.
+
 Çalışan arayüzü üç bölümden oluşur: Vardiyalarım (yayınlanmış çizelgeden kişiye ait atamalar), Dönem Özetim (kişinin gece, hafta sonu ve toplam saat sayıları ile ekip ortalaması) ve Tercihlerim (tercih bildirim formu ile bildirilen tercihlerin durumu). Tercih bildirimi ayrı bir bölüm değildir; tek alanlık bir formdan ibaret olduğu için Tercihlerim listesinin üstünde yer alır. Bu arayüzde hiçbir yazma işlemi çizelgeyi etkilemez; yalnızca tercih kaydı oluşturulur.
 
 Arayüz tek sütunlu ve mobil önceliklidir; masaüstünde de ortalanmış tek sütun olarak sunulur. Panelin üç hedefi de düşük bilgi yoğunluğuna sahiptir ve geniş bir düzen, boşluğu doldurmak için yapay bileşen gerektirir. Tek sütun ayrıca NFR-7'deki mobil kullanılabilirlik gereksinimini ayrı bir tasarım turu olmadan karşılar.
@@ -901,7 +1012,15 @@ Silme eylemi, tanımın başka kayıtlarda kullanılıp kullanılmadığına gö
 
 - İlerleme Göstergesi: İşin durumunu, geçen süreyi ve o ana kadarki en iyi ceza puanını gösterir; düzenli aralıklarla güncellenir.
 
-- Durdur Butonu: Çalışan işi iptal eder. İptal edilen iş, o ana kadar bulunmuş en iyi çözümü kaydetmeden sonlanır.
+- Durdur Butonu: Aramayı sonlandırır. Çözüm atılmaz; iş karar bekleyen duruma geçer ve ekranda karar paneli açılır.
+
+- Karar Paneli: Yalnızca `durduruldu` durumundaki işlerde görünür. O ana kadar bulunmuş çözümün toplam cezasını, hedef bazında dökümünü ve kapsama açığı sayısını, çözüm tamamlanmış gibi tam ayrıntısıyla gösterir — kullanıcı kararını buna bakarak verir. Üç eylem sunar:
+
+  - **Sonucu kullan:** Çözüm sürüme yazılır ve iş tamamlanmış sayılır.
+  - **Sonucu at:** Sonuç silinir; sürüm durdurma öncesindeki hâliyle kalır. Onay istenir, çünkü işlem geri alınamaz.
+  - **Bu çözümden devam et:** Yeni bir zaman limiti sorar ve bulunan çözümü ipucu alan yeni bir iş başlatır. Buton metni "kaldığı yerden devam" demez; ekranda yeni bir arama başladığı ve sürenin sıfırdan işlediği yazılıdır (SDD 5.4.1).
+
+  Çözücü hiç çözüm bulamadan durdurulmuşsa "kullan" pasiftir ve nedeni panelde yazılır.
 
 - Sonuç Özeti: Çözüm tamamlandığında toplam ceza, hedef bazında ceza dökümü ve kapsama açığı sayısını gösterir. Açık varsa Çizelge ekranındaki ilgili hücrelere bağlantı verir.
 
@@ -1110,7 +1229,9 @@ Aşağıdaki tablo başlıca uç noktaların işlevsel bir özetidir. Uç noktal
 | /api/on-kontrol | POST | Çözücü çalıştırmadan ön kontrol yürütme |
 | /api/cozum | POST | Çözüm işinin başlatılması; iş kimliği döndürür |
 | /api/cozum/{id} | GET | Çözüm işinin durumu ve ilerlemesi |
-| /api/cozum/{id}/iptal | POST | Çalışan çözüm işinin iptali |
+| /api/cozum/aktif | GET | Devam eden veya karar bekleyen iş; kabuktaki gösterge bunu yoklar |
+| /api/cozum/{id}/durdur | POST | Aramanın sonlandırılması; sonuç atılmaz, karar beklenir |
+| /api/cozum/{id}/karar | POST | Durdurulan işte kullanıcı kararı (kullan / at / devam) |
 | /api/atama/dogrula | POST | Manuel değişikliğin kural doğrulaması |
 | /api/atama | PUT | Doğrulanmış manuel değişikliğin uygulanması |
 | /api/analiz/{surum_id} | GET | Analiz metriklerinin hesaplanması |
