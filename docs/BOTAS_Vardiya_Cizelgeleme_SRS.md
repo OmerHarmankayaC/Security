@@ -31,6 +31,8 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 09.08.2026 | Arayüz turunun gereksinim etkileri işlendi: FR-4.2'nin varsayılanı bir haftaya çekildi ve otuz bir günlük azami dönem tanımlandı; kapsama açığı dışa aktarımı (FR-8.7) ve yazdırılabilir görünüm (FR-8.8) eklendi; arşivlenmiş sürümden taslak türetme (FR-7.6) eklendi; 7.2'deki çizelge dışa aktarma biçimi görev noktası sütunu, noktalı virgül ayracı ve bayt sırası imi ile güncellendi | 1.6 |
 | Ömer HARMANKAYA | 09.08.2026 | Kimlik doğrulama ve yetkilendirme gereksinimleri eklendi (5.10, FR-10.1 – FR-10.10); üç rol tanımlandı; FR-9.1'in kapsamı, gösterilecek personelin yalnızca oturumdan belirlenmesini içerecek biçimde zorunlu seviyeye çekildi | 1.7 |
 | Ömer HARMANKAYA | 09.08.2026 | Uygulama sırasında ortaya çıkan üç sınır tanımlandı: kullanıcı adlarının ASCII kümesiyle sınırlanması (FR-10.11), personel başına tek hesap (FR-10.6) ve kilit/devre dışı bildirimlerinin yalnızca doğru parolada gösterilmesi (FR-10.8) | 1.8 |
+| Ömer HARMANKAYA | 11.08.2026 | S1'in üst sınırının çözüm ile manuel düzenlemede farklı bağlayıcılıkta olduğu 4.3'e yazıldı: çözücüde zorunlu, manuel düzenlemede cezasız uyarı; uyarının sürüm raporunda kalıcı olması istendi | 1.9 |
+| Ömer HARMANKAYA | 11.08.2026 | Kapsama açığı dışa aktarma biçimi fazla kadro kayıtlarını da taşıyacak biçimde genişletildi (tür sütunu, kisi_sayisi); uygulamada karşılığı bulunmayan sözleşme tipi alanı 3.1 ve FR-1.1'den çıkarıldı | 1.10 |
 
 
 
@@ -122,7 +124,7 @@ Sistem bağımsız bir web uygulamasıdır ve mevcut bir kurum sisteminin parça
 
 | Varlık | Temel Alanlar |
 | --- | --- |
-| Personel | Ad, sicil, sözleşme tipi, haftalık hedef saat, aktiflik başlangıç ve bitiş tarihi |
+| Personel | Ad, sicil, haftalık hedef saat, aktiflik başlangıç ve bitiş tarihi |
 | Yetkinlik | Ad, açıklama |
 | Personel-Yetkinlik | Personel, yetkinlik (seviyesiz çoktan-çoğa ilişki) |
 | Vardiya Tipi | Ad, başlangıç saati, bitiş saati, süre (saat), gece_mi bayrağı |
@@ -430,7 +432,11 @@ Nokta bazında kadro (üst sınır, zorunlu):
 Ceza:  w1 · Σ_{d,s,n} eksik[d,s,n]
 ```
 
-Talep sayısı üst sınır olarak zorunlu, alt sınır olarak esnektir. Personel yeterli olduğunda iki kısıt birlikte eşitliği zorlar; yetersiz olduğunda çözücü açığı eksik değişkenine yazar ve çizelgeyi yine de üretir. Fazla personel atanması ise her koşulda engellenir.
+Talep sayısı üst sınır olarak zorunlu, alt sınır olarak esnektir. Personel yeterli olduğunda iki kısıt birlikte eşitliği zorlar; yetersiz olduğunda çözücü açığı eksik değişkenine yazar ve çizelgeyi yine de üretir.
+
+Üst sınırın bağlayıcılığı çözüm ile manuel düzenlemede farklı işler. Çözücü fazla personel atanmasını her koşulda engeller; üretilen hiçbir çizelgede talepten fazla kadro bulunmaz. Manuel düzenlemede ise vardiya yöneticisinin bir noktaya talebin üzerinde personel yazması engellenmez, uyarıyla bildirilir — devir, eğitim veya geçici takviye gibi durumlarda bu bilinçli bir tercih olabilir ve sistemin karar veren kişinin yerine geçmemesi ilkesi burada da geçerlidir (Proje Tanım Dokümanı bölüm 2). Fazla kadro bir ceza üretmez: amaç fonksiyonunda karşılığı olan bir terim yoktur ve uydurulacak bir sayı, aynı çizelge için çözücü ile doğrulayıcının farklı toplam raporlamasına yol açardı.
+
+Bu tercihin bedeli, yayımlanmış bir çizelgenin talebin üzerinde kadro taşıyabilmesidir. Bu nedenle uyarı yalnızca düzenleme anında gösterilmekle kalmaz; sürümün raporunda da görünür kalır.
 
 Ağırlık w1, diğer tüm ağırlıkların toplamından belirgin biçimde büyük seçilir; böylece çözücü hiçbir zaman başka bir hedefi iyileştirmek için kapsama açığı bırakmaz. Fizibilite geri bildirimi (bölüm 5.5) eksik değişkenlerinin sıfırdan büyük olduğu gün, vardiya ve nokta üçlülerini doğrudan bu formülasyondan okur.
 
@@ -548,7 +554,7 @@ Ağırlıkların tamamı kullanıcı tarafından ayarlanabilir. Sistem hangi hed
 
 | Kimlik | Gereksinim | Öncelik |
 | --- | --- | --- |
-| FR-1.1 | Sistem, personel kayıtlarının oluşturulmasına, güncellenmesine ve pasifleştirilmesine imkân vermelidir. Personel kaydı sözleşme tipi, haftalık hedef saat ve aktiflik tarih aralığı içerir. | Zorunlu |
+| FR-1.1 | Sistem, personel kayıtlarının oluşturulmasına, güncellenmesine ve pasifleştirilmesine imkân vermelidir. Personel kaydı haftalık hedef saat ve aktiflik tarih aralığı içerir. | Zorunlu |
 | FR-1.2 | Sistem, yetkinlik tanımlarının oluşturulmasına ve personele seviyesiz olarak atanmasına imkân vermelidir. | Zorunlu |
 | FR-1.3 | Sistem, vardiya tiplerinin ad, başlangıç saati ve bitiş saatiyle tanımlanmasına imkân vermelidir. Süre, başlangıç ve bitiş saatinden hesaplanır. | Zorunlu |
 | FR-1.4 | Sistem, vardiya tipi oluşturulurken gece_mi bayrağını TD-2'ye göre önermeli, kullanıcının bu öneriyi değiştirmesine imkân vermelidir. | Yüksek |
@@ -832,8 +838,10 @@ Görev noktası sütunu, atamanın görev noktası kırılımında tutulmasında
 **Kapsama açığı dışa aktarma (CSV):**
 
 ```
-tarih; vardiya_tipi; gorev_noktasi; eksik_sayi
+tarih; vardiya_tipi; gorev_noktasi; tur; kisi_sayisi
 ```
+
+Bu dosya iki tür sapmayı birlikte taşır: talebin altında kalan kapsama açıkları ve manuel düzenlemeyle talebin üzerine çıkılan fazla kadro kayıtları. Tür sütunu hangisinin söz konusu olduğunu belirtir; kişi sayısı her iki türde de pozitif yazılır, yönü tür bildirir. İkisinin aynı dosyada bulunması, satır şekillerinin aynı olmasından kaynaklanır — ayrı dosya gerekçesi, farklı sütun kümelerinin tek dosyaya sıkıştırılmasına karşıdır, aynı şekildeki satırların ayrılmasını gerektirmez.
 
 Kapsama açıkları çizelge dosyasının içinde bir bölüm olarak değil, ayrı bir dosya olarak verilir. Tek dosyada iki başlık bloğu bulunması, uzun biçimin varlık nedeni olan makine okunabilirliğini ortadan kaldırır; hiçbir tablo programı böyle bir dosyayı tek tablo olarak açamaz. Açık bulunmayan bir sürümde dosya yalnızca başlık satırıyla üretilir; sıfır satır, açık bulunmadığı anlamına gelir ve dosya hiçbir durumda üretilmeden bırakılmaz.
 
@@ -874,7 +882,7 @@ Aşağıdaki tablo, proje tanım dokümanındaki hedefleri bu dokümandaki gerek
 | Tercih Yönetimi | FR-3.1 – FR-3.6, S5 | Onay durumu ve karşılanma durumu ayrı ayrı gösterilir |
 | Analiz ve Raporlama | FR-8.1 – FR-8.8, FR-4.8 | Ceza dökümü hedef bazında ayrıştırılır |
 | Çalışan Görünürlüğü | FR-9.1 – FR-9.6 | Yalnızca yayınlanmış sürüm görünür; değişen günler işaretlenir |
-| Kimlik Doğrulama ve Yetkilendirme | FR-10.1 – FR-10.10 | Yetkisiz rol, yetkisi dışındaki uç noktalardan veri alamaz |
+| Kimlik Doğrulama ve Yetkilendirme | FR-10.1 – FR-10.11 | Yetkisiz rol, yetkisi dışındaki uç noktalardan veri alamaz |
 
 
 

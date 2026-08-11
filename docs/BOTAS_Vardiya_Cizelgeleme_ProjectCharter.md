@@ -24,6 +24,7 @@ Kurum Mentörü: ____________________
 | --- | --- | --- | --- |
 | Ömer HARMANKAYA | 05.08.2026 | İlk sürüm — kapsam, hedefler ve ön plan tanımlandı | 1.0 |
 | Ömer HARMANKAYA | 05.08.2026 | Uygulama alanı güvenlik personeline daraltıldı; görev noktası yapısı, yetkinlik tanımları ve talep matrisi eklendi | 1.1 |
+| Ömer HARMANKAYA | 09.08.2026 | Kimlik doğrulama kapsama alındı: harici kimlik servisi maddesi kurumsal dizin entegrasyonu olarak yeniden yazıldı ve açık soru güncellendi | 1.2 |
 
 
 
@@ -271,7 +272,7 @@ Projenin kapsamı bilinçli olarak sınırlı tutulmuştur. Sistem, halihazırda
 
 - İzin ve müsaitlik verisinin dosya yoluyla toplu içe aktarımı
 
-- Kimlik doğrulama için harici bir servis (isteğe bağlı; projenin özüne dahil değildir)
+- Kurumsal kimlik sağlayıcı (LDAP, Active Directory veya tek oturum açma). Sistem kendi kullanıcı hesaplarını ve oturumlarını yönetir; kurum dizinine bağlanma kapsam dışıdır (Ürün Backlog'u B-15)
 
 ## 2.4 Değer Önerisi
 
@@ -487,7 +488,7 @@ Aşağıdaki işlevler bilinçli olarak kapsam dışında bırakılmıştır. Ka
 
 - Çizelgeler hangi dönem uzunluğunda hazırlanmaktadır?
 
-- Çalışan paneli için kimlik doğrulama beklentisi var mıdır, yoksa gösterim amaçlı basit bir çözüm yeterli midir?
+- Kullanıcı hesaplarının kurum dizininden mi yönetilmesi beklenmektedir, yoksa sistemin kendi hesap yönetimi yeterli midir? (Çalışan panelinin kimlik doğrulaması kapsama alınmış ve kullanıcı adı–parola ile çözülmüştür.)
 
 # 8. Gelecek Çalışma
 

@@ -36,6 +36,9 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 09.08.2026 | Ön kontrol bulguları yapısal engel ve yapılandırma uyarısı olarak iki seviyeye ayrıldı; iş yalnızca engelleyici bulgularda düşer. Talep karşılama kuralının pasifleştirilmesi ilk yapılandırma uyarısı olarak tanımlandı (5.2) | 1.11 |
 | Ömer HARMANKAYA | 09.08.2026 | Kimlik doğrulama ve yetkilendirme tasarımı eklendi: kullanici ve oturum tabloları (4.2.1), oturum yönetimi, parola saklama ve rol denetimi (5.1b) | 1.12 |
 | Ömer HARMANKAYA | 09.08.2026 | Kilit bildirimi ile kullanıcı varlığının gizlenmesi arasındaki gerilimin çözümü ve başarısız giriş sayacının kalıcılığı 5.1b'ye yazıldı | 1.13 |
+| Ömer HARMANKAYA | 09.08.2026 | Giriş (6.3.6) ve Kullanıcılar (6.3.7) ekranları tanımlandı; izlenebilirlik matrisine FR-10.x satırı eklendi | 1.14 |
+| Ömer HARMANKAYA | 09.08.2026 | Denetim düzeltmeleri: 4.2.4'teki zaman damgası tipleri TIMESTAMPTZ olarak güncellendi, 3.4.5'teki kaldırılmış çalışan paneli anahtarı örneği değiştirildi, 6.3.7'deki var olmayan son giriş alanı çıkarıldı | 1.15 |
+| Ömer HARMANKAYA | 11.08.2026 | fazla_kadro tablosu ve ayrı tablo gerekçesi 4.2.4'e eklendi; manuel düzenlemenin sapma tablolarını yenilediği 5.5'e yazıldı; Ek B'nin tam uç nokta listesinin ayrı ve üretilen bir belgede tutulduğu belirtildi | 1.16 |
 
 
 
@@ -271,7 +274,7 @@ Bu nedenle çözüm işi ayrı bir yürütme bağlamında — ayrı bir sistem s
 
 ### 3.4.5 Yapılandırma ve Veri Saklama
 
-Veritabanı erişim bilgileri, çözücü zaman limiti, arama işçisi sayısı ve çalışan paneli bağlantı anahtarı gibi ortama bağlı değerler ortam değişkenleri olarak sağlanır; kaynak kodda yer almaz. Aynı kod tabanı hem geliştirme hem gösterim ortamında yalnızca ortam değişkenleri değiştirilerek çalıştırılır.
+Veritabanı erişim bilgileri, çözücü zaman limiti, arama işçisi sayısı, oturum süreleri ve parola politikası eşikleri gibi ortama bağlı değerler ortam değişkenleri olarak sağlanır; kaynak kodda yer almaz. Aynı kod tabanı hem geliştirme hem gösterim ortamında yalnızca ortam değişkenleri değiştirilerek çalıştırılır.
 
 Gösterim ortamında veritabanının düzenli yedeği alınır. Sistem tek kullanıcılı olduğundan ve veri hacmi küçük kaldığından, günlük tam yedek yeterlidir; noktasal geri dönüş mekanizmasına ihtiyaç duyulmamaktadır.
 
@@ -514,7 +517,7 @@ Parametrelerin belge alanında tutulmasının nedeni, her kural tipinin farklı 
 | is_id | INT (PK) | Çözüm işinin benzersiz kimliği |
 | surum_id | INT (FK → cizelge_surumu) | İşin ürettiği çizelge sürümü |
 | durum | ENUM | kuyrukta \| on_kontrol \| cozuluyor \| tamamlandi \| uyarili \| basarisiz \| iptal |
-| baslangic_zamani | TIMESTAMP | İşin başlatıldığı an |
+| baslangic_zamani | TIMESTAMPTZ | İşin başlatıldığı an |
 | bitis_zamani | TIMESTAMP, NULL | İşin sonlandığı an |
 | sure_saniye | NUMERIC, NULL | Çözüm süresi |
 | zaman_limiti_saniye | INT | Çözücüye verilen üst süre sınırı |
@@ -537,6 +540,21 @@ Parametrelerin belge alanında tutulmasının nedeni, her kural tipinin farklı 
 | eksik_sayi | INT | Talebe göre eksik kalan personel sayısı |
 
 Bu tablo, S1 formülasyonundaki eksik değişkenlerinin sıfırdan büyük olduğu üçlülerin doğrudan karşılığıdır. Ayrı bir tablo olarak tutulması, açıkların çizelge sürümüyle birlikte kalıcı hâle gelmesini ve raporlanabilmesini sağlar.
+
+#### fazla_kadro
+
+| Alan | Tip | Açıklama |
+| --- | --- | --- |
+| fazla_id | INT (PK) | Kaydın benzersiz kimliği |
+| surum_id | INT (FK → cizelge_surumu) | Kaydın ait olduğu çizelge sürümü |
+| tarih | DATE | Fazlalığın oluştuğu gün |
+| vardiya_tipi_id | INT (FK → vardiya_tipi) | Fazlalığın oluştuğu vardiya |
+| nokta_id | INT (FK → gorev_noktasi) | Fazlalığın oluştuğu görev noktası |
+| fazla_sayi | INT | Talebin üzerine çıkılan personel sayısı |
+
+Fazla kadro kayıtları, kapsama açığı tablosuna bir tür sütunu eklenerek değil ayrı bir tabloda tutulur. Üç gerekçesi vardır. Birincisi köken farkıdır: kapsama açığı S1'in eksik değişkeninin birebir karşılığıyken fazla kadronun çözücüde karşılığı yoktur — amaç fonksiyonunda terimi bulunmaz ve çözücü yapısal olarak üretemez; yalnızca manuel düzenlemeyle oluşur. İkincisi okuma güvenliğidir: kapsama açığı tablosunu okuyan her sorgu "her satır bir açıktır" varsayımını taşır, tür sütunu bu varsayımı sessizce geçersiz kılar ve tek bir eksik süzgeç kapsama oranını yanlış hesaplatır. Üçüncüsü, iki kaydın karşılıklı dışlayıcılığının yapıca korunmasıdır: ikisi de aynı geçişte, atanan ile gereken sayının tek bir karşılaştırmasından yazılır.
+
+Dışa aktarmada ise ikisi tek dosyada, tür sütunuyla birlikte verilir (SRS 7.2). Ayrım burada gerekmez, çünkü iki kaydın satır şekli aynıdır; ayrı dosya gerekçesi farklı sütun kümelerine karşıydı.
 
 # 5. Bileşen Tasarımı
 
@@ -729,6 +747,8 @@ Atamaların yazılması tek bir veritabanı işlemi içinde yapılır. Bunun ned
 Bu mekanizmanın bilinen bir sınırı vardır: geri çağırma yalnızca çözücü daha iyi bir çözüm bulduğunda tetiklenir, dolayısıyla iptal isteği iki iyileşme arasındaki sessizlikte bekleyebilir. Süreçler arası iletişimin yalnızca veritabanı üzerinden kurulması (3.4.4) tercih edildiği ve uygulama sunucusu çözüm sürecini doğrudan sonlandırmadığı için bu gecikme mimarinin kabul edilmiş bir sonucudur. Giderilmesi Ürün Backlog'u T-06'da kayıtlıdır.
 
 ## 5.5 Manuel Düzenleme Doğrulaması
+
+Manuel düzenleme yalnızca bir doğrulama işlemi değildir: değişiklik kabul edildiğinde sürüme bağlı sapma tabloları da yeniden hesaplanır. Kapsama açığı ve fazla kadro kayıtları yalnızca çözücü tarafından yazılırsa, elle düzenlenmiş her sürümde analiz oranları, sürüm raporu ve dışa aktarılan dosya çözüm anındaki duruma göre bayat kalır. Yenileme, çözücünün kullandığı dönem sınırıyla aynı sınırı kullanır; ısıtma penceresine düşen günler hesaba katılmaz (SRS TD-5).
 
 Yönetici bir atamayı değiştirdiğinde, sistemin bir saniyenin altında kural ihlali bildirmesi beklenir. Bütün kuralların bütün dönem için sıfırdan yeniden değerlendirilmesi bu hedefi karşılamaz; bu nedenle doğrulama iki farklı kapsamda yürütülür ve kuralın kendi tanımına göre doğru kapsam seçilir.
 
@@ -925,6 +945,30 @@ Dışa aktarma yalnızca bu ekrana özgü değildir: Çizelge ekranı (6.3.3) da
 
 - Taslak Olarak Kopyala Butonu: Arşivlenmiş bir sürümün atamalarıyla birlikte yeni bir taslağa kopyalanmasını sağlar (FR-7.6). Arşiv kaydı bu işlemden etkilenmez ve durumu değişmez. Değişmezliğin korunması zorunludur: çalışan panelindeki karşılaştırma tabanı olan "aynı dönemdeki en son arşiv" ile iki sürüm arasındaki karşılaştırma, arşivin geriye doğru değiştirilmemesine dayanır. Kopyalama tek bir veritabanı işlemi içinde yapılır ve türetilen taslakta kaynak sürüm görünür.
 
+### 6.3.6 Giriş Ekranı
+
+- Kullanıcı Adı ve Parola Alanları: Kayıt bağlantısı, parola sıfırlama bağlantısı veya hesap oluşturma yolu bulunmaz (FR-10.1).
+
+- Giriş Butonu: Başarılı girişte kullanıcı, rolünün yüzeyine yönlendirilir; çalışan rolü çalışan paneline, yönetici ve yönetim rolleri yönetici arayüzüne.
+
+- Hata Bildirimi: Kullanıcı adının varlığını ele vermeyen tek bir mesaj kullanılır. Kilit ve devre dışı bildirimleri yalnızca parola doğru girildiğinde gösterilir (5.1b).
+
+- Parola Değiştirme Yönlendirmesi: Yönetim tarafından atanmış veya sıfırlanmış bir parolayla girişte kullanıcı doğrudan parola değiştirme ekranına alınır; değiştirilene kadar diğer ekranlar açılmaz (FR-10.7).
+
+### 6.3.7 Kullanıcılar Ekranı
+
+Yalnızca yönetim rolündeki kullanıcıya görünür. Görünürlüğün kendisi yetkilendirme değildir; ekranın beslendiği uç noktalar aynı rol denetimini sunucu tarafında da uygular (5.1b).
+
+- Kullanıcı Listesi: Kullanıcı adı, rol, bağlı personel ve hesabın etkin olup olmadığı.
+
+- Hesap Oluşturma: Kullanıcı adı, rol ve çalışan rolünde bağlanacak personel seçilir. Başlangıç parolası ilk girişte değiştirilmek üzere atanır. Bir personelin ikinci hesabı açılamaz (FR-10.6).
+
+- Parola Sıfırlama: Yeni bir başlangıç parolası atar ve o kullanıcının açık oturumlarını geçersiz kılar.
+
+- Devre Dışı Bırakma: Hesabı kapatır ve açık oturumlarını sonlandırır. Hesap silinmez; giriş kayıtları ve geçmiş işlemler hesabın kimliğine bağlıdır.
+
+Eylem çubuğu ve düzenleme kipi, Tanımlar ekranındaki düzenle aynıdır (6.3.1); aktiflik gibi alanlar tek tıkla değil, kip açıkken değiştirilir ve kaydetme onayı istenir.
+
 # 7. Gereksinim İzlenebilirlik Matrisi
 
 Aşağıdaki tablo, SRS bölüm 5'teki fonksiyonel gereksinim gruplarını bu dokümandaki tasarım bileşenlerine ve ekranlara eşler.
@@ -938,6 +982,7 @@ Aşağıdaki tablo, SRS bölüm 5'teki fonksiyonel gereksinim gruplarını bu do
 | FR-5.x (Fizibilite geri bildirimi) | Ön Kontrol Alt Sistemi; kapsama_acigi tablosu; S1 esnek formülasyonu | Çözüm (6.3.2); 5.2 |
 | FR-6.x (Manuel düzenleme ve doğrulama) | DogrulamaServisi; Kural.dogrula yorumlayıcısı | Çizelge (6.3.3); 5.5 |
 | FR-7.x (Sürüm ve yayın yönetimi) | SurumServisi; cizelge_surumu durum modeli | Sürümler (6.3.5); 4.2.4 |
+| FR-10.x (Kimlik doğrulama ve yetkilendirme) | KimlikServisi, KullaniciServisi; kullanici ve oturum tabloları | Giriş (6.3.6), Kullanıcılar (6.3.7); 4.2.1, 5.1b |
 | FR-8.x (Analiz ve raporlama) | AnalizServisi; ceza_dokumu ve kapsama_acigi kayıtları | Analiz (6.3.4); 5.7 |
 | FR-9.x (Çalışan paneli) | Çalışan Paneli Alt Sistemi; calisan_router | Çalışan arayüzü (6.1) |
 | NFR (çözüm süresi) | Asenkron çözüm işi; ayrı süreçte yürütme; arama işçisi sayısının çekirdek sayısına göre sınırlanması | 3.3; 3.4; 5.4 |
@@ -1043,6 +1088,8 @@ S2, S3 ve S4'ün hedefleri bölme içerdiğinden kesirli çıkabilir; CP-SAT ise
 Ölçekleme yalnızca modelin iç temsilidir. Çözücüden dönen ceza değeri kullanıcıya gösterilmeden, veritabanına yazılmadan ve doğrulayıcının ürettiği değerle karşılaştırılmadan önce aynı çarpana bölünerek doğal birimine (saat) geri çevrilmelidir. Aksi hâlde ceza dökümü yanlış birimde raporlanır ve ilgili hedef, ağırlığından bağımsız olarak diğerlerinin on katı önemliymiş gibi görünür. Çözücü-doğrulayıcı uyum testi bu geri çevirmeyi de kapsamalıdır.
 
 ## Ek B — Uygulama Programlama Arayüzü Özeti
+
+Aşağıdaki tablo başlıca uç noktaların işlevsel bir özetidir. Uç noktaların tam listesi, yöntem ve gereken rol bilgisiyle birlikte ayrı bir belgede (`EK_B_UC_NOKTALAR.md`) tutulur ve uygulamanın yönlendirme tablosundan üretilir; elle yazılan bir liste, uç nokta eklendikçe sessizce eskiyeceğinden yetkilendirme denetimi için güvenilir bir kaynak değildir.
 
 | Uç Nokta | Yöntem | İşlev |
 | --- | --- | --- |

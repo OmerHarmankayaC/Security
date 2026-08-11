@@ -26,6 +26,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 08.08.2026 | T-06 (iptal gecikmesi) eklendi; dağıtım öncesi alınan kararlar karar günlüğüne işlendi | 1.1 |
 | Ömer HARMANKAYA | 09.08.2026 | Arayüz turunda alınan beş karar (azami dönem, kural kaydı yetkisi, çoklu taslak, arşivden kopyalama, tanım pasifleştirme) karar günlüğüne işlendi | 1.2 |
 | Ömer HARMANKAYA | 09.08.2026 | B-05 kapsama alındı; kimlik doğrulama kararları ve ertelenen maddeler (B-15 – B-18) eklendi | 1.3 |
+| Ömer HARMANKAYA | 11.08.2026 | Manuel düzenlemede fazla kadro, ayrı tablo ve cezasızlık kararları ile FR-1.10/FR-2.3 kapsam kararı işlendi; B-19 eklendi | 1.4 |
 
 
 
@@ -77,6 +78,7 @@ Bu maddeler değerli bulunmuş ancak ilk sürüme alınmamıştır. Her biri, ç
 | B-16 | İki aşamalı doğrulama. Yönetim ve yönetici rolleri için ikinci bir doğrulama adımı. İlk sürümde parola tek etkendir. | Sistem gerçek kurum verisiyle çalışmaya başladığında | Orta / Orta |
 | B-17 | Kullanıcının kendi parolasını sıfırlaması. İlk sürümde unutulan parolayı yalnızca yönetim rolü sıfırlar; kendi kendine sıfırlama e-posta altyapısı gerektirir (K-04). | Bildirim altyapısı kapsama girdiğinde | Düşük / Orta |
 | B-18 | Ayrıntılı yetki matrisi. Roller şu anda üç adet ve sabittir; işlev başına yetki ataması yapılamaz. | Üç rolün ayıramadığı somut bir yetki ihtiyacı ortaya çıktığında | Düşük / Yüksek |
+| B-19 | Müsaitlik toplu içe aktarma (FR-2.3). Dosya biçimi SRS 7.2'de tanımlı ancak iş, dosya ayrıştırmaktan ibaret değildir: sicil eşleştirme, satır bazlı hata raporu, kısmen geçerli dosyada ne yapılacağı ve kapsama uyarısının toplu girişte nasıl gösterileceği ayrı ürün kararlarıdır. Kazancı, tek tek girilebilen bir kaydın daha hızlı girilmesidir ve hiçbir kabul kriterine dokunmaz. | Müsaitlik kayıtlarının elle girilmesi gerçek kullanımda darboğaza dönüştüğünde (örneğin bir dönemde yirmiden fazla kayıt) | Düşük / Orta |
 
 
 
@@ -128,6 +130,10 @@ Aşağıdaki tablo, tasarım sürecinde alınan ve sonradan değiştirilen karar
 | 09.08.2026 | Çalışan paneline erişim, kişiye özel bağlantıdan kullanıcı girişine taşındı | Hesap altyapısı kurulduktan sonra iki ayrı erişim yolu tutmak, aynı yetkilendirmeyi iki yerde tanımlamak olurdu. Bağlantı yolu kaldırılır |
 | 09.08.2026 | Oturum, kendi kendini doğrulayan belirteç yerine veritabanı kaydı olarak tutuldu | Hesap devre dışı bırakıldığında veya parola sıfırlandığında açık oturumların anında geçersiz kılınması gerekir; belirteç bunu ayrı bir kara liste altyapısı olmadan sağlayamaz |
 | 09.08.2026 | Hesaplar silinmez, devre dışı bırakılır | Tanımlarda alınan kararla aynı gerekçe: giriş kayıtları ve geçmiş işlemler hesabın kimliğine bağlıdır |
+| 11.08.2026 | Manuel düzenlemede talebin üzerine çıkılması engellenmedi, uyarıyla bildirildi | Devir, eğitim veya geçici takviye gibi durumlarda fazla kadro bilinçli bir tercih olabilir; sistemin karar veren kişinin yerine geçmemesi ilkesi burada da geçerlidir. Çözücü tarafında üst sınır zorunlu kısıt olarak kalmıştır |
+| 11.08.2026 | Fazla kadro kayıtları, kapsama açığı tablosuna tür sütunu eklenmek yerine ayrı bir tabloda tutuldu | İki kaydın kökeni farklıdır: kapsama açığı çözücünün eksik değişkeninin karşılığıdır, fazla kadronun çözücüde karşılığı yoktur. Ayrıca kapsama açığı tablosunu okuyan her sorgu "her satır bir açıktır" varsayımını taşır; tür sütunu bu varsayımı sessizce geçersiz kılardı |
+| 11.08.2026 | Fazla kadro ceza üretmez | Amaç fonksiyonunda karşılığı olan bir terim yoktur; uydurulacak bir sayı, aynı çizelge için çözücü ile doğrulayıcının farklı toplam raporlamasına yol açardı |
+| 11.08.2026 | Resmî tatil tanımı (FR-1.10) kapsama alındı, müsaitlik toplu içe aktarma (FR-2.3) ertelendi (B-19) | Tatilde tablo, çözücü okuması ve TD-3'ün hükmü zaten vardı; eksik olan yalnızca yazma yoluydu ve yokluğunda talep matrisinin resmî tatil sütunu hiç tetiklenemiyordu. Toplu içe aktarmada ise eksik olan, ürün kararları gerektiren bir akışın tamamıdır |
 
 
 
