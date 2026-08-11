@@ -3248,3 +3248,239 @@ Dağıtım kullanıcıda. DAGITIM.md bölüm 12'deki sıra kritik: `.env` içind
 önce** silinmeli, yoksa uygulama açılmaz (yapılandırma tanımadığı anahtarı yok
 saymaz). Ardından göç, sonra `scripts/yonetim_hesabi_olustur.py` — bu adım
 atlanırsa sisteme kimse giremez.
+
+> **Sonradan düzeltme (11.08.2026).** Yukarıdaki iki cümle artık geçerli
+> değil: **dağıtım yapıldı**, bölüm 11 ve 12'nin ikisi de yayında. Canlı
+> sitede `/api/ben` ve `/api/kullanici` 401 dönüyor (404 değil), `/api/giris`
+> `kullanici` tablosunu sorgulayabiliyor ve dağıtılmış frontend paketi
+> çalışma ağacının derlemesiyle **bayt bayt aynı** (sha256 `d403c926…`).
+> Ayrıca "uygulama açılmaz" sözü o tarihte kısmen boştu — düzeltmesi
+> aşağıdaki turda (bulgu B4).
+
+---
+
+## 2026-08-11 — Kapanış Denetimi ve Bulguların Kapatılması
+
+Denetim isteği: kod yazmadan önce bul ve raporla; düzeltme onaydan sonra.
+Altı başlık soruldu (ölçüm–hesap çatışması, yetki sızıntısı taraması,
+doküman–kod uyumu, artık kod, sunucu–yerel farkı, personel ekleme).
+
+### Denetimin ana bulgusu — hipotezden farklı çıktı
+
+Soru "ölçüm koşulduğunda hesaplar siliniyor mu" idi. Gerçek ikiye ayrıldı:
+
+- **Betikler hesapları silmiyordu, ÇÖKÜYORDU.** `kullanici.personel_id`
+  yabancı anahtarı `ON DELETE NO ACTION` (`confdeltype='a'`, göç
+  `f7c1d9034ae6`) ve iki betik de `DELETE` kullanıyordu. Personele bağlı tek
+  bir çalışan hesabı varken `DELETE FROM personel` kısıt hatası veriyor;
+  yani **bir hesap açıldığı anda kabul ölçümü bir daha koşulamıyordu**.
+  Veritabanında birebir ölçüldü.
+- **Asıl silen `pytest`ti.** Senaryo kuran dört test dosyası
+  `TRUNCATE ... personel ... CASCADE` çalıştırıyordu ve `CASCADE`,
+  `personel`e yabancı anahtarla bakan `kullanici` tablosunun **tamamını**
+  boşaltıyor — personele hiç bağlı olmayan (personel_id NULL) **yönetim
+  hesapları dahil**. DAGITIM §8, test takımının **sunucuda** koşulduğunu
+  kaydediyordu; o gün hiç hesap yoktu, bugün olsaydı sisteme giriş yolu
+  tamamen kapanırdı.
+
+Ortak kök neden: aynı sözleşme iki yerde iki ayrı semantikle yazılıydı ve
+`CASCADE`, silinecekler listesini veritabanına yazdırıyordu.
+
+### Yapılanlar
+
+- **`app/veri_temizligi.py` (yeni).** Yıkıcı temizliğin tek tanımı:
+  `TEMIZLIK_SIRASI` açık bir liste (eksik olan `ozel_gun` de eklendi),
+  hesapların akıbeti çağıranın açık seçimi (`HesapKapsami.HEPSI` testler,
+  `PERSONELE_BAGLI` betikler). `TRUNCATE ... CASCADE` kod tabanından kalktı.
+- **Betikler artık çökmüyor.** Personele bağlı hesapları siliyor ve **kaç
+  hesap silindiğini yazıyor**; `personel_id`'si boş yönetim hesaplarına
+  dokunmuyor — demo verisini tazelemek sistemin giriş kapısını kapatmamalı.
+- **Üretim kilidi.** Yıkıcı betikler ve fikstürler `VERI_TEMIZLIGINE_IZIN`
+  olmadan reddediyor. Kilit ad kontrolü değil ayar şartı: iki veritabanı da
+  `vardiya` adını taşıyor, ad hiçbir şey ayırt etmezdi. Ret yığın izi değil
+  tek satır mesaj + çıkış kodu 2 (NFR-5).
+- **B4 — verilen söz tutuldu.** `.env.example` ve DAGITIM, eski HMAC anahtarı
+  silinmezse uygulamanın açılmayacağını yazıyordu; bu **gerçek dağıtım
+  yolunda doğru değildi**. `extra='forbid'` yalnızca dotenv DOSYASINDAN
+  okunan anahtarları reddeder, tanımadığı ORTAM DEĞİŞKENLERİNİ
+  pydantic-settings sessizce yok sayar — sunucuda ayarlar tam olarak ortam
+  değişkeni olarak geliyor (systemd `EnvironmentFile`, çalışma dizininde
+  `.env` yok). Artık `config.py` kaldırılmış anahtarları açıkça arıyor.
+- **B3 — sessiz veri kaybı.** Personel formu tek yetkinlik taşıyordu,
+  kaydederken tek elemanlı liste gönderiyordu, sunucu da kümeyi
+  DEĞİŞTİRİYORDU: iki yetkinlikli bir personeli açıp **hiçbir şey
+  değiştirmeden** Kaydet'e basmak ikinciyi siliyordu. Vardiya Şefi (SRS
+  3.3.2 gereği Güvenlik Görevi'ni de taşır) bu yüzden arayüzden hiç
+  oluşturulamıyordu. Çoklu seçim yapıldı, üç testle kilitlendi.
+- **B5 — FR-1.10 kapatıldı.** `ozel_gun` tablosunu çözücü baştan beri
+  okuyordu (`baglam_kurucu`, TD-3) ama yazacak uç nokta ve ekran yoktu;
+  talep matrisinin `resmi_tatil` sütunu hiç tetiklenemiyordu.
+  `/api/ozel-gun` + Tanımlar'da **Özel Gün** sekmesi.
+- **Madde 6 — personel formu tamamlandı.** Sabit vardiya alanı, aktiflik
+  tarihleri (başlangıç artık düzenlenebilir; eskiden ekleme sırasında bugüne
+  sabitleniyordu ve geçmişte başlamış bir döneme personel eklemek
+  imkânsızdı), sicil benzersizliği sunucuda **409** ile (500 değil),
+  var olmayan `personel_id` ile hesap açmak **400** ile.
+- **Yanıltıcı "Aktif" kutusu kaldırıldı.** Personelde kaldırıldığında
+  hiçbir şey yapmıyordu (`aktif_bitis` gönderilmiyor, sunucu
+  `exclude_unset` ile atlıyordu) ama altındaki metin işlem olmuş gibi
+  görünüyordu. Kutuyu "çalıştırmak" pasifleştirme tarihini (dün) arayüzde
+  ikinci kez tanımlamak olurdu; o kural `PersonelDeposu.pasiflestir`'de
+  kalsın diye aktiflik iki tarih alanına çevrildi.
+- **Yetkinlik çakışması UYARI, engel değil.** Müracaat Görevlisi +
+  Güvenlik Görevi çifti SRS 3.3.2'yi bozar ama TD-9 dışlayıcılığı bir kural
+  tipiyle değil veri dağılımıyla ifade ediyor; kural yapmak katalogda
+  çözücünün hiç görmediği ikinci bir semantik açardı.
+
+### Sunucu–yerel farkı
+
+Dağıtım **yapılmış**, belge yanlış diyordu. Dağıtılmış frontend paketi
+çalışma ağacının taze derlemesiyle **bayt bayt aynı** (`index-DIy16cVK.js`
+→ sha256 `d403c926…`). Göç zinciri de aynı: `/api/giris` `kullanici`
+tablosunu sorgulayıp 401 dönüyor, yani `f7c1d9034ae6` uygulanmış. Son iki
+backend commit'i (günlük kaydı, kurulum betiği) dışarıdan ayırt edilemedi —
+sunucuya SSH anahtarı yok.
+
+### Dokümana taşınacaklar (kanonik dörde dokunulmadı)
+
+- **SDD 3.4.5** hâlâ "çalışan paneli bağlantı anahtarı"nı canlı bir ortam
+  değişkeni sayıyor. Aynı artık `deploy/vardiya-api.service:27` yorumunda ve
+  `UYGULAMA_PLANI.md:224`'te (ikincisi Backlog B-05 ile çelişiyor).
+- **SDD 6.3.7** "son giriş bilgisi" vaat ediyor; böyle bir sütun, alan veya
+  ekran öğesi yok.
+- **SDD Ek B** 21 uç nokta listeliyor, uygulamada **68** var (bu turdan
+  sonra); kimlik doğrulama turu hiç işlenmemiş.
+- **SDD 4.2.4** hâlâ `TIMESTAMP` diyor; şema 08.08 kararıyla `TIMESTAMPTZ`.
+- **SRS FR-1.1'deki "sözleşme tipi"** hiçbir yerde yok — SRS'ten kaldırılması
+  kullanıcı kararı (11.08.2026).
+- **SRS izlenebilirlik matrisi** "FR-10.1 – FR-10.10" diyor, FR-10.11 dışarıda.
+- **Charter 1.2 revizyon satırı yanlış tabloya** girmiş (3.3 Roller
+  tablosuna); Revizyon Geçmişi hâlâ 1.1'de bitiyor.
+- **Özel Gün sekmesi SDD 6.3.1'in "iki sekme dışında" ifadesini üçe
+  çıkarıyor.** Gerekçe: ortak makine "kullanımdaki tanım pasifleştirilir"
+  kuralı üzerine kurulu; özel günün ne `aktif` sütunu var ne de ona referans
+  veren bir tablo.
+- **FR-2.3 (toplu içe aktarma) YAPILMADI**, Backlog'a erteleniyor (B-19).
+- **SRS 4.3 S1'deki "üst sınır (kadro), zorunlu" ifadesi** artık kodla
+  çelişiyor: 11.08.2026 ürün kararıyla manuel düzenlemede fazla kadro
+  engel değil uyarı. Çözücü tarafı değişmedi (orada hâlâ zorunlu kısıt);
+  değişen yalnızca doğrulayıcının elle yapılan bir düzenlemeye tepkisi.
+  SRS'te bu ayrımın yazılması gerekiyor.
+
+### Ek bulgu — manuel düzenlemede S1'in zorunlu yarısı hiç denetlenmiyordu
+
+Kullanıcı bildirdi: pazartesi akşam bir vardiya şefini Güvenlik noktasına
+çekince ortada vardiya şefi kalmıyor ama sistem değişikliği yapıyor.
+Senaryo birebir kuruldu; iki ayrı şey çıktı.
+
+**1. Gerçek hata: S1'in üst sınırı doğrulayıcıda yoktu.** SRS 4.3 S1 iki
+yarım tanımlar — alt sınır (kapsama) *esnek*, üst sınır (kadro)
+**zorunlu**. `modele_ekle` ikisini de çözücüye ekliyordu
+(`model.add(atanan <= gereken)`), `dogrula` ise yalnızca `eksik > 0`
+soruyordu. Sonuç: elle düzenlemede bir noktaya talepten fazla kişi
+yazılabiliyor ve sistem sessizce kabul ediyordu (Güvenlik 3/2).
+SDD 3.2.1'in "iki yorumlayıcının ayrışması yazılım hatasıdır" dediği
+durum. Mevcut uyum testi bunu **yakalayamazdı**: yalnızca çözücünün
+ürettiği çizelgeleri doğrulayıcıya veriyor, çözücü de zaten fazla kadro
+üretemiyor — test tek yönlüydü. Ters yön artık
+`test_kasten_bozulan_cizelge_s1_fazla_kadroyu_yakalar` ile kapalı.
+
+**2. Kapsama açığının kendisi tasarım gereği engel değil** (S1 alt sınırı
+esnek — Backlog 05.08.2026 kararı), ama bildirimi işe yaramaz haldeydi.
+Ekranda tek bir sayı vardı: `+1.00`. Üç kusur: (a) **ham/ağırlıksız** —
+ağırlıklı karşılığı w1=10000, yani sistemin en pahalı şeyi, ama vardiya
+deseni değişiminden (w6=4) ayırt edilemiyordu; (b) **boyutsuz toplam** —
+S1 kişi, S2/S3 vardiya, S4 saat, S6/S7 gün; farklı birimler ağırlıksız
+toplanıyordu; (c) **nedensiz** — hangi kural, hangi nokta, hangi gün
+yazmıyordu; esnek bulgular hiç listelenmiyordu. NFR-6'nın istediği
+"neden bu çizelge" açıklamasının çok altında.
+
+**Yapılanlar.** `S1.dogrula` artık iki yarımı da denetliyor. Fazla kadro
+**ceza üretmez, uyarı üretir** (`ceza=None`): SRS 4.4'teki amaç
+fonksiyonunda fazla kadroya karşılık gelen bir terim yok, oraya bir sayı
+uydurmak iki yorumlayıcının aynı çizelge için farklı toplam üretmesi
+demekti. `DogrulamaSonucu` üç yeni alan taşıyor:
+`agirlikli_ceza_degisimi`, kural bazında `ceza_dokumu` (kimlik, ad, ham
+fark, ağırlık, ağırlıklı fark) ve `uyarilar` (bir yere işaret eden yeni
+esnek bulgular; S2/S3/S4 gibi agregat bulgular dışarıda — onların yeri
+dökümdeki sayı). S1 mesajları kimlik yerine **ad** taşıyor
+("2026-02-02 · Akşam · Vardiya Şefliği — 1 kişi eksik"); eskiden
+"3 nolu vardiyada 2 nolu noktada" diyordu (NFR-5).
+
+**Ürün kararı (11.08.2026):** fazla kadro **engel değil uyarıdır**. Bu,
+SRS 4.3 S1'in "üst sınır zorunlu" ifadesiyle çelişiyor ve SRS tarafında
+gevşetilmesi gerekiyor — dokümana taşınacaklar listesine eklendi.
+
+### Ek iş — fazla kadronun sürümde kalıcı hale getirilmesi
+
+Kullanıcı isteği: fazla kadro uyarısı yalnızca düzenleme anında görünüyor,
+sürüm yayınlandığında iz kalmıyor; kapsama açığı gibi sürümde kalsın ve
+sürüm raporunda, Analiz'de ve dışa aktarmada görünsün.
+
+**Bu işin yolunda ikinci bir hata çıktı ve ikisi birlikte çözülmek
+zorundaydı: manuel düzenleme `kapsama_acigi` tablosunu HİÇ
+güncellemiyordu.** Tabloyu yalnızca çözücü yazıyordu (`cozum_servisi`);
+`DogrulamaServisi.uygula` yalnızca `atama` satırına dokunuyordu. Ölçüldü:
+talep 1, atama elle silindi, gerçekte 1 kişi açık — tablo boş kaldı.
+Sonuçta elle düzenlenmiş her sürümde Analiz'deki kapsama oranı (SDD 5.7:
+"kapsama açığı tablosundan türetilir"), sürüm raporundaki açık sayısı ve
+dışa aktarılan açık dosyası **bayattı**. Fazla kadroyu uygulama anında
+kalıcılaştırıp açıkları bayat bırakmak, aynı raporda iki farklı tazelikte
+veri demekti.
+
+**Depolama kararı: ayrı tablo (`fazla_kadro`), `kapsama_acigi`'na `tur`
+sütunu değil.** Üç gerekçe: (a) SDD 4.2.4 `kapsama_acigi`'nı çözücünün
+`eksik` değişkeniyle **birebir** tanımlıyor, fazla kadronun ise çözücüde
+hiçbir karşılığı yok (amaç fonksiyonunda terim yok, çözücü yapısal olarak
+üretemiyor); (b) **31 dosya** o tabloyu "her satır bir açıktır"
+varsayımıyla okuyor — `tur` sütunu 31 sorgunun anlamını sessizce
+değiştirir, tek bir filtreyi atlamak kapsama oranını fazla kadroyu açık
+sayar hâle getirirdi; (c) karşılıklı dışlayıcılık yapıca korunuyor, ikisi
+de tek geçişte aynı `atanan − gereken` karşılaştırmasından yazılıyor.
+
+**Dışa aktarma kararı: tek dosya, `tur` sütunu.** SRS 7.2'nin ayrı dosya
+gerekçesi iki farklı SATIR ŞEKLİNİN birleşmesiydi ("hiçbir tablo programı
+böyle bir dosyayı tek tablo olarak açamaz"); burada şekil aynı — aynı dört
+anahtar, aynı sayı. Başlık `tarih; vardiya_tipi; gorev_noktasi; tur;
+kisi_sayisi` oldu; `eksik_sayi` → `kisi_sayisi` çünkü "eksik_sayi = 2,
+tur = fazla" okunamayan bir satır olurdu.
+
+**Yeni modül `app/services/talep_sapmasi.py`** her iki tabloyu tek geçişte
+atamalardan yeniden hesaplıyor; `DogrulamaServisi.uygula` yazma sonrası
+onu çağırıyor. Tablolar fark alınıp güncellenmiyor, **baştan yazılıyor** —
+"artık geçerli olmayan ama silinmeyi unutulmuş satır" biçimi böylece hiç
+oluşmuyor.
+
+Yazarken bir hata daha yakalandı: ilk hâli **ısıtma penceresi** günlerini
+de sayıyordu ve tek günlük bir dönemde yedi günlük hayali bir açık
+üretiyordu. `baglam.donem_icinde` filtresi eklendi — çözücü de aynı sınırı
+kullanıyor (TD-5: ısıtma penceresi atamaları sürümün parçası değildir).
+
+**Görünürlük:** Sürümler ekranında ayrı "Fazla" sütunu (sıfırsa
+gösterilmez), Analiz'de ayrı kart + kapsama oranına **karıştırılmadan**
+(oran "talebin ne kadarı karşılandı" sorusunu yanıtlar, fazla atama bir
+hücreyi daha iyi kapsamış olmaz), yazdırılabilir görünümde ayrı bölüm,
+dışa aktarmada `tur` sütunu.
+
+**Ayrıca bulundu:** `test_dogrula_zorunlu_kisit_ihlalini_reddeder` kural
+tablosunun dolu olmasına güveniyordu ama kendi kurmuyordu — şimdiye kadar
+demo verisinin ya da başka testlerin bıraktığı satırlar sayesinde sıraya
+bağlı olarak tesadüfen geçiyormuş. `_kurali_garantile` ile kendi kendine
+yeter hale getirildi.
+
+### Dokümana taşınacaklar (bu turdan eklenenler)
+
+- **SRS 7.2 kapsama açığı dosyası biçimi** değişti: dört sütun yerine beş
+  (`tur` eklendi, `eksik_sayi` → `kisi_sayisi`). Dosya artık talepten
+  sapmanın iki yönünü birden taşıyor.
+- **SDD 4.2.4'e `fazla_kadro` tablosu** eklenmeli (göç `a4d92c15e807`).
+- **SDD 5.5'e** manuel düzenlemenin sapma tablolarını tazelediği yazılmalı;
+  şu anki metin `degisikligi_dogrula`'yı yalnızca doğrulama olarak anlatıyor.
+- **SDD Ek B**: uç nokta sayısı 69 → **70** (`/api/surum/{id}/fazla-kadro`).
+
+### Sıradaki oturumun ilk işi
+
+DAGITIM.md bölüm 13'teki çıkış. **Artık bir göç var** (`a4d92c15e807`,
+yalnızca ekleme); sıra: göç → servis yeniden başlatma. Kritik nokta
+değişmedi: `VERI_TEMIZLIGINE_IZIN` satırı sunucudaki `.env`'e
+**eklenmemeli**.

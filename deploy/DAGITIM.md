@@ -3,7 +3,7 @@
 **Durum:** ✅ **dağıtım tamamlandı ve doğrulandı.** Site yayında:
 https://vardiya.omerharmankaya.com
 **Sunucu:** 46.225.109.40 (Hetzner), Ubuntu 26.04 LTS, 4 çekirdek / 7,6 GB
-**Son güncelleme:** 09.08.2026 (kimlik doğrulama turu — bölüm 12, henüz çıkmadı)
+**Son güncelleme:** 11.08.2026 (kapanış denetimi — bölüm 13)
 
 Bu dosya iki işi birden yapar: (a) yapılan her dağıtım adımının kaydı,
 (b) sıfırdan yeniden kurulum rehberi. Dağıtım ilerledikçe her adım
@@ -243,17 +243,55 @@ Sonuçları:
   tamamlayıp çıkar. Unit'teki `TimeoutStopSec=180s` bu yüzden çözücü zaman
   limitinden (varsayılan 60 sn) geniş tutulmuştur.
 
-## 8. Dağıtım sonrası kabul ölçümü — YAPILDI
+## 8. Dağıtım sonrası kabul ölçümü — YAPILDI (09.08.2026)
 
-Ölçüm, **gerçek kullanım başlamadan önce** alındı (uyarı: `kabul_olcumu.py`
-ve `demo_veri_uret.py --reset` tanım/girdi/kural/sonuç tablolarını temizler).
-SDD 3.4.1/3.4.2 gereği diğer uygulamaların boşta olduğu bir anda ölçüldü
-(`vera-rag` ve `energy-api` %0,2 CPU).
+Ölçüm, **gerçek kullanım başlamadan ve hesaplar açılmadan önce** alındı.
+
+> ### ⛔ Sunucuda BİR DAHA yapılmayacaklar
+>
+> Aşağıdaki iki komut **sunucuda çalıştırılmamalıdır.** İkisi de tanım,
+> girdi, kural ve sonuç tablolarını boşaltır; üstelik `personel` kaydına
+> bağlı **hesapları da siler** (`kullanici.personel_id` yabancı anahtarı).
+>
+> | Komut | Sunucuda | Neden |
+> |---|---|---|
+> | `python -m pytest` | **HAYIR** | Senaryo kuran testler veritabanını boşaltır ve `HesapKapsami.HEPSI` ile **bütün hesapları** siler — yönetim hesabı dahil. O noktadan sonra sisteme giriş yolu kalmaz. |
+> | `kabul_olcumu.py` | **HAYIR** | Ölçüm verisini kurmak için tabloları boşaltır; personele bağlı hesapları siler. |
+> | `demo_veri_uret.py --reset` | **HAYIR** | Aynı temizlik sözleşmesi. |
+>
+> Bu satırlar 09.08.2026 kaydının düzeltmesidir: o gün **tüm test takımı
+> sunucuda çalıştırılmıştı** ve o sırada henüz hiç hesap yoktu, dolayısıyla
+> zararsız kaldı. Bugün aynı komut çalıştırılırsa yönetim hesabı da gider.
+>
+> **Koruma kod tarafında da var** (11.08.2026): her üçü de
+> `VERI_TEMIZLIGINE_IZIN` ayarı olmadan çalışmayı reddeder
+> (`app/veri_temizligi.py`). Ayar geliştirme makinesinin `backend/.env`
+> dosyasındadır; **sunucuya eklenmemelidir** — kilit tam da ayarın
+> yokluğunda devrededir.
+>
+> ### ✅ Sunucuda güvenle yapılabilecekler
+>
+> - `alembic upgrade head` / `alembic current` — şema göçleri
+> - `yonetim_hesabi_olustur.py` — ilk yönetim hesabı (bölüm 12.5)
+> - `systemctl status|restart vardiya-api vardiya-cozucu`
+> - `journalctl -u vardiya-api` — kayıtlar
+> - Bölüm 12.6'daki `curl` doğrulamaları (hepsi salt okunur)
+>
+> Ölçümü ve testleri **geliştirme makinesinde** çalıştırın. Sunucuda
+> gerçekten gerekiyorsa (yeni bir referans donanım ölçümü gibi), önce
+> veritabanını yedekleyin ve izni tek seferlik komutun önüne yazın:
+> `VERI_TEMIZLIGINE_IZIN=true .venv/bin/python scripts/kabul_olcumu.py`
+
+Ölçüm sırasında SDD 3.4.1/3.4.2 gereği diğer uygulamaların boşta olduğu bir
+an seçildi (`vera-rag` ve `energy-api` %0,2 CPU).
 
 - [x] `kabul_olcumu.py` → **K1–K5: 5/5 geçti**
 - [x] `--json` çıktısı saklandı: `/opt/vardiya/olcum/kabul-20260809.json`
 - [x] Tüm test takımı sunucuda: **163/163 geçti** (çözücü-doğrulayıcı uyum
-      testinin 24 rastgele örneği dahil)
+      testinin 24 rastgele örneği dahil) — *o günkü kayıt; yukarıdaki
+      uyarı gereği bir daha tekrarlanmayacak. Güncel sayı için geliştirme
+      makinesindeki koşuya bakınız (11.08.2026: **304 backend / 135
+      frontend**).*
 - [x] K6: canlı site üzerinden **4 değişen atama**
 - [x] `docs/PERFORMANS_NOTU.md` 2.0 — sunucu ölçümü **ikinci sütun** olarak
       eklendi, geliştirme makinesi sütunu korundu
@@ -304,7 +342,7 @@ ssh root@SUNUCU 'cd /opt/vardiya/backend && .venv/bin/pip install -q -e ".[dev]"
 Şema değişikliği varsa `alembic upgrade head` yeniden başlatmadan **önce**
 koşulur (bölüm 5'teki komut).
 
-## 11. Arayüz turu güncellemesi (09.08.2026) — SUNUCUYA HENÜZ ÇIKMADI
+## 11. Arayüz turu güncellemesi (09.08.2026) — ÇIKTI
 
 Bu tur sekiz madde getirdi (ayrıntı: PROGRESS.md, "Arayüz İyileştirme Turu").
 Sunucuya çıkış için gereken üç şey var: **bir veritabanı göçü**, **yeniden
@@ -390,7 +428,7 @@ zararsızdır — yalnızca varsayılanı kaldırır.
 
 ---
 
-## 12. Kimlik doğrulama turu (09.08.2026) — SUNUCUYA HENÜZ ÇIKMADI
+## 12. Kimlik doğrulama turu (09.08.2026) — ÇIKTI
 
 Sistem canlıda çalışıyor; bu tur üzerine eklenen bir katmandır (SRS 5.10,
 FR-10.1 – FR-10.10; SDD 4.2.1, 5.1b). Sunucuya çıkış için gereken beş şey
@@ -400,10 +438,20 @@ hesabının açılması**.
 
 > **En kritik nokta baştan:** `.env` içindeki
 > `CALISAN_PANELI_BAGLANTI_ANAHTARI` satırı **silinmezse uygulama
-> açılmaz**. Yapılandırma tanımadığı bir anahtarı sessizce yok saymaz,
-> hata verip çıkar. Bu bilinçli — sessizce yok saymak, kaldırılmış bir
-> sırrın hâlâ işe yaradığı izlenimi bırakırdı — ama sıra önemli: satırı
-> servisleri yeniden başlatmadan **önce** silin.
+> açılmaz**. Uygulama açılışta kaldırılmış anahtarları açıkça arar ve
+> bulursa hata verip çıkar (`app/config.py`,
+> `_kaldirilmis_anahtarlari_dogrula`). Bu bilinçli — sessizce yok saymak,
+> kaldırılmış bir sırrın hâlâ işe yaradığı izlenimi bırakırdı — ama sıra
+> önemli: satırı servisleri yeniden başlatmadan **önce** silin.
+>
+> **Düzeltme (11.08.2026):** bu söz 09.08'de kısmen boştu. Koruma
+> `Ayarlar`ın `extra='forbid'` ayarına dayanıyordu ve o, yalnızca DOTENV
+> DOSYASINDAN okunan anahtarları reddeder; tanımadığı ORTAM
+> DEĞİŞKENLERİNİ pydantic-settings sessizce yok sayar. Sunucuda ayarlar
+> tam olarak ortam değişkeni olarak gelir (systemd `EnvironmentFile` +
+> çalışma dizininde `.env` yok), dolayısıyla eski satır kalsa uygulama
+> sorunsuz açılıyordu. Açıkça arayan kontrol bu yüzden eklendi; artık iki
+> yol da aynı sonucu veriyor (`tests/test_kaldirilmis_ayar.py`).
 
 ### 12.1 `.env` değişiklikleri
 
@@ -559,3 +607,118 @@ Geri alma **hesapları siler** (tablolar düşer); çizelge, tanım ve girdi
 verisi etkilenmez. Eski kod `CALISAN_PANELI_BAGLANTI_ANAHTARI` olmadan
 çalışan paneli bağlantılarını doğrulayamaz, o yüzden geri dönülüyorsa o
 satırın da `.env`'e geri konması gerekir.
+
+---
+
+## 13. Kapanış denetimi turu (11.08.2026) — SUNUCUYA HENÜZ ÇIKMADI
+
+Bu tur bir denetimin bulgularını kapatır. **Yeni bağımlılık yok, yeni sır
+yok.** Çıkış için gereken dört şey var: **`.env`'e bir satır EKLENMEMESİ**,
+**bir veritabanı göçü**, **yeniden derlenmiş frontend** ve **servis yeniden
+başlatma**.
+
+### 13.0 Göç: `f7c1d9034ae6` → `a4d92c15e807`
+
+Tek göç, **yalnızca ekleme yapar**: `fazla_kadro` tablosu. Mevcut hiçbir
+tablonun sütunu değişmez, hiçbir satır dönüştürülmez, veri kaybı riski
+yoktur. Geri alınabilir (`downgrade` tabloyu düşürür); geri alınırsa
+yalnızca fazla kadro kayıtları kaybolur, çizelge verisi etkilenmez.
+
+`alembic current` çıktısı `a4d92c15e807 (head)` olmalıdır.
+
+### 13.1 `.env` — hiçbir şey eklenmeyecek
+
+Bu turda `VERI_TEMIZLIGINE_IZIN` adında bir ayar eklendi
+(`app/veri_temizligi.py`). **Sunucudaki `/opt/vardiya/.env` dosyasına
+YAZILMAMALIDIR.** Varsayılanı `false` ve kilit tam da ayarın yokluğunda
+devrede; yazılırsa sunucudaki koruma kalkar (bkz. bölüm 8'deki uyarı
+kutusu).
+
+Doğrulama:
+
+```bash
+ssh root@SUNUCU "grep -c VERI_TEMIZLIGINE_IZIN /opt/vardiya/.env"   # 0 dönmeli
+```
+
+### 13.2 Değişiklikler
+
+| Bulgu | Ne değişti |
+|---|---|
+| B1 · B2 | Yıkıcı temizliğin tek tanımı: `app/veri_temizligi.py`. `TRUNCATE ... CASCADE` kaldırıldı; silinecek tablolar açık bir listede, hesapların akıbeti çağıranın açık seçimi (`HesapKapsami`). Betikler artık çökmüyor: personele bağlı hesapları siliyor, sayısını yazıyor, yönetim hesaplarına dokunmuyor. |
+| B1d | Üretim kilidi: yıkıcı betikler ve fikstürler `VERI_TEMIZLIGINE_IZIN` olmadan reddediyor (yığın izi değil, tek satır mesaj + çıkış kodu 2). |
+| B3 | Personel formundaki yetkinlik seçimi çoklu oldu. Önce tek seçim vardı ve iki yetkinlikli bir personeli değiştirmeden kaydetmek ikincisini **sessizce siliyordu**. |
+| B4 | Kaldırılmış yapılandırma anahtarları açılışta açıkça aranıyor (bölüm 12.1'deki düzeltme notu). |
+| B5 | `ozel_gun` için uç nokta ve arayüz (FR-1.10): `/api/ozel-gun` + Tanımlar'da **Özel Gün** sekmesi. Tablo ve çözücü tarafı zaten vardı, yalnız yazma yolu yoktu. |
+| Madde 6 | Personel formu tamamlandı: sabit vardiya alanı, aktiflik tarihleri, sicil benzersizliği sunucuda (**409**, 500 değil), yanıltıcı "Aktif" kutusu kaldırıldı, yetkinlik çakışması için **uyarı** (engel değil). |
+| B14 | Var olmayan `personel_id` ile hesap açmak 500 yerine anlaşılır 400 döndürüyor. |
+| S1 üst sınırı | Manuel düzenlemede bir noktaya **talepten fazla** kişi yazmak sessizce kabul ediliyordu; `dogrula` yalnızca alt sınıra bakıyordu. Artık iki yarım da denetleniyor. Fazla kadro **engel değil uyarı** (ürün kararı) ve **ceza üretmez** — SRS 4.4'teki amaç fonksiyonunda karşılığı olmayan bir sayı uydurmamak için. |
+| Ceza bildirimi | Panel tek bir **ham** sayı gösteriyordu (`+1.00`). Artık **ağırlıklı** toplam + kural bazında döküm (kimlik, ad, ham fark, ağırlık, ağırlıklı fark) + "nerede ne bozuldu" cümleleri. S1 mesajları kimlik yerine **ad** taşıyor (NFR-5). |
+| Sapma kalıcılığı | Fazla kadro artık sürümde **kalıcı** (`fazla_kadro` tablosu): sürüm raporunda, Analiz'de, yazdırılabilir görünümde ve dışa aktarmada görünüyor. Aynı yolda bulunan bir hata da kapandı: **manuel düzenleme `kapsama_acigi` tablosunu hiç güncellemiyordu**, dolayısıyla elle düzenlenmiş her sürümde kapsama oranı, açık sayısı ve açık dosyası bayattı. |
+
+### 13.3 Sıra
+
+Göç **yok**; sıra bu yüzden basit.
+
+```bash
+# 1) Yerelde derle ve testleri geçir (sunucuda Node yok — ve pytest de yok)
+cd frontend && npm ci && npm run build && npm test   # 135 test
+cd ../backend && .venv/bin/python -m pytest -q       # 304 test
+
+# 2) Kodu yükle
+cd ..
+rsync -az --delete frontend/dist/ root@SUNUCU:/opt/vardiya/web/
+rsync -az --delete --exclude '.venv/' --exclude '__pycache__/' \
+      --exclude '.pytest_cache/' --exclude '.ruff_cache/' --exclude '.env' \
+      backend/ root@SUNUCU:/opt/vardiya/backend/
+
+# 3) Göçü uygula, SONRA yeniden başlat
+ssh root@SUNUCU 'set -a; . /opt/vardiya/.env; set +a
+  cd /opt/vardiya/backend
+  sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic upgrade head
+  sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic current
+  chown -R vardiya:vardiya /opt/vardiya/backend
+  systemctl restart vardiya-api vardiya-cozucu'
+```
+
+### 13.4 Doğrulama
+
+```bash
+ssh root@SUNUCU 'systemctl is-active vardiya-api vardiya-cozucu'
+
+# Yeni uç noktalar oturumsuz 401 dönmeli (açık kalan bir yol yok)
+curl -s -o /dev/null -w '%{http_code}\n' https://vardiya.omerharmankaya.com/api/ozel-gun  # 401
+curl -s -o /dev/null -w '%{http_code}\n' \
+  https://vardiya.omerharmankaya.com/api/surum/1/fazla-kadro                              # 401
+
+# Kilit sunucuda GERÇEKTEN kapalı mı (veri SİLMEZ, yalnız reddi ölçer)
+ssh root@SUNUCU 'cd /opt/vardiya/backend
+  set -a; . /opt/vardiya/.env; set +a
+  sudo -u vardiya --preserve-env=VERITABANI_URL \
+    .venv/bin/python scripts/demo_veri_uret.py --reset; echo "cikis: $?"'
+# "REDDEDILDI: ..." ve cikis: 2 beklenir. Başka bir çıktı gelirse
+# .env'e VERI_TEMIZLIGINE_IZIN sızmış demektir — hemen silin.
+```
+
+Arayüzde gözle bakılacaklar: Tanımlar'da **Özel Gün** sekmesi ve sağ üstteki
+Ekle · Değiştir · Sil üçlüsü; Personel sekmesinde **Yetkinlikler** çoklu
+seçimi, **Sabit Vardiya** ve iki aktiflik tarihi alanı; Müracaat Görevlisi
+ile Güvenlik Görevi birlikte işaretlendiğinde çıkan uyarının kaydetmeyi
+**engellemediği**.
+
+Çizelge ekranında ayrıca: bir noktayı boşaltan bir hücre değişikliği
+doğrulandığında panelde artık tek bir sayı değil, **hangi noktanın açıkta
+kaldığını yazan bir cümle**, ağırlıklı ceza değişimi ve kural bazında
+döküm tablosu görünmelidir. Bir noktaya talepten fazla kişi yazıldığında
+"talepten N kişi fazla" uyarısı çıkar ama değişiklik **engellenmez**.
+
+### 13.5 Geri alma
+
+Önce eski kod sürümüne dönülür, sonra göç geri alınır:
+
+```bash
+ssh root@SUNUCU 'cd /opt/vardiya/backend
+  sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic downgrade f7c1d9034ae6'
+```
+
+Geri alma yalnızca `fazla_kadro` satırlarını düşürür; çizelge, tanım ve
+girdi verisi etkilenmez.
