@@ -224,37 +224,37 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
   // isaret tanimi geregi "su anki gun"e bagli. lib/tarih.ts'ten gecer.
   const bugun = bugunIso()
 
-  // Gün başına kapsama: şeridin her basamağı bir (nokta × vardiya) talebidir.
-  // Karşılanan basamak nötr gri, açık olan turuncu — göz doğrudan soruna
-  // gider (TASARIM_REFERANSI.md, "Kapsama şeridinde…").
-  const gunKapsamasi = useMemo(() => {
-    const acikSayilari = new Map<string, number>()
+  // Şeridin basamakları GÖREV NOKTALARIDIR — gün başına biri, her zaman aynı
+  // sırada (TASARIM_REFERANSI.md: "Kapsama şeridinde karşılanan NOKTALAR
+  // nötr gri, yalnızca açık olanlar turuncudur").
+  //
+  // Sıranın sabit olması şeridin bütün işidir: turuncunun kaçıncı basamakta
+  // olduğu HANGİ noktanın açık verdiğini söyler. Açıkları sona toplamak
+  // şeridi bir sayaca indirger ve tek tek basamakları anlamsızlaştırır.
+  const seritNoktalari = useMemo(
+    () => noktalar.filter((n) => n.aktif).sort((a, b) => a.nokta_id - b.nokta_id),
+    [noktalar],
+  )
+
+  // Tarih → o gün açık veren nokta kimlikleri. Bir nokta o günün herhangi bir
+  // vardiyasında eksik kaldıysa basamağı turuncudur; şerit vardiya kırılımına
+  // inmez, o ayrım ızgaranın kendi hücrelerinde zaten görünür.
+  const acikNoktalar = useMemo(() => {
+    const indeks = new Map<string, Map<number, number>>()
     for (const k of kapsamaAcigi) {
-      acikSayilari.set(k.tarih, (acikSayilari.get(k.tarih) ?? 0) + 1)
+      let gun = indeks.get(k.tarih)
+      if (!gun) {
+        gun = new Map()
+        indeks.set(k.tarih, gun)
+      }
+      gun.set(k.nokta_id, (gun.get(k.nokta_id) ?? 0) + k.eksik_sayi)
     }
-    // Basamak sayısı talep matrisinin genişliğidir; talep ayrı bir uç nokta
-    // olduğundan burada eldeki iki kaynaktan türetilir: o gün ataması olan
-    // (nokta × vardiya) ikilileri + o gün açık verilen ikililer.
-    const basamaklar = new Map<string, Set<string>>()
-    for (const a of atamalar) {
-      if (!basamaklar.has(a.tarih)) basamaklar.set(a.tarih, new Set())
-      basamaklar.get(a.tarih)!.add(`${a.nokta_id}|${a.vardiya_tipi_id}`)
-    }
-    for (const k of kapsamaAcigi) {
-      if (!basamaklar.has(k.tarih)) basamaklar.set(k.tarih, new Set())
-      basamaklar.get(k.tarih)!.add(`${k.nokta_id}|${k.vardiya_tipi_id}`)
-    }
-    return new Map(
-      donemGunleri.map((g) => [
-        g,
-        { toplam: basamaklar.get(g)?.size ?? 0, acik: acikSayilari.get(g) ?? 0 },
-      ]),
-    )
-  }, [atamalar, kapsamaAcigi, donemGunleri])
+    return indeks
+  }, [kapsamaAcigi])
 
   const gunler = useMemo(
-    () => (yalnizcaAcik ? donemGunleri.filter((g) => (gunKapsamasi.get(g)?.acik ?? 0) > 0) : donemGunleri),
-    [donemGunleri, yalnizcaAcik, gunKapsamasi],
+    () => (yalnizcaAcik ? donemGunleri.filter((g) => acikNoktalar.has(g)) : donemGunleri),
+    [donemGunleri, yalnizcaAcik, acikNoktalar],
   )
 
   // Süzgeçten ÖNCEKİ liste — alttaki "36 personelin 10'u gösteriliyor"
@@ -647,11 +647,14 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                         KAPSAMA_SERIDI,
                         AD_SUTUNU,
                       )}
+                      // Basamak sırası sabittir ve anlam taşır; sıranın hangi
+                      // noktalara karşılık geldiği başlıktan okunur.
+                      title={`Basamak sırası: ${seritNoktalari.map((n) => n.ad).join(' · ')}`}
                     >
                       {buyukHarf('Kapsama')}
                     </td>
                     {gunler.map((gun) => {
-                      const kapsama = gunKapsamasi.get(gun) ?? { toplam: 0, acik: 0 }
+                      const gunAciklari = acikNoktalar.get(gun)
                       return (
                         <td
                           key={gun}
@@ -661,28 +664,27 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                             GUN_SUTUNU,
                             haftaSonuMu(gun) && 'bg-sunken',
                           )}
-                          title={
-                            kapsama.toplam === 0
-                              ? `${tarihBicimle(gun)} · talep yok`
-                              : `${tarihBicimle(gun)} · ${kapsama.toplam} talepten ${kapsama.acik} tanesi açık`
-                          }
                         >
-                          <span className="flex items-center justify-center gap-0.5">
-                            {Array.from({ length: kapsama.toplam }, (_, i) => (
-                              <span
-                                key={i}
-                                className={cn(
-                                  'h-1.5 flex-1 rounded-xs',
-                                  // Açıklar şeridin SONUNA toplanır: basamak
-                                  // sırası bir noktayı temsil etmiyor, sayıyı
-                                  // temsil ediyor; dağıtmak yanlış bir "hangi
-                                  // nokta" okuması doğururdu.
-                                  i >= kapsama.toplam - kapsama.acik
-                                    ? 'bg-signal'
-                                    : 'bg-rule-strong',
-                                )}
-                              />
-                            ))}
+                          <span className="flex items-center justify-center gap-1">
+                            {seritNoktalari.map((n) => {
+                              const eksik = gunAciklari?.get(n.nokta_id) ?? 0
+                              return (
+                                // Her basamak tek başına okunabilir olmalı:
+                                // şeridin tamamına değil, basamağın KENDİSİNE
+                                // başlık verilir — imleç turuncunun üstüne
+                                // geldiğinde hangi nokta olduğunu söyler.
+                                <span
+                                  key={n.nokta_id}
+                                  title={`${tarihBicimle(gun)} · ${n.ad} — ${
+                                    eksik > 0 ? `${eksik} kişi eksik` : 'karşılandı'
+                                  }`}
+                                  className={cn(
+                                    'h-1.5 flex-1 rounded-xs',
+                                    eksik > 0 ? 'bg-signal' : 'bg-rule-strong',
+                                  )}
+                                />
+                              )
+                            })}
                           </span>
                         </td>
                       )
