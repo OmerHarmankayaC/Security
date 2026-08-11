@@ -162,8 +162,16 @@ export function AppShell({
     : null
 
   return (
-    <div className="flex min-h-svh bg-canvas text-ink">
-      <aside className="sticky top-0 flex h-svh w-[260px] shrink-0 flex-col justify-between overflow-y-auto bg-chrome-base px-[18px] pt-[26px] pb-[22px]">
+    // Kabuk, görünür alanın TAMAMINI kaplar ve kendisi kaydırılmaz
+    // (`overflow-hidden`): kaydırma, aşağıdaki içerik alanının kendi
+    // işidir. Yan menü böylece sayfayla birlikte inip çıkmaz.
+    //
+    // `items-start` YAZILMAZ. Yan menü yüksekliğini `h-full` ile kapsayıcının
+    // tamamından alıyor; hizalamayı gevşetmek, alt gruptaki Dönem bloğunu
+    // (`justify-between` ile aşağı itilen blok) görünür alanın çok altına
+    // düşürür — bu bölgede bir kez yaşandı.
+    <div className="flex h-svh overflow-hidden bg-canvas text-ink">
+      <aside className="flex h-full w-[260px] shrink-0 flex-col justify-between overflow-y-auto bg-chrome-base px-[18px] pt-[26px] pb-[22px]">
         <div className="flex flex-col">
           <p className="m-0 text-base font-semibold tracking-wide text-chrome-ink">
             {buyukHarf('Vardiya Çizelgeleme')}
@@ -263,7 +271,7 @@ export function AppShell({
           </div>
         </div>
       </aside>
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex h-16 shrink-0 items-center justify-between gap-6 border-b border-rule bg-canvas px-7">
           <div className="flex items-center gap-3">
             {/* `başlık/ekran` — Public Sans SemiBold 21px, ayrı bir display
@@ -276,7 +284,11 @@ export function AppShell({
             {aksiyonlar && <div className="flex items-center gap-2">{aksiyonlar}</div>}
           </div>
         </header>
-        <main className="flex flex-col gap-5 px-8 py-7">{children}</main>
+        {/* Kaydırılan yüzey burasıdır. Üst çubuk (`shrink-0`) ve yan menü
+            yerinde kalır; içindeki `sticky` başlıklar (ör. çizelge
+            ızgarası) artık bu alana göre yapışır - üst çubuğun hemen
+            altına, sayfanın tepesine değil. */}
+        <main className="flex flex-1 flex-col gap-5 overflow-y-auto px-8 py-7">{children}</main>
       </div>
     </div>
   )
