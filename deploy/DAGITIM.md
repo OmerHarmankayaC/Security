@@ -3,7 +3,7 @@
 **Durum:** ✅ **dağıtım tamamlandı ve doğrulandı.** Site yayında:
 https://vardiya.omerharmankaya.com
 **Sunucu:** 46.225.109.40 (Hetzner), Ubuntu 26.04 LTS, 4 çekirdek / 7,6 GB
-**Son güncelleme:** 11.08.2026 (kapanış denetimi — bölüm 13)
+**Son güncelleme:** 11.08.2026 (kapanış denetimi sunucuya çıktı — bölüm 13.6)
 
 Bu dosya iki işi birden yapar: (a) yapılan her dağıtım adımının kaydı,
 (b) sıfırdan yeniden kurulum rehberi. Dağıtım ilerledikçe her adım
@@ -610,7 +610,7 @@ satırın da `.env`'e geri konması gerekir.
 
 ---
 
-## 13. Kapanış denetimi turu (11.08.2026) — SUNUCUYA HENÜZ ÇIKMADI
+## 13. Kapanış denetimi turu (11.08.2026) — ÇIKTI
 
 Bu tur bir denetimin bulgularını kapatır. **Yeni bağımlılık yok, yeni sır
 yok.** Çıkış için gereken dört şey var: **`.env`'e bir satır EKLENMEMESİ**,
@@ -657,12 +657,21 @@ ssh root@SUNUCU "grep -c VERI_TEMIZLIGINE_IZIN /opt/vardiya/.env"   # 0 dönmeli
 
 ### 13.3 Sıra
 
-Göç **yok**; sıra bu yüzden basit.
+Bir göç var (13.0) ve **kod yüklendikten SONRA** uygulanır: `alembic`
+sunucudaki depodan okunur, dolayısıyla göç dosyası önce oraya varmalıdır.
+
+**SSH anahtarı:** bağlantı `~/.ssh/vera_hetzner` ile kurulur (makinedeki
+varsayılan `id_ed25519` bu sunucuda tanımlı DEĞİLDİR — `Permission denied
+(publickey)` alırsanız sebep budur):
+
+```bash
+export RSYNC_RSH="ssh -o IdentitiesOnly=yes -i $HOME/.ssh/vera_hetzner"
+```
 
 ```bash
 # 1) Yerelde derle ve testleri geçir (sunucuda Node yok — ve pytest de yok)
 cd frontend && npm ci && npm run build && npm test   # 135 test
-cd ../backend && .venv/bin/python -m pytest -q       # 304 test
+cd ../backend && .venv/bin/python -m pytest -q       # 307 test
 
 # 2) Kodu yükle
 cd ..
@@ -690,13 +699,27 @@ curl -s -o /dev/null -w '%{http_code}\n' https://vardiya.omerharmankaya.com/api/
 curl -s -o /dev/null -w '%{http_code}\n' \
   https://vardiya.omerharmankaya.com/api/surum/1/fazla-kadro                              # 401
 
-# Kilit sunucuda GERÇEKTEN kapalı mı (veri SİLMEZ, yalnız reddi ölçer)
+# Kilit sunucuda GERÇEKTEN kapalı mı — kapının kendisi çağrılır, kapıdan
+# geçen betik DEĞİL. `demo_veri_uret.py --reset` çalıştırmak bu soruyu
+# yanıtlamanın YANLIŞ yoludur: kilit beklenmedik biçimde açıksa cevabı
+# 44 personelin, 17 sürümün ve 2.155 atamanın silinmesiyle öğrenirsiniz.
+# `uretim_kilidini_dogrula` betiğin çağırdığı aynı kapıdır ve hiçbir şeye
+# dokunmaz.
 ssh root@SUNUCU 'cd /opt/vardiya/backend
   set -a; . /opt/vardiya/.env; set +a
-  sudo -u vardiya --preserve-env=VERITABANI_URL \
-    .venv/bin/python scripts/demo_veri_uret.py --reset; echo "cikis: $?"'
-# "REDDEDILDI: ..." ve cikis: 2 beklenir. Başka bir çıktı gelirse
-# .env'e VERI_TEMIZLIGINE_IZIN sızmış demektir — hemen silin.
+  sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/python -c "
+from app.veri_temizligi import uretim_kilidini_dogrula, UretimKilidiError
+from app.config import ayarlar
+print(\"veri_temizligine_izin =\", ayarlar.veri_temizligine_izin)
+try:
+    uretim_kilidini_dogrula()
+except UretimKilidiError as h:
+    print(\"KILIT DEVREDE ->\", h)
+else:
+    raise SystemExit(\"!!! KILIT ACIK — yikici betikler calisabilir\")
+"'
+# "KILIT DEVREDE -> ..." beklenir. Başka bir çıktı gelirse .env'e
+# VERI_TEMIZLIGINE_IZIN sızmış demektir — hemen silin.
 ```
 
 Arayüzde gözle bakılacaklar: Tanımlar'da **Özel Gün** sekmesi ve sağ üstteki
@@ -722,3 +745,26 @@ ssh root@SUNUCU 'cd /opt/vardiya/backend
 
 Geri alma yalnızca `fazla_kadro` satırlarını düşürür; çizelge, tanım ve
 girdi verisi etkilenmez.
+
+### 13.6 Çıkış kaydı (11.08.2026, 15:58 TSİ)
+
+| | |
+|---|---|
+| Kod sürümü | `fb10a74` (`fd9f99b` + yazdırılabilir başlık testi düzeltmesi) |
+| Göç | `f7c1d9034ae6` → `a4d92c15e807`, `alembic current` = `a4d92c15e807 (head)` |
+| Servisler | `vardiya-api`, `vardiya-cozucu` → yeniden başlatıldı, ikisi de `active` |
+| Uyarı/hata günlüğü | yeniden başlatmadan sonra `-p warning` boş |
+| `/api/ozel-gun`, `/api/surum/1/fazla-kadro`, `/api/personel` | oturumsuz **401** |
+| Arayüz kökü | **200** |
+| Üretim kilidi | `veri_temizligine_izin = False`, `uretim_kilidini_dogrula()` reddediyor; `/opt/vardiya/backend/.env` yok, `/opt/vardiya/.env` içinde `VERI_TEMIZLIGINE_IZIN` **yok** |
+| Veri (dağıtım öncesi → sonrası) | 44 personel · 6 dönem · 17 sürüm · 2.155 atama · 4 hesap → **değişmedi** |
+| `fazla_kadro` | tablo oluştu, 0 satır (mevcut sürümler yeniden çözülmediği için beklenen) |
+
+**Mevcut sürümler geriye dönük fazla kadro taşımaz.** `fazla_kadro`
+satırları `sapmalari_yenile` ile, yani bir çözüm veya elle düzenleme
+sırasında yazılır; göç yalnızca tabloyu açar, geçmiş sürümleri taramaz.
+Yayındaki 17 sürümde fazla kadro varsa Analiz'de ancak o sürüm yeniden
+çözüldüğünde ya da elle düzenlendiğinde görünür.
+
+Bölüm 13.4'teki arayüz turu **yapılmadı** — sunucuda oturum açmayı
+gerektiriyor ve mevcut dört hesabın parolası bu makinede yok.
