@@ -119,6 +119,10 @@ export const api = {
       zaman_limiti_saniye: zamanLimitiSaniye,
     }),
   cozumDurumu: (isId: number) => istek<CozumIsi>(`/api/cozum/${isId}`),
+  // Kabuktaki çalışan iş göstergesinin kaynağı (SRS FR-4.11). İş kimliği
+  // İSTEMCİDE TUTULMAZ: kabuk "devam eden ya da karar bekleyen iş var mı"
+  // diye sorar, kimlik yanıtın içinden gelir.
+  cozumAktif: () => istek<CozumIsi | null>('/api/cozum/aktif'),
   // "Durdur" iptal değil SONLANDIRMADIR: bulunmuş çözüm atılmaz, iş karar
   // bekleyen duruma geçer (SRS FR-4.9).
   cozumDurdur: (isId: number) => gonder<CozumIsi>(`/api/cozum/${isId}/durdur`, {}),

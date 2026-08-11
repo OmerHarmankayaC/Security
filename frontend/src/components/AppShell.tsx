@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { buyukHarf } from '@/lib/metin'
 import { bugunIso, donemAraligiBicimle, gunlerListesi } from '@/lib/tarih'
 import { navGruplari } from '@/lib/yetki'
+import { useAktifIs } from './AktifIsBaglami'
 import { useOturum } from './OturumBaglami'
 import { NAV_SIMGELERI, type NavOgesi } from './nav'
 
@@ -49,6 +50,83 @@ function donemSec(donemler: Donem[], donemId: number | null | undefined): Donem 
     sirali.find((d) => d.baslangic_tarihi <= bugun && d.bitis_tarihi >= bugun) ??
     sirali.find((d) => d.baslangic_tarihi > bugun) ??
     sirali[sirali.length - 1]
+  )
+}
+
+const IS_DURUM_METNI: Record<string, string> = {
+  kuyrukta: 'Kuyrukta',
+  on_kontrol: 'Ön kontrol',
+  cozuluyor: 'Çözülüyor',
+  durduruldu: 'Karar bekliyor',
+  tamamlandi: 'Tamamlandı',
+  uyarili: 'Uyarılı tamamlandı',
+  basarisiz: 'Başarısız',
+  iptal: 'İptal edildi',
+}
+
+function sureBicimle(saniye: number): string {
+  const dk = Math.floor(saniye / 60)
+  const sn = saniye % 60
+  return `${String(dk).padStart(2, '0')}:${String(sn).padStart(2, '0')}`
+}
+
+/**
+ * Çalışan iş göstergesi (SDD 6.1, SRS FR-4.11).
+ *
+ * Üst çubukta durur, yani HER EKRANDA görünür: çözüm dakikalar sürebildiği
+ * için kullanıcının o süre boyunca Çözüm ekranında beklemesi beklenemez.
+ * Karar bekleyen iş de burada görünür — başka ekrandayken durdurup unutan
+ * kullanıcının işi sessizce askıda kalmasın.
+ *
+ * Kaynağı bağlamdır, bağlamın kaynağı da sunucu; bu bileşen hiçbir iş
+ * kimliği saklamaz.
+ */
+function CalisanIsGostergesi({ ekranSec }: { ekranSec: (ekran: NavOgesi) => void }) {
+  const { aktifIs, sonuclananIs, gecenSure, sonucuKapat } = useAktifIs()
+
+  if (aktifIs === null && sonuclananIs === null) return null
+
+  const is = aktifIs ?? sonuclananIs
+  if (is === null) return null
+  const kararBekliyor = is.durum === 'durduruldu'
+  const bitti = aktifIs === null
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (bitti) sonucuKapat()
+        ekranSec('Çözüm')
+      }}
+      className={cn(
+        'flex h-9 items-center gap-3 rounded-sm border px-3 text-sm transition-colors',
+        kararBekliyor
+          ? 'border-warn/60 bg-warn/10 text-ink hover:bg-warn/20'
+          : bitti
+            ? 'border-rule bg-surface text-ink-muted hover:bg-sunken'
+            : 'border-accent/60 bg-accent/10 text-ink hover:bg-accent/20',
+      )}
+      title="Çözüm ekranını aç"
+    >
+      {/* Süren işte nabız; duran işte sabit nokta. Renk tek başına ayrım
+          taşımasın diye durum adı da yazılı. */}
+      <span
+        className={cn(
+          'size-2 shrink-0 rounded-full',
+          kararBekliyor ? 'bg-warn' : bitti ? 'bg-ink-muted' : 'animate-pulse bg-accent',
+        )}
+        aria-hidden
+      />
+      <span className="font-medium">{IS_DURUM_METNI[is.durum] ?? is.durum}</span>
+      {!bitti && (
+        <span className="font-mono text-mono-kucuk text-ink-muted">{sureBicimle(gecenSure)}</span>
+      )}
+      {is.en_iyi_ceza !== null && (
+        <span className="font-mono text-mono-kucuk text-ink-muted">
+          ceza {Number(is.en_iyi_ceza)}
+        </span>
+      )}
+    </button>
   )
 }
 
@@ -193,7 +271,10 @@ export function AppShell({
             <h1 className="m-0 text-baslik-ekran font-semibold text-ink">{baslik}</h1>
             {altBaslik}
           </div>
-          {aksiyonlar && <div className="flex shrink-0 items-center gap-2">{aksiyonlar}</div>}
+          <div className="flex shrink-0 items-center gap-3">
+            <CalisanIsGostergesi ekranSec={ekranSec} />
+            {aksiyonlar && <div className="flex items-center gap-2">{aksiyonlar}</div>}
+          </div>
         </header>
         <main className="flex flex-col gap-5 px-8 py-7">{children}</main>
       </div>

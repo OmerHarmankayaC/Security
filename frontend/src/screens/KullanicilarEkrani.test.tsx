@@ -1,6 +1,7 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Ben, Kullanici, Personel } from '@/api/types'
+import { AktifIsSaglayici } from '@/components/AktifIsBaglami'
 import { OturumBaglami } from '@/components/OturumBaglami'
 import { KullanicilarEkrani } from './KullanicilarEkrani'
 
@@ -66,7 +67,11 @@ function ekraniCiz() {
     <OturumBaglami.Provider
       value={{ ben: BEN, cikis: vi.fn(), parolaDegistir: vi.fn() }}
     >
-      <KullanicilarEkrani ekranSec={vi.fn()} kendiKullaniciAdi="yonetim" />
+      {/* Kabuk üst çubuğu çalışan iş göstergesini taşıyor; sağlayıcısı
+          olmadan AppShell çizilemez (SDD 6.1). */}
+      <AktifIsSaglayici>
+        <KullanicilarEkrani ekranSec={vi.fn()} kendiKullaniciAdi="yonetim" />
+      </AktifIsSaglayici>
     </OturumBaglami.Provider>,
   )
 }

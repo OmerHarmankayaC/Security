@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Ben, OzelGun, Personel, VardiyaTipi, Yetkinlik } from '@/api/types'
+import { AktifIsSaglayici } from '@/components/AktifIsBaglami'
 import { OturumBaglami } from '@/components/OturumBaglami'
 import { TanimlarEkrani } from './TanimlarEkrani'
 
@@ -101,7 +102,11 @@ function ekraniCiz() {
   vi.stubGlobal('fetch', fetchTaklidi())
   return render(
     <OturumBaglami.Provider value={{ ben: BEN, cikis: vi.fn(), parolaDegistir: vi.fn() }}>
-      <TanimlarEkrani ekranSec={vi.fn()} />
+      {/* Kabuk üst çubuğu çalışan iş göstergesini taşıyor; sağlayıcısı
+          olmadan AppShell çizilemez (SDD 6.1). */}
+      <AktifIsSaglayici>
+        <TanimlarEkrani ekranSec={vi.fn()} />
+      </AktifIsSaglayici>
     </OturumBaglami.Provider>,
   )
 }

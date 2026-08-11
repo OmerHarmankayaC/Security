@@ -1,0 +1,163 @@
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { CozumIsi } from '../api/types'
+import { AktifIsSaglayici } from '../components/AktifIsBaglami'
+import { OturumBaglami } from '../components/OturumBaglami'
+import { CozumEkrani } from './CozumEkrani'
+
+const DONEM = {
+  donem_id: 1,
+  baslangic_tarihi: '2026-04-06',
+  bitis_tarihi: '2026-04-12',
+  tercih_son_tarihi: '2026-03-30',
+}
+
+const DURDURULMUS: CozumIsi = {
+  is_id: 7,
+  surum_id: 3,
+  durum: 'durduruldu',
+  baslangic_zamani: '2026-04-01T10:00:00Z',
+  bitis_zamani: '2026-04-01T10:02:00Z',
+  sure_saniye: '120.000',
+  zaman_limiti_saniye: 300,
+  en_iyi_ceza: '912.00',
+  ceza_dokumu: { S1: 0, S4: 12 },
+  hata_mesaji: null,
+  devam_kaynagi_is_id: null,
+  kullanilabilir_sonuc_var: true,
+  gecici_kapsama_acigi_sayisi: 2,
+}
+
+/** Ekranın ve kabuğun açılışta çektiği verileri karşılayan sahte fetch. */
+function fetchSahtesi(aktifIs: CozumIsi | null) {
+  return vi.fn(async (yol: string) => {
+    const govde = yol.startsWith('/api/cozum/aktif')
+      ? aktifIs
+      : yol.startsWith('/api/donem')
+        ? [DONEM]
+        : []
+    return { ok: true, status: 200, json: async () => govde }
+  })
+}
+
+function ekraniAc(aktifIs: CozumIsi | null) {
+  vi.stubGlobal('fetch', fetchSahtesi(aktifIs))
+  return render(
+    <OturumBaglami.Provider
+      value={{
+        ben: {
+          kullanici_adi: 'yonetici',
+          ad_soyad: 'Yönetici',
+          rol: 'yonetici',
+          personel_id: null,
+          parola_degistirmeli: false,
+        },
+        cikis: vi.fn(),
+        parolaDegistir: vi.fn(),
+      }}
+    >
+      <AktifIsSaglayici>
+        <CozumEkrani ekranSec={vi.fn()} donemId={1} donemIdSec={vi.fn()} />
+      </AktifIsSaglayici>
+    </OturumBaglami.Provider>,
+  )
+}
+
+beforeEach(() => {
+  vi.stubGlobal('confirm', vi.fn(() => true))
+})
+
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
+
+describe('CozumEkrani — karar paneli (SDD 6.3.2)', () => {
+  it('durdurulan işte üç seçeneği de sunar', async () => {
+    ekraniAc(DURDURULMUS)
+    await waitFor(() => expect(screen.getByText('KARAR BEKLENİYOR')).toBeDefined())
+
+    expect(screen.getByRole('button', { name: 'Sonucu kullan' })).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Sonucu at' })).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Bu çözümden devam et' })).toBeDefined()
+  })
+
+  it('çözüm tamamlanmış gibi tam ayrıntı gösterir', async () => {
+    // Kullanıcı kararını buna bakarak veriyor; toplam ceza, hedef bazında
+    // döküm ve kapsama açığı sayısı panelde olmak zorunda.
+    const { container } = ekraniAc(DURDURULMUS)
+    await waitFor(() => expect(screen.getByText('KARAR BEKLENİYOR')).toBeDefined())
+
+    expect(container.textContent).toContain('912.00')
+    expect(container.textContent).toContain('S4')
+    expect(screen.getByText('KAPSAMA AÇIĞI')).toBeDefined()
+  })
+
+  it('"kaldığı yerden devam" DEMEZ', async () => {
+    // Çözücü sonlandırıldıktan sonra iç arama durumu geri yüklenemez;
+    // devam, yeni bir aramanın ipucuyla başlatılmasıdır (SDD 5.4.1).
+    const { container } = ekraniAc(DURDURULMUS)
+    await waitFor(() => expect(screen.getByText('KARAR BEKLENİYOR')).toBeDefined())
+
+    expect(container.textContent).not.toMatch(/kaldığı yerden/i)
+    expect(container.textContent).toMatch(/yeni bir arama/i)
+    expect(container.textContent).toMatch(/süre sıfırdan işler/i)
+  })
+
+  it('çözüm bulunamadıysa "kullan" pasif ve nedeni yazılı', async () => {
+    const { container } = ekraniAc({
+      ...DURDURULMUS,
+      en_iyi_ceza: null,
+      ceza_dokumu: null,
+      kullanilabilir_sonuc_var: false,
+      gecici_kapsama_acigi_sayisi: null,
+      hata_mesaji: 'Çözücü ilk uygun çizelgeye ulaşmadan durduruldu.',
+    })
+    await waitFor(() => expect(screen.getByText('KARAR BEKLENİYOR')).toBeDefined())
+
+    const kullan = screen.getByRole('button', { name: 'Sonucu kullan' }) as HTMLButtonElement
+    expect(kullan.disabled).toBe(true)
+    expect(container.textContent).toContain('ulaşmadan durduruldu')
+  })
+})
+
+describe('Çalışan iş göstergesi (SRS FR-4.11)', () => {
+  it('iş kimliğini SUNUCUDAN alır, istemcide tutmaz', async () => {
+    // Ekran hiçbir yerde iş kimliği taşımıyor: kabuk /api/cozum/aktif
+    // soruyor ve kimlik yanıtın içinden geliyor. Bu yüzden ekran
+    // değiştirmek, sayfayı yenilemek veya başka bir cihazdan girmek
+    // göstergeyi kaybettirmiyor.
+    const sahte = fetchSahtesi(DURDURULMUS)
+    vi.stubGlobal('fetch', sahte)
+    render(
+      <OturumBaglami.Provider
+        value={{
+          ben: {
+            kullanici_adi: 'yonetici',
+            ad_soyad: 'Yönetici',
+            rol: 'yonetici',
+            personel_id: null,
+            parola_degistirmeli: false,
+          },
+          cikis: vi.fn(),
+          parolaDegistir: vi.fn(),
+        }}
+      >
+        <AktifIsSaglayici>
+          <CozumEkrani ekranSec={vi.fn()} donemId={1} donemIdSec={vi.fn()} />
+        </AktifIsSaglayici>
+      </OturumBaglami.Provider>,
+    )
+
+    await waitFor(() =>
+      expect(sahte.mock.calls.some(([yol]) => String(yol) === '/api/cozum/aktif')).toBe(true),
+    )
+    // Kimliği adreste taşıyan bir istek YOK: kabuk işi adıyla değil,
+    // "aktif iş var mı" sorusuyla buluyor.
+    expect(sahte.mock.calls.every(([yol]) => !String(yol).startsWith('/api/cozum/7'))).toBe(true)
+
+    // Gösterge üst çubukta: durum her ekranda görünür.
+    await waitFor(() => expect(screen.getByTitle('Çözüm ekranını aç')).toBeDefined())
+    expect(screen.getByTitle('Çözüm ekranını aç').textContent).toContain('Karar bekliyor')
+  })
+})

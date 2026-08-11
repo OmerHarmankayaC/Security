@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Ben } from './api/types'
 import type { NavOgesi } from './components/AppShell'
+import { AktifIsSaglayici } from './components/AktifIsBaglami'
 import { OturumBaglami } from './components/OturumBaglami'
 import { AnalizEkrani } from './screens/AnalizEkrani'
 import { CizelgeEkrani } from './screens/CizelgeEkrani'
@@ -31,8 +32,12 @@ function App({ ben, cikis, parolaDegistir }: Props) {
   // Oturum bilgisi bağlam üzerinden AppShell'e ulaşır. Sekiz ekranın
   // hepsine üç ayrı prop geçirmek, ekranların taşımadıkları bir veriyi
   // sadece iletmek için imzalarına almasını gerektirirdi.
+  // Çalışan işin yoklaması KABUKTA yaşar, Çözüm ekranında değil (SDD 6.1):
+  // ekran değiştirmek bileşeni unmount ediyor ve yoklamayı öldürüyordu.
+  // Sağlayıcı ekran anahtarının dışında durduğu için gezinme onu etkilemez.
   return (
     <OturumBaglami.Provider value={{ ben, cikis, parolaDegistir }}>
+      <AktifIsSaglayici>
       {(() => {
         switch (ekran) {
           case 'Özet':
@@ -66,6 +71,7 @@ function App({ ben, cikis, parolaDegistir }: Props) {
             return <PlaceholderEkrani ekran={ekran} ekranSec={setEkran} />
         }
       })()}
+      </AktifIsSaglayici>
     </OturumBaglami.Provider>
   )
 }

@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '../api/client'
-import type { CozumIsi, CozumKarari, Donem, OnKontrolBulgu } from '../api/types'
+import type { CozumKarari, Donem, OnKontrolBulgu } from '../api/types'
+import { useAktifIs } from '../components/AktifIsBaglami'
 import { AppShell, type NavOgesi } from '../components/AppShell'
 import { Buton, BuyukRakam, Kart, KartEtiketi, Sayi } from '../components/app-ui'
 import { Input } from '@/components/ui/input'
 import { cn } from '../lib/utils'
 import { buyukHarf } from '../lib/metin'
-import { bugunIso, donemAraligiBicimle, gunEkle, utcTarihiAyristir } from '../lib/tarih'
+import { bugunIso, donemAraligiBicimle, gunEkle } from '../lib/tarih'
 import {
   AZAMI_DONEM_GUN,
   VARSAYILAN_DONEM_GUN,
@@ -35,10 +36,6 @@ const DURUM_METNI: Record<string, string> = {
 
 const SECIM_SINIFI =
   'h-8 rounded-sm border border-rule bg-surface px-2.5 font-mono text-sm text-ink outline-none focus-visible:border-accent focus-visible:ring-3 focus-visible:ring-accent/30 disabled:opacity-50'
-
-function gecenSureSaniye(baslangicIso: string): number {
-  return Math.max(0, Math.floor((Date.now() - utcTarihiAyristir(baslangicIso).getTime()) / 1000))
-}
 
 function sureBicimle(saniye: number): string {
   const dk = Math.floor(saniye / 60)
@@ -85,15 +82,16 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
   const [bulgular, setBulgular] = useState<OnKontrolBulgu[] | null>(null)
   const [onKontrolYukleniyor, setOnKontrolYukleniyor] = useState(false)
 
-  const [isKaydi, setIsKaydi] = useState<CozumIsi | null>(null)
   const [kapsamaSayisi, setKapsamaSayisi] = useState<number | null>(null)
   const [hata, setHata] = useState<string | null>(null)
-  const [gecenSure, setGecenSure] = useState(0)
   const [kararIsleniyor, setKararIsleniyor] = useState(false)
   const [devamZamanLimiti, setDevamZamanLimiti] = useState(60)
 
-  const anketAraligi = useRef<ReturnType<typeof setInterval> | null>(null)
-  const saatAraligi = useRef<ReturnType<typeof setInterval> | null>(null)
+  // İşin kendisi de geçen süre de KABUKTAN gelir; bu ekran ne iş kimliği
+  // ne de yoklama döngüsü tutar (SDD 6.1). Ekran değiştirmek bileşeni
+  // unmount ediyor ve her ikisi de onunla birlikte ölüyordu.
+  const { aktifIs, sonuclananIs, gecenSure, yenile } = useAktifIs()
+  const isKaydi = aktifIs ?? sonuclananIs
 
   useEffect(() => {
     api
@@ -106,38 +104,25 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const anketiDurdur = () => {
-    if (anketAraligi.current) clearInterval(anketAraligi.current)
-    if (saatAraligi.current) clearInterval(saatAraligi.current)
-  }
-
-  useEffect(() => anketiDurdur, [])
-
-  const isiIzle = (isId: number) => {
-    anketiDurdur()
-    saatAraligi.current = setInterval(() => {
-      setIsKaydi((mevcut) => (mevcut ? { ...mevcut } : mevcut))
-    }, 1000)
-    anketAraligi.current = setInterval(async () => {
-      try {
-        const guncel = await api.cozumDurumu(isId)
-        setIsKaydi(guncel)
-        setGecenSure(gecenSureSaniye(guncel.baslangic_zamani))
-        if (!CALISAN_DURUMLAR.has(guncel.durum)) {
-          // Karar bekleyen işte de yoklama durur: iş, kullanıcı karar
-          // verene kadar kendiliğinden değişmez.
-          anketiDurdur()
-          if (guncel.durum !== 'durduruldu') {
-            const kapsama = await api.surumKapsamaAcigi(guncel.surum_id)
-            setKapsamaSayisi(kapsama.length)
-          }
-        }
-      } catch (e) {
-        anketiDurdur()
-        setHata(e instanceof Error ? e.message : 'Çözüm durumu alınamadı')
-      }
-    }, 1500)
-  }
+  // Sonuçlanan işin kapsama açığı sayısı SÜRÜMDEN okunur, işin kendisinden
+  // değil: atamalar yazıldıktan sonra tek doğru kaynak kapsama açığı
+  // tablosudur.
+  useEffect(() => {
+    if (sonuclananIs === null || sonuclananIs.durum === 'iptal') {
+      setKapsamaSayisi(null)
+      return
+    }
+    let iptalEdildi = false
+    api
+      .surumKapsamaAcigi(sonuclananIs.surum_id)
+      .then((kapsama) => {
+        if (!iptalEdildi) setKapsamaSayisi(kapsama.length)
+      })
+      .catch(() => {})
+    return () => {
+      iptalEdildi = true
+    }
+  }, [sonuclananIs])
 
   const onKontrolCalistir = async () => {
     if (donemId === null) return
@@ -158,46 +143,38 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
     setHata(null)
     setKapsamaSayisi(null)
     try {
-      const yeniIs = await api.cozumBaslat(donemId, zamanLimiti)
-      setIsKaydi(yeniIs)
-      setGecenSure(0)
-      isiIzle(yeniIs.is_id)
+      // Dönen iş kaydı KULLANILMAZ; kabuk sunucuya yeniden sorar. Kimliği
+      // burada saklamak, aynı bilginin ikinci kopyasını üretirdi.
+      await api.cozumBaslat(donemId, zamanLimiti)
+      await yenile()
     } catch (e) {
       setHata(e instanceof Error ? e.message : 'Çözüm başlatılamadı')
     }
   }
 
   const durdur = async () => {
-    if (!isKaydi) return
+    if (!aktifIs) return
     try {
-      await api.cozumDurdur(isKaydi.is_id)
+      await api.cozumDurdur(aktifIs.is_id)
+      await yenile()
     } catch (e) {
       setHata(e instanceof Error ? e.message : 'Durdurma isteği başarısız')
     }
   }
 
   const kararVer = async (karar: CozumKarari) => {
-    if (!isKaydi) return
+    if (!aktifIs) return
     if (karar === 'at' && !window.confirm('Bulunan çözüm silinecek. Bu işlem geri alınamaz.')) {
       return
     }
     setKararIsleniyor(true)
     setHata(null)
     try {
-      const yanit = await api.cozumKarari(isKaydi.is_id, karar, devamZamanLimiti)
-      if (yanit.yeni_is) {
-        // Yeni bir ARAMA başladı: süre sıfırdan işler, ekran yeni işi izler.
-        setIsKaydi(yanit.yeni_is)
-        setGecenSure(0)
-        setKapsamaSayisi(null)
-        isiIzle(yanit.yeni_is.is_id)
-      } else {
-        setIsKaydi(yanit.is_kaydi)
-        if (yanit.is_kaydi.durum !== 'iptal') {
-          const kapsama = await api.surumKapsamaAcigi(yanit.is_kaydi.surum_id)
-          setKapsamaSayisi(kapsama.length)
-        }
-      }
+      await api.cozumKarari(aktifIs.is_id, karar, devamZamanLimiti)
+      // "Devam" yeni bir iş açar, diğer ikisi işi sonlandırır; her iki
+      // durumda da yeni gerçeği sunucudan okuruz.
+      setKapsamaSayisi(null)
+      await yenile()
     } catch (e) {
       setHata(e instanceof Error ? e.message : 'Karar uygulanamadı')
     } finally {
