@@ -39,6 +39,8 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 09.08.2026 | Giriş (6.3.6) ve Kullanıcılar (6.3.7) ekranları tanımlandı; izlenebilirlik matrisine FR-10.x satırı eklendi | 1.14 |
 | Ömer HARMANKAYA | 09.08.2026 | Denetim düzeltmeleri: 4.2.4'teki zaman damgası tipleri TIMESTAMPTZ olarak güncellendi, 3.4.5'teki kaldırılmış çalışan paneli anahtarı örneği değiştirildi, 6.3.7'deki var olmayan son giriş alanı çıkarıldı | 1.15 |
 | Ömer HARMANKAYA | 11.08.2026 | fazla_kadro tablosu ve ayrı tablo gerekçesi 4.2.4'e eklendi; manuel düzenlemenin sapma tablolarını yenilediği 5.5'e yazıldı; Ek B'nin tam uç nokta listesinin ayrı ve üretilen bir belgede tutulduğu belirtildi | 1.16 |
+| Ömer HARMANKAYA | 11.08.2026 | Talep matrisinin gün tipi ekseni üç değerli olarak tanımlandı ve resmî tatil sütunlarının zorunluluğu 6.3.1'e yazıldı | 1.17 |
+| Ömer HARMANKAYA | 11.08.2026 | Diyagramlar güncel mimariye göre yeniden üretildi ve veritabanı şeması diyagramı eklendi; 3.1'deki çözücünün süreç içi kütüphane olduğu ifadesi ile 3.2'deki yönlendirici ve servis sayıları düzeltildi | 1.18 |
 
 
 
@@ -99,7 +101,7 @@ Sistem, üç katmanlı bir istemci-sunucu uygulamasıdır. Sunum katmanı taray�
 
 Uygulama katmanı iki farklı nitelikte iş yürütür ve bu ayrım mimarinin tamamını şekillendirir. Birinci nitelik, tanım yönetimi ve raporlama gibi milisaniyeler mertebesinde tamamlanan istek-yanıt işleridir. İkinci nitelik, dakikalar sürebilen çözüm işidir. Bu iki iş türü aynı süreçte çalışır ancak farklı yaşam döngülerine sahiptir: birincisi HTTP isteğiyle başlayıp yanıtla biter, ikincisi HTTP isteğiyle başlatılır fakat arka planda devam eder ve durumu veritabanı üzerinden izlenir.
 
-Sistem, dış servislere bağımlı değildir. Çözücü, ayrı bir servis değil uygulama sürecinin içinde çalışan bir kütüphanedir; ağ üzerinden erişilen bir bileşen bulunmaz. Bu, kurulum ve gösterimi tek bir sürece indirger ve dış servis kesintisi riskini ortadan kaldırır.
+Sistem, dış servislere bağımlı değildir; ağ üzerinden erişilen bir bileşen bulunmaz. Çözücü bir kütüphane olarak kullanılır ancak uygulama sürecinin içinde değil, kendi sistem servisinde çalışır (3.4.4); iki süreç yalnızca veritabanı üzerinden haberleşir. Bu ayrım, uzun süren çözüm işinin istekleri bloke etmesini ve çözüm sürecinin sonlanmasının uygulama sunucusunu etkilemesini engeller.
 
 Sistemin kullanıcıları SRS bölüm 2.2'de tanımlanan iki aktördür. Vardiya yöneticisi tanımları girer, çizelgeyi ürettirir, gerektiğinde elle düzeltir ve yayınlar. Çalışan yalnızca yayınlanmış çizelgeyi görüntüler ve tercih bildirir.
 
@@ -149,9 +151,9 @@ Uygulama katmanı, bölüm 3.1'de tanımlanan alt sistemleri dört yatay katman 
 
 #### Katman Sorumlulukları
 
-Yönlendirici Katmanı. FastAPI yönlendiricileri ince tutulur. Her uç nokta, isteği şema ile doğrular, tek bir servis metodunu çağırır ve sonucu JSON'a dönüştürür. İş mantığı bu katmanda bulunmaz. Dört yönlendirici tanımlanmıştır: tanim_router, cizelge_router, analiz_router ve calisan_router.
+Yönlendirici Katmanı. FastAPI yönlendiricileri ince tutulur. Her uç nokta, isteği şema ile doğrular, tek bir servis metodunu çağırır ve sonucu JSON'a dönüştürür. İş mantığı bu katmanda bulunmaz. Yedi yönlendirici tanımlanmıştır: tanim_router, cizelge_router, analiz_router, calisan_router, kimlik_router, kullanici_router ve saglik_router. Yetkilendirme kapıları yönlendirici düzeyinde bağlanır; böylece bir dosyaya sonradan eklenen uç noktanın kapısız kalması mümkün olmaz (5.1b).
 
-Servis Katmanı. İş mantığını ve işlem sınırlarını barındırır. Beş servis tanımlanmıştır: TanimServisi, CozumServisi, DogrulamaServisi, AnalizServisi ve SurumServisi. Bir servis metodunun başlattığı veritabanı işlemi, o metot tamamlandığında ya bütünüyle işlenir ya da bütünüyle geri alınır.
+Servis Katmanı. İş mantığını ve işlem sınırlarını barındırır. Sekiz servis tanımlanmıştır: TanimServisi, CozumServisi, DogrulamaServisi, AnalizServisi, SurumServisi, KimlikServisi, OturumServisi ve KullaniciServisi. Bir servis metodunun başlattığı veritabanı işlemi, o metot tamamlandığında ya bütünüyle işlenir ya da bütünüyle geri alınır.
 
 Depo Katmanı. Veritabanına erişimin tek noktasıdır. Her depo tek bir varlık ailesine alan tipiyle erişim sunar; ham SQL bu katmanın dışına sızmaz.
 
@@ -881,7 +883,7 @@ Silme eylemi, tanımın başka kayıtlarda kullanılıp kullanılmadığına gö
 
 - Görev Noktası Formu: Ad, bina (boş bırakılabilir) ve ön koşul yetkinliği alanlarını içerir. Bina boş bırakıldığında noktanın tesis geneli olarak değerlendirileceği alan altında belirtilir.
 
-- Talep Matrisi: Satırlarda görev noktaları, sütunlarda gün tipi ve vardiya tipi birleşimleri yer alan düzenlenebilir tablo. Hücreye tıklandığında sayı doğrudan değiştirilir; negatif değer girildiğinde satır içi doğrulama hatası gösterilir.
+- Talep Matrisi: Satırlarda görev noktaları, sütunlarda gün tipi ve vardiya tipi birleşimleri yer alan düzenlenebilir tablo. Gün tipi ekseni üç değerlidir — hafta içi, hafta sonu ve resmî tatil — dolayısıyla üç vardiya tipiyle birlikte dokuz sütun oluşur. Resmî tatil sütunlarının bulunması zorunludur: özel gün tanımıyla tatil işaretlenen bir tarih için karşılık gelen talep satırı yoksa o günün talebi sıfıra düşer ve bu, kapsama açığı üretmediği için hiçbir raporda görünmez (SRS 3.3.4). Hücreye tıklandığında sayı doğrudan değiştirilir; negatif değer girildiğinde satır içi doğrulama hatası gösterilir.
 
 - Yük Göstergesi: Talep matrisinin altında yer alan salt okunur alan. Tanımlı matristen haftalık toplam kişi-vardiya yükünü ve kural parametreleri altındaki asgari kadro büyüklüğünü hesaplayarak gösterir; matris değiştikçe güncellenir (FR-1.9).
 

@@ -38,6 +38,7 @@ Betik, VERI_TEMIZLIGINE_IZIN ortam degiskeni verilmeden calismaz
 
 import argparse
 import sys
+from dataclasses import dataclass
 from datetime import date, time, timedelta
 
 from sqlalchemy import select
@@ -53,7 +54,7 @@ from app.models.girdi import (
     TercihTipi,
 )
 from app.models.kural import Kural, KuralTipi
-from app.models.sonuc import Donem
+from app.models.sonuc import CozumIsi, Donem
 from app.models.tanim import (
     GorevNoktasi,
     OzelGun,
@@ -62,6 +63,8 @@ from app.models.tanim import (
     VardiyaTipi,
     Yetkinlik,
 )
+from app.repositories.sonuc import CizelgeSurumuDeposu
+from app.services.cozum_servisi import CozumServisi, cozum_isini_calistir
 from app.services.ornek_senaryo import (
     NOKTA_TANIMLARI,
     PERSONEL_GRUPLARI,
@@ -149,45 +152,58 @@ _KURAL_TANIMLARI: list[dict] = [
     {"kimlik": "S8", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 15},
 ]
 
-_RAHAT_BASLANGIC = date(2026, 2, 2)  # Pazartesi
-_SIKISIK_BASLANGIC = date(2026, 3, 2)  # Pazartesi
-# SRS 3.3: planlama donemi varsayilan olarak bir haftadir (kullanici
-# istedigi uzunluga cikarabilir - bu bir kisit degil, YENI donem
-# olusturmanin baslangic degeri). Rahat senaryo bu varsayilanla uyumlu
-# basit bir ornek oldugu icin 7 gune indirildi.
-_RAHAT_DONEM_UZUNLUGU_GUN = 7
-# Sikisik senaryonun 28 gun (dort hafta) olmasi KASITLIDIR, varsayilanla
-# tutarsizlik degildir: senaryonun tasidigi bilgi, acigin donem icinde
-# SEYRELMESI - yani on_kontrol'un (SDD 5.2) donem geneli toplamlara bakarak
-# bu haftalik/yerel darbogazi KACIRMASI, yalnizca cozucunun kapsama_acigi'yla
-# ortaya cikmasidir (bkz. Sprint 2 Gun 7/8, PROGRESS.md, Backlog B-14).
-# Donem 7 gune inseydi izin donemin tamamini kaplar, on_kontrol acigi
-# dogrudan yakalayip isi cozucu hic calismadan basarisiz bitirirdi -
-# senaryo varlik nedenini kaybederdi. Sikisik senaryo bu yuzden ayri ve
-# daha uzun bir sabit kullanir.
+# --- Donem takvimi: BUGUNE GORE, sabit tarihlerle DEGIL --------------------
+#
+# Donemler eskiden 2026 Subat/Mart'a sabitlenmisti. Gosterim verisinin
+# uretildigi gun o tarihleri gectiginde sistem BOS gorunuyordu: calisan
+# panelinin "Vardiyalarim"i `guncel_donemi_bul(bugun)` ile calisir ve bugunu
+# iceren bir donem yoksa hicbir sey gosteremez; tercih bildirimi de acik bir
+# donem bulamaz. Yani demo, uretildikten birkac hafta sonra kendini
+# gosteremez hale geliyordu.
+#
+# Butun donemler PAZARTESI baslar (SRS 3.3: haftalik planlama) ve
+# birbirleriyle CAKISMAZ - `guncel_donemi_bul` cakisan donemlerde hangisini
+# sececegini bilemezdi.
+
+
+def _bu_haftanin_pazartesisi(bugun: date) -> date:
+    return bugun - timedelta(days=bugun.weekday())
+
+
+# Sabit tarihli ulusal bayramlar (ay, gun, ad). Dini bayramlar KASITLI olarak
+# yok: tarihleri hicri takvime bagli oldugu icin gosterim verisine tahmini bir
+# tarih yazmak, dogru sanilan yanlis bir veri uretirdi. Kullanici onlari Ozel
+# Gun ekranindan kendisi ekler (FR-1.10).
+_ULUSAL_BAYRAMLAR: tuple[tuple[int, int, str], ...] = (
+    (1, 1, "Yılbaşı"),
+    (4, 23, "Ulusal Egemenlik ve Çocuk Bayramı"),
+    (5, 1, "Emek ve Dayanışma Günü"),
+    (5, 19, "Atatürk'ü Anma, Gençlik ve Spor Bayramı"),
+    (7, 15, "Demokrasi ve Millî Birlik Günü"),
+    (8, 30, "Zafer Bayramı"),
+    (10, 29, "Cumhuriyet Bayramı"),
+)
+
 _SIKISIK_DONEM_UZUNLUGU_GUN = 28
 
-# Ucuncu senaryo: RESMI TATIL iceren bir hafta (FR-1.10, TD-3). 23 Nisan 2026
-# persembe gunune denk geliyor, yani hafta ici bir gun tatile donuyor ve
-# talep o gun icin hafta sonu kadrosuna (azaltilmis sutun) dusuyor. Hafta ici
-# bir gunun secilmesi kasitli: hafta sonuna denk gelen bir tatil talebi zaten
-# degistirmezdi ve senaryo hicbir sey gostermezdi.
-_TATILLI_BASLANGIC = date(2026, 4, 20)  # Pazartesi; 23 Nisan Persembe iceride
-_TATILLI_DONEM_UZUNLUGU_GUN = 7
 
-# 2026'nin SABIT TARIHLI ulusal bayramlari. Dini bayramlar (Ramazan, Kurban)
-# kasitli olarak YOK: tarihleri hicri takvime bagli oldugu icin gosterim
-# verisine yanlis bir tarih yazmak, dogru sanilan bir veri uretirdi.
-# Kullanici onlari Ozel Gun ekranindan kendisi ekler.
-_OZEL_GUNLER: tuple[tuple[date, str], ...] = (
-    (date(2026, 1, 1), "Yılbaşı"),
-    (date(2026, 4, 23), "Ulusal Egemenlik ve Çocuk Bayramı"),
-    (date(2026, 5, 1), "Emek ve Dayanışma Günü"),
-    (date(2026, 5, 19), "Atatürk'ü Anma, Gençlik ve Spor Bayramı"),
-    (date(2026, 7, 15), "Demokrasi ve Millî Birlik Günü"),
-    (date(2026, 8, 30), "Zafer Bayramı"),
-    (date(2026, 10, 29), "Cumhuriyet Bayramı"),
-)
+def _bayram_takvimi(bugun: date) -> list[tuple[date, str]]:
+    """Icinde bulunulan ve sonraki yilin sabit tarihli bayramlari.
+
+    Iki yil: yil sonuna yakin uretilen bir demoda "bundan sonraki ilk
+    bayram" gelecek yila dusuyor ve tek yil uretmek tatilli donemi
+    imkansiz kilardi.
+    """
+    return [
+        (date(yil, ay, gun), ad)
+        for yil in (bugun.year, bugun.year + 1)
+        for ay, gun, ad in _ULUSAL_BAYRAMLAR
+    ]
+
+
+def _ilk_bayram(bugun: date, en_erken: date) -> tuple[date, str]:
+    """`en_erken` tarihinden sonraki ilk ulusal bayram."""
+    return next((t, ad) for t, ad in sorted(_bayram_takvimi(bugun)) if t >= en_erken)
 
 
 def _mevcut_demo_verisi_var_mi(oturum: Session) -> bool:
@@ -320,41 +336,88 @@ def _personeli_olustur(
     return gruplar
 
 
-def _ozel_gunleri_olustur(oturum: Session) -> None:
-    """FR-1.10: resmi tatil takvimi.
+def _ozel_gunleri_olustur(oturum: Session, bugun: date) -> None:
+    """FR-1.10: resmi tatil takvimi (icinde bulunulan ve sonraki yil).
 
-    Talep matrisi artik RESMI_TATIL satirlari tasidigi icin (bkz.
-    ornek_senaryo.talep_satirlarini_olustur) bu gunler gercekten
-    azaltilmis kadroyla cozulur; TD-3 uyarinca adalet sayaclarinda da
-    hafta sonuyla ayni sayaca eklenirler.
+    Talep matrisi RESMI_TATIL satirlari tasidigi icin (bkz.
+    ornek_senaryo.talep_satirlarini_olustur) bu gunler gercekten azaltilmis
+    kadroyla cozulur; TD-3 uyarinca adalet sayaclarinda da hafta sonuyla
+    ayni sayaca eklenirler.
     """
-    oturum.add_all(OzelGun(tarih=tarih, ad=ad) for tarih, ad in _OZEL_GUNLER)
+    oturum.add_all(OzelGun(tarih=tarih, ad=ad) for tarih, ad in _bayram_takvimi(bugun))
     oturum.flush()
 
 
+@dataclass(frozen=True, slots=True)
+class DemoDonemleri:
+    gecen: Donem
+    bu_hafta: Donem
+    sikisik: Donem
+    tatilli: Donem
+
+
 def _donemleri_ve_izinleri_olustur(
-    oturum: Session, personel_gruplari: dict[str, list[Personel]]
-) -> None:
-    rahat = Donem(
-        baslangic_tarihi=_RAHAT_BASLANGIC,
-        bitis_tarihi=_RAHAT_BASLANGIC + timedelta(days=_RAHAT_DONEM_UZUNLUGU_GUN - 1),
-        tercih_son_tarihi=_RAHAT_BASLANGIC - timedelta(days=7),
+    oturum: Session, personel_gruplari: dict[str, list[Personel]], bugun: date
+) -> DemoDonemleri:
+    """Dort donem, bugune gore ve cakismayacak bicimde.
+
+    | Donem     | Yeri            | Ne gosterir                                  |
+    |-----------|-----------------|----------------------------------------------|
+    | Gecen     | onceki hafta    | Yayinlanmis gecmis cizelge; bir sonraki       |
+    |           |                 | donemin isitma penceresi (TD-5)               |
+    | Bu Hafta  | BUGUNU ICERIR   | Calisan panelinin "Vardiyalarim"i ve          |
+    |           |                 | "siradaki vardiya"si ancak boyle calisir      |
+    | Sikisik   | gelecek 4 hafta | Kapanamayan kapsama acigi (Backlog B-14)      |
+    | Tatilli   | ilk bayram      | Resmi tatil cozumlemesi + acik tercih         |
+    |           | haftasi         | penceresi                                     |
+    """
+    bu_pzt = _bu_haftanin_pazartesisi(bugun)
+
+    def kapali_pencere(baslangic: date) -> date:
+        """Tercih penceresini KESIN olarak kapali birakan son tarih.
+
+        `tercihe_acik_donemi_bul` "tercih_son_tarihi >= bugun" olan en erken
+        donemi dondurur; demoda tercih bildirimini TATILLI donem uzerinden
+        gostermek istiyoruz, dolayisiyla digerlerinin penceresi bugunden once
+        kapanmis olmali. Yalnizca "baslangic - 7 gun" yazmak yetmezdi: demo
+        pazartesi uretildiginde o tarih bugune esit cikip pencereyi acik
+        birakirdi.
+        """
+        return min(baslangic - timedelta(days=7), bugun - timedelta(days=1))
+
+    gecen_bas = bu_pzt - timedelta(days=7)
+    gecen = Donem(
+        baslangic_tarihi=gecen_bas,
+        bitis_tarihi=gecen_bas + timedelta(days=6),
+        tercih_son_tarihi=kapali_pencere(gecen_bas),
     )
+    bu_hafta = Donem(
+        baslangic_tarihi=bu_pzt,
+        bitis_tarihi=bu_pzt + timedelta(days=6),
+        tercih_son_tarihi=kapali_pencere(bu_pzt),
+    )
+    sikisik_bas = bu_pzt + timedelta(days=7)
     sikisik = Donem(
-        baslangic_tarihi=_SIKISIK_BASLANGIC,
-        bitis_tarihi=_SIKISIK_BASLANGIC + timedelta(days=_SIKISIK_DONEM_UZUNLUGU_GUN - 1),
-        tercih_son_tarihi=_SIKISIK_BASLANGIC - timedelta(days=7),
+        baslangic_tarihi=sikisik_bas,
+        bitis_tarihi=sikisik_bas + timedelta(days=_SIKISIK_DONEM_UZUNLUGU_GUN - 1),
+        tercih_son_tarihi=kapali_pencere(sikisik_bas),
     )
-    # Ucuncu senaryo: icinde resmi tatil bulunan bir hafta (FR-1.10, TD-3).
+
+    # Tatilli donem: sikisik donem bittikten SONRAKI ilk ulusal bayrami
+    # iceren hafta. Sabit bir tarih secilemez - donemler bugune gore kaydigi
+    # icin hangi haftaya denk gelecegi uretim gunune bagli.
+    bayram_tarihi, _bayram_adi = _ilk_bayram(bugun, sikisik.bitis_tarihi + timedelta(days=1))
+    tatilli_bas = _bu_haftanin_pazartesisi(bayram_tarihi)
     tatilli = Donem(
-        baslangic_tarihi=_TATILLI_BASLANGIC,
-        bitis_tarihi=_TATILLI_BASLANGIC + timedelta(days=_TATILLI_DONEM_UZUNLUGU_GUN - 1),
-        # Tercih penceresi ACIK birakilir (donem baslangicindan sonrasi):
-        # calisan panelinden tercih bildirimi (FR-3.3, FR-9.6) demoda
-        # denenebilsin diye. Diger iki donemde pencere kapali.
-        tercih_son_tarihi=_TATILLI_BASLANGIC + timedelta(days=_TATILLI_DONEM_UZUNLUGU_GUN),
+        baslangic_tarihi=tatilli_bas,
+        bitis_tarihi=tatilli_bas + timedelta(days=6),
+        # TEK ACIK tercih penceresi. `tercihe_acik_donemi_bul` en erken
+        # baslayan acik donemi dondurdugu icin, digerleri de acik olsaydi
+        # calisan panelindeki tercih formu bu donemi hic gostermezdi -
+        # oysa demonun tercih kayitlari bu doneme bagli.
+        tercih_son_tarihi=tatilli_bas + timedelta(days=6),
     )
-    oturum.add_all([rahat, sikisik, tatilli])
+    oturum.add_all([gecen, bu_hafta, sikisik, tatilli])
     oturum.flush()
 
     # SRS 3.3.6: vardiya sefligi havuzunun teorik asgarisi 5 kisidir ("Izin
@@ -364,16 +427,14 @@ def _donemleri_ve_izinleri_olustur(
     # tavaniyla sinirli azami HAFTALIK kapasiteyi (4x5=20) haftalik
     # gerekenin (21) altinda birakarak kapanamayan bir kapsama acigi
     # dogurur - izin suresi bilerek donemin (28 gun) TAMAMINDAN KISA
-    # tutulur ki acik donem geneli toplamlarda seyrelsin (bkz. yukaridaki
-    # _SIKISIK_DONEM_UZUNLUGU_GUN notu).
+    # tutulur ki acik donem geneli toplamlarda seyrelsin.
     vardiya_sefleri = personel_gruplari["VS"]
-    izinli_sure = timedelta(days=13)  # iki hafta
     for personel in vardiya_sefleri[:5]:
         oturum.add(
             Musaitlik(
                 personel_id=personel.personel_id,
-                baslangic_tarihi=_SIKISIK_BASLANGIC,
-                bitis_tarihi=_SIKISIK_BASLANGIC + izinli_sure,
+                baslangic_tarihi=sikisik.baslangic_tarihi,
+                bitis_tarihi=sikisik.baslangic_tarihi + timedelta(days=13),
                 dilim=MusaitlikDilimi.TAM_GUN,
                 tip=MusaitlikTipi.YILLIK_IZIN,
                 not_="Demo: sikisik senaryo - vardiya sefligi kapsama acigi",
@@ -382,6 +443,7 @@ def _donemleri_ve_izinleri_olustur(
 
     _tatilli_donem_girdileri(oturum, personel_gruplari, tatilli)
     oturum.flush()
+    return DemoDonemleri(gecen=gecen, bu_hafta=bu_hafta, sikisik=sikisik, tatilli=tatilli)
 
 
 def _tatilli_donem_girdileri(
@@ -486,9 +548,74 @@ def _tatilli_donem_girdileri(
     )
 
 
-def uret(*, sifirla: bool) -> None:
+def _donemi_coz(oturum: Session, donem: Donem, *, zaman_limiti: int, etiket: str) -> int | None:
+    """Donemi GERCEK cozucuyle cozer ve surum kimligini dondurur.
+
+    Neden gercek cozucu: elle uydurulmus bir cizelge kural ihlali tasiyabilir
+    ve Cizelge ekraninda ihlal isaretleriyle acilirdi; ayrica ceza dokumu,
+    kapsama acigi ve cozum isi kaydi gibi ekranlarin okudugu her sey ancak
+    cozucuden gercek degerlerle dolar. Kisa zaman limiti yeterli - gosterim
+    verisi eniyilenmis olmak zorunda degil, GECERLI olmak zorunda.
+    """
+    servis = CozumServisi(oturum)
+    is_kaydi = servis.baslat(donem.donem_id, zaman_limiti_saniye=zaman_limiti)
+    if is_kaydi is None:
+        return None
+    print(f"  {etiket}: cozuluyor (limit {zaman_limiti} sn)...", flush=True)
+    cozum_isini_calistir(oturum, is_kaydi.is_id)
+    yenilenen = oturum.get(CozumIsi, is_kaydi.is_id)
+    durum = yenilenen.durum.value if yenilenen else "?"
+    print(f"  {etiket}: {durum}", flush=True)
+    return is_kaydi.surum_id
+
+
+def _cizelgeleri_uret(oturum: Session, donemler: DemoDonemleri) -> None:
+    """Donemleri cozer ve sonuclari YAYIN DURUMLARINA dagitir.
+
+    Eskiden uretec yalnizca tanim ve girdi yaziyordu; hicbir cizelge sürümü
+    yoktu. Sonucta Cizelge, Analiz ve Surumler ekranlari bos aciliyor,
+    calisan paneli de "yayinlanmis surum yok" diyordu - yani demo, urunun
+    asil gosterdigi seyi gosteremiyordu.
+
+    Dagilim bilincli; TD-8'deki dort durumun tamami ekranda gorunur:
+      Gecen    -> yayinlandi        (gecmis cizelge; bir sonrakinin isitma
+                                     penceresi, TD-5)
+      Bu Hafta -> arsiv + yayinlandi (iki surum: FR-9.4'un "degisen gunler"
+                                     isareti ancak bir arsiv tabani varsa
+                                     hesaplanabilir)
+      Sikisik  -> cozuldu           (kapsama acikli; yayinlanmamis)
+      Tatilli  -> surum YOK         (henuz cozulmemis donem; tercih penceresi
+                                     acik oldugu icin once tercih toplanir)
+    """
+    surum_depo = CizelgeSurumuDeposu(oturum)
+
+    gecen_surum = _donemi_coz(oturum, donemler.gecen, zaman_limiti=15, etiket="Gecen Donem")
+    if gecen_surum is not None:
+        surum_depo.yayinla(gecen_surum)
+        oturum.commit()
+
+    ilk = _donemi_coz(oturum, donemler.bu_hafta, zaman_limiti=15, etiket="Bu Hafta (1. surum)")
+    if ilk is not None:
+        surum_depo.yayinla(ilk)
+        oturum.commit()
+        # Ikinci surum: yeniden cozum (SDD 5.6). Yayinlandiginda birincisi
+        # arsive duser ve calisan panelindeki karsilastirma tabani olusur.
+        ikinci_is = CozumServisi(oturum).baslat(onceki_surum_id=ilk, zaman_limiti_saniye=15)
+        if ikinci_is is not None:
+            print("  Bu Hafta (2. surum): yeniden cozuluyor...", flush=True)
+            cozum_isini_calistir(oturum, ikinci_is.is_id)
+            surum_depo.yayinla(ikinci_is.surum_id)
+            oturum.commit()
+            print("  Bu Hafta (2. surum): yayinlandi, 1. surum arsivde", flush=True)
+
+    _donemi_coz(oturum, donemler.sikisik, zaman_limiti=30, etiket="Sikisik Donem")
+    oturum.commit()
+
+
+def uret(*, sifirla: bool, coz: bool = True) -> None:
     oturum = OturumYerel()
     temizlik: TemizlikSonucu | None = None
+    bugun = date.today()
     try:
         if not sifirla and _mevcut_demo_verisi_var_mi(oturum):
             print(
@@ -510,11 +637,15 @@ def uret(*, sifirla: bool) -> None:
         noktalar = _noktalari_olustur(oturum, yetkinlikler)
         _talebi_olustur(oturum, noktalar, vardiyalar)
         _kurallari_olustur(oturum)
-        _ozel_gunleri_olustur(oturum)
+        _ozel_gunleri_olustur(oturum, bugun)
         personel_gruplari = _personeli_olustur(oturum, yetkinlikler, vardiyalar)
-        _donemleri_ve_izinleri_olustur(oturum, personel_gruplari)
+        donemler = _donemleri_ve_izinleri_olustur(oturum, personel_gruplari, bugun)
 
         oturum.commit()
+
+        if coz:
+            print("Cizelgeler uretiliyor (gercek cozucu):", flush=True)
+            _cizelgeleri_uret(oturum, donemler)
     except Exception:
         oturum.rollback()
         raise
@@ -526,8 +657,8 @@ def uret(*, sifirla: bool) -> None:
         f"Demo verisi uretildi: {toplam_personel} personel "
         f"({len(_SABIT_VARDIYALI)} sabit vardiyali, {len(_PASIF_PERSONEL)} pasif), "
         f"{len(NOKTA_TANIMLARI)} gorev noktasi, {len(_KURAL_TANIMLARI)} kural, "
-        f"{len(_OZEL_GUNLER)} resmi tatil, 3 donem "
-        f"(Rahat, Sikisik, Tatilli)."
+        f"{len(_bayram_takvimi(bugun))} resmi tatil, 4 donem "
+        f"(Gecen, Bu Hafta, Sikisik, Tatilli)."
     )
     # Silinen hesap SESSIZ kalmamali: silinen sey bir kullanicinin sisteme
     # girisidir, gecmis dondugunde geri gelmez.
@@ -546,9 +677,18 @@ if __name__ == "__main__":
     ayristirici.add_argument(
         "--reset", action="store_true", help="Mevcut demo verisini silip yeniden uretir."
     )
+    ayristirici.add_argument(
+        "--cozme",
+        action="store_true",
+        help=(
+            "Cizelgeleri URETME - yalnizca tanim ve girdi verisi yazilir. "
+            "Cozum birkac on saniye surer; yalnizca tanim ekranlarina "
+            "bakilacaksa bu bayrakla atlanabilir."
+        ),
+    )
     argumanlar = ayristirici.parse_args()
     try:
-        uret(sifirla=argumanlar.reset)
+        uret(sifirla=argumanlar.reset, coz=not argumanlar.cozme)
     except UretimKilidiError as hata:
         # Yigin izi YAZILMAZ. Bu bir program hatasi degil, kasitli bir ret;
         # mesajin kendisi ne yapilacagini soyluyor (NFR-5: hata mesajlari

@@ -33,6 +33,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 09.08.2026 | Uygulama sırasında ortaya çıkan üç sınır tanımlandı: kullanıcı adlarının ASCII kümesiyle sınırlanması (FR-10.11), personel başına tek hesap (FR-10.6) ve kilit/devre dışı bildirimlerinin yalnızca doğru parolada gösterilmesi (FR-10.8) | 1.8 |
 | Ömer HARMANKAYA | 11.08.2026 | S1'in üst sınırının çözüm ile manuel düzenlemede farklı bağlayıcılıkta olduğu 4.3'e yazıldı: çözücüde zorunlu, manuel düzenlemede cezasız uyarı; uyarının sürüm raporunda kalıcı olması istendi | 1.9 |
 | Ömer HARMANKAYA | 11.08.2026 | Kapsama açığı dışa aktarma biçimi fazla kadro kayıtlarını da taşıyacak biçimde genişletildi (tür sütunu, kisi_sayisi); uygulamada karşılığı bulunmayan sözleşme tipi alanı 3.1 ve FR-1.1'den çıkarıldı | 1.10 |
+| Ömer HARMANKAYA | 11.08.2026 | Talep kayıtlarının gün tipi başına ayrı satırlar hâlinde tutulduğu ve resmî tatil satırlarının zorunluluğu 3.3.4'e yazıldı | 1.11 |
 
 
 
@@ -264,7 +265,7 @@ Tesiste iki bina bulunmaktadır, ancak görev noktaları bina ayrımı yapılmad
 
 
 
-Hafta sonu ve resmî tatillerde üç vardiyanın tamamı azaltılmış kadroyla çalışır. Müracaat noktası yalnızca hafta içi gündüz ve akşam vardiyalarında açıktır. Güvenlik talebi, önceki sürümde ayrı satırlar olan kapı ve kontrol odası taleplerinin toplamıdır; toplam kişi sayısı değişmemiştir, yalnızca noktanın kendisi birleşmiştir.
+Hafta sonu ve resmî tatillerde üç vardiyanın tamamı azaltılmış kadroyla çalışır. Tablodaki üçüncü sütun bu ortak kadroyu tanımlasa da, talep kayıtları gün tipi başına ayrı satırlar hâlinde tutulur: hafta içi, hafta sonu ve resmî tatil için ayrı satırlar bulunur. Resmî tatil satırlarının eksik olması, o gün için hiçbir genel satır bulunamamasına ve talebin sessizce sıfıra düşmesine yol açar; talep sıfır olduğunda kapsama açığı da doğmayacağı için durum hiçbir raporda görünmez. Bu nedenle resmî tatil satırları, tatil tanımı yapılabilen her kurulumda bulunmak zorundadır. Müracaat noktası yalnızca hafta içi gündüz ve akşam vardiyalarında açıktır. Güvenlik talebi, önceki sürümde ayrı satırlar olan kapı ve kontrol odası taleplerinin toplamıdır; toplam kişi sayısı değişmemiştir, yalnızca noktanın kendisi birleşmiştir.
 
 ### 3.3.5 Kural Parametreleri
 

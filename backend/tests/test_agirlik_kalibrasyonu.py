@@ -36,16 +36,23 @@ def test_s1_agirligi_diger_hedeflerin_agirlikli_toplamindan_buyuk() -> None:
         # temizler, o yuzden burada kosulsuz temizleniyor.
         _her_seyi_temizle(oturum)
         oturum.commit()
-        uret(sifirla=False)
+        # coz=False: bu test cozumu KENDISI yurutuyor ve ceza dokumlerini
+        # karsilastiriyor. Uretecin ayrica cozmesi hem sureyi ikiye
+        # katlar hem de olculecek surumu belirsizlestirirdi.
+        uret(sifirla=False, coz=False)
         oturum.commit()
         donemler = oturum.execute(select(Donem).order_by(Donem.donem_id)).scalars().all()
-        assert len(donemler) == 3, "demo_veri_uret uc donem uretmeli (Rahat, Sikisik, Tatilli)"
-        # Kalibrasyon yalniz ilk iki donemi olcer: agirlik dengesi "kadro
-        # yeterken acik birakilmamali" (Rahat) ve "kadro yetmezken acik
-        # gorunmeli" (Sikisik) uzerinden tanimli. Ucuncu donem resmi tatil
+        assert (
+            len(donemler) == 4
+        ), "demo_veri_uret dort donem uretmeli (Gecen, Bu Hafta, Sikisik, Tatilli)"
+        # Kalibrasyon iki donem olcer: agirlik dengesi "kadro yeterken acik
+        # birakilmamali" (rahat bir hafta) ve "kadro yetmezken acik gorunmeli"
+        # (Sikisik) uzerinden tanimli. Donemler tarih sirasinda: Gecen,
+        # Bu Hafta, Sikisik, Tatilli. Rahat ornek olarak "Bu Hafta" alinir -
+        # izin kaydi tasimayan bir hafta. Tatilli donem resmi tatil
         # cozumlemesini gostermek icin var, agirlik dengesine yeni bir sey
         # soylemez.
-        rahat_id, sikisik_id = donemler[0].donem_id, donemler[1].donem_id
+        rahat_id, sikisik_id = donemler[1].donem_id, donemler[2].donem_id
 
         w1 = oturum.execute(select(Kural.agirlik).where(Kural.kimlik == "S1")).scalar_one()
 

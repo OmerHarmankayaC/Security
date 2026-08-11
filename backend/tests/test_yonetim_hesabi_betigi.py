@@ -161,3 +161,21 @@ def test_kullanicilar_arasinda_kurulum_hesabi_ayricalikli_degil(oturum) -> None:
     sutunlar = {s.name for s in Kullanici.__table__.columns}
     assert "kurulum" not in " ".join(sutunlar)
     assert kayit.rol is Rol.YONETIM
+
+
+def test_varsayilan_kullanici_adi_admin() -> None:
+    """Sistem yoneticisinin varsayilan adi `admin`.
+
+    Sabit ve Ingilizce: hesabi acan kisi ile sonradan giren kisi cogu zaman
+    ayni degil ve "hangi adi vermistim" sorusu, parolasi bilinen ama adi
+    hatirlanmayan bir hesap uretiyordu. Ad bir sir degildir - giris ekrani
+    kullanici adinin varligini zaten ele vermez (SDD 5.1b).
+    """
+    from scripts.yonetim_hesabi_olustur import VARSAYILAN_KULLANICI_ADI
+
+    assert VARSAYILAN_KULLANICI_ADI == "admin"
+    # Ad, hesap acma yolundaki desene uymali; uymasaydi betik kendi
+    # varsayilaniyla calismazdi.
+    from app.services.kullanici_servisi import KullaniciServisi
+
+    assert KullaniciServisi._adi_dogrula(VARSAYILAN_KULLANICI_ADI) == "admin"

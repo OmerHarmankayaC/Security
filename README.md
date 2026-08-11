@@ -69,46 +69,47 @@ Oturum çerezi üretimde `Secure` niteliği taşır ve tarayıcı onu düz
 hata göstermeden başarısız olur.
 
 Gösterim amaçlı örnek veri (FR-1.14 — SRS 3.3'teki güvenlik personeli
-senaryosu: 44 personel, 3 görev noktası, talep matrisi, 17 kural, 7 resmî
-tatil ve üç dönem):
+senaryosu). Dönemler **üretildiği güne göre** yerleşir ve çizelgeler
+**gerçek çözücüyle** üretilir; veri sabit tarihlere çakılı değildir:
 
-| Dönem | Uzunluk | Ne gösterir |
-|---|---|---|
-| Rahat | 1 hafta | Kadro talebi rahatlıkla karşılıyor; izin kaydı yok |
-| Sıkışık | 4 hafta | Vardiya şefliği havuzunun yarısı iki hafta izinli — ön kontrolün kaçırdığı, yalnızca çözücünün gösterdiği kapsama açığı (Backlog B-14) |
-| Tatilli | 1 hafta | 23 Nisan içeride: resmî tatil azaltılmış kadroya düşer (FR-1.10, TD-3). Müsaitlik tiplerinin tamamı ve yarım gün dilimler (TD-4), tercihin üç durumu ve tercih penceresi açık |
+| Dönem | Yeri | Durum | Ne gösterir |
+|---|---|---|---|
+| Geçen | önceki hafta | yayınlandı | Geçmiş çizelge; bir sonrakinin ısıtma penceresi (TD-5) |
+| Bu Hafta | **bugünü içerir** | arşiv + yayınlandı | Çalışan panelinin "Vardiyalarım" ve "sıradaki vardiya"sı; iki sürüm olduğu için "değişen günler" işareti de çalışır (FR-9.4) |
+| Sıkışık | gelecek 4 hafta | çözüldü | Kapanamayan kapsama açığı (Backlog B-14) |
+| Tatilli | ilk ulusal bayram haftası | sürüm yok | Resmî tatil azaltılmış kadroya düşer (FR-1.10, TD-3); **tercih penceresi açık** olan tek dönem |
 
-Ayrıca 3 sabit vardiyalı ve 1 pasifleştirilmiş personel kaydı var; ikisi de
-daha önce demo verisinde hiç görünmüyordu.
+Ayrıca 44 personel (3 sabit vardiyalı, 1 pasifleştirilmiş), iki yıllık
+resmî tatil takvimi, dört müsaitlik tipinin tamamı, yarım gün dilimler
+(TD-4) ve tercihin üç durumu.
 
 ```bash
 cd backend && source .venv/bin/activate
 python scripts/demo_veri_uret.py           # ilk calistirma
 python scripts/demo_veri_uret.py --reset   # var olan demo verisini silip yeniden uretir
+python scripts/demo_veri_uret.py --reset --cozme   # cizelge uretmeden, yalnizca tanimlar
 ```
 
-## ⚠️ Veritabanını boşaltan komutlar
+Çözüm birkaç on saniye sürer; yalnızca tanım ekranlarına bakacaksanız
+`--cozme` ile atlayabilirsiniz.
 
-Üç şey, üzerinde çalıştığı veritabanını **boşaltır**:
+## Giriş
 
-| Komut | Ne siler |
-|---|---|
-| `python -m pytest` | Tanım/girdi/kural/sonuç tabloları **ve bütün hesaplar** — yönetim hesabı dahil |
-| `scripts/kabul_olcumu.py` | Aynı tablolar + **personel kaydına bağlı** hesaplar (yönetim hesapları kalır) |
-| `scripts/demo_veri_uret.py --reset` | Aynı sözleşme |
+Sistemde kayıt ekranı yoktur (FR-10.1); ilk hesap arayüz dışı bir betikle
+açılır (FR-10.10). Varsayılan kullanıcı adı **`admin`**, rolü yönetim —
+kullanıcı hesaplarını yönetebilen tek rol:
 
-Silinecek tabloların listesi tek yerdedir: [`backend/app/veri_temizligi.py`](backend/app/veri_temizligi.py).
-
-Üçü de `VERI_TEMIZLIGINE_IZIN` ayarı olmadan **çalışmayı reddeder**. Ayar
-geliştirme makinesinde `backend/.env` içindedir:
-
-```
-VERI_TEMIZLIGINE_IZIN=true
+```bash
+cd backend && source .venv/bin/activate
+python scripts/yonetim_hesabi_olustur.py
 ```
 
-**Gösterim sunucusuna eklenmez.** Kilit tam da ayarın yokluğunda devrededir;
-sunucuda `.env` bu satırı taşımadığı sürece bu komutlar oraya zarar veremez
-(bkz. [`deploy/DAGITIM.md`](deploy/DAGITIM.md) bölüm 8).
+Parola argüman olarak verilemez; betik onu ekrana yazmadan iki kez sorar
+(en az 12 karakter). Sonraki hesaplar arayüzdeki Kullanıcılar ekranından
+açılır.
+
+**Uyarı:** `python -m pytest` bütün hesapları siler (bkz. aşağıdaki bölüm);
+takımı çalıştırdıktan sonra bu betiği yeniden çalıştırmanız gerekir.
 
 Frontend:
 

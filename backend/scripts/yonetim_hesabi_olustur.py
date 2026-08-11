@@ -39,6 +39,13 @@ from app.models.kimlik import Kullanici, Rol  # noqa: E402
 from app.services.kullanici_servisi import KullaniciServisi  # noqa: E402
 from app.services.parola import ASGARI_UZUNLUK  # noqa: E402
 
+# Sistem yoneticisinin (yonetim rolu) varsayilan kullanici adi. Ingilizce ve
+# sabit: bu hesabi acan kisi ile sonradan giren kisi cogu zaman ayni degildir
+# ve "hangi adi vermistim" sorusu, parolasi bilinen ama adi hatirlanmayan bir
+# hesap uretir. Kullanici adi bir sir degildir (giris ekrani onu zaten ele
+# vermez, bkz. SDD 5.1b); tahmin edilebilir olmasi bir zayiflik degil.
+VARSAYILAN_KULLANICI_ADI = "admin"
+
 
 def yonetim_hesabi_var_mi(oturum) -> bool:  # noqa: ANN001 - Session
     """Aktif bir yonetim hesabi var mi?
@@ -101,8 +108,8 @@ def main() -> int:
     )
     ayristirici.add_argument(
         "--kullanici-adi",
-        default=None,
-        help="Hesabin kullanici adi (verilmezse sorulur)",
+        default=VARSAYILAN_KULLANICI_ADI,
+        help=f"Hesabin kullanici adi (varsayilan: {VARSAYILAN_KULLANICI_ADI})",
     )
     ayristirici.add_argument(
         "--ilk-giriste-degistir",
@@ -135,7 +142,7 @@ def main() -> int:
             )
             return 1
 
-        kullanici_adi = argumanlar.kullanici_adi or input("Kullanici adi: ")
+        kullanici_adi = argumanlar.kullanici_adi
         parola = _parolayi_sor()
         if parola is None:
             return 2
