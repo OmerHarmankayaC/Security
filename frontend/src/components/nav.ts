@@ -1,3 +1,16 @@
+import {
+  Calendar,
+  ChartColumn,
+  Database,
+  Grid3x3,
+  House,
+  Layers,
+  Play,
+  Star,
+  Users,
+  type LucideIcon,
+} from 'lucide-react'
+
 export const NAV_OGELERI = [
   'Özet',
   'Tanımlar',
@@ -14,7 +27,35 @@ export const NAV_OGELERI = [
 
 export type NavOgesi = (typeof NAV_OGELERI)[number]
 
-// Tasarım Referansı sürüm 3: yan menü düz bir liste değil, üç başlık
+/**
+ * Menü simgeleri (Tasarım Referansı sürüm 4, "Menü simgeleri").
+ *
+ * Kural: 17×17px, kontur kalınlığı 2, dolgu yok, sade geometri. Renk metinle
+ * aynıdır — ayrı bir renk sınıfı verilmez, `currentColor` üzerinden menü
+ * öğesinin kendi renginden (aktif `chrome-ink`, pasif `chrome-ink-muted`)
+ * miras alınır.
+ *
+ * Kaynak lucide-react: projede zaten bağımlılıktı ve kontur tabanlı olduğu
+ * için kuralın üçüne birden uyuyor; inline SVG yazmak yerine o kullanılır,
+ * yeni bağımlılık eklenmez.
+ *
+ * `Kullanıcılar` dokümandaki sekiz öğenin dışındadır (kimlik doğrulama
+ * fazında eklendi, Figma'da karşılığı henüz yok — bkz. TASARIM_REFERANSI.md
+ * "Henüz tasarlanmamış"). Menüde simgesiz tek öğe kalmasın diye eşlendi.
+ */
+export const NAV_SIMGELERI: Record<NavOgesi, LucideIcon> = {
+  Özet: House,
+  Tanımlar: Database,
+  Müsaitlik: Calendar,
+  Tercihler: Star,
+  Çizelge: Grid3x3,
+  Çözüm: Play,
+  Analiz: ChartColumn,
+  Sürümler: Layers,
+  Kullanıcılar: Users,
+}
+
+// Tasarım Referansı sürüm 4: yan menü düz bir liste değil, üç başlık
 // altında toplanır (bkz. "Sayfa İskeleti — Yan menü").
 export interface NavGrubu {
   baslik: string | null

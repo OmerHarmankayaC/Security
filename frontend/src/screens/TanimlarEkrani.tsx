@@ -62,6 +62,13 @@ type Sekme = (typeof SEKMELER)[number]
 const TANIM_SEKMELERI = ['Personel', 'Yetkinlik', 'Bina', 'Görev Noktası', 'Vardiya Tipi'] as const
 type TanimSekmesi = (typeof TANIM_SEKMELERI)[number]
 
+// RESMÎ TATİL SÜTUNLARI ZORUNLU. `talep_matrisini_coz` bir gün için o gün
+// tipine karşılık gelen genel satırı arar; bulamazsa hücreyi sonuca hiç
+// koymaz. Yani tatil satırı girilememiş bir matriste Özel Gün ekranından
+// bir tarihi tatil işaretlemek (FR-1.10) o günün talebini SESSİZCE sıfırlar
+// — üstelik kapsama açığı da doğmaz (talep sıfırdır), dolayısıyla hata
+// hiçbir yerde görünmez. Sütunlar burada olmadan kullanıcının bunu
+// düzeltmesinin bir yolu da yoktu.
 const GUN_VARDIYA_SUTUNLARI: { baslik: string; gunTipi: GunTipi; vardiyaAdi: string }[] = [
   { baslik: 'GÜNDÜZ', gunTipi: 'hafta_ici', vardiyaAdi: 'Gündüz' },
   { baslik: 'AKŞAM', gunTipi: 'hafta_ici', vardiyaAdi: 'Akşam' },
@@ -69,6 +76,9 @@ const GUN_VARDIYA_SUTUNLARI: { baslik: string; gunTipi: GunTipi; vardiyaAdi: str
   { baslik: 'H.SONU GÜNDÜZ', gunTipi: 'hafta_sonu', vardiyaAdi: 'Gündüz' },
   { baslik: 'H.SONU AKŞAM', gunTipi: 'hafta_sonu', vardiyaAdi: 'Akşam' },
   { baslik: 'H.SONU GECE', gunTipi: 'hafta_sonu', vardiyaAdi: 'Gece' },
+  { baslik: 'TATİL GÜNDÜZ', gunTipi: 'resmi_tatil', vardiyaAdi: 'Gündüz' },
+  { baslik: 'TATİL AKŞAM', gunTipi: 'resmi_tatil', vardiyaAdi: 'Akşam' },
+  { baslik: 'TATİL GECE', gunTipi: 'resmi_tatil', vardiyaAdi: 'Gece' },
 ]
 
 // --- Kural satırının sütun genişlikleri -------------------------------------
@@ -559,13 +569,13 @@ export function TanimlarEkrani({ ekranSec }: Props) {
               <table className="w-full min-w-[720px] border-collapse">
                 <thead>
                   <tr className="bg-sunken">
-                    <th className="whitespace-nowrap px-3 py-2 text-left font-condensed text-[10px] tracking-[0.1em] text-ink-muted">
+                    <th className="mono-caps whitespace-nowrap px-3 py-2 text-left text-ink-muted">
                       GÖREV NOKTASI
                     </th>
                     {GUN_VARDIYA_SUTUNLARI.map((sutun) => (
                       <th
                         key={sutun.baslik}
-                        className="whitespace-nowrap px-3 py-2 text-left font-condensed text-[10px] tracking-[0.1em] text-ink-muted"
+                        className="mono-caps whitespace-nowrap px-3 py-2 text-left text-ink-muted"
                       >
                         {sutun.baslik}
                       </th>
@@ -607,7 +617,7 @@ export function TanimlarEkrani({ ekranSec }: Props) {
             <Kart className="bg-sunken">
               <div className="flex gap-10">
                 <div>
-                  <p className="m-0 font-condensed text-[10px] tracking-[0.1em] text-ink-muted">
+                  <p className="m-0 etiket-caps text-ink-muted">
                     HAFTALIK KİŞİ-VARDİYA YÜKÜ
                   </p>
                   <Sayi className="text-xl font-semibold text-ink">
@@ -615,13 +625,13 @@ export function TanimlarEkrani({ ekranSec }: Props) {
                   </Sayi>
                 </div>
                 <div>
-                  <p className="m-0 font-condensed text-[10px] tracking-[0.1em] text-ink-muted">
+                  <p className="m-0 etiket-caps text-ink-muted">
                     ASGARİ KADRO (KURAL PARAMETRELERİNE GÖRE)
                   </p>
                   <Sayi className="text-xl font-semibold text-ink">{yukGostergesi.asgari_kadro}</Sayi>
                 </div>
                 <div>
-                  <p className="m-0 font-condensed text-[10px] tracking-[0.1em] text-ink-muted">
+                  <p className="m-0 etiket-caps text-ink-muted">
                     MEVCUT PERSONEL
                   </p>
                   <Sayi className="text-xl font-semibold text-ink">{personelListesi.length}</Sayi>

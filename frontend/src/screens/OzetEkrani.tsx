@@ -109,31 +109,31 @@ export function OzetEkrani({ ekranSec }: Props) {
       <div className="grid grid-cols-5 gap-4">
         <Kart>
           <KartEtiketi>kapsama</KartEtiketi>
-          <Sayi className="text-2xl font-semibold text-accent">
+          <Sayi className="text-sayi-buyuk font-semibold text-accent">
             {kapsamaOrani === null ? '—' : `%${kapsamaOrani}`}
           </Sayi>
         </Kart>
         <Kart>
           <KartEtiketi renk={toplamEksik > 0 ? 'warn' : undefined}>eksik hücre</KartEtiketi>
-          <Sayi className={`text-2xl font-semibold ${toplamEksik > 0 ? 'text-signal' : 'text-ink'}`}>
+          <Sayi className={`text-sayi-buyuk font-semibold ${toplamEksik > 0 ? 'text-signal' : 'text-ink'}`}>
             {kapsamaAcigi.length}
           </Sayi>
         </Kart>
         <Kart>
           <KartEtiketi>toplam ceza</KartEtiketi>
-          <Sayi className="text-2xl font-semibold text-ink">
+          <Sayi className="text-sayi-buyuk font-semibold text-ink">
             {analiz?.toplam_ceza != null ? analiz.toplam_ceza.toFixed(0) : '—'}
           </Sayi>
         </Kart>
         <Kart>
           <KartEtiketi>bekleyen tercih</KartEtiketi>
-          <p className="m-0 font-mono text-2xl font-semibold text-ink">
+          <p className="m-0 font-mono text-sayi-buyuk font-semibold text-ink">
             {bekleyenTercihSayisi} kişi
           </p>
         </Kart>
         <Kart>
           <KartEtiketi>sürüm durumu</KartEtiketi>
-          <p className="m-0 font-mono text-2xl font-semibold text-ink">
+          <p className="m-0 font-mono text-sayi-buyuk font-semibold text-ink">
             {sonSurum ? `${SURUM_DURUM_METNI[sonSurum.durum] ?? sonSurum.durum} · S${sonSurum.surum_no}` : '—'}
           </p>
         </Kart>

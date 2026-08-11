@@ -213,7 +213,7 @@ export function MusaitlikEkrani({ ekranSec }: Props) {
               {['PERSONEL', 'BAŞLANGIÇ', 'BİTİŞ', 'DİLİM', 'TİP', ''].map((b) => (
                 <th
                   key={b}
-                  className="whitespace-nowrap px-3 py-2 text-left font-condensed text-[10px] tracking-[0.1em] text-ink-muted"
+                  className="mono-caps whitespace-nowrap px-3 py-2 text-left text-ink-muted"
                 >
                   {b}
                 </th>

@@ -96,7 +96,7 @@ export function VardiyalarimEkrani({ veri }: Props) {
         >
           <p
             className={cn(
-              'mb-4 font-condensed text-[10px] font-medium tracking-[0.14em]',
+              'mb-4 etiket-caps',
               veri.siradaki.gece_mi ? 'text-vardiya-gece-ink-muted' : 'text-ink-muted',
             )}
           >
@@ -108,7 +108,7 @@ export function VardiyalarimEkrani({ veri }: Props) {
           <div className="mt-2 flex items-center gap-2">
             <Sayi
               className={cn(
-                'text-2xl font-semibold',
+                'text-sayi-buyuk font-semibold',
                 veri.siradaki.gece_mi ? 'text-vardiya-gece-ink' : 'text-ink',
               )}
             >
@@ -135,7 +135,7 @@ export function VardiyalarimEkrani({ veri }: Props) {
           {HAFTA_GUNLERI.map((ad) => (
             <div
               key={`baslik-${ad}`}
-              className="bg-sunken py-1.5 text-center font-condensed text-[10px] tracking-[0.1em] text-ink-muted"
+              className="bg-sunken py-1.5 text-center etiket-caps text-ink-muted"
             >
               {buyukHarf(ad)}
             </div>
@@ -170,7 +170,7 @@ export function VardiyalarimEkrani({ veri }: Props) {
                 title={degisimBasligi}
               >
                 <Sayi className="text-base font-semibold">{g.slice(-2)}</Sayi>
-                <span className="font-condensed text-[10px] tracking-[0.08em]">
+                <span className="etiket-caps">
                   {v ? buyukHarf(v.nokta_ad.slice(0, 3)) : '–'}
                 </span>
                 {degisimBasligi && (
@@ -305,7 +305,7 @@ function ListeSatiri({
         <Sayi className={cn('shrink-0 text-sm sm:w-24', soluk, kaldirildi && 'line-through')}>
           {saatler}
         </Sayi>
-        <span className="shrink-0 font-condensed text-[10px] tracking-[0.08em] text-ink-muted">
+        <span className="shrink-0 etiket-caps text-ink-muted">
           {vardiyaEtiketi}
         </span>
         <span className={cn('flex-1 truncate text-sm', soluk, kaldirildi && 'line-through')}>
@@ -339,7 +339,7 @@ function LegendOgesi({ renk, etiket }: { renk: string; etiket: string }) {
 function BeyazEtiket({ children, genislik }: { children: string; genislik: number }) {
   return (
     <span
-      className="flex items-center justify-center rounded-sm bg-surface px-2.5 py-1 font-condensed text-[10px] tracking-[0.08em] text-ink"
+      className="flex items-center justify-center rounded-sm bg-surface px-2.5 py-1 etiket-caps text-ink"
       style={{ width: genislik }}
     >
       {buyukHarf(children)}

@@ -213,7 +213,7 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
           <div className="grid grid-cols-5 gap-4">
             <Kart>
               <KartEtiketi>dönem kapsaması</KartEtiketi>
-              <p className="m-0 font-mono text-2xl font-semibold text-accent">
+              <p className="m-0 font-mono text-sayi-buyuk font-semibold text-accent">
                 {yuzdeBicimle(analiz.kapsama_orani)}
               </p>
             </Kart>
@@ -227,7 +227,7 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
               </KartEtiketi>
               <p
                 className={cn(
-                  'm-0 font-mono text-2xl font-semibold',
+                  'm-0 font-mono text-sayi-buyuk font-semibold',
                   analiz.toplam_fazla_kadro > 0 ? 'text-signal' : 'text-ink',
                 )}
               >
@@ -236,19 +236,19 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
             </Kart>
             <Kart>
               <KartEtiketi>tercih karşılama</KartEtiketi>
-              <p className="m-0 font-mono text-2xl font-semibold text-ink">
+              <p className="m-0 font-mono text-sayi-buyuk font-semibold text-ink">
                 {yuzdeBicimle(analiz.tercih_karsilama_orani)}
               </p>
             </Kart>
             <Kart>
               <KartEtiketi>en dengesiz</KartEtiketi>
-              <p className="m-0 text-2xl font-semibold text-signal">
+              <p className="m-0 text-sayi-buyuk font-semibold text-signal">
                 {analiz.en_dengesiz_ad_soyad ?? '—'}
               </p>
             </Kart>
             <Kart>
               <KartEtiketi>toplam ceza</KartEtiketi>
-              <Sayi className="text-2xl font-semibold text-ink">
+              <Sayi className="text-sayi-buyuk font-semibold text-ink">
                 {analiz.toplam_ceza !== null ? analiz.toplam_ceza.toFixed(0) : '—'}
               </Sayi>
             </Kart>
@@ -307,7 +307,7 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                     {['PERSONEL', 'TOPLAM SAAT', 'HEDEF', 'SAPMA'].map((b) => (
                       <th
                         key={b}
-                        className="whitespace-nowrap px-3 py-2 text-left font-condensed text-[10px] tracking-[0.1em] text-ink-muted"
+                        className="mono-caps whitespace-nowrap px-3 py-2 text-left text-ink-muted"
                       >
                         {b}
                       </th>

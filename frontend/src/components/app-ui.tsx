@@ -1,4 +1,4 @@
-// Tasarım Referansı sürüm 3 ("Kontrol Odası") üzerine kurulu paylaşılan
+// Tasarım Referansı sürüm 4 ("Kontrol Odası") üzerine kurulu paylaşılan
 // bileşenler — shadcn primitiflerini (src/components/ui/) sarar. Ekran
 // dosyalarının kullandığı Türkçe prop adları korunur.
 import { Children, type ButtonHTMLAttributes, type PropsWithChildren, type ReactNode } from 'react'
@@ -53,7 +53,8 @@ export function Kart({
 // Bolum etiketi (kart basligi) — kaynak metin kucuk harfle yazilir, gorsel
 // olarak toLocaleUpperCase('tr-TR') ile buyutulur (duz toUpperCase DEGIL —
 // Turkce İ/ı harflerini bozar, bkz. TASARIM_REFERANSI.md). Stil
-// `etiket/caps`: IBM Plex Sans Condensed Medium 10px, %14 harf araligi.
+// `etiket/caps`: Public Sans Medium 11,5px, %14 harf araligi (surum 4'te
+// Condensed kesim kalkti, bkz. index.css'teki `.etiket-caps`).
 export function KartEtiketi({
   children,
   renk,
@@ -61,7 +62,7 @@ export function KartEtiketi({
   return (
     <p
       className={cn(
-        'mb-4 font-condensed text-[10px] font-medium tracking-[0.14em] text-ink-muted',
+        'etiket-caps mb-4 text-ink-muted',
         renk === 'accent' && 'text-accent',
         renk === 'warn' && 'text-signal',
       )}
@@ -84,15 +85,21 @@ const ROZET_VARYANT_SINIFI: Record<RozetVaryanti, string> = {
 // gelen alanlari kaydirir (bkz. TASARIM_REFERANSI.md — "Genişleyen
 // bileşenlere sabit genişlik" uyarısı, bu tasarımda daha önce iki kez
 // yaşanmış).
+//
+// Surum 4 notu: eski hal Condensed + %8 harf araligiydi; `etiket-caps`
+// (Public Sans Medium 11,5px, %14) ayni metni ~%20 daha genis yazar. Bu
+// yuzden asagidaki varsayilan ve butun cagri yerlerindeki `genislik`
+// degerleri yeniden olculdu — h-5'lik rozete 11,5px yazi sigmadigi icin
+// yukseklik de h-5,5'e cikti.
 export function Rozet({
   children,
   varyant,
-  genislik = 96,
+  genislik = 112,
 }: PropsWithChildren<{ varyant: RozetVaryanti; genislik?: number }>) {
   return (
     <Badge
       variant="secondary"
-      className={cn('justify-center rounded-sm font-condensed tracking-[0.08em]', ROZET_VARYANT_SINIFI[varyant])}
+      className={cn('etiket-caps h-5.5 justify-center rounded-sm', ROZET_VARYANT_SINIFI[varyant])}
       style={{ width: genislik }}
     >
       {buyukHarf(duzMetneCevir(children))}
@@ -102,17 +109,18 @@ export function Rozet({
 
 // Sayı her yerde Mono: tarih, saat, ceza puanı, personel sayısı — rakamlar
 // böylece sütun halinde hizalanır (bkz. TASARIM_REFERANSI.md, Tipografi).
+// `tabular-nums` YOK: Azeret Mono zaten sabit genişlikli, özelliği açmak
+// hiçbir şeyi değiştirmez (Tasarım Referansı, "Uygulama notları").
 export function Sayi({ children, className }: PropsWithChildren<{ className?: string }>) {
-  return <span className={cn('font-mono tabular-nums', className)}>{children}</span>
+  return <span className={cn('font-mono', className)}>{children}</span>
 }
 
+// `sayı/büyük` — Azeret Mono SemiBold 26px.
 export function BuyukRakam({ deger, etiket }: { deger: string; etiket: string }) {
   return (
     <div>
-      <p className="m-0 font-mono text-3xl font-semibold text-ink">{deger}</p>
-      <p className="mt-1 font-condensed text-[10px] tracking-[0.14em] text-ink-muted">
-        {buyukHarf(etiket)}
-      </p>
+      <p className="m-0 font-mono text-sayi-buyuk font-semibold text-ink">{deger}</p>
+      <p className="etiket-caps mt-1 text-ink-muted">{buyukHarf(etiket)}</p>
     </div>
   )
 }

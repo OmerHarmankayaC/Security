@@ -272,7 +272,7 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                 {goreliZaman(s.olusturma_zamani)}
               </Sayi>
               <div className="w-28 shrink-0">
-                <p className="m-0 font-condensed text-[10px] tracking-[0.14em] text-ink-muted">
+                <p className="m-0 etiket-caps text-ink-muted">
                   {buyukHarf('Toplam Ceza')}
                 </p>
                 <Sayi className="text-base font-semibold text-ink">
@@ -280,7 +280,7 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                 </Sayi>
               </div>
               <div className="w-20 shrink-0">
-                <p className="m-0 font-condensed text-[10px] tracking-[0.14em] text-ink-muted">
+                <p className="m-0 etiket-caps text-ink-muted">
                   {buyukHarf('Açık')}
                 </p>
                 <Sayi
@@ -298,7 +298,7 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                   her satıra bir sıfır koymak listeyi gürültüye boğardı. */}
               {s.fazla_kadro_sayisi > 0 && (
                 <div className="w-20 shrink-0">
-                  <p className="m-0 font-condensed text-[10px] tracking-[0.14em] text-ink-muted">
+                  <p className="m-0 etiket-caps text-ink-muted">
                     {buyukHarf('Fazla')}
                   </p>
                   <Sayi className="text-base font-semibold text-signal">
@@ -418,7 +418,7 @@ function KarsilastirmaSonucu({ sonuc }: { sonuc: SurumKarsilastirmasi }) {
               {['PERSONEL', 'GÜN', 'TÜR', 'ÖNCEKİ', 'YENİ'].map((b) => (
                 <th
                   key={b}
-                  className="whitespace-nowrap px-3 py-2 text-left font-condensed text-[10px] tracking-[0.1em] text-ink-muted"
+                  className="mono-caps whitespace-nowrap px-3 py-2 text-left text-ink-muted"
                 >
                   {b}
                 </th>
@@ -459,7 +459,7 @@ function KarsilastirmaSonucu({ sonuc }: { sonuc: SurumKarsilastirmasi }) {
 function FarkSayaci({ etiket, deger }: { etiket: string; deger: number }) {
   return (
     <div>
-      <p className="m-0 font-condensed text-[10px] tracking-[0.14em] text-ink-muted">
+      <p className="m-0 etiket-caps text-ink-muted">
         {buyukHarf(etiket)}
       </p>
       <Sayi className="text-xl font-semibold text-ink">{deger}</Sayi>

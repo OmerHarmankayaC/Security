@@ -100,7 +100,7 @@ export function TercihlerimEkrani() {
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-end gap-6">
             <div className="flex flex-col gap-1">
-              <label className="font-condensed text-[10px] tracking-[0.1em] text-ink-muted">
+              <label className="etiket-caps text-ink-muted">
                 {buyukHarf('Tercih Tipi')}
               </label>
               <div className="flex gap-2">
@@ -130,7 +130,7 @@ export function TercihlerimEkrani() {
             </div>
             {tip === 'vardiya_tipi_tercihi' && (
               <div className="flex flex-col gap-1">
-                <label className="font-condensed text-[10px] tracking-[0.1em] text-ink-muted">
+                <label className="etiket-caps text-ink-muted">
                   {buyukHarf('Vardiya Tipi')}
                 </label>
                 <select
@@ -148,7 +148,7 @@ export function TercihlerimEkrani() {
               </div>
             )}
             <div className="flex flex-col gap-1">
-              <label className="font-condensed text-[10px] tracking-[0.1em] text-ink-muted">
+              <label className="etiket-caps text-ink-muted">
                 {buyukHarf('Gün')}
               </label>
               <Input
@@ -161,7 +161,7 @@ export function TercihlerimEkrani() {
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="font-condensed text-[10px] tracking-[0.1em] text-ink-muted">
+            <label className="etiket-caps text-ink-muted">
               {buyukHarf('Gerekçe (isteğe bağlı)')}
             </label>
             <textarea
@@ -212,7 +212,7 @@ export function TercihlerimEkrani() {
                   {karsilanma && (
                     <div className="ml-[92px] flex items-center gap-1.5 text-xs">
                       <span className={cn('size-1.5 rounded-full', karsilanma.renk)} />
-                      <span className="font-condensed tracking-[0.08em] text-ink-muted">
+                      <span className="etiket-caps text-ink-muted">
                         {buyukHarf(karsilanma.etiket)}
                       </span>
                       {t.karsilanma === 'henuz_belirsiz' && (

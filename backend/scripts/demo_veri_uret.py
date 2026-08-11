@@ -44,11 +44,19 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import OturumYerel
-from app.models.girdi import Musaitlik, MusaitlikDilimi, MusaitlikTipi
+from app.models.girdi import (
+    Musaitlik,
+    MusaitlikDilimi,
+    MusaitlikTipi,
+    Tercih,
+    TercihDurumu,
+    TercihTipi,
+)
 from app.models.kural import Kural, KuralTipi
 from app.models.sonuc import Donem
 from app.models.tanim import (
     GorevNoktasi,
+    OzelGun,
     Personel,
     Talep,
     VardiyaTipi,
@@ -159,6 +167,28 @@ _RAHAT_DONEM_UZUNLUGU_GUN = 7
 # daha uzun bir sabit kullanir.
 _SIKISIK_DONEM_UZUNLUGU_GUN = 28
 
+# Ucuncu senaryo: RESMI TATIL iceren bir hafta (FR-1.10, TD-3). 23 Nisan 2026
+# persembe gunune denk geliyor, yani hafta ici bir gun tatile donuyor ve
+# talep o gun icin hafta sonu kadrosuna (azaltilmis sutun) dusuyor. Hafta ici
+# bir gunun secilmesi kasitli: hafta sonuna denk gelen bir tatil talebi zaten
+# degistirmezdi ve senaryo hicbir sey gostermezdi.
+_TATILLI_BASLANGIC = date(2026, 4, 20)  # Pazartesi; 23 Nisan Persembe iceride
+_TATILLI_DONEM_UZUNLUGU_GUN = 7
+
+# 2026'nin SABIT TARIHLI ulusal bayramlari. Dini bayramlar (Ramazan, Kurban)
+# kasitli olarak YOK: tarihleri hicri takvime bagli oldugu icin gosterim
+# verisine yanlis bir tarih yazmak, dogru sanilan bir veri uretirdi.
+# Kullanici onlari Ozel Gun ekranindan kendisi ekler.
+_OZEL_GUNLER: tuple[tuple[date, str], ...] = (
+    (date(2026, 1, 1), "Yılbaşı"),
+    (date(2026, 4, 23), "Ulusal Egemenlik ve Çocuk Bayramı"),
+    (date(2026, 5, 1), "Emek ve Dayanışma Günü"),
+    (date(2026, 5, 19), "Atatürk'ü Anma, Gençlik ve Spor Bayramı"),
+    (date(2026, 7, 15), "Demokrasi ve Millî Birlik Günü"),
+    (date(2026, 8, 30), "Zafer Bayramı"),
+    (date(2026, 10, 29), "Cumhuriyet Bayramı"),
+)
+
 
 def _mevcut_demo_verisi_var_mi(oturum: Session) -> bool:
     stmt = select(Yetkinlik).where(Yetkinlik.ad == "Güvenlik Görevi")
@@ -242,19 +272,45 @@ def _kurallari_olustur(oturum: Session) -> None:
     oturum.flush()
 
 
+# Sabit vardiyali personel (SDD 4.2.1 sabit_vardiya_tipi_id; Backlog
+# 05.08.2026: "gercek kullanimda cogu personelin dondugu, bir bolumunun
+# sabit vardiyada calistigi karma duzen yaygindir"). Alan bastan beri
+# vardi ama gosterim verisinde HIC KULLANILMIYORDU; sonucta rotasyona
+# dahil olmayan personel diye bir sey demoda gorunmuyordu.
+#
+# Sayilar kasitli olarak kucuk. Sabit vardiyali bir kisi yalnizca o
+# vardiyaya atanabilir, yani esnek havuzdan cikar; Guvenlik Gorevi
+# havuzunun (28 kisi) uctunu sabitlemek talebi zorlamaz, ama daha
+# fazlasi sikisik senaryonun dengesini degistirirdi.
+_SABIT_VARDIYALI = {
+    "GG-004": "Gündüz",
+    "GG-005": "Gündüz",
+    "GG-006": "Gece",
+}
+
+# Pasiflestirilmis personel: aktiflik penceresi GECMISTE kapanmis bir kayit
+# (SDD 4.2.1). Tanimlar ekranindaki "Pasifleri goster" filtresini ve H7'nin
+# aktiflik araligi kontrolunu gorunur kilar - demoda hicbir pasif kayit
+# olmadigi icin ikisi de bos calisiyordu.
+_PASIF_PERSONEL = {"GG-028": date(2026, 1, 31)}
+
+
 def _personeli_olustur(
-    oturum: Session, yetkinlikler: dict[str, Yetkinlik]
+    oturum: Session, yetkinlikler: dict[str, Yetkinlik], vardiyalar: dict[str, VardiyaTipi]
 ) -> dict[str, list[Personel]]:
     gruplar: dict[str, list[Personel]] = {}
     for grup in PERSONEL_GRUPLARI:
         kisiler: list[Personel] = []
         for i in range(1, grup.sayi + 1):
             sicil_no = f"{grup.sicil_on_eki}-{i:03d}"
+            sabit_ad = _SABIT_VARDIYALI.get(sicil_no)
             personel = Personel(
                 ad_soyad=f"Demo Personel {sicil_no}",
                 sicil_no=sicil_no,
                 haftalik_hedef_saat=40,
                 aktif_baslangic=date(2026, 1, 1),
+                aktif_bitis=_PASIF_PERSONEL.get(sicil_no),
+                sabit_vardiya_tipi_id=(vardiyalar[sabit_ad].vardiya_tipi_id if sabit_ad else None),
             )
             personel.yetkinlikler = [yetkinlikler[ad] for ad in grup.yetkinlikler]
             oturum.add(personel)
@@ -262,6 +318,18 @@ def _personeli_olustur(
         gruplar[grup.sicil_on_eki] = kisiler
     oturum.flush()
     return gruplar
+
+
+def _ozel_gunleri_olustur(oturum: Session) -> None:
+    """FR-1.10: resmi tatil takvimi.
+
+    Talep matrisi artik RESMI_TATIL satirlari tasidigi icin (bkz.
+    ornek_senaryo.talep_satirlarini_olustur) bu gunler gercekten
+    azaltilmis kadroyla cozulur; TD-3 uyarinca adalet sayaclarinda da
+    hafta sonuyla ayni sayaca eklenirler.
+    """
+    oturum.add_all(OzelGun(tarih=tarih, ad=ad) for tarih, ad in _OZEL_GUNLER)
+    oturum.flush()
 
 
 def _donemleri_ve_izinleri_olustur(
@@ -277,7 +345,16 @@ def _donemleri_ve_izinleri_olustur(
         bitis_tarihi=_SIKISIK_BASLANGIC + timedelta(days=_SIKISIK_DONEM_UZUNLUGU_GUN - 1),
         tercih_son_tarihi=_SIKISIK_BASLANGIC - timedelta(days=7),
     )
-    oturum.add_all([rahat, sikisik])
+    # Ucuncu senaryo: icinde resmi tatil bulunan bir hafta (FR-1.10, TD-3).
+    tatilli = Donem(
+        baslangic_tarihi=_TATILLI_BASLANGIC,
+        bitis_tarihi=_TATILLI_BASLANGIC + timedelta(days=_TATILLI_DONEM_UZUNLUGU_GUN - 1),
+        # Tercih penceresi ACIK birakilir (donem baslangicindan sonrasi):
+        # calisan panelinden tercih bildirimi (FR-3.3, FR-9.6) demoda
+        # denenebilsin diye. Diger iki donemde pencere kapali.
+        tercih_son_tarihi=_TATILLI_BASLANGIC + timedelta(days=_TATILLI_DONEM_UZUNLUGU_GUN),
+    )
+    oturum.add_all([rahat, sikisik, tatilli])
     oturum.flush()
 
     # SRS 3.3.6: vardiya sefligi havuzunun teorik asgarisi 5 kisidir ("Izin
@@ -302,7 +379,111 @@ def _donemleri_ve_izinleri_olustur(
                 not_="Demo: sikisik senaryo - vardiya sefligi kapsama acigi",
             )
         )
+
+    _tatilli_donem_girdileri(oturum, personel_gruplari, tatilli)
     oturum.flush()
+
+
+def _tatilli_donem_girdileri(
+    oturum: Session, personel_gruplari: dict[str, list[Personel]], donem: Donem
+) -> None:
+    """Ucuncu donemin musaitlik ve tercih kayitlari.
+
+    Cesitlilik BILEREK burada toplaniyor: "Rahat Donem" tanimi geregi izin
+    kaydi tasimaz ve "Sikisik Donem"in izinleri tek bir seyi gostermek icin
+    kurulmus (bkz. yukaridaki notlar); ikisine de kayit eklemek o
+    senaryolarin anlatimini bozardi.
+
+    Burada gosterilenler:
+      - Musaitlik TIPLERININ tamami (yillik izin, rapor, egitim, mazeret)
+      - YARIM GUN dilimler (TD-4): ogleden once / ogleden sonra
+      - Tercihin uc durumu (beklemede, onaylandi, reddedildi) ve iki tipi
+        (calismama, vardiya tipi tercihi), calisan notu ve ret gerekcesiyle
+    """
+    guvenlik = personel_gruplari["GG"]
+    sefler = personel_gruplari["VS"]
+    muracaat = personel_gruplari["MR"]
+    gun = donem.baslangic_tarihi
+
+    oturum.add_all(
+        [
+            Musaitlik(
+                personel_id=guvenlik[9].personel_id,
+                baslangic_tarihi=gun + timedelta(days=1),
+                bitis_tarihi=gun + timedelta(days=3),
+                dilim=MusaitlikDilimi.TAM_GUN,
+                tip=MusaitlikTipi.RAPOR,
+                not_="Demo: üç günlük istirahat raporu",
+            ),
+            Musaitlik(
+                personel_id=guvenlik[10].personel_id,
+                baslangic_tarihi=gun,
+                bitis_tarihi=gun,
+                dilim=MusaitlikDilimi.OGLEDEN_ONCE,
+                tip=MusaitlikTipi.EGITIM,
+                # TD-4: ogleden once 00:00-12:00 ile kesisen HER vardiyayi
+                # engeller - gece (00-08) ve gunduz (08-16) dahil.
+                not_="Demo: yarım gün eğitim (öğleden önce)",
+            ),
+            Musaitlik(
+                personel_id=guvenlik[11].personel_id,
+                baslangic_tarihi=gun + timedelta(days=2),
+                bitis_tarihi=gun + timedelta(days=2),
+                dilim=MusaitlikDilimi.OGLEDEN_SONRA,
+                tip=MusaitlikTipi.MAZERET,
+                not_="Demo: yarım gün mazeret izni (öğleden sonra)",
+            ),
+            Musaitlik(
+                personel_id=sefler[8].personel_id,
+                baslangic_tarihi=gun + timedelta(days=4),
+                bitis_tarihi=gun + timedelta(days=5),
+                dilim=MusaitlikDilimi.TAM_GUN,
+                tip=MusaitlikTipi.YILLIK_IZIN,
+                not_="Demo: iki günlük yıllık izin",
+            ),
+        ]
+    )
+
+    # Tercihler (FR-3.x, S5, TD-12). Yalnizca ONAYLANMIS olanlar modele
+    # girer (FR-3.5); beklemede ve reddedilmis olanlar Tercihler ekraninda
+    # karara baglanacak/baglanmis kayit olarak gorunur.
+    oturum.add_all(
+        [
+            Tercih(
+                personel_id=guvenlik[0].personel_id,
+                donem_id=donem.donem_id,
+                tarih=gun + timedelta(days=3),  # 23 Nisan, resmi tatil
+                tip=TercihTipi.CALISMAMA,
+                durum=TercihDurumu.ONAYLANDI,
+                calisan_notu="Bayramda ailemle olmak istiyorum",
+            ),
+            Tercih(
+                personel_id=guvenlik[1].personel_id,
+                donem_id=donem.donem_id,
+                tarih=gun + timedelta(days=1),
+                tip=TercihTipi.CALISMAMA,
+                durum=TercihDurumu.BEKLEMEDE,
+                calisan_notu="Sağlık kontrolü randevum var",
+            ),
+            Tercih(
+                personel_id=guvenlik[2].personel_id,
+                donem_id=donem.donem_id,
+                tarih=gun + timedelta(days=3),
+                tip=TercihTipi.CALISMAMA,
+                durum=TercihDurumu.REDDEDILDI,
+                calisan_notu="Bayram tatili",
+                ret_gerekcesi="Aynı gün için üç talep geldi; kıdem sırası gözetildi",
+            ),
+            Tercih(
+                personel_id=muracaat[0].personel_id,
+                donem_id=donem.donem_id,
+                tarih=gun + timedelta(days=2),
+                tip=TercihTipi.CALISMAMA,
+                durum=TercihDurumu.BEKLEMEDE,
+                calisan_notu=None,
+            ),
+        ]
+    )
 
 
 def uret(*, sifirla: bool) -> None:
@@ -329,7 +510,8 @@ def uret(*, sifirla: bool) -> None:
         noktalar = _noktalari_olustur(oturum, yetkinlikler)
         _talebi_olustur(oturum, noktalar, vardiyalar)
         _kurallari_olustur(oturum)
-        personel_gruplari = _personeli_olustur(oturum, yetkinlikler)
+        _ozel_gunleri_olustur(oturum)
+        personel_gruplari = _personeli_olustur(oturum, yetkinlikler, vardiyalar)
         _donemleri_ve_izinleri_olustur(oturum, personel_gruplari)
 
         oturum.commit()
@@ -341,8 +523,11 @@ def uret(*, sifirla: bool) -> None:
 
     toplam_personel = sum(grup.sayi for grup in PERSONEL_GRUPLARI)
     print(
-        f"Demo verisi uretildi: {toplam_personel} personel, "
-        f"{len(NOKTA_TANIMLARI)} gorev noktasi, {len(_KURAL_TANIMLARI)} kural, 2 donem."
+        f"Demo verisi uretildi: {toplam_personel} personel "
+        f"({len(_SABIT_VARDIYALI)} sabit vardiyali, {len(_PASIF_PERSONEL)} pasif), "
+        f"{len(NOKTA_TANIMLARI)} gorev noktasi, {len(_KURAL_TANIMLARI)} kural, "
+        f"{len(_OZEL_GUNLER)} resmi tatil, 3 donem "
+        f"(Rahat, Sikisik, Tatilli)."
     )
     # Silinen hesap SESSIZ kalmamali: silinen sey bir kullanicinin sisteme
     # girisidir, gecmis dondugunde geri gelmez.

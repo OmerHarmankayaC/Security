@@ -1,16 +1,17 @@
 @import 'tailwindcss';
-@import '@fontsource/ibm-plex-sans/400.css';
-@import '@fontsource/ibm-plex-sans/500.css';
-@import '@fontsource/ibm-plex-sans/600.css';
-@import '@fontsource/ibm-plex-sans-condensed/500.css';
-@import '@fontsource/ibm-plex-mono/400.css';
-@import '@fontsource/ibm-plex-mono/600.css';
+@import '@fontsource/public-sans/400.css';
+@import '@fontsource/public-sans/500.css';
+@import '@fontsource/public-sans/600.css';
+@import '@fontsource/azeret-mono/400.css';
+@import '@fontsource/azeret-mono/500.css';
+@import '@fontsource/azeret-mono/600.css';
 
-/* Tasarım Referansı sürüm 3 — "Kontrol Odası": operasyon konsolu dili.
+/* Tasarım Referansı sürüm 4 — "Kontrol Odası": operasyon konsolu dili.
    Koyu şasi (yan menü/üst çubuk) + açık tuval, derin teal aksan, turuncu
-   yalnızca uyarı, IBM Plex, köşe 3-4px, GÖLGE YOK (bkz.
-   docs/tasarim/TASARIM_REFERANSI.md). Sürüm 1 (tuğla kırmızısı) ve sürüm 2
-   (mavi SaaS) tokenlerinin hiçbir kalıntısı burada tutulmaz. */
+   yalnızca uyarı, Public Sans + Azeret Mono, köşe 3-4px, GÖLGE YOK (bkz.
+   docs/tasarim/TASARIM_REFERANSI.md). Sürüm 1 (tuğla kırmızısı), sürüm 2
+   (mavi SaaS) ve sürüm 3 (IBM Plex) tokenlerinin hiçbir kalıntısı burada
+   tutulmaz — Condensed kesim de dahil, sürüm 4'te ayrı bir dar aile yok. */
 :root {
   /* Şasi (yan menü, üst çubuk — koyu) */
   --chrome-base: #1a1f26;
@@ -34,8 +35,12 @@
   --signal: #d2521e;
   --signal-soft: #f7e2d6;
 
-  /* Vardiya kodlaması (yalnızca Çizelge ızgarası) */
-  --vardiya-gunduz: #ffffff;
+  /* Vardiya kodlaması (yalnızca Çizelge ızgarası).
+     Gündüz sürüm 4'te beyazdan çıkarıldı: beyaz gündüz hücresi BOŞ hücreden
+     (surface, #FFFFFF) yalnızca içindeki yazıyla ayrılıyordu, yani renk
+     hiçbir iş yapmıyordu. Ramp artık dört basamak:
+     boş #FFFFFF → gündüz #E9E7D9 → akşam #C7CEC0 → gece #2F3A38. */
+  --vardiya-gunduz: #e9e7d9;
   --vardiya-aksam: #c7cec0;
   --vardiya-gece: #2f3a38;
   --vardiya-gece-ink: #e8ebe5;
@@ -74,9 +79,11 @@
   --radius-3xl: 4px;
   --radius-4xl: 3px;
 
-  --font-sans: 'IBM Plex Sans', system-ui, 'Segoe UI', Roboto, sans-serif;
-  --font-condensed: 'IBM Plex Sans Condensed', var(--font-sans);
-  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  /* İki aile, ayrı bir display/başlık fontu YOK — ekran başlığı da Public
+     Sans SemiBold. Sürüm 3'ün Condensed kesiminin yerini `.etiket-caps`
+     alır (Public Sans Medium + %14 harf aralığı). */
+  --font-sans: 'Public Sans', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'Azeret Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
 
   color-scheme: light;
   color: var(--foreground);
@@ -137,8 +144,64 @@
 
   --font-sans: var(--font-sans);
   --font-heading: var(--font-sans);
-  --font-condensed: var(--font-condensed);
   --font-mono: var(--font-mono);
+}
+
+/* Tip ölçeği — sürüm 4'te her rol bir kademe büyüdü (gövde 13→14, ekran
+   başlığı 18→21, mono veri 10→11,5). Boyutlar Tailwind'in varsayılan
+   ölçeğine denk gelmediği için ROL ADIYLA tanımlanır; bileşenlerde
+   `text-[14px]` gibi keyfi değer kullanılmaz.
+
+   `inline` DEĞİL: `.etiket-caps` gibi ham CSS yardımcıları bu değişkenleri
+   `var(--text-…)` ile okuyor, inline edilirlerse ortada değişken kalmaz. */
+@theme {
+  --text-baslik-ekran: 21px; /* başlık/ekran — üst çubuktaki ekran adı */
+  --text-baslik-ekran--line-height: 1.25;
+  --text-baslik-bolum: 17px; /* başlık/bölüm — kart başlığı */
+  --text-baslik-bolum--line-height: 1.3;
+
+  /* gövde/regular · medium · semibold. Tailwind'in `text-sm`'i de tam olarak
+     bu boyuttur ve kodun her yerinde gövde rolünde kullanılır; ileride
+     kaymasın diye burada açıkça sabitlenir. */
+  --text-govde: 14px;
+  --text-govde--line-height: 1.45;
+  --text-sm: 14px;
+  --text-sm--line-height: 1.45;
+
+  --text-etiket: 11.5px; /* etiket/caps — BÜYÜK HARF etiketler */
+  --text-etiket--line-height: 1.3;
+  --text-mono-caps: 12.5px; /* etiket/mono-caps — tablo başlıkları */
+  --text-mono-caps--line-height: 1.2;
+  --text-mono-kucuk: 11.5px; /* veri/mono-küçük — yoğun tablo verisi */
+  --text-mono-kucuk--line-height: 1.35;
+  --text-mono: 13px; /* veri/mono — normal veri */
+  --text-mono--line-height: 1.4;
+  --text-sayi-orta: 15px; /* sayı/orta — metrik değeri */
+  --text-sayi-orta--line-height: 1.2;
+  --text-sayi-buyuk: 26px; /* sayı/büyük — öne çıkan sayı */
+  --text-sayi-buyuk--line-height: 1.15;
+}
+
+/* Sürüm 3'te BÜYÜK HARF etiketler IBM Plex Sans Condensed ile yazılıyordu.
+   Public Sans'ın dar bir kesimi yok; aynı işi Medium + %14 harf aralığı
+   görür. Tek yardımcı sınıf: `tracking-[0.14em]`'in on dört ayrı yere elle
+   yazılması sürüm 3'te tam olarak böyle başlamıştı. */
+@utility etiket-caps {
+  font-family: var(--font-sans);
+  font-size: var(--text-etiket);
+  line-height: 1.3;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+}
+
+/* etiket/mono-caps — tablo başlıkları ve durum rozetleri. Ayrı bir sınıf,
+   çünkü ailesi de boyutu da harf aralığı da `etiket-caps`ten farklıdır. */
+@utility mono-caps {
+  font-family: var(--font-mono);
+  font-size: var(--text-mono-caps);
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: 0.06em;
 }
 
 * {
@@ -148,7 +211,7 @@
 body {
   margin: 0;
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: var(--text-govde);
   line-height: 145%;
   color: var(--ink);
   background: var(--canvas);

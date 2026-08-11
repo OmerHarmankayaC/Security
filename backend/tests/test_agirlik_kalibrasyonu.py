@@ -39,7 +39,12 @@ def test_s1_agirligi_diger_hedeflerin_agirlikli_toplamindan_buyuk() -> None:
         uret(sifirla=False)
         oturum.commit()
         donemler = oturum.execute(select(Donem).order_by(Donem.donem_id)).scalars().all()
-        assert len(donemler) == 2, "demo_veri_uret iki donem uretmeli (Rahat, Sikisik)"
+        assert len(donemler) == 3, "demo_veri_uret uc donem uretmeli (Rahat, Sikisik, Tatilli)"
+        # Kalibrasyon yalniz ilk iki donemi olcer: agirlik dengesi "kadro
+        # yeterken acik birakilmamali" (Rahat) ve "kadro yetmezken acik
+        # gorunmeli" (Sikisik) uzerinden tanimli. Ucuncu donem resmi tatil
+        # cozumlemesini gostermek icin var, agirlik dengesine yeni bir sey
+        # soylemez.
         rahat_id, sikisik_id = donemler[0].donem_id, donemler[1].donem_id
 
         w1 = oturum.execute(select(Kural.agirlik).where(Kural.kimlik == "S1")).scalar_one()

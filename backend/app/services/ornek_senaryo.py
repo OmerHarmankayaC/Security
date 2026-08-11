@@ -57,7 +57,26 @@ class TalepSatiriTanimi:
 
 
 def talep_satirlarini_olustur() -> list[TalepSatiriTanimi]:
-    """SRS 3.3.4'teki ozet tabloyu tam acilmis (nokta, vardiya, gun_tipi) satirlarina cevirir."""
+    """SRS 3.3.4'teki ozet tabloyu tam acilmis (nokta, vardiya, gun_tipi) satirlarina cevirir.
+
+    RESMI_TATIL satirlari da uretilir ve bu ZORUNLUDUR, susleme degil.
+    `talep_matrisini_coz` bir gun icin once tarihe ozgu istisnayi, sonra o
+    GUN TIPINE karsilik gelen genel satiri arar; hicbiri yoksa hucreyi
+    sonuca HIC KOYMAZ. Yani resmi tatil satiri bulunmayan bir matriste bir
+    gunu tatil olarak isaretlemek (FR-1.10), o gunun talebini sessizce
+    SIFIRLAR - cizelge o gun icin kimseyi istemez ve bu bir hata gibi
+    gorunmez, cunku kapsama acigi da olusmaz (talep sifirdir).
+
+    Degerler SRS 3.3.4'un ucuncu sutunundan gelir: "Gece / Hafta Sonu /
+    Tatil" tek bir azaltilmis kadro sutunudur, yani tatil gunu hafta
+    sonuyla ayni kadroyla calisir (TD-3 ile tutarli: adalet sayaclarinda
+    da ayni sayaca eklenir).
+
+    Haftalik yuk gostergesi (FR-1.9) bu satirlardan ETKILENMEZ: resmi
+    tatil her hafta tekrarlanmadigi icin `yuk_gostergesi`ndeki haftalik
+    tekrar carpani sifirdir. SRS 3.3.6'nin referans sayilari (144
+    kisi-vardiya, 1.152 saat, 29 kisilik kadro) degismez.
+    """
     satirlar: list[TalepSatiriTanimi] = []
     for index, (hi_gunduz, hi_aksam, azaltilmis) in enumerate(TALEP_DEGERLERI):
         satirlar.append(TalepSatiriTanimi(index, GUNDUZ, GunTipi.HAFTA_ICI, hi_gunduz))
@@ -67,6 +86,9 @@ def talep_satirlarini_olustur() -> list[TalepSatiriTanimi]:
             (GUNDUZ, GunTipi.HAFTA_SONU),
             (AKSAM, GunTipi.HAFTA_SONU),
             (GECE, GunTipi.HAFTA_SONU),
+            (GUNDUZ, GunTipi.RESMI_TATIL),
+            (AKSAM, GunTipi.RESMI_TATIL),
+            (GECE, GunTipi.RESMI_TATIL),
         ):
             satirlar.append(TalepSatiriTanimi(index, vardiya_tipi, gun_tipi, azaltilmis))
     return satirlar

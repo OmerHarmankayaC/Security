@@ -1,4 +1,5 @@
-// Çalışan Paneli kabuğu (SDD 6.1): tek sütun, mobil öncelikli — Kontrol
+// Çalışan Paneli kabuğu (SDD 6.1, Tasarım Referansı sürüm 4): tek sütun,
+// mobil öncelikli — Kontrol
 // Odası'nın koyu yan menüsünün aksine burada yan menü YOK, koyu şasi tek bir
 // üst çubuğa ve altındaki üç sekmeye indirgenmiş (bkz. docs/tasarim/
 // "Vardiyalarım/Dönem Özetim/Tercihlerim — Masaüstü (Çalışan).png"). Masaüstünde
@@ -40,17 +41,20 @@ export function CalisanShell({
       <header className="bg-chrome-base">
         <div className="mx-auto flex max-w-[720px] items-start justify-between gap-6 px-6 py-6">
           <div>
-            <p className="m-0 text-lg font-semibold text-chrome-ink">{adSoyad}</p>
-            <p className="m-0 mt-0.5 font-mono text-xs text-chrome-ink-muted">
-              {sicilNo}
+            {/* Çalışan panelinde ekran adı yoktur; üst çubuğun taşıdığı ad
+                bu iskeletin `başlık/ekran`ıdır. */}
+            <p className="m-0 text-baslik-ekran font-semibold text-chrome-ink">{adSoyad}</p>
+            {/* Yalnızca sicil mono: yetkinlik adları ("Güvenlik", "İlk Yardım")
+                düz metindir (TASARIM_REFERANSI.md — "Düz cümle asla Mono
+                değildir"). */}
+            <p className="m-0 mt-0.5 text-mono-kucuk text-chrome-ink-muted">
+              <span className="font-mono">{sicilNo}</span>
               {yetkinlikler.length > 0 ? ` · ${yetkinlikler.join(', ')}` : ''}
             </p>
           </div>
           <div className="shrink-0 text-right">
-            <p className="m-0 font-condensed text-[10px] tracking-[0.14em] text-chrome-ink-muted">
-              {buyukHarf('Dönem')}
-            </p>
-            <p className="m-0 mt-1 font-mono text-sm font-semibold text-chrome-ink">
+            <p className="etiket-caps m-0 text-chrome-ink-muted">{buyukHarf('Dönem')}</p>
+            <p className="m-0 mt-1 font-mono text-sayi-orta font-semibold text-chrome-ink">
               {donemBaslangic && donemBitis
                 ? buyukHarf(donemAraligiBicimle(donemBaslangic, donemBitis))
                 : '—'}

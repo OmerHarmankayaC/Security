@@ -6,7 +6,7 @@ import { buyukHarf } from '@/lib/metin'
 import { bugunIso, donemAraligiBicimle, gunlerListesi } from '@/lib/tarih'
 import { navGruplari } from '@/lib/yetki'
 import { useOturum } from './OturumBaglami'
-import { type NavOgesi } from './nav'
+import { NAV_SIMGELERI, type NavOgesi } from './nav'
 
 export type { NavOgesi }
 
@@ -96,24 +96,33 @@ export function AppShell({
             {navGruplari(ben.rol).map((grup, i) => (
               <div key={grup.baslik ?? `grup-${i}`} className={cn(i > 0 && 'mt-3.5')}>
                 {grup.baslik && (
-                  <p className="mb-1 font-condensed text-[10px] tracking-[0.14em] text-chrome-ink-muted">
-                    {grup.baslik}
-                  </p>
+                  <p className="etiket-caps mb-1 text-chrome-ink-muted">{grup.baslik}</p>
                 )}
                 <div className="flex flex-col gap-0.5">
-                  {grup.ogeler.map((oge) => (
-                    <button
-                      key={oge}
-                      type="button"
-                      className={cn(
-                        'h-[34px] rounded-sm px-2.5 text-left text-sm text-chrome-ink-muted transition-colors hover:text-chrome-ink',
-                        oge === aktifEkran && 'bg-chrome-raised font-medium text-chrome-ink',
-                      )}
-                      onClick={() => ekranSec(oge)}
-                    >
-                      {oge}
-                    </button>
-                  ))}
+                  {grup.ogeler.map((oge) => {
+                    const Simge = NAV_SIMGELERI[oge]
+                    const aktifMi = oge === aktifEkran
+                    return (
+                      // Aktif öğenin solundaki 2px accent şerit `border-l` ile
+                      // çizilir, ayrı bir konumlandırılmış öğeyle değil; pasif
+                      // öğelerde de şeffaf olarak durur, yoksa aktif olan öğe
+                      // 2px sağa kayar ve menü seçim değiştikçe titrer.
+                      <button
+                        key={oge}
+                        type="button"
+                        className={cn(
+                          'flex h-10 items-center gap-[11px] rounded-sm border-l-2 border-transparent px-2.5 text-left text-sm text-chrome-ink-muted transition-colors hover:text-chrome-ink',
+                          aktifMi && 'border-accent bg-chrome-raised font-medium text-chrome-ink',
+                        )}
+                        onClick={() => ekranSec(oge)}
+                      >
+                        {/* Boyut 17, kontur 2, dolgu yok; rengi `currentColor`
+                            olduğu için butonun kendi renginden gelir. */}
+                        <Simge size={17} strokeWidth={2} className="shrink-0" aria-hidden />
+                        {oge}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
             ))}
@@ -126,14 +135,14 @@ export function AppShell({
               taşır ve giriş yapan kişi de bir bağlamdır — ekran eylemleri
               üst çubukta kalır (Tasarım Referansı, arayüz turu notu). */}
           <div className="border-t border-chrome-line pt-3">
-            <p className="m-0 font-condensed text-[10px] tracking-[0.14em] text-chrome-ink-muted">
-              {buyukHarf('Oturum')}
-            </p>
+            <p className="etiket-caps m-0 text-chrome-ink-muted">{buyukHarf('Oturum')}</p>
             <p className="m-0 mt-1.5 truncate text-sm font-medium text-chrome-ink">
               {ben.ad_soyad ?? ben.kullanici_adi}
             </p>
-            <p className="m-0 mt-0.5 font-mono text-[10px] text-chrome-ink-muted">
-              {ben.kullanici_adi} · {ROL_ETIKETI[ben.rol]}
+            {/* Yalnızca kullanıcı adı mono: rol adı ("Yönetici") düz metindir
+                ve Mono sayıya/koda ayrılmıştır (TASARIM_REFERANSI.md). */}
+            <p className="m-0 mt-0.5 text-mono-kucuk text-chrome-ink-muted">
+              <span className="font-mono">{ben.kullanici_adi}</span> · {ROL_ETIKETI[ben.rol]}
             </p>
             <div className="mt-2 flex gap-3">
               <button
@@ -154,15 +163,18 @@ export function AppShell({
           </div>
 
           <div className="border-t border-chrome-line pt-3">
-            <p className="m-0 font-condensed text-[10px] tracking-[0.14em] text-chrome-ink-muted">
+            <p className="etiket-caps m-0 text-chrome-ink-muted">
               {buyukHarf('Planlama Dönemi')}
             </p>
             {donem ? (
               <>
-                <p className="m-0 mt-1.5 font-mono text-sm font-semibold text-chrome-ink">
+                {/* `sayı/orta` — mono, 15px. */}
+                <p className="m-0 mt-1.5 font-mono text-sayi-orta font-semibold text-chrome-ink">
                   {buyukHarf(donemAraligiBicimle(donem.baslangic_tarihi, donem.bitis_tarihi))}
                 </p>
-                <p className="m-0 mt-0.5 font-mono text-[10px] text-chrome-ink-muted">
+                {/* `veri/mono-küçük` — dokümanın kendi örneği bu satırı
+                    ("7 gün · 3×8 vardiya") mono sayar. */}
+                <p className="m-0 mt-0.5 font-mono text-mono-kucuk text-chrome-ink-muted">
                   {gunlerListesi(donem.baslangic_tarihi, donem.bitis_tarihi).length} gün
                   {vardiyaOzeti ? ` · ${vardiyaOzeti} vardiya` : ''}
                 </p>
@@ -176,7 +188,9 @@ export function AppShell({
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-16 shrink-0 items-center justify-between gap-6 border-b border-rule bg-canvas px-7">
           <div className="flex items-center gap-3">
-            <h1 className="m-0 text-lg font-semibold text-ink">{baslik}</h1>
+            {/* `başlık/ekran` — Public Sans SemiBold 21px, ayrı bir display
+                fontu yok (TASARIM_REFERANSI.md, Tipografi). */}
+            <h1 className="m-0 text-baslik-ekran font-semibold text-ink">{baslik}</h1>
             {altBaslik}
           </div>
           {aksiyonlar && <div className="flex shrink-0 items-center gap-2">{aksiyonlar}</div>}

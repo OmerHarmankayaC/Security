@@ -327,7 +327,8 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
       baslik="Çizelge"
       altBaslik={
         surum ? (
-          <span className="rounded-sm bg-sunken px-2 py-1 font-condensed text-[11px] tracking-[0.06em] text-ink-muted">
+          {/* `etiket/mono-caps` — durum ve sürüm numarası veri, cümle değil. */}
+          <span className="mono-caps rounded-sm bg-sunken px-2 py-1 text-ink-muted">
             {buyukHarf(SURUM_DURUM_METNI[surum.durum] ?? surum.durum)} · SÜRÜM{' '}
             {surum.surum_no}
           </span>
@@ -441,7 +442,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                     <th
                       key={gun}
                       className={cn(
-                        'sticky top-0 z-20 h-8 border-b border-rule bg-surface text-center font-mono text-[10px] font-medium whitespace-nowrap text-ink-muted',
+                        'sticky top-0 z-20 h-8 border-b border-rule bg-surface text-center font-mono text-mono-kucuk font-medium whitespace-nowrap text-ink-muted',
                         GUN_SUTUNU,
                         haftaSonuMu(gun) && 'bg-sunken',
                       )}
@@ -483,7 +484,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                               <button
                                 type="button"
                                 className={cn(
-                                  'box-border h-7 w-full rounded-sm px-1 text-center font-mono text-[10px] leading-none whitespace-nowrap',
+                                  'box-border h-7 w-full rounded-sm px-1 text-center font-mono text-mono-kucuk leading-none whitespace-nowrap',
                                   // Bos hucre: kenarlik ve zemin yok — goz yalniz
                                   // dolu hucreleri gorur, 28 gunluk izgarada
                                   // bosluklar arka plana cekilir.
@@ -520,7 +521,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                           title={`${nokta.ad} — ${vardiya.ad}`}
                         >
                           {nokta.ad}{' '}
-                          <span className="font-mono text-[10px] text-ink-muted">
+                          <span className="font-mono text-mono-kucuk text-ink-muted">
                             {kisalt(vardiya.ad)}
                           </span>
                         </td>
@@ -543,7 +544,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                                   sutuna sigmaz; sicil zaten kisa ve tekildir. */}
                               <div
                                 className={cn(
-                                  'flex flex-col gap-px rounded-sm px-1 py-0.5 font-mono text-[10px] leading-tight',
+                                  'flex flex-col gap-px rounded-sm px-1 py-0.5 font-mono text-mono-kucuk leading-tight',
                                   hucreAtamalari.length > 0 && vardiyaHucreSinifi(vardiya),
                                   hucreAtamalari.length > 0 && 'border border-rule',
                                   kapsama && 'border-signal',

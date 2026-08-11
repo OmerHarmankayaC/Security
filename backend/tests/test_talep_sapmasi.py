@@ -266,3 +266,42 @@ def test_fazla_kadro_kapsama_oranini_bozmaz(senaryo: dict) -> None:
     assert len(analiz.fazla_kadro) == 1
     # Adlariyla birlikte gelir (NFR-5): ekran kimlik gostermez.
     assert analiz.fazla_kadro[0].nokta_ad.startswith("Guvenlik-")
+
+
+def test_resmi_tatil_gunu_talebi_sifira_dusurmez() -> None:
+    """FR-1.10'un sessiz tuzagi: tatil satiri olmayan bir matriste bir gunu
+    resmi tatil isaretlemek o gunun TALEBINI SIFIRLAR.
+
+    `talep_matrisini_coz` gun tipine karsilik gelen genel satiri bulamazsa
+    hucreyi sonuca hic koymaz; kapsama acigi da olusmaz (talep sifirdir),
+    dolayisiyla hata hicbir ekranda gorunmez. Ornek senaryo bu yuzden
+    RESMI_TATIL satirlarini da uretir ve tatil gunu hafta sonuyla ayni
+    azaltilmis kadroya duser (SRS 3.3.4).
+    """
+    from app.services.ornek_senaryo import talep_satirlarini_olustur
+    from app.services.talep_cozucu import gun_tipi_belirle, talep_matrisini_coz
+
+    tatil = date(2026, 4, 23)  # Persembe
+    hafta_ici = date(2026, 4, 22)  # Carsamba
+    hafta_sonu = date(2026, 4, 25)  # Cumartesi
+    assert gun_tipi_belirle(tatil, frozenset({tatil})) is GunTipi.RESMI_TATIL
+
+    satirlar = [
+        Talep(
+            talep_id=i,
+            nokta_id=t.nokta_index + 1,
+            vardiya_tipi_id={"Gece": 1, "Gündüz": 2, "Akşam": 3}[t.vardiya_tipi],
+            gun_tipi=t.gun_tipi,
+            tarih=None,
+            gereken_sayi=t.gereken_sayi,
+        )
+        for i, t in enumerate(talep_satirlarini_olustur(), start=1)
+    ]
+    cozulmus = talep_matrisini_coz(satirlar, [hafta_ici, tatil, hafta_sonu], frozenset({tatil}))
+
+    def gun_toplami(gun: date) -> int:
+        return sum(v for (t, _, _), v in cozulmus.items() if t == gun)
+
+    assert gun_toplami(tatil) > 0, "tatil gunu talebi sifirlanmamali"
+    assert gun_toplami(tatil) == gun_toplami(hafta_sonu), "tatil hafta sonu kadrosuyla calisir"
+    assert gun_toplami(tatil) < gun_toplami(hafta_ici), "tatilde kadro azaltilir"

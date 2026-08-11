@@ -96,7 +96,7 @@ export function TercihlerEkrani({ ekranSec }: Props) {
             )}
           >
             {s.baslik}
-            <span className="flex size-5 items-center justify-center rounded-full bg-accent-soft font-mono text-[11px] text-accent">
+            <span className="flex size-5 items-center justify-center rounded-full bg-accent-soft font-mono text-mono-kucuk text-accent">
               {sayilar[s.durum]}
             </span>
           </button>

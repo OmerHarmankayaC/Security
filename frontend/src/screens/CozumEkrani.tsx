@@ -320,7 +320,7 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                         : 'border-accent text-ink',
                     )}
                   >
-                    <span className="font-condensed text-[10px] tracking-[0.12em] text-ink-muted">
+                    <span className="etiket-caps text-ink-muted">
                       {buyukHarf(b.engel_mi ? 'Engel' : 'Uyarı')}
                     </span>
                     <br />

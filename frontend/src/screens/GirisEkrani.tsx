@@ -62,7 +62,7 @@ export function GirisEkrani({ girisYapildi }: Props) {
           className="rounded-md border border-rule bg-surface p-6"
           noValidate
         >
-          <p className="mb-4 font-condensed text-[10px] font-medium tracking-[0.14em] text-ink-muted">
+          <p className="mb-4 etiket-caps text-ink-muted">
             {buyukHarf('Giriş')}
           </p>
 

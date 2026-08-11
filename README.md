@@ -69,8 +69,17 @@ Oturum çerezi üretimde `Secure` niteliği taşır ve tarayıcı onu düz
 hata göstermeden başarısız olur.
 
 Gösterim amaçlı örnek veri (FR-1.14 — SRS 3.3'teki güvenlik personeli
-senaryosu: 44 personel, 6 görev noktası, talep matrisi, 17 kural; "rahat"
-ve "sıkışık" iki dönem):
+senaryosu: 44 personel, 3 görev noktası, talep matrisi, 17 kural, 7 resmî
+tatil ve üç dönem):
+
+| Dönem | Uzunluk | Ne gösterir |
+|---|---|---|
+| Rahat | 1 hafta | Kadro talebi rahatlıkla karşılıyor; izin kaydı yok |
+| Sıkışık | 4 hafta | Vardiya şefliği havuzunun yarısı iki hafta izinli — ön kontrolün kaçırdığı, yalnızca çözücünün gösterdiği kapsama açığı (Backlog B-14) |
+| Tatilli | 1 hafta | 23 Nisan içeride: resmî tatil azaltılmış kadroya düşer (FR-1.10, TD-3). Müsaitlik tiplerinin tamamı ve yarım gün dilimler (TD-4), tercihin üç durumu ve tercih penceresi açık |
+
+Ayrıca 3 sabit vardiyalı ve 1 pasifleştirilmiş personel kaydı var; ikisi de
+daha önce demo verisinde hiç görünmüyordu.
 
 ```bash
 cd backend && source .venv/bin/activate

@@ -41,7 +41,7 @@ function MetrikKarti({
           </Rozet>
         )}
       </div>
-      <p className="m-0 font-mono text-3xl font-semibold text-ink">
+      <p className="m-0 font-mono text-sayi-buyuk font-semibold text-ink">
         {sen.toFixed(ondalik)} <span className="text-base font-normal text-ink-muted">{birim}</span>
       </p>
       <div className="mt-4 flex flex-col gap-2">
@@ -67,7 +67,7 @@ function BarSatiri({
 }) {
   return (
     <div className="flex items-center gap-3">
-      <span className="w-20 shrink-0 font-condensed text-[10px] tracking-[0.1em] text-ink-muted">{etiket}</span>
+      <span className="w-20 shrink-0 etiket-caps text-ink-muted">{etiket}</span>
       <div className="h-2.5 flex-1 rounded-xs bg-sunken">
         <div
           className={`h-full rounded-xs ${renk}`}
@@ -107,7 +107,7 @@ export function DonemOzetimEkrani({ veri }: Props) {
   return (
     <>
       <div>
-        <p className="m-0 font-condensed text-[10px] tracking-[0.14em] text-ink-muted">
+        <p className="m-0 etiket-caps text-ink-muted">
           {donemAraligiBicimle(veri.donem_baslangic_tarihi, veri.donem_bitis_tarihi)} DÖNEMİ
         </p>
         <p className="m-0 mt-1 text-sm text-ink">Bu dönemde {cumleler.join(', ')}.</p>

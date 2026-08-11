@@ -96,3 +96,25 @@ def test_resmi_tatil_haftalik_yuke_girmez() -> None:
         hucreler, _vardiya_tipleri(), azami_haftalik_saat=Decimal(45), haftalik_asgari_izin_gunu=1
     )
     assert yuk.haftalik_kisi_vardiya == 0
+
+
+def test_resmi_tatil_satirlari_haftalik_yuku_degistirmez() -> None:
+    """RESMI_TATIL satirlari matrise eklendi (FR-1.10 icin zorunlu), ama
+    SRS 3.3.6'nin referans sayilari DEGISMEMELIDIR.
+
+    Resmi tatil her hafta tekrarlanmaz; haftalik yuk gostergesi (FR-1.9)
+    onu bu yuzden sifir tekrarla sayar. Bu test, matrise tatil satiri
+    eklemenin gostergeyi sessizce sismesini engeller.
+    """
+    hucreler = _guvenlik_personeli_talep_matrisi()
+    tatil_satirlari = [h for h in hucreler if h.gun_tipi == GunTipi.RESMI_TATIL]
+    assert tatil_satirlari, "matris resmi tatil satiri tasimali"
+
+    yuk = yuk_gostergesi_hesapla(
+        hucreler,
+        _vardiya_tipleri(),
+        azami_haftalik_saat=Decimal(45),
+        haftalik_asgari_izin_gunu=1,
+    )
+    assert yuk.haftalik_kisi_vardiya == 144
+    assert yuk.haftalik_kisi_saat == Decimal(1152)
