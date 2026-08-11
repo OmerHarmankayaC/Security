@@ -33,8 +33,15 @@ Kullanim:
 
 DIKKAT: Betik kendi olcum verisini kurabilmek icin veritabanindaki tanim,
 girdi, kural ve sonuc tablolarini TEMIZLER (demo_veri_uret.py --reset ile
-ayni sozlesme). Olcum verisi sonda birakilir; basarisiz bir kriter
+ayni sozlesme; liste app/veri_temizligi.py'de). Bir PERSONEL KAYDINA BAGLI
+hesaplar da silinir ve sayisi rapora yazilir - o satirlar `personel`i tutan
+yabanci anahtarlardir. Personel kaydina bagli OLMAYAN yonetim hesaplarina
+dokunulmaz. Olcum verisi sonda birakilir; basarisiz bir kriter
 incelenebilsin diye silinmez.
+
+Betik, VERI_TEMIZLIGINE_IZIN ortam degiskeni verilmeden calismaz
+(app/veri_temizligi.py, uretim kilidi): olcum yikici bir islemdir ve
+gosterim sunucusunda kazara calistirilmasi butun veriyi goturur.
 
 Cikis kodu: butun kriterler gectiyse 0, en az biri gectiyse 1.
 """
@@ -50,7 +57,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from sqlalchemy import delete, select  # noqa: E402
+from sqlalchemy import select  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
 from app.config import ayarlar  # noqa: E402
@@ -58,7 +65,7 @@ from app.cozucu import CozucuAdaptoru, model_kur  # noqa: E402
 from app.db import OturumYerel  # noqa: E402
 from app.kurallar.baglam import AtamaKaydi  # noqa: E402
 from app.kurallar.kayit_defteri import bul  # noqa: E402
-from app.models.girdi import Musaitlik, MusaitlikDilimi, MusaitlikTipi, Tercih  # noqa: E402
+from app.models.girdi import Musaitlik, MusaitlikDilimi, MusaitlikTipi  # noqa: E402
 from app.models.kural import Kural  # noqa: E402
 from app.models.kural import KuralTipi as KuralTipiEnum
 from app.models.sonuc import (  # noqa: E402
@@ -66,12 +73,9 @@ from app.models.sonuc import (  # noqa: E402
     AtamaKaynagi,
     CizelgeSurumu,
     CizelgeSurumuDurumu,
-    CozumIsi,
     Donem,
-    KapsamaAcigi,
 )
 from app.models.tanim import (  # noqa: E402
-    Bina,
     GorevNoktasi,
     Personel,
     PersonelYetkinlik,
@@ -86,6 +90,12 @@ from app.services.ornek_senaryo import (  # noqa: E402
     talep_satirlarini_olustur,
 )
 from app.services.vardiya_hesaplari import sure_saat_hesapla  # noqa: E402
+from app.veri_temizligi import (  # noqa: E402
+    HesapKapsami,
+    TemizlikSonucu,
+    UretimKilidiError,
+    veriyi_temizle,
+)
 
 # --- Referans ornek (Charter 5 / NFR-1: kirk personel, yirmi sekiz gun) ------
 
@@ -140,26 +150,18 @@ class Kriter:
 # --- Veri kurulumu ----------------------------------------------------------
 
 
-def _temizle(oturum: Session) -> None:
-    """FK bagimliligi sirasiyla; cizelge_surumu kendi kendine referans
-    verdiginden (onceki_surum_id) once o bag koparilir."""
-    oturum.execute(delete(KapsamaAcigi))
-    oturum.execute(delete(CozumIsi))
-    oturum.execute(delete(Atama))
-    oturum.execute(CizelgeSurumu.__table__.update().values(onceki_surum_id=None))
-    oturum.execute(delete(CizelgeSurumu))
-    oturum.execute(delete(Tercih))
-    oturum.execute(delete(Musaitlik))
-    oturum.execute(delete(Donem))
-    oturum.execute(delete(Talep))
-    oturum.execute(delete(PersonelYetkinlik))
-    oturum.execute(delete(Personel))
-    oturum.execute(delete(GorevNoktasi))
-    oturum.execute(delete(VardiyaTipi))
-    oturum.execute(delete(Bina))
-    oturum.execute(delete(Yetkinlik))
-    oturum.execute(delete(Kural))
-    oturum.flush()
+def _temizle(oturum: Session) -> TemizlikSonucu:
+    """Olcum verisini kurabilmek icin tablolari bosaltir.
+
+    Silinecek tablolarin listesi ve sirasi app/veri_temizligi.py'de, tek
+    yerde durur; demo ureteci ve testler de ayni listeden gecer. Burada
+    ayri bir kopya tutmak, iki listenin sessizce ayrismasi demekti.
+
+    Hesap kapsami PERSONELE_BAGLI: personel kaydina bagli hesaplar silinir
+    (aksi halde `personel` silinemez ve olcum bir yabanci anahtar hatasiyla
+    duserdi), yonetim hesaplari kalir.
+    """
+    return veriyi_temizle(oturum, hesaplar=HesapKapsami.PERSONELE_BAGLI)
 
 
 def _tanimlari_kur(oturum: Session) -> None:
@@ -645,13 +647,34 @@ def _makine_bilgisi() -> list[str]:
     ]
 
 
-def _yazdir(kriterler: list[Kriter]) -> None:
+def _temizlik_satirlari(temizlik: TemizlikSonucu | None) -> list[str]:
+    """Silinen hesaplar rapora YAZILIR.
+
+    Olcum verisinin silinmesi beklenen bir sey; bir kullanicinin sisteme
+    girisinin silinmesi degil. Sayi gorunmezse, olcumu alan kisi sonradan
+    "hesabim neden yok" sorusuyla karsilasir ve nedeni bu betikte aramaz.
+    """
+    if temizlik is None or not temizlik.silinen_hesap:
+        return []
+    return [
+        f"UYARI: personel kaydina bagli {temizlik.silinen_hesap} hesap "
+        f"({temizlik.silinen_oturum} acik oturum) silindi.",
+        "  Bu personel icin hesaplar Kullanicilar ekranindan yeniden acilmalidir;",
+        "  personel kaydina bagli OLMAYAN yonetim hesaplarina dokunulmadi.",
+    ]
+
+
+def _yazdir(kriterler: list[Kriter], temizlik: TemizlikSonucu | None = None) -> None:
     print("=" * 78)
     print("KABUL KRITERI OLCUMU  (Proje Tanim Dokumani bolum 5)")
     print("=" * 78)
     for satir in _makine_bilgisi():
         print(f"  {satir}")
     print()
+    for satir in _temizlik_satirlari(temizlik):
+        print(f"  {satir}")
+    if _temizlik_satirlari(temizlik):
+        print()
     print(
         "  NOT: arama iscisi sayisi referans donanimin degerine sabitlendigi icin"
         "\n  cozucunun PARALELLIGI referans donanimla ayni; cekirdek BASINA hiz farki"
@@ -688,8 +711,9 @@ def main() -> int:
 
     oturum = OturumYerel()
     kriterler: list[Kriter] = []
+    temizlik: TemizlikSonucu | None = None
     try:
-        _temizle(oturum)
+        temizlik = _temizle(oturum)
         _tanimlari_kur(oturum)
         oturum.commit()
 
@@ -732,6 +756,10 @@ def main() -> int:
             json.dumps(
                 {
                     "makine": _makine_bilgisi(),
+                    "temizlik": {
+                        "silinen_hesap": temizlik.silinen_hesap if temizlik else 0,
+                        "silinen_oturum": temizlik.silinen_oturum if temizlik else 0,
+                    },
                     "kriterler": [
                         {
                             "kimlik": k.kimlik,
@@ -749,10 +777,16 @@ def main() -> int:
             )
         )
     else:
-        _yazdir(kriterler)
+        _yazdir(kriterler, temizlik)
 
     return 0 if all(k.gecti for k in kriterler) else 1
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except UretimKilidiError as hata:
+        # Yigin izi YAZILMAZ: bu bir program hatasi degil, kasitli bir ret
+        # (bkz. scripts/demo_veri_uret.py'deki ayni gerekce).
+        print(f"REDDEDILDI: {hata}", file=sys.stderr)
+        raise SystemExit(2) from None

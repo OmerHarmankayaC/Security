@@ -19,7 +19,7 @@ from sqlalchemy.orm import InstrumentedAttribute, Session
 from app.db import Base
 from app.models.girdi import Musaitlik, Tercih
 from app.models.kimlik import Kullanici
-from app.models.sonuc import Atama, KapsamaAcigi
+from app.models.sonuc import Atama, FazlaKadro, KapsamaAcigi
 from app.models.tanim import (
     Bina,
     GorevNoktasi,
@@ -68,11 +68,13 @@ _KAYNAKLAR: dict[type[Base], tuple[KullanimKaynagi, ...]] = {
         KullanimKaynagi("tercih", Tercih.vardiya_tipi_id),
         KullanimKaynagi("sabit vardiyalı personel", Personel.sabit_vardiya_tipi_id),
         KullanimKaynagi("kapsama açığı", KapsamaAcigi.vardiya_tipi_id),
+        KullanimKaynagi("fazla kadro kaydı", FazlaKadro.vardiya_tipi_id),
     ),
     GorevNoktasi: (
         KullanimKaynagi("atama", Atama.nokta_id),
         KullanimKaynagi("talep satırı", Talep.nokta_id),
         KullanimKaynagi("kapsama açığı", KapsamaAcigi.nokta_id),
+        KullanimKaynagi("fazla kadro kaydı", FazlaKadro.nokta_id),
     ),
     Personel: (
         KullanimKaynagi("atama", Atama.personel_id),

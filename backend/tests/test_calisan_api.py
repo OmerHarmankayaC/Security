@@ -19,7 +19,6 @@ from datetime import UTC, date, datetime, time, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import text
 
 from app.db import OturumYerel
 from app.main import app
@@ -27,15 +26,9 @@ from app.models.girdi import Tercih, TercihDurumu, TercihTipi
 from app.models.kimlik import Rol
 from app.models.sonuc import Atama, AtamaKaynagi, CizelgeSurumu, CizelgeSurumuDurumu, Donem
 from app.models.tanim import GorevNoktasi, GunTipi, Personel, Talep, VardiyaTipi
-from tests.conftest import oturumlu_istemci, pg_yoksa_atla
+from tests.conftest import oturumlu_istemci, pg_yoksa_atla, senaryo_verisini_temizle
 
 BUGUN = date.today()
-
-_TABLOLAR = (
-    "TRUNCATE kapsama_acigi, cozum_isi, atama, cizelge_surumu, musaitlik, "
-    "donem, talep, personel_yetkinlik, personel, gorev_noktasi, "
-    "vardiya_tipi, bina, yetkinlik, kural, tercih CASCADE"
-)
 
 
 def _benzersiz(on_ek: str) -> str:
@@ -52,8 +45,7 @@ def _temizle(oturum) -> None:  # noqa: ANN001 - Session, testlere ozel yardimci
     """AnalizServisi (dolayisiyla ekip ortalamasi) ve `guncel_donemi_bul` TUM
     tabloyu tarar; baska bir oturumdan/testten kalan veri sonuclari bozar
     (bkz. tests/test_analiz_api.py'deki ayni desen)."""
-    oturum.execute(text(_TABLOLAR))
-    oturum.commit()
+    senaryo_verisini_temizle(oturum)
 
 
 # --- FR-9.1: gosterilecek personel YALNIZ oturumdan belirlenir --------------

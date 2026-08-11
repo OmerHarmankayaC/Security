@@ -23,11 +23,18 @@ from app.repositories.sonuc import (
     CizelgeSurumuDeposu,
     CozumIsiDeposu,
     DonemDeposu,
+    FazlaKadroDeposu,
     KapsamaAcigiDeposu,
 )
 from app.repositories.tanim import PersonelDeposu
-from app.schemas.analiz import AnalizOku, KisiSayisiOku, SaatDengesiOku
+from app.schemas.analiz import AnalizOku, FazlaKadroKalemi, KisiSayisiOku, SaatDengesiOku
 from app.services.baglam_kurucu import baglam_olustur
+
+
+def _ad(bilgi: object) -> str:
+    """Baglam nesnesinin gosterim adi; yoksa bos yerine anlasilir bir metin."""
+    ad = getattr(bilgi, "ad", "") or ""
+    return ad if ad else "—"
 
 
 class AnalizServisi:
@@ -37,6 +44,7 @@ class AnalizServisi:
         self.donem = DonemDeposu(oturum)
         self.atama = AtamaDeposu(oturum)
         self.kapsama = KapsamaAcigiDeposu(oturum)
+        self.fazla_kadro = FazlaKadroDeposu(oturum)
         self.cozum_isi = CozumIsiDeposu(oturum)
         self.personel = PersonelDeposu(oturum)
 
@@ -76,6 +84,25 @@ class AnalizServisi:
         )
         toplam_eksik = sum(k.eksik_sayi for k in self.kapsama.surume_gore_getir(surum_id))
         kapsama_orani = (toplam_talep - toplam_eksik) / toplam_talep if toplam_talep > 0 else 1.0
+
+        # --- Fazla kadro (SRS 4.3 S1 ust siniri). Kapsama ORANINA
+        # KARISTIRILMAZ: oran "talebin ne kadari karsilandi" sorusunu
+        # yanitlar ve fazla kadro o soruya bir sey eklemez - fazla atama
+        # bir hucreyi daha iyi kapsamis olmaz. Ayri bir sayi olarak
+        # raporlanir; ekranda da ayri durur.
+        fazla_satirlari = self.fazla_kadro.surume_gore_getir(surum_id)
+        fazla_kadro = [
+            FazlaKadroKalemi(
+                tarih=f.tarih,
+                vardiya_tipi_id=f.vardiya_tipi_id,
+                vardiya_tipi_ad=_ad(baglam.vardiya_tipleri.get(f.vardiya_tipi_id)),
+                nokta_id=f.nokta_id,
+                nokta_ad=_ad(baglam.gorev_noktalari.get(f.nokta_id)),
+                fazla_sayi=f.fazla_sayi,
+            )
+            for f in fazla_satirlari
+        ]
+        toplam_fazla = sum(f.fazla_sayi for f in fazla_satirlari)
 
         # --- Kisi basina gece / hafta sonu sayisi (FR-8.2), saat dagilimi
         gece_sayac: dict[int, int] = defaultdict(int)
@@ -186,6 +213,8 @@ class AnalizServisi:
         return AnalizOku(
             surum_id=surum_id,
             kapsama_orani=kapsama_orani,
+            fazla_kadro=fazla_kadro,
+            toplam_fazla_kadro=toplam_fazla,
             kisi_basina_gece=kisi_basina_gece,
             kisi_basina_hafta_sonu=kisi_basina_hafta_sonu,
             saat_dagilimi=saat_dagilimi,

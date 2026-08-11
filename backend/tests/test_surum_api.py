@@ -13,7 +13,6 @@ from datetime import UTC, date, datetime, time, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import text
 
 from app.db import OturumYerel
 from app.models.sonuc import (
@@ -27,13 +26,7 @@ from app.models.sonuc import (
     KapsamaAcigi,
 )
 from app.models.tanim import GorevNoktasi, Personel, VardiyaTipi
-from tests.conftest import pg_yoksa_atla, yetkili_istemci
-
-_TABLOLAR = (
-    "TRUNCATE kapsama_acigi, cozum_isi, atama, cizelge_surumu, musaitlik, "
-    "donem, talep, personel_yetkinlik, personel, gorev_noktasi, "
-    "vardiya_tipi, bina, yetkinlik, kural, tercih CASCADE"
-)
+from tests.conftest import pg_yoksa_atla, senaryo_verisini_temizle, yetkili_istemci
 
 
 @pytest.fixture
@@ -59,8 +52,7 @@ def senaryo() -> dict[str, int]:
     on_ek = _benzersiz("surum")
     oturum = OturumYerel()
     try:
-        oturum.execute(text(_TABLOLAR))
-        oturum.commit()
+        senaryo_verisini_temizle(oturum)
 
         gunduz = VardiyaTipi(
             ad=f"Gunduz-{on_ek}",

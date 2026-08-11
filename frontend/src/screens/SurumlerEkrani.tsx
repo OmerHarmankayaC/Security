@@ -292,6 +292,20 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                   {s.kapsama_acigi_sayisi}
                 </Sayi>
               </div>
+              {/* Fazla kadro AYRI sütun: açıkla toplanmış tek bir sayı iki
+                  zıt yöndeki sapmayı gizler ve "3 açık" ile "3 fazla" aynı
+                  görünürdü. Sıfırsa gösterilmez — beklenen durum odur ve
+                  her satıra bir sıfır koymak listeyi gürültüye boğardı. */}
+              {s.fazla_kadro_sayisi > 0 && (
+                <div className="w-20 shrink-0">
+                  <p className="m-0 font-condensed text-[10px] tracking-[0.14em] text-ink-muted">
+                    {buyukHarf('Fazla')}
+                  </p>
+                  <Sayi className="text-base font-semibold text-signal">
+                    {s.fazla_kadro_sayisi}
+                  </Sayi>
+                </div>
+              )}
               <div className="ml-auto flex shrink-0 gap-2">
                 {s.durum === 'yayinlandi' || s.durum === 'arsiv' ? (
                   <>

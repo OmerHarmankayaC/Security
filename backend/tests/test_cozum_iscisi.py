@@ -12,7 +12,7 @@ import uuid
 from datetime import date, timedelta
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import select
 
 from app.db import OturumYerel
 from app.models.kural import Kural, KuralTipi
@@ -21,13 +21,7 @@ from app.models.tanim import GorevNoktasi, GunTipi, Personel, Talep, VardiyaTipi
 from app.repositories.sonuc import CozumIsiDeposu
 from app.services.cozum_servisi import CozumServisi
 from scripts.cozum_iscisi import siradaki_isi_isle, siradaki_isi_kap
-from tests.conftest import isi_calistir_ve_bekle, pg_yoksa_atla
-
-_TABLOLAR = (
-    "TRUNCATE kapsama_acigi, cozum_isi, atama, cizelge_surumu, musaitlik, "
-    "donem, talep, personel_yetkinlik, personel, gorev_noktasi, "
-    "vardiya_tipi, bina, yetkinlik, kural, tercih CASCADE"
-)
+from tests.conftest import isi_calistir_ve_bekle, pg_yoksa_atla, senaryo_verisini_temizle
 
 # S1 SART: kapsama kisitini (ve dolayisiyla atama uretme nedenini) o kurar.
 # Yalniz H1-H8 yuklenirse model bos bir amac fonksiyonuyla cozulur, hicbir
@@ -63,8 +57,7 @@ def kurulum() -> dict[str, int]:
     on_ek = _benzersiz("isci")
     oturum = OturumYerel()
     try:
-        oturum.execute(text(_TABLOLAR))
-        oturum.commit()
+        senaryo_verisini_temizle(oturum)
 
         vardiya = VardiyaTipi(
             ad=f"Gunduz-{on_ek}",

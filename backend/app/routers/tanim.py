@@ -4,6 +4,7 @@ Yonlendirici ince tutulur: istegi semayla dogrular, tek bir servis metodunu
 cagirir, sonucu JSON'a cevirir. Is mantigi burada yer almaz.
 """
 
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -29,6 +30,9 @@ from app.schemas.tanim import (
     GorevNoktasiOlustur,
     KullanimKalemi,
     KullanimOku,
+    OzelGunGuncelle,
+    OzelGunOku,
+    OzelGunOlustur,
     PersonelGuncelle,
     PersonelOku,
     PersonelOlustur,
@@ -42,7 +46,7 @@ from app.schemas.tanim import (
     YetkinlikOlustur,
 )
 from app.services.tanim_kullanimi import kullanimi_olc
-from app.services.tanim_servisi import KuralParametresiError, TanimServisi
+from app.services.tanim_servisi import KuralParametresiError, SicilKullanimdaError, TanimServisi
 
 # Butun tanim uc noktalari yonetici yetkisi ister (SRS 5.10: calisan rolu
 # tanim, cozum ve yayin islevlerine erisemez). Kapi ROUTER duzeyinde: bu
@@ -219,12 +223,22 @@ def personel_listele(servis: Servis) -> list[PersonelOku]:
 
 @router.post("/personel", response_model=PersonelOku, status_code=201)
 def personel_olustur(veri: PersonelOlustur, servis: Servis) -> PersonelOku:
-    return PersonelOku.modelden_olustur(servis.personel_olustur(veri))
+    try:
+        personel = servis.personel_olustur(veri)
+    except SicilKullanimdaError as hata:
+        raise HTTPException(status_code=409, detail=str(hata)) from hata
+    return PersonelOku.modelden_olustur(personel)
 
 
 @router.put("/personel/{personel_id}", response_model=PersonelOku)
 def personel_guncelle(personel_id: int, veri: PersonelGuncelle, servis: Servis) -> PersonelOku:
-    personel = servis.personel_guncelle(personel_id, veri)
+    try:
+        personel = servis.personel_guncelle(personel_id, veri)
+    except SicilKullanimdaError as hata:
+        # 409: istek bicimsel olarak gecerli (400 degil), yalniz mevcut
+        # veriyle CAKISIYOR. Ayrimi korumak arayuze "alani duzeltip tekrar
+        # gonder" ile "istegi bastan kur" arasindaki farki soyler.
+        raise HTTPException(status_code=409, detail=str(hata)) from hata
     if personel is None:
         raise HTTPException(status_code=404, detail="Personel bulunamadi")
     return PersonelOku.modelden_olustur(personel)
@@ -238,6 +252,51 @@ def personel_kullanimi(personel_id: int, servis: Servis) -> KullanimOku:
 @router.delete("/personel/{personel_id}", status_code=204)
 def personel_sil(personel_id: int, servis: Servis) -> None:
     _sil(servis.personel, personel_id, "Personel bulunamadi")
+
+
+# --- Ozel gun / resmi tatil (FR-1.10) --------------------------------------
+#
+# Tablo ve cozucu tarafi baslangictan beri vardi: `baglam_kurucu` donemdeki
+# ozel gunleri okur ve `Baglam.hafta_sonu_mu` onlari hafta sonuyla ayni
+# sayaca ekler (SRS TD-3), talep matrisinin `resmi_tatil` gun tipi de
+# oradan tetiklenir. Eksik olan tek sey YAZMA yoluydu: hicbir uc nokta ve
+# hicbir ekran `ozel_gun` tablosuna satir ekleyemiyordu, dolayisiyla
+# FR-1.10 karsilanmiyor ve TD-3'un tatil hukmu olu kaliyordu.
+#
+# Yol `/api/ozel-gun`; anahtar TARIHIN KENDISIDIR (SDD 4.2.1), tamsayi bir
+# kimlik degil.
+
+
+@router.get("/ozel-gun", response_model=list[OzelGunOku])
+def ozel_gun_listele(servis: Servis) -> list[OzelGunOku]:
+    return [OzelGunOku.model_validate(g) for g in servis.ozel_gun.tumunu_getir()]
+
+
+@router.post("/ozel-gun", response_model=OzelGunOku, status_code=201)
+def ozel_gun_isaretle(veri: OzelGunOlustur, servis: Servis) -> OzelGunOku:
+    return OzelGunOku.model_validate(servis.ozel_gun_isaretle(veri.tarih, veri.ad))
+
+
+@router.put("/ozel-gun/{tarih}", response_model=OzelGunOku)
+def ozel_gun_guncelle(tarih: date, veri: OzelGunGuncelle, servis: Servis) -> OzelGunOku:
+    mevcut = servis.ozel_gun.getir(tarih)
+    if mevcut is None:
+        raise HTTPException(status_code=404, detail="Ozel gun bulunamadi")
+    mevcut.ad = veri.ad
+    return OzelGunOku.model_validate(mevcut)
+
+
+@router.delete("/ozel-gun/{tarih}", status_code=204)
+def ozel_gun_sil(tarih: date, servis: Servis) -> None:
+    """Isareti kaldirir.
+
+    Burada "kullanimda ise pasiflestir" kurali YOKTUR (bkz. OzelGunDeposu):
+    ozel gune referans veren bir tablo yok ve bir tarih ya tatildir ya
+    degildir. Gecmis cizelgeler etkilenmez - onlar uretildikleri andaki
+    atamalari kendi iclerinde tasir (SDD 4.1).
+    """
+    if not servis.ozel_gun.sil(tarih):
+        raise HTTPException(status_code=404, detail="Ozel gun bulunamadi")
 
 
 # --- Talep + Yuk Gostergesi (FR-1.7, FR-1.8, FR-1.9) ----------------------

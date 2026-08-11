@@ -59,23 +59,67 @@ class S1TalepKarsilama(EsnekHedef):
         return sum(eksik_terimleri) if eksik_terimleri else 0
 
     def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
+        """S1'in IKI YARISI da denetlenir.
+
+        Once yalnizca alt sinir (kapsama acigi) bakiliyordu; ust sinir
+        (`atanan > gereken`) hicbir yerde sorulmuyordu. Sonuc: elle
+        duzenlemede bir noktaya talepten fazla kisi yazilabiliyor ve sistem
+        sessizce kabul ediyordu - oysa `modele_ekle` ayni kisiti cozucuye
+        ZORUNLU olarak ekliyor. Iki yorumlayicinin ayrismasi SDD 3.2.1'e
+        gore yazilim hatasidir; mevcut uyum testi de bunu yakalayamaz,
+        cunku yalnizca COZUCUNUN URETTIGI cizelgeleri dogrulayiciya verir
+        ve cozucu zaten fazla kadro uretemez.
+
+        FAZLA KADRO CEZA URETMEZ, uyari uretir (ceza=None). Gerekcesi
+        SRS 4.4'teki amac fonksiyonudur: orada fazla kadroya karsilik gelen
+        bir terim YOKTUR (cozucu tarafinda kisit, ceza degil). Buraya bir
+        ceza sayisi uydurmak, cozucunun hicbir zaman hesaplamayacagi bir
+        buyuklugu ceza dokumune sokar ve iki yorumlayici ayni cizelge icin
+        farkli toplam uretirdi. Bulgu kullaniciya metin olarak gider
+        (urun karari, 11.08.2026: fazla kadro engel degil uyaridir).
+        """
         atanan = Counter((a.tarih, a.vardiya_tipi_id, a.nokta_id) for a in atamalar)
         ihlaller: list[Ihlal] = []
-        for (tarih, vardiya_tipi_id, nokta_id), gereken in baglam.talep.items():
-            eksik = gereken - atanan.get((tarih, vardiya_tipi_id, nokta_id), 0)
-            if eksik > 0:
+        for anahtar, gereken in sorted(baglam.talep.items()):
+            tarih, vardiya_tipi_id, nokta_id = anahtar
+            fark = atanan.get(anahtar, 0) - gereken
+            if fark == 0:
+                continue
+            yer = self._yer_metni(baglam, tarih, vardiya_tipi_id, nokta_id)
+            if fark < 0:
                 ihlaller.append(
                     Ihlal(
                         kural_kimlik=self.kimlik,
                         tarih=tarih,
-                        ceza=eksik,
-                        aciklama=(
-                            f"{tarih} gunu {vardiya_tipi_id} nolu vardiyada {nokta_id} nolu "
-                            f"noktada {eksik} kisi eksik"
-                        ),
+                        ceza=-fark,
+                        aciklama=f"{yer} — {-fark} kişi eksik (talep {gereken})",
+                    )
+                )
+            else:
+                ihlaller.append(
+                    Ihlal(
+                        kural_kimlik=self.kimlik,
+                        tarih=tarih,
+                        ceza=None,
+                        aciklama=f"{yer} — talepten {fark} kişi fazla (talep {gereken})",
                     )
                 )
         return ihlaller
+
+    @staticmethod
+    def _yer_metni(baglam: Baglam, tarih: date, vardiya_tipi_id: int, nokta_id: int) -> str:
+        """ "2026-02-02 · Akşam · Vardiya Şefliği" — kimlik degil AD (NFR-5).
+
+        Eski metin "3 nolu vardiyada 2 nolu noktada" diyordu; o sayilar
+        veritabani kimlikleri ve kullaniciya hicbir sey anlatmiyordu.
+        """
+        nokta = baglam.gorev_noktalari.get(nokta_id)
+        vardiya = baglam.vardiya_tipleri.get(vardiya_tipi_id)
+        nokta_adi = (nokta.ad if nokta and nokta.ad else None) or f"#{nokta_id} nolu nokta"
+        vardiya_adi = (
+            vardiya.ad if vardiya and vardiya.ad else None
+        ) or f"#{vardiya_tipi_id} nolu vardiya"
+        return f"{tarih.isoformat()} · {vardiya_adi} · {nokta_adi}"
 
 
 @kayitli("S2")

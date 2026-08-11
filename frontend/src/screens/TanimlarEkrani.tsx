@@ -5,6 +5,7 @@ import type {
   GorevNoktasi,
   GunTipi,
   Kural,
+  OzelGun,
   Personel,
   TalepHucresi,
   TanimYolu,
@@ -29,6 +30,7 @@ import {
   s1PasifUyarisi,
 } from '../lib/kuralAgirlik'
 import { degisiklikleriBul, kirliMi, yazilacaklariBul } from '../lib/kuralDuzenleme'
+import { yetkinlikCakismaUyarisi } from '../lib/yetkinlikUyarisi'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -41,15 +43,22 @@ const SEKMELER = [
   'Bina',
   'Görev Noktası',
   'Vardiya Tipi',
+  'Özel Gün',
   'Kural',
 ] as const
 type Sekme = (typeof SEKMELER)[number]
 
-// Ekle/Değiştir/Sil üçlüsünün geçerli olduğu sekmeler. Talep ve Kural dışarıda
-// kalır ve bu bilinçli bir ayrımdır: talep matrisinde eklenecek bağımsız bir
-// kayıt yoktur (satırlar görev noktalarından türer, hücreler yerinde
-// düzenlenir); kural kataloğunda ise H1–H8/S1–S8 kodda tanımlı sınıflarla
-// eşleşir, eklenip silinemez, yalnızca pasifleştirilir (SDD 3.2.1).
+// Ekle/Değiştir/Sil üçlüsünün ORTAK makinesinden (TanimYonetimi) beslenen
+// sekmeler. Üçlünün kendisi Özel Gün'de de vardır — aynı konum, aynı sıra —
+// ama o sekme bu listede DEĞİLDİR, çünkü ortak makine "kullanımdaki tanım
+// silinmez, pasifleştirilir" kuralı üzerine kuruludur (aktif bayrağı +
+// kullanım sayımı). Özel günün ne `aktif` sütunu vardır ne de ona referans
+// veren bir tablo: bir tarih ya resmî tatildir ya değildir.
+//
+// Talep ve Kural üçlünün tümüyle dışındadır: talep matrisinde eklenecek
+// bağımsız bir kayıt yoktur (satırlar görev noktalarından türer, hücreler
+// yerinde düzenlenir); kural kataloğunda ise H1–H8/S1–S8 kodda tanımlı
+// sınıflarla eşleşir, eklenip silinemez, yalnızca pasifleştirilir (SDD 3.2.1).
 const TANIM_SEKMELERI = ['Personel', 'Yetkinlik', 'Bina', 'Görev Noktası', 'Vardiya Tipi'] as const
 type TanimSekmesi = (typeof TANIM_SEKMELERI)[number]
 
@@ -92,6 +101,7 @@ export function TanimlarEkrani({ ekranSec }: Props) {
   const [talepHucreleri, setTalepHucreleri] = useState<TalepHucresi[]>([])
   const [yukGostergesi, setYukGostergesi] = useState<YukGostergesi | null>(null)
   const [kurallar, setKurallar] = useState<Kural[]>([])
+  const [ozelGunler, setOzelGunler] = useState<OzelGun[]>([])
   const [hata, setHata] = useState<string | null>(null)
 
   const [seciliId, setSeciliId] = useState<number | null>(null)
@@ -100,6 +110,14 @@ export function TanimlarEkrani({ ekranSec }: Props) {
     null,
   )
   const [pasifleriGoster, setPasifleriGoster] = useState(false)
+
+  // Özel gün sekmesi. Seçim `seciliId` ile PAYLAŞILMAZ: oradaki anahtar
+  // sayısal, buradaki tarih (SDD 4.2.1). Ortak bir alana ikisini birden
+  // sığdırmak, tipini `number | string` yapıp her okuyanı ayrım yapmaya
+  // zorlardı.
+  const [seciliTarih, setSeciliTarih] = useState<string | null>(null)
+  const [ozelGunFormu, setOzelGunFormu] = useState<{ tarih: string; yeni: boolean } | null>(null)
+  const [ozelGunSiliniyor, setOzelGunSiliniyor] = useState(false)
 
   // Kural sekmesi düzenleme kipi (madde 3a). Kip kapalıyken hiçbir alan tek
   // tıkla değişmez; değişiklikler `kuralTaslagi` içinde birikir ve yalnızca
@@ -120,8 +138,9 @@ export function TanimlarEkrani({ ekranSec }: Props) {
       api.vardiyaTipiListele(),
       api.talepGetir(),
       api.kuralListele(),
+      api.ozelGunListele(),
     ])
-      .then(([p, y, b, n, v, t, k]) => {
+      .then(([p, y, b, n, v, t, k, og]) => {
         setPersonelListesi(p)
         setYetkinlikler(y)
         setBinalar(b)
@@ -130,11 +149,33 @@ export function TanimlarEkrani({ ekranSec }: Props) {
         setTalepHucreleri(t.hucreler)
         setYukGostergesi(t.yuk_gostergesi)
         setKurallar(k)
+        setOzelGunler(og)
       })
       .catch((e) => setHata(e instanceof Error ? e.message : 'Tanımlar yüklenemedi'))
   }
 
   useEffect(hepsiniYukle, [])
+
+  /**
+   * Özel günü siler. Onay penceresi YOKTUR ve bu bilinçli: diğer tanımlarda
+   * onay, "silinecek mi pasifleştirilecek mi" sorusunu yanıtlamak için var
+   * (SDD 6.3.1). Burada öyle bir soru yok — işaret kalkar, geçmiş çizelgeler
+   * etkilenmez (SDD 4.1) ve geri almak aynı tarihi yeniden işaretlemektir.
+   */
+  const ozelGunuSil = async () => {
+    if (seciliTarih === null) return
+    setOzelGunSiliniyor(true)
+    try {
+      await api.ozelGunSil(seciliTarih)
+      setSeciliTarih(null)
+      setOzelGunFormu(null)
+      hepsiniYukle()
+    } catch (e) {
+      setHata(e instanceof Error ? e.message : 'Özel gün silinemedi')
+    } finally {
+      setOzelGunSiliniyor(false)
+    }
+  }
 
   const yetkinlikMap = useMemo(
     () => new Map(yetkinlikler.map((y) => [y.yetkinlik_id, y])),
@@ -369,6 +410,36 @@ export function TanimlarEkrani({ ekranSec }: Props) {
               </Buton>
             </>
           )
+        ) : sekme === 'Özel Gün' ? (
+          // Aynı konum, aynı sıra, aynı görünüm (SDD 6.3.1) — yalnız
+          // besleyen makine farklı (bkz. TANIM_SEKMELERI'nin üstündeki not).
+          <>
+            <Buton
+              varyant="birincil"
+              onClick={() => {
+                setSeciliTarih(null)
+                setOzelGunFormu({ tarih: bugunIso(), yeni: true })
+              }}
+            >
+              Ekle
+            </Buton>
+            <Buton
+              varyant="ikincil"
+              disabled={seciliTarih === null}
+              title={seciliTarih === null ? 'Önce listeden bir gün seçin' : undefined}
+              onClick={() => seciliTarih && setOzelGunFormu({ tarih: seciliTarih, yeni: false })}
+            >
+              Değiştir
+            </Buton>
+            <Buton
+              varyant="ikincil"
+              disabled={seciliTarih === null || ozelGunSiliniyor}
+              title={seciliTarih === null ? 'Önce listeden bir gün seçin' : undefined}
+              onClick={ozelGunuSil}
+            >
+              Sil
+            </Buton>
+          </>
         ) : (
           gorunum && (
           <>
@@ -439,6 +510,8 @@ export function TanimlarEkrani({ ekranSec }: Props) {
                 setDuzenleniyor(false)
                 setSeciliId(null)
                 setSilinecek(null)
+                setSeciliTarih(null)
+                setOzelGunFormu(null)
               }}
             >
               {s}
@@ -463,6 +536,7 @@ export function TanimlarEkrani({ ekranSec }: Props) {
           sekme={sekme}
           binalar={binalar}
           yetkinlikler={yetkinlikler}
+          vardiyaTipleri={vardiyaTipleri}
           duzenlenen={duzenleniyor ? seciliKayit : null}
           onIptal={() => {
             setEkleAcik(false)
@@ -579,6 +653,57 @@ export function TanimlarEkrani({ ekranSec }: Props) {
             seciliIdDegistir={setSeciliId}
             pasifleriGoster={pasifleriGoster}
           />
+        </>
+      )}
+
+      {sekme === 'Özel Gün' && (
+        <>
+          {ozelGunFormu && (
+            <OzelGunFormu
+              tarih={ozelGunFormu.tarih}
+              yeni={ozelGunFormu.yeni}
+              mevcutAd={ozelGunler.find((g) => g.tarih === ozelGunFormu.tarih)?.ad ?? ''}
+              onIptal={() => setOzelGunFormu(null)}
+              onKaydedildi={(tarih) => {
+                setOzelGunFormu(null)
+                setSeciliTarih(tarih)
+                hepsiniYukle()
+              }}
+              onHata={setHata}
+            />
+          )}
+          {ozelGunler.length === 0 ? (
+            <p className="text-sm text-ink-muted">
+              Resmî tatil işaretlenmemiş. İşaretlenen günler talep matrisinin{' '}
+              <span className="font-medium">resmî tatil</span> sütunundan beslenir ve adalet
+              hesaplarında hafta sonuyla aynı sayaca eklenir (SRS TD-3).
+            </p>
+          ) : (
+            <Kart>
+              <KartEtiketi>resmî tatil takvimi · {ozelGunler.length} gün</KartEtiketi>
+              <ul className="m-0 flex list-none flex-col p-0">
+                {ozelGunler.map((g) => {
+                  const secili = seciliTarih === g.tarih
+                  return (
+                    <li key={g.tarih} className="border-t border-rule first:border-none">
+                      <button
+                        type="button"
+                        aria-pressed={secili}
+                        onClick={() => setSeciliTarih(secili ? null : g.tarih)}
+                        className={cn(
+                          'flex w-full items-center gap-6 rounded-sm px-3 py-3 text-left transition-colors',
+                          secili && 'bg-accent-soft',
+                        )}
+                      >
+                        <span className="w-28 shrink-0 font-mono text-sm text-ink">{g.tarih}</span>
+                        <span className="truncate text-base font-medium text-ink">{g.ad}</span>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            </Kart>
+          )}
         </>
       )}
 
@@ -844,6 +969,7 @@ interface EkleFormuProps {
   sekme: Sekme
   binalar: Bina[]
   yetkinlikler: Yetkinlik[]
+  vardiyaTipleri: VardiyaTipi[]
   /** Dolu ise form düzenleme kipindedir; boş ise yeni kayıt açar. */
   duzenlenen: unknown | null
   onIptal: () => void
@@ -862,6 +988,7 @@ function EkleFormu({
   sekme,
   binalar,
   yetkinlikler,
+  vardiyaTipleri,
   duzenlenen,
   onIptal,
   onKaydedildi,
@@ -900,47 +1027,87 @@ function EkleFormu({
         : '',
   )
   const [binaId, setBinaId] = useState(() => ilkDeger('bina_id'))
+  // Görev noktasının TEK ön koşul yetkinliği (SDD 4.2.1: onkosul_yetkinlik_id).
   const [yetkinlikId, setYetkinlikId] = useState(() =>
-    sekme === 'Görev Noktası'
-      ? ilkDeger('onkosul_yetkinlik_id')
-      : sekme === 'Personel' && Array.isArray(mevcut?.yetkinlik_idleri)
-        ? String((mevcut.yetkinlik_idleri as number[])[0] ?? '')
-        : '',
+    sekme === 'Görev Noktası' ? ilkDeger('onkosul_yetkinlik_id') : '',
   )
   const [gonderiliyor, setGonderiliyor] = useState(false)
+
+  const personelMi = sekme === 'Personel'
+
+  // Personelin yetkinlikleri ÇOKLUDUR (SDD 6.3.1: "çoklu seçim bileşeni") ve
+  // sunucu gönderilen kümeyi olduğu gibi yazar. Form eskiden tek bir seçim
+  // taşıyor, kaydederken de tek elemanlı bir liste gönderiyordu; sonuç,
+  // hiçbir şey değiştirmeden Kaydet'e basmanın ikinci yetkinliği SESSİZCE
+  // silmesiydi. Vardiya Şefi (SRS 3.3.2 gereği Güvenlik Görevi'ni de taşır)
+  // bu yüzden arayüzden hiç oluşturulamıyordu.
+  const [yetkinlikIdleri, setYetkinlikIdleri] = useState<number[]>(() =>
+    personelMi && Array.isArray(mevcut?.yetkinlik_idleri)
+      ? [...(mevcut.yetkinlik_idleri as number[])]
+      : [],
+  )
+  // FR-1.1 / SDD 4.2.1: personelin aktiflik TARİH ARALIĞI. Başlangıç eskiden
+  // forma hiç girmiyor, ekleme sırasında bugüne sabitleniyordu; geçmişte
+  // başlamış bir döneme personel eklemek böylece imkânsızdı (H7 aralık
+  // dışındaki günleri müsait saymaz).
+  const [aktifBaslangic, setAktifBaslangic] = useState(() =>
+    personelMi ? ilkDeger('aktif_baslangic', bugunIso()) : '',
+  )
+  const [aktifBitis, setAktifBitis] = useState(() =>
+    personelMi ? ilkDeger('aktif_bitis') : '',
+  )
+  // Sabit vardiya tipi (SDD 4.2.1 sabit_vardiya_tipi_id; SDD 6.3.1 "Sabit
+  // Vardiya Alanı"). Alan modelde ve API'de baştan beri vardı, yalnızca
+  // formda yoktu — dolayısıyla arayüzden eklenen her personel rotasyona
+  // dahil doğuyordu ve bu bir seçim değil, alanın yokluğuydu.
+  const [sabitVardiya, setSabitVardiya] = useState(() =>
+    personelMi ? ilkDeger('sabit_vardiya_tipi_id') : '',
+  )
 
   // Aktiflik, DÜZENLEME kipinde görünür bir alandır (madde 3b). Pasifleştirmenin
   // tek yolu Sil'di ve geri dönüşün yolu yoktu — kapı tek yönlüydü.
   //
-  // Personel istisnadır: aktiflik orada bayrakla değil tarih aralığıyla ifade
-  // edilir (SDD 4.2.1). Oradaki geri alma `aktif_bitis` alanını TEMİZLEMEKTİR;
-  // bir bayrak eklemek aynı bilgiyi iki kaynağa ayırırdı.
-  const personelMi = sekme === 'Personel'
-  const [aktif, setAktif] = useState(() =>
-    mevcut === null
-      ? true
-      : personelMi
-        ? mevcut.aktif_bitis == null || String(mevcut.aktif_bitis) >= bugunIso()
-        : mevcut.aktif !== false,
-  )
+  // PERSONELDE BU KUTU YOKTUR ve olmaması bilinçli: aktiflik orada bir bayrak
+  // değil, tarih aralığıdır (SDD 4.2.1) ve iki alan yukarıda doğrudan
+  // düzenleniyor. Kutu, kaldırıldığında hiçbir şey yapmıyordu — `aktif_bitis`
+  // göndermiyor, sunucu da `exclude_unset` ile alanı atlıyordu; altındaki
+  // "pasif kayıt" açıklaması ise işlem olmuş gibi görünüyordu. Kutuyu
+  // "çalışır" hâle getirmek, pasifleştirme tarihini (dün) arayüzde ikinci kez
+  // tanımlamak olurdu; o kural sunucuda, PersonelDeposu.pasiflestir'de durur
+  // ve Sil yolundan uygulanır.
+  const [aktif, setAktif] = useState(() => (mevcut === null ? true : mevcut.aktif !== false))
+
+  // Uyarı seçili yetkinliklerden TÜRETİLİR, ayrı bir durumda tutulmaz:
+  // saklansaydı seçim değiştiğinde tazelenmeyi unutmak mümkün olurdu.
+  const cakismaUyarisi = personelMi
+    ? yetkinlikCakismaUyarisi(
+        yetkinlikIdleri
+          .map((kimlik) => yetkinlikler.find((y) => y.yetkinlik_id === kimlik)?.ad)
+          .filter((ad): ad is string => ad !== undefined),
+      )
+    : null
 
   const kaydet = async () => {
     setGonderiliyor(true)
     try {
       if (sekme === 'Personel') {
+        // Bütün alanlar her iki kipte de gönderilir; `yetkinlik_idleri` TAM
+        // KÜME olarak gider (sunucu gönderileni aynen yazar).
         const govde = {
           ad_soyad: ad,
           sicil_no: ikinciAlan,
           haftalik_hedef_saat: Number(ucuncuAlan) || 40,
-          yetkinlik_idleri: yetkinlikId ? [Number(yetkinlikId)] : [],
+          yetkinlik_idleri: yetkinlikIdleri,
+          sabit_vardiya_tipi_id: sabitVardiya ? Number(sabitVardiya) : null,
+          aktif_baslangic: aktifBaslangic || bugunIso(),
+          // Boş bırakılmış bitiş "süresiz" demektir (SDD 4.2.1); null
+          // göndermek, kapalı bir pencereyi yeniden açmanın da yoludur.
+          aktif_bitis: aktifBitis || null,
         }
         if (id !== null) {
-          // Aktifleştirme = aktiflik penceresini yeniden açmak. Pasifleştirme
-          // (aktif_bitis'i düne yazmak) sunucudaki DELETE yoluna aittir;
-          // buradan yalnızca geri alınır.
-          await api.personelGuncelle(id, aktif ? { ...govde, aktif_bitis: null } : govde)
+          await api.personelGuncelle(id, govde)
         } else {
-          await api.personelOlustur({ ...govde, aktif_baslangic: bugunIso() })
+          await api.personelOlustur(govde)
         }
       } else if (sekme === 'Yetkinlik') {
         if (id !== null)
@@ -988,19 +1155,29 @@ function EkleFormu({
           <label className="text-sm text-ink-muted">Ad</label>
           <Input value={ad} onChange={(e) => setAd(e.target.value)} className="w-52 rounded-sm border-rule" />
         </div>
+        {/* Personel alanlarında etiketler `htmlFor` ile denetime BAĞLIDIR:
+            etikete tıklamak alana odaklanır ve ekran okuyucu alanın adını
+            söyleyebilir. Diğer sekmelerde bağ henüz yok; oradaki alanlar
+            bu turun kapsamında değil. */}
         {sekme === 'Personel' && (
           <>
             <div className="flex flex-col gap-1">
-              <label className="text-sm text-ink-muted">Sicil No</label>
+              <label htmlFor="personel-sicil" className="text-sm text-ink-muted">
+                Sicil No
+              </label>
               <Input
+                id="personel-sicil"
                 value={ikinciAlan}
                 onChange={(e) => setIkinciAlan(e.target.value)}
                 className="w-32 rounded-sm border-rule font-mono"
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-sm text-ink-muted">Hedef Saat</label>
+              <label htmlFor="personel-hedef-saat" className="text-sm text-ink-muted">
+                Hedef Saat
+              </label>
               <Input
+                id="personel-hedef-saat"
                 type="number"
                 value={ucuncuAlan}
                 onChange={(e) => setUcuncuAlan(e.target.value)}
@@ -1009,19 +1186,49 @@ function EkleFormu({
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-sm text-ink-muted">Yetkinlik</label>
+              <label htmlFor="personel-sabit-vardiya" className="text-sm text-ink-muted">
+                Sabit Vardiya
+              </label>
               <select
+                id="personel-sabit-vardiya"
                 className={INPUT_SINIFI}
-                value={yetkinlikId}
-                onChange={(e) => setYetkinlikId(e.target.value)}
+                value={sabitVardiya}
+                onChange={(e) => setSabitVardiya(e.target.value)}
               >
-                <option value="">—</option>
-                {yetkinlikler.map((y) => (
-                  <option key={y.yetkinlik_id} value={y.yetkinlik_id}>
-                    {y.ad}
-                  </option>
-                ))}
+                {/* Boş = rotasyona dahil (SDD 4.2.1). */}
+                <option value="">Rotasyona dahil</option>
+                {vardiyaTipleri
+                  .filter((v) => v.aktif)
+                  .map((v) => (
+                    <option key={v.vardiya_tipi_id} value={v.vardiya_tipi_id}>
+                      {v.ad}
+                    </option>
+                  ))}
               </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="personel-aktif-baslangic" className="text-sm text-ink-muted">
+                Aktiflik Başlangıç
+              </label>
+              <Input
+                id="personel-aktif-baslangic"
+                type="date"
+                value={aktifBaslangic}
+                onChange={(e) => setAktifBaslangic(e.target.value)}
+                className="w-40 rounded-sm border-rule font-mono"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="personel-aktif-bitis" className="text-sm text-ink-muted">
+                Aktiflik Bitiş
+              </label>
+              <Input
+                id="personel-aktif-bitis"
+                type="date"
+                value={aktifBitis}
+                onChange={(e) => setAktifBitis(e.target.value)}
+                className="w-40 rounded-sm border-rule font-mono"
+              />
             </div>
           </>
         )}
@@ -1088,8 +1295,9 @@ function EkleFormu({
           </>
         )}
         {/* Aktiflik yalnızca DÜZENLEMEDE görünür: yeni kayıt zaten aktif
-            doğar, kutuyu ekleme formunda göstermek anlamsız bir seçim sunardı. */}
-        {id !== null && (
+            doğar, kutuyu ekleme formunda göstermek anlamsız bir seçim sunardı.
+            Personelde kutu YOKTUR; orada aktiflik iki tarih alanıdır. */}
+        {id !== null && !personelMi && (
           <label className="flex items-center gap-2 self-end pb-2 text-sm text-ink">
             <input
               type="checkbox"
@@ -1107,12 +1315,149 @@ function EkleFormu({
           İptal
         </Buton>
       </div>
-      {id !== null && !aktif && (
+
+      {personelMi && (
+        <fieldset className="mt-4 border-none p-0">
+          <legend className="mb-2 p-0 text-sm text-ink-muted">Yetkinlikler</legend>
+          <div className="flex flex-wrap gap-x-6 gap-y-2">
+            {yetkinlikler.length === 0 && (
+              <p className="m-0 text-sm text-ink-muted">
+                Tanımlı yetkinlik yok — önce Yetkinlik sekmesinden ekleyin.
+              </p>
+            )}
+            {yetkinlikler.map((y) => {
+              const secili = yetkinlikIdleri.includes(y.yetkinlik_id)
+              return (
+                <label key={y.yetkinlik_id} className="flex items-center gap-2 text-sm text-ink">
+                  <input
+                    type="checkbox"
+                    checked={secili}
+                    className="accent-accent"
+                    onChange={() =>
+                      setYetkinlikIdleri((onceki) =>
+                        secili
+                          ? onceki.filter((k) => k !== y.yetkinlik_id)
+                          : [...onceki, y.yetkinlik_id],
+                      )
+                    }
+                  />
+                  {y.ad}
+                  {!y.aktif && <span className="text-ink-muted">(pasif)</span>}
+                </label>
+              )
+            })}
+          </div>
+          {/* Uyarı biçimi kural sekmesindeki S1 uyarısıyla aynı (sol şerit +
+              signal rengi): aynı ağırlıktaki iki bildirimin farklı görünmesi,
+              hangisinin daha ciddi olduğunu okuyucuya yanlış anlatırdı. */}
+          {cakismaUyarisi && (
+            <p className="mt-3 border-l-2 border-signal pl-3 text-sm text-signal">
+              {cakismaUyarisi}
+            </p>
+          )}
+        </fieldset>
+      )}
+
+      {id !== null && !personelMi && !aktif && (
         <p className="mt-3 text-sm text-ink-muted">
           Pasif kayıt yeni çözümlerde kullanılmaz; mevcut çizelgelerde görünmeye devam eder.
-          {personelMi && ' Personelde bu, aktiflik penceresinin kapalı olması demektir.'}
         </p>
       )}
+      {personelMi && (
+        <p className="mt-3 text-sm text-ink-muted">
+          Aktiflik penceresi dışındaki günlerde personel müsait sayılmaz (H7). Bitiş boş
+          bırakılırsa pencere süresizdir; bugüne kadar çalıştırmak için Sil eylemini kullanın —
+          pencereyi bir önceki güne kapatır.
+        </p>
+      )}
+    </Kart>
+  )
+}
+
+interface OzelGunFormuProps {
+  tarih: string
+  /** Yeni kayıt mı, mevcut bir günün adının değiştirilmesi mi. */
+  yeni: boolean
+  mevcutAd: string
+  onIptal: () => void
+  onKaydedildi: (tarih: string) => void
+  onHata: (mesaj: string) => void
+}
+
+/**
+ * Resmî tatil işaretleme formu (FR-1.10).
+ *
+ * Düzenleme kipinde TARİH salt okunurdur: tarih birincil anahtardır
+ * (SDD 4.2.1) ve onu değiştirmek yeni bir kayıt açmakla aynı şeydir —
+ * o yol zaten Ekle ile açık. Düzenlenebilir bırakmak, aynı işlemin
+ * ikinci bir yolunu ve "eski tarih ne oldu" sorusunu yaratırdı.
+ */
+function OzelGunFormu({
+  tarih: ilkTarih,
+  yeni,
+  mevcutAd,
+  onIptal,
+  onKaydedildi,
+  onHata,
+}: OzelGunFormuProps) {
+  const [tarih, setTarih] = useState(ilkTarih)
+  const [ad, setAd] = useState(mevcutAd)
+  const [gonderiliyor, setGonderiliyor] = useState(false)
+
+  const kaydet = async () => {
+    setGonderiliyor(true)
+    try {
+      if (yeni) await api.ozelGunIsaretle(tarih, ad)
+      else await api.ozelGunGuncelle(tarih, ad)
+      onKaydedildi(tarih)
+    } catch (e) {
+      onHata(e instanceof Error ? e.message : 'Özel gün kaydedilemedi')
+    } finally {
+      setGonderiliyor(false)
+    }
+  }
+
+  return (
+    <Kart vurgulu>
+      <KartEtiketi renk="accent">{yeni ? 'resmî tatil işaretle' : 'resmî tatil değiştir'}</KartEtiketi>
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="flex flex-col gap-1">
+          <label htmlFor="ozel-gun-tarih" className="text-sm text-ink-muted">
+            Tarih
+          </label>
+          <Input
+            id="ozel-gun-tarih"
+            type="date"
+            value={tarih}
+            disabled={!yeni}
+            onChange={(e) => setTarih(e.target.value)}
+            className="w-40 rounded-sm border-rule font-mono disabled:opacity-60"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="ozel-gun-ad" className="text-sm text-ink-muted">
+            Tatil Adı
+          </label>
+          <Input
+            id="ozel-gun-ad"
+            value={ad}
+            onChange={(e) => setAd(e.target.value)}
+            placeholder="29 Ekim Cumhuriyet Bayramı"
+            className="w-72 rounded-sm border-rule"
+          />
+        </div>
+        <Buton varyant="birincil" onClick={kaydet} disabled={gonderiliyor || !ad || !tarih}>
+          Kaydet
+        </Buton>
+        <Buton varyant="hayalet" onClick={onIptal}>
+          İptal
+        </Buton>
+      </div>
+      <p className="mt-3 text-sm text-ink-muted">
+        İşaretlenen gün, talep matrisinin <span className="font-medium">resmî tatil</span> satırından
+        beslenir ve adalet hesaplarında hafta sonuyla aynı sayaca eklenir (SRS TD-3). Yalnızca
+        yeni çözümleri etkiler; üretilmiş çizelgeler değişmez.
+      </p>
     </Kart>
   )
 }

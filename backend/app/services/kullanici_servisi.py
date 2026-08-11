@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.kayit import olay
 from app.models.kimlik import Kullanici, Rol
+from app.repositories.tanim import PersonelDeposu
 from app.services import parola as parola_araclari
 from app.services.oturum_servisi import OturumServisi
 
@@ -43,6 +44,16 @@ class PersonelBaglantisiGerekliError(ValueError):
 
 class PersonelZatenBagliError(ValueError):
     pass
+
+
+class PersonelBulunamadiError(ValueError):
+    """Verilen personel_id hicbir personel kaydina karsilik gelmiyor.
+
+    Once bu kontrol yoktu ve yabanci anahtar kisiti devreye giriyordu:
+    yakalanmamis bir IntegrityError, kullaniciya 500 olarak donuyordu. Oysa
+    yapilan sey gecerli bir istek bicimiydi, yalnizca isaret ettigi kayit
+    yoktu (NFR-5).
+    """
 
 
 class KullaniciBulunamadiError(ValueError):
@@ -220,6 +231,9 @@ class KullaniciServisi:
             )
         if personel_id is None:
             return
+
+        if PersonelDeposu(self.oturum).getir(personel_id) is None:
+            raise PersonelBulunamadiError(f"{personel_id} numarali personel kaydi bulunamadi")
 
         # Bir personelin iki hesabi olmasi engellenir. SRS bunu ayri bir
         # madde olarak yazmaz; FR-10.6'nin kurdugu "hesap -> personel"

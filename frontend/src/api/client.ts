@@ -11,9 +11,11 @@ import type {
   Donem,
   DogrulamaSonucu,
   GorevNoktasi,
+  FazlaKadro,
   KapsamaAcigi,
   Kullanici,
   Kural,
+  OzelGun,
   Musaitlik,
   MusaitlikOlusturIstek,
   OnKontrolBulgu,
@@ -97,6 +99,11 @@ export const api = {
   surumAtamalari: (surumId: number) => istek<Atama[]>(`/api/surum/${surumId}/atama`),
   surumKapsamaAcigi: (surumId: number) =>
     istek<KapsamaAcigi[]>(`/api/surum/${surumId}/kapsama-acigi`),
+  // Ayrı uç nokta: kapsama açığı sözleşmesi değiştirilmedi, böylece onu
+  // "her satır bir açıktır" varsayımıyla okuyan ekranlar dokunulmadan
+  // doğru kalıyor (bkz. backend göç a4d92c15e807).
+  surumFazlaKadro: (surumId: number) =>
+    istek<FazlaKadro[]>(`/api/surum/${surumId}/fazla-kadro`),
 
   personelListele: () => istek<Personel[]>('/api/personel'),
   vardiyaTipiListele: () => istek<VardiyaTipi[]>('/api/vardiya-tipi'),
@@ -147,6 +154,16 @@ export const api = {
   binaOlustur: (ad: string) => gonder<Bina>('/api/bina', { ad }),
   binaGuncelle: (id: number, veri: Partial<Pick<Bina, 'ad' | 'aktif'>>) =>
     gonder<Bina>(`/api/bina/${id}`, veri, 'PUT'),
+
+  // Özel gün (FR-1.10). Yol parçası TARİHTİR, sayısal bir kimlik değil
+  // (SDD 4.2.1); bu yüzden ortak `tanimSil` yardımcısı kullanılmaz — o,
+  // sayısal kimlik ve "kullanımda ise pasifleştir" sözleşmesi varsayar.
+  ozelGunListele: () => istek<OzelGun[]>('/api/ozel-gun'),
+  ozelGunIsaretle: (tarih: string, ad: string) =>
+    gonder<OzelGun>('/api/ozel-gun', { tarih, ad }),
+  ozelGunGuncelle: (tarih: string, ad: string) =>
+    gonder<OzelGun>(`/api/ozel-gun/${tarih}`, { ad }, 'PUT'),
+  ozelGunSil: (tarih: string) => silIste(`/api/ozel-gun/${tarih}`),
 
   talepGetir: () => istek<TalepYaniti>('/api/talep'),
   talepHucresiGuncelle: (hucre: Omit<TalepHucresi, 'talep_id'>) =>

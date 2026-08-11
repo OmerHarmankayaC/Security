@@ -24,8 +24,9 @@ from app.kurallar import (
 from app.kurallar.esnek import S2GeceAdaleti
 from app.kurallar.kayit_defteri import bul
 from app.kurallar.temel import KuralKapsami
+from app.models.kural import Kural, KuralTipi
 from app.models.sonuc import Atama, AtamaKaynagi, CizelgeSurumu, CizelgeSurumuDurumu, Donem
-from app.models.tanim import GorevNoktasi, Personel, VardiyaTipi
+from app.models.tanim import GorevNoktasi, GunTipi, Personel, Talep, VardiyaTipi
 from app.services.dogrulama_servisi import AtamaDegisikligi, DogrulamaServisi, SurumTaslakDegilError
 from tests.conftest import pg_yoksa_atla
 
@@ -145,6 +146,37 @@ def istemci_kurulum() -> dict:
         oturum.close()
 
 
+def _kurali_garantile(
+    oturum, kimlik: str, tip: KuralTipi, parametreler: dict, agirlik: int | None
+) -> None:  # noqa: ANN001 - Session
+    """Kuralin tabloda ve AKTIF oldugundan emin olur.
+
+    `kural.kimlik` global benzersiz ve tablo butun testlerce paylasiliyor;
+    senaryo kuran testler onu bosaltiyor (veri_temizligi.TEMIZLIK_SIRASI).
+    Bu testler eskiden tablonun BASKA testlerden ya da demo verisinden
+    kalan icerigine guveniyordu - yani siraya bagli olarak tesadufen
+    geciyorlardi. Olculen sey kuralin kendisi oldugunda, kurali testin
+    kurmasi gerekir.
+    """
+    mevcut = oturum.execute(select(Kural).where(Kural.kimlik == kimlik)).scalar_one_or_none()
+    if mevcut is None:
+        oturum.add(
+            Kural(
+                kimlik=kimlik,
+                tip=tip,
+                parametreler=parametreler,
+                agirlik=agirlik,
+                aktif=True,
+            )
+        )
+    else:
+        mevcut.tip = tip
+        mevcut.parametreler = parametreler
+        mevcut.agirlik = agirlik
+        mevcut.aktif = True
+    oturum.flush()
+
+
 def _taslak_surum_olustur(on_ek: str, baslangic: date, bitis: date) -> tuple[int, int]:
     oturum = OturumYerel()
     try:
@@ -197,6 +229,8 @@ def test_dogrula_zorunlu_kisit_ihlalini_reddeder(istemci_kurulum: dict) -> None:
                 kaynak=AtamaKaynagi.COZUCU,
             )
         )
+        # Olculen sey H2; kurali testin kendisi kurar (bkz. _kurali_garantile).
+        _kurali_garantile(oturum, "H2", KuralTipi.ZORUNLU, {"asgari_dinlenme_saati": 16}, None)
         oturum.commit()
         personel_id = personel.personel_id
     finally:
@@ -341,6 +375,135 @@ def test_dogrula_cozuldu_surumde_duzenlenebilir(istemci_kurulum: dict) -> None:
         oturum.close()
 
 
+def test_dogrula_ustan_uca_bir_noktayi_bosaltip_digerini_tasirsa_uyari_verir(
+    istemci_kurulum: dict,
+) -> None:
+    """Bildirilen hata, DogrulamaServisi.dogrula UZERINDEN uctan uca:
+
+    Vardiya Seflligi 1/1, Guvenlik 2/2 dolu bir aksamda, sefi Guvenlik'e
+    cekmek onceden `kabul_edilebilir=True, ceza_degisimi hicbir sey
+    soylemiyor` doenduruyordu - kullanici hicbir uyari gormeden degisikligi
+    yapabiliyordu. Simdi:
+      - degisiklik yine kabul edilir (S1 alt siniri esnek, urun karari),
+      - `uyarilar` iki cumle tasir: Seflik acikta / Guvenlik'te fazla,
+      - `ceza_dokumu`'nde S1 kalemi AGIRLIKLI farkiyla gorunur.
+    """
+    on_ek = istemci_kurulum["on_ek"]
+    aksam_id, nokta_id = istemci_kurulum["aksam_id"], istemci_kurulum["nokta_id"]
+    # istemci_kurulum'daki `nokta_id` Guvenlik rolunu oynar; ikinci bir
+    # nokta Seflik rolunu oynar.
+    baslangic = date(2026, 8, 3)  # Pazartesi
+    bitis = baslangic + timedelta(days=6)
+    donem_id, surum_id = _taslak_surum_olustur(on_ek, baslangic, bitis)
+
+    oturum = OturumYerel()
+    try:
+        seflik = GorevNoktasi(ad=f"Seflik-{on_ek}")
+        oturum.add(seflik)
+        oturum.flush()
+        seflik_id = seflik.nokta_id
+
+        oturum.add_all(
+            [
+                Talep(
+                    nokta_id=seflik_id,
+                    vardiya_tipi_id=aksam_id,
+                    gun_tipi=GunTipi.HAFTA_ICI,
+                    tarih=None,
+                    gereken_sayi=1,
+                ),
+                Talep(
+                    nokta_id=nokta_id,
+                    vardiya_tipi_id=aksam_id,
+                    gun_tipi=GunTipi.HAFTA_ICI,
+                    tarih=None,
+                    gereken_sayi=2,
+                ),
+            ]
+        )
+        _kurali_garantile(oturum, "S1", KuralTipi.ESNEK, {}, 10000)
+
+        sef = Personel(
+            ad_soyad=f"Sef-{on_ek}",
+            sicil_no=f"DOGRULA-SEF-{on_ek}",
+            haftalik_hedef_saat=40,
+            aktif_baslangic=date(2026, 1, 1),
+        )
+        g1 = Personel(
+            ad_soyad=f"G1-{on_ek}",
+            sicil_no=f"DOGRULA-G1-{on_ek}",
+            haftalik_hedef_saat=40,
+            aktif_baslangic=date(2026, 1, 1),
+        )
+        g2 = Personel(
+            ad_soyad=f"G2-{on_ek}",
+            sicil_no=f"DOGRULA-G2-{on_ek}",
+            haftalik_hedef_saat=40,
+            aktif_baslangic=date(2026, 1, 1),
+        )
+        oturum.add_all([sef, g1, g2])
+        oturum.flush()
+
+        oturum.add_all(
+            [
+                Atama(
+                    surum_id=surum_id,
+                    personel_id=sef.personel_id,
+                    tarih=baslangic,
+                    vardiya_tipi_id=aksam_id,
+                    nokta_id=seflik_id,
+                    kaynak=AtamaKaynagi.COZUCU,
+                ),
+                Atama(
+                    surum_id=surum_id,
+                    personel_id=g1.personel_id,
+                    tarih=baslangic,
+                    vardiya_tipi_id=aksam_id,
+                    nokta_id=nokta_id,
+                    kaynak=AtamaKaynagi.COZUCU,
+                ),
+                Atama(
+                    surum_id=surum_id,
+                    personel_id=g2.personel_id,
+                    tarih=baslangic,
+                    vardiya_tipi_id=aksam_id,
+                    nokta_id=nokta_id,
+                    kaynak=AtamaKaynagi.COZUCU,
+                ),
+            ]
+        )
+        oturum.commit()
+        sef_id = sef.personel_id
+    finally:
+        oturum.close()
+
+    oturum = OturumYerel()
+    try:
+        sonuc = DogrulamaServisi(oturum).dogrula(
+            AtamaDegisikligi(
+                surum_id=surum_id,
+                personel_id=sef_id,
+                tarih=baslangic,
+                vardiya_tipi_id=aksam_id,
+                nokta_id=nokta_id,
+            )
+        )
+    finally:
+        oturum.close()
+
+    assert sonuc is not None
+    assert sonuc.kabul_edilebilir is True  # S1 alt siniri esnek: engel degil
+    assert sonuc.zorunlu_ihlaller == []
+
+    uyari_metinleri = [u.aciklama for u in sonuc.uyarilar]
+    assert any("eksik" in m for m in uyari_metinleri), uyari_metinleri
+    assert any("fazla" in m for m in uyari_metinleri), uyari_metinleri
+
+    s1_kalemi = next(k for k in sonuc.ceza_dokumu if k.kural_kimlik == "S1")
+    assert s1_kalemi.agirlik == 10000
+    assert s1_kalemi.agirlikli_fark == 10000  # eksik(1) - fazlanin cezasi(0) = +1 x 10000
+
+
 def test_dogrula_bulunamayan_surumde_none_doner() -> None:
     pg_yoksa_atla()
     oturum = OturumYerel()
@@ -356,3 +519,102 @@ def test_dogrula_bulunamayan_surumde_none_doner() -> None:
         assert servis.dogrula(degisiklik) is None
     finally:
         oturum.close()
+
+
+# --- S1'in iki yarisi (11.08.2026 hata bildirimi) ---------------------------
+
+
+_S1_PZT = date(2026, 2, 2)
+_S1_AKSAM = 3
+_S1_SEFLIK = 10
+_S1_GUVENLIK = 20
+
+
+def _s1_baglami() -> Baglam:
+    """Pazartesi aksami: Vardiya Sefligi 1 kisi, Guvenlik 2 kisi."""
+    baglam = Baglam(
+        vardiya_tipleri={
+            _S1_AKSAM: VardiyaTipiBilgisi(_S1_AKSAM, time(16, 0), time(0, 0), 8, False, ad="Akşam")
+        },
+        gorev_noktalari={
+            _S1_SEFLIK: GorevNoktasiBilgisi(_S1_SEFLIK, ad="Vardiya Şefliği"),
+            _S1_GUVENLIK: GorevNoktasiBilgisi(_S1_GUVENLIK, ad="Güvenlik"),
+        },
+        personel={
+            p: PersonelBilgisi(p, date(2026, 1, 1), None, frozenset(), haftalik_hedef_saat=40)
+            for p in (1, 2, 3, 4)
+        },
+        donem_baslangic=_S1_PZT,
+        donem_bitis=_S1_PZT,
+    )
+    baglam.talep[(_S1_PZT, _S1_AKSAM, _S1_SEFLIK)] = 1
+    baglam.talep[(_S1_PZT, _S1_AKSAM, _S1_GUVENLIK)] = 2
+    return baglam
+
+
+def test_s1_talepten_fazla_kadroyu_gorur() -> None:
+    """Bildirilen hata: bir noktaya talepten fazla kisi yazmak sessizce
+    kabul ediliyordu.
+
+    `modele_ekle` ayni kisiti cozucuye ZORUNLU olarak ekliyor
+    (`Σ_p x <= talep`), `dogrula` ise yalnizca alt sinira bakiyordu. Iki
+    yorumlayicinin ayrismasi SDD 3.2.1'e gore yazilim hatasidir.
+    """
+    from app.kurallar.esnek import S1TalepKarsilama
+
+    baglam = _s1_baglami()
+    kural = S1TalepKarsilama(parametreler={}, agirlik=10000)
+
+    # Sef sefliginden guvenlige cekiliyor: Seflik 0/1, Guvenlik 3/2.
+    bozuk = [
+        AtamaKaydi(1, _S1_PZT, _S1_AKSAM, _S1_GUVENLIK),
+        AtamaKaydi(2, _S1_PZT, _S1_AKSAM, _S1_GUVENLIK),
+        AtamaKaydi(3, _S1_PZT, _S1_AKSAM, _S1_GUVENLIK),
+    ]
+    ihlaller = kural.dogrula(bozuk, baglam)
+    metinler = [i.aciklama for i in ihlaller]
+
+    assert any("fazla" in m for m in metinler), metinler
+    assert any("eksik" in m for m in metinler), metinler
+
+
+def test_fazla_kadro_ceza_uretmez_uyari_uretir() -> None:
+    """Fazla kadronun cezasi YOKTUR ve olmamalidir.
+
+    SRS 4.4'teki amac fonksiyonunda fazla kadroya karsilik gelen bir terim
+    bulunmuyor (cozucu tarafinda kisit, ceza degil). Buraya bir sayi
+    uydurmak, cozucunun hicbir zaman hesaplamayacagi bir buyuklugu ceza
+    dokumune sokar ve iki yorumlayici ayni cizelge icin farkli toplam
+    uretirdi.
+    """
+    from app.kurallar.esnek import S1TalepKarsilama
+
+    baglam = _s1_baglami()
+    kural = S1TalepKarsilama(parametreler={}, agirlik=10000)
+
+    # Seflik tam dolu, Guvenlik'te bir fazla: TEK sapma fazla kadro.
+    fazla = [
+        AtamaKaydi(1, _S1_PZT, _S1_AKSAM, _S1_SEFLIK),
+        AtamaKaydi(2, _S1_PZT, _S1_AKSAM, _S1_GUVENLIK),
+        AtamaKaydi(3, _S1_PZT, _S1_AKSAM, _S1_GUVENLIK),
+        AtamaKaydi(4, _S1_PZT, _S1_AKSAM, _S1_GUVENLIK),
+    ]
+    ihlaller = kural.dogrula(fazla, baglam)
+    assert len(ihlaller) == 1
+    assert "fazla" in ihlaller[0].aciklama
+    assert ihlaller[0].ceza is None
+    assert sum(i.ceza or 0.0 for i in ihlaller) == 0.0
+
+
+def test_s1_metni_kimlik_degil_ad_tasir() -> None:
+    """NFR-5: mesajlar operasyon diliyle. Eski metin "3 nolu vardiyada 2 nolu
+    noktada" diyordu; o sayilar veritabani kimlikleri."""
+    from app.kurallar.esnek import S1TalepKarsilama
+
+    baglam = _s1_baglami()
+    ihlaller = S1TalepKarsilama(parametreler={}, agirlik=1).dogrula([], baglam)
+    metinler = " ".join(i.aciklama for i in ihlaller)
+
+    assert "Vardiya Şefliği" in metinler
+    assert "Akşam" in metinler
+    assert "nolu" not in metinler

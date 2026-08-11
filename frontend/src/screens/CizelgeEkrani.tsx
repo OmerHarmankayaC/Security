@@ -6,6 +6,7 @@ import type {
   Donem,
   DogrulamaSonucu,
   GorevNoktasi,
+  FazlaKadro,
   KapsamaAcigi,
   Personel,
   VardiyaTipi,
@@ -87,6 +88,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
 
   const [atamalar, setAtamalar] = useState<Atama[]>([])
   const [kapsamaAcigi, setKapsamaAcigi] = useState<KapsamaAcigi[]>([])
+  const [fazlaKadro, setFazlaKadro] = useState<FazlaKadro[]>([])
   const [yukleniyor, setYukleniyor] = useState(false)
   const [hata, setHata] = useState<string | null>(null)
 
@@ -138,14 +140,20 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
     if (surumId === null) {
       setAtamalar([])
       setKapsamaAcigi([])
+      setFazlaKadro([])
       return
     }
     setYukleniyor(true)
     setHata(null)
-    Promise.all([api.surumAtamalari(surumId), api.surumKapsamaAcigi(surumId)])
-      .then(([a, k]) => {
+    Promise.all([
+      api.surumAtamalari(surumId),
+      api.surumKapsamaAcigi(surumId),
+      api.surumFazlaKadro(surumId),
+    ])
+      .then(([a, k, f]) => {
         setAtamalar(a)
         setKapsamaAcigi(k)
+        setFazlaKadro(f)
       })
       .catch((e) => setHata(e instanceof Error ? e.message : 'Çizelge yüklenemedi'))
       .finally(() => setYukleniyor(false))
@@ -301,6 +309,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
           surum,
           atamalar,
           kapsamaAcigi,
+          fazlaKadro,
           personelMap,
           vardiyaMap,
           noktaMap,
@@ -635,9 +644,17 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                   {dogrulamaSonucu.kabul_edilebilir
                     ? 'Kabul edilebilir.'
                     : 'Zorunlu kısıt ihlali — reddedildi.'}{' '}
-                  Esnek hedef ceza değişimi:{' '}
-                  <Sayi>{dogrulamaSonucu.ceza_degisimi.toFixed(2)}</Sayi>
+                  Ceza değişimi:{' '}
+                  {/* AĞIRLIKLI değer gösterilir. Ham toplam farklı birimleri
+                      (kişi, vardiya, saat, gün) ağırlıksız topluyordu; kapsama
+                      açığı (w1) ile vardiya deseni değişimi (w6) ekranda aynı
+                      büyüklükte görünüyordu. */}
+                  <Sayi>
+                    {dogrulamaSonucu.agirlikli_ceza_degisimi > 0 ? '+' : ''}
+                    {dogrulamaSonucu.agirlikli_ceza_degisimi.toFixed(0)}
+                  </Sayi>
                 </p>
+
                 {dogrulamaSonucu.zorunlu_ihlaller.length > 0 && (
                   <ul className="m-0 mt-1 flex list-none flex-col gap-1 p-0">
                     {dogrulamaSonucu.zorunlu_ihlaller.map((ihlal, i) => (
@@ -646,6 +663,61 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                       </li>
                     ))}
                   </ul>
+                )}
+
+                {/* Değişikliğin NEREDE ne yaptığı. Bunlar zorunlu ihlal değil:
+                    değişiklik uygulanır, karar kullanıcıya bırakılır (SDD 5.5).
+                    Ama bir sayı olarak değil, cümle olarak görünmeleri gerekir —
+                    "+1000" kimseye Vardiya Şefliği'nin açıkta kaldığını söylemez. */}
+                {dogrulamaSonucu.uyarilar.length > 0 && (
+                  <ul className="m-0 mt-2 flex list-none flex-col gap-1 p-0">
+                    {dogrulamaSonucu.uyarilar.map((uyari, i) => (
+                      <li
+                        key={i}
+                        className="border-l-2 border-signal pl-3 text-sm text-signal"
+                      >
+                        {uyari.aciklama}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {dogrulamaSonucu.ceza_dokumu.length > 0 && (
+                  <table className="mt-3 w-full border-collapse text-sm">
+                    <thead>
+                      <tr className="text-ink-muted">
+                        <th className="py-1 text-left font-normal">Hedef</th>
+                        <th className="py-1 text-right font-normal">Ham</th>
+                        <th className="py-1 text-right font-normal">Ağırlık</th>
+                        <th className="py-1 text-right font-normal">Ağırlıklı</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dogrulamaSonucu.ceza_dokumu.map((kalem) => (
+                        <tr key={kalem.kural_kimlik} className="border-t border-rule">
+                          <td className="py-1 text-ink">
+                            <span className="font-mono text-ink-muted">{kalem.kural_kimlik}</span>{' '}
+                            {kalem.ad}
+                          </td>
+                          <td className="py-1 text-right">
+                            <Sayi>
+                              {kalem.ham_fark > 0 ? '+' : ''}
+                              {kalem.ham_fark.toFixed(1)}
+                            </Sayi>
+                          </td>
+                          <td className="py-1 text-right text-ink-muted">
+                            <Sayi>{kalem.agirlik.toFixed(0)}</Sayi>
+                          </td>
+                          <td className="py-1 text-right">
+                            <Sayi>
+                              {kalem.agirlikli_fark > 0 ? '+' : ''}
+                              {kalem.agirlikli_fark.toFixed(0)}
+                            </Sayi>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 )}
               </div>
             )}

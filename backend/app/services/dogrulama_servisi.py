@@ -25,6 +25,7 @@ from app.models.sonuc import Atama, AtamaKaynagi, CizelgeSurumuDurumu
 from app.repositories.kural import KuralDeposu
 from app.repositories.sonuc import AtamaDeposu, CizelgeSurumuDeposu, DonemDeposu
 from app.services.baglam_kurucu import baglam_olustur
+from app.services.talep_sapmasi import sapmalari_yenile
 
 _PENCERE_GUN = 7
 
@@ -49,10 +50,40 @@ class AtamaDegisikligi:
 
 
 @dataclass(frozen=True, slots=True)
+class CezaKalemi:
+    """Tek bir esnek hedefin ceza degisimi (FR-4.8'in manuel duzenleme karsiligi).
+
+    Neden kural bazinda: `ceza_degisimi` tek bir sayiydi ve iki ayri bicimde
+    yaniltiyordu. Birincisi HAM (agirliksiz) toplamdi - kapsama acigi
+    (w1=10000) ile vardiya deseni degisimi (w6=4) ekranda ayni buyuklukte
+    gorunuyordu. Ikincisi FARKLI BIRIMLERI topluyordu: S1 kisi, S2/S3
+    vardiya, S4 saat, S6/S7 gun. Ikisinin toplami boyutsuz bir sayidir ve
+    NFR-6'nin istedigi "neden bu cizelge" aciklamasini veremez.
+    """
+
+    kural_kimlik: str
+    ad: str
+    ham_fark: float
+    agirlik: float
+    agirlikli_fark: float
+
+
+@dataclass(frozen=True, slots=True)
 class DogrulamaSonucu:
     kabul_edilebilir: bool
     zorunlu_ihlaller: list[Ihlal] = field(default_factory=list)
+    # Ham (agirliksiz) toplam. Geriye donuk uyumluluk icin korunuyor;
+    # kullaniciya gosterilmesi gereken deger `agirlikli_ceza_degisimi`.
     ceza_degisimi: float = 0.0
+    agirlikli_ceza_degisimi: float = 0.0
+    # Yalniz DEGISEN kurallar. Degismeyenleri listelemek, kullaniciyi
+    # sifirlar arasinda degisen tek satiri aramaya zorlardi.
+    ceza_dokumu: list[CezaKalemi] = field(default_factory=list)
+    # Degisikligin YENI DOGURDUGU, bir yere isaret eden esnek bulgular:
+    # "Vardiya Sefligi bugun acikta kaldi", "Guvenlik'e talepten fazla kisi".
+    # Toplam/agregat bulgular (S2, S3, S4) buraya girmez - onlarin yeri
+    # ceza_dokumu'ndeki sayidir, cunku bir gune ya da noktaya isaret etmezler.
+    uyarilar: list[Ihlal] = field(default_factory=list)
 
 
 class DogrulamaServisi:
@@ -91,8 +122,11 @@ class DogrulamaServisi:
         sonra_donem = _degisikligi_uygula(once_donem, degisiklik)
 
         zorunlu_ihlaller: list[Ihlal] = []
-        ceza_once = 0.0
-        ceza_sonra = 0.0
+        dokum: list[CezaKalemi] = []
+        uyarilar: list[Ihlal] = []
+        ham_toplam = 0.0
+        agirlikli_toplam = 0.0
+
         for kural in kurallar:
             atamalar_once = (
                 once_donem if kural.kapsam == KuralKapsami.DONEM_GENELI else once_pencere
@@ -102,18 +136,49 @@ class DogrulamaServisi:
             )
             if kural.tip == KuralTipi.ZORUNLU:
                 zorunlu_ihlaller.extend(kural.dogrula(atamalar_sonra, baglam))
-            else:
-                ceza_once += sum(i.ceza or 0.0 for i in kural.dogrula(atamalar_once, baglam))
-                ceza_sonra += sum(i.ceza or 0.0 for i in kural.dogrula(atamalar_sonra, baglam))
+                continue
 
+            once = kural.dogrula(atamalar_once, baglam)
+            sonra = kural.dogrula(atamalar_sonra, baglam)
+            uyarilar.extend(_yeni_bulgular(once, sonra))
+
+            fark = _ceza_toplami(sonra) - _ceza_toplami(once)
+            ham_toplam += fark
+            agirlik = float(kural.agirlik or 0)
+            agirlikli_toplam += fark * agirlik
+            if fark:
+                dokum.append(
+                    CezaKalemi(
+                        kural_kimlik=kural.kimlik,
+                        ad=kural.ad or kural.kimlik,
+                        ham_fark=fark,
+                        agirlik=agirlik,
+                        agirlikli_fark=fark * agirlik,
+                    )
+                )
+
+        # En pahali degisim once: kullanicinin once gormesi gereken sey, en
+        # cok agirlik tasiyan kalem.
+        dokum.sort(key=lambda k: -abs(k.agirlikli_fark))
         return DogrulamaSonucu(
             kabul_edilebilir=not zorunlu_ihlaller,
             zorunlu_ihlaller=zorunlu_ihlaller,
-            ceza_degisimi=ceza_sonra - ceza_once,
+            ceza_degisimi=ham_toplam,
+            agirlikli_ceza_degisimi=agirlikli_toplam,
+            ceza_dokumu=dokum,
+            uyarilar=uyarilar,
         )
 
     def uygula(self, degisiklik: AtamaDegisikligi) -> DogrulamaSonucu | None:
-        """Once dogrula(); zorunlu ihlal yoksa degisikligi kalici olarak yazar."""
+        """Once dogrula(); zorunlu ihlal yoksa degisikligi kalici olarak yazar.
+
+        Yazmadan SONRA surumun talep sapmalari (kapsama acigi + fazla
+        kadro) yeniden hesaplanir. Once bu yapilmiyordu ve iki sonucu
+        vardi: elle bir atamayi kaldirmak gercek bir acik dogurdugu halde
+        `kapsama_acigi` bos kaliyor (Analiz'deki kapsama orani, surum
+        raporu ve disa aktarma bayat kaliyor), fazla kadronun ise hicbir
+        kalici izi olmuyordu. Bkz. app/services/talep_sapmasi.py.
+        """
         sonuc = self.dogrula(degisiklik)
         if sonuc is None or not sonuc.kabul_edilebilir:
             return sonuc
@@ -139,6 +204,11 @@ class DogrulamaServisi:
                     kaynak=AtamaKaynagi.MANUEL,
                 )
             )
+        # Atama yazildiktan SONRA: sapma tablolari bu surumun yeni haline
+        # gore bastan hesaplanir. `flush` sart - yenileme atamalari
+        # veritabanindan okur.
+        self.oturum.flush()
+        sapmalari_yenile(self.oturum, degisiklik.surum_id)
         return sonuc
 
     def kilit_ayarla(
@@ -165,6 +235,31 @@ class DogrulamaServisi:
         return atama
 
 
+def _ceza_toplami(ihlaller: Sequence[Ihlal]) -> float:
+    return sum(i.ceza or 0.0 for i in ihlaller)
+
+
+def _yeni_bulgular(once: Sequence[Ihlal], sonra: Sequence[Ihlal]) -> list[Ihlal]:
+    """Degisikligin YENI DOGURDUGU, bir yere isaret eden esnek bulgular.
+
+    Once/sonra farki alinir; degisiklikten bagimsiz olarak zaten var olan
+    bulgular listelenmez. Aksi halde tek bir hucreyi degistiren kullaniciya,
+    donemin her yerindeki mevcut acikların listesi cikardi ve kendi
+    degisikliginin ne yaptigi o yiginin icinde kaybolurdu.
+
+    `tarih` tasimayan bulgular DISARIDA kalir: S2/S3/S4 donem geneli birer
+    toplam uretir (bkz. `_adalet_sapmasi_ihlalleri`), bir gune ya da noktaya
+    isaret etmezler. Onlarin dogru temsili ceza dokumundeki sayidir; metin
+    olarak listelenmeleri "nerede" sorusuna yanit vermeyen bir satir olurdu.
+    """
+    onceki_metinler = {(i.kural_kimlik, i.aciklama) for i in once}
+    return [
+        i
+        for i in sonra
+        if i.tarih is not None and (i.kural_kimlik, i.aciklama) not in onceki_metinler
+    ]
+
+
 def _cevir(atamalar: Sequence[Atama]) -> list[AtamaKaydi]:
     return [AtamaKaydi(a.personel_id, a.tarih, a.vardiya_tipi_id, a.nokta_id) for a in atamalar]
 
@@ -189,4 +284,10 @@ def _degisikligi_uygula(
     return kalanlar
 
 
-__all__ = ["AtamaDegisikligi", "DogrulamaServisi", "DogrulamaSonucu", "SurumTaslakDegilError"]
+__all__ = [
+    "AtamaDegisikligi",
+    "CezaKalemi",
+    "DogrulamaServisi",
+    "DogrulamaSonucu",
+    "SurumTaslakDegilError",
+]

@@ -305,3 +305,165 @@ def test_kural_guncelle(istemci: TestClient) -> None:
     govde = yanit.json()
     assert govde["agirlik"] == 7
     assert govde["aktif"] is False
+
+
+# --- Personel: sicil benzersizligi ve yetkinlik kumesi ----------------------
+
+
+def _personel_govdesi(**ustune: object) -> dict:
+    govde: dict = {
+        "ad_soyad": "Sicil Denemesi",
+        "sicil_no": _benzersiz("SCL"),
+        "haftalik_hedef_saat": 40,
+        "aktif_baslangic": "2026-01-01",
+        "yetkinlik_idleri": [],
+    }
+    govde.update(ustune)
+    return govde
+
+
+def test_ayni_sicille_ikinci_personel_409_alir(istemci: TestClient) -> None:
+    """Bulgu: benzersizlik yalniz veritabani kisitindaydi ve ihlali
+    yakalanmamis bir IntegrityError olarak 500 uretiyordu.
+
+    409 secilmesi bilincli: istek bicimsel olarak gecerlidir (400 degil),
+    yalnizca mevcut veriyle cakisir. Mesaj hangi sicilin cakistigini yazar,
+    yoksa kullanici hangi alani duzeltecegini bilemez (NFR-5).
+    """
+    govde = _personel_govdesi()
+    assert istemci.post("/api/personel", json=govde).status_code == 201
+
+    yanit = istemci.post("/api/personel", json=_personel_govdesi(sicil_no=govde["sicil_no"]))
+    assert yanit.status_code == 409
+    assert govde["sicil_no"] in yanit.json()["detail"]
+
+
+def test_guncellemede_baskasinin_sicili_409_kendi_sicili_gecerli(istemci: TestClient) -> None:
+    """Kaydin KENDI sicili cakisma sayilmamalidir; aksi halde hicbir personel
+    yalnizca adini degistiremezdi."""
+    birinci = istemci.post("/api/personel", json=_personel_govdesi()).json()
+    ikinci = istemci.post("/api/personel", json=_personel_govdesi()).json()
+
+    cakisma = istemci.put(
+        f"/api/personel/{ikinci['personel_id']}", json={"sicil_no": birinci["sicil_no"]}
+    )
+    assert cakisma.status_code == 409
+
+    ayni = istemci.put(
+        f"/api/personel/{ikinci['personel_id']}",
+        json={"ad_soyad": "Yeni Ad", "sicil_no": ikinci["sicil_no"]},
+    )
+    assert ayni.status_code == 200
+    assert ayni.json()["ad_soyad"] == "Yeni Ad"
+
+
+def test_sicil_kirpilir(istemci: TestClient) -> None:
+    """Bastaki/sondaki bosluk gorunmez; kirpilmasaydi 'AY-1' ile 'AY-1 '
+    iki ayri kayit olur ve benzersizlik anlamini yitirirdi."""
+    sicil = _benzersiz("KIRP")
+    olusan = istemci.post("/api/personel", json=_personel_govdesi(sicil_no=f"  {sicil}  "))
+    assert olusan.status_code == 201
+    assert olusan.json()["sicil_no"] == sicil
+    assert istemci.post("/api/personel", json=_personel_govdesi(sicil_no=sicil)).status_code == 409
+
+
+def test_yetkinlik_kumesi_gonderildigi_gibi_korunur(istemci: TestClient) -> None:
+    """B3'un sunucu tarafi: gonderilen TAM KUME saklanir.
+
+    Arayuz eskiden yalnizca ilk yetkinligi gonderiyordu ve `yetkinlikleri_ayarla`
+    kumeyi degistirmek yerine DEGISTIRDIGI icin ikinci yetkinlik sessizce
+    siliniyordu. Sunucu sozlesmesi burada kilitleniyor: ne gonderilirse o
+    kalir; alan hic gonderilmezse kume hic dokunulmadan durur.
+    """
+    y1 = istemci.post("/api/yetkinlik", json={"ad": _benzersiz("Y1")}).json()["yetkinlik_id"]
+    y2 = istemci.post("/api/yetkinlik", json={"ad": _benzersiz("Y2")}).json()["yetkinlik_id"]
+
+    olusan = istemci.post("/api/personel", json=_personel_govdesi(yetkinlik_idleri=[y1, y2])).json()
+    assert sorted(olusan["yetkinlik_idleri"]) == sorted([y1, y2])
+
+    # Alan gonderilmezse kume korunur.
+    dokunmadan = istemci.put(
+        f"/api/personel/{olusan['personel_id']}", json={"ad_soyad": "Ad Degisti"}
+    ).json()
+    assert sorted(dokunmadan["yetkinlik_idleri"]) == sorted([y1, y2])
+
+    # Alan gonderilirse TAM KUME yazilir (tek eleman gondermek digerini siler).
+    tek = istemci.put(
+        f"/api/personel/{olusan['personel_id']}", json={"yetkinlik_idleri": [y1]}
+    ).json()
+    assert tek["yetkinlik_idleri"] == [y1]
+
+
+def test_olmayan_personele_baglanan_hesap_400_alir() -> None:
+    """B14: yabanci anahtar kisitina carpip 500 donmek yerine anlasilir 400."""
+    from app.models.kimlik import Rol
+
+    pg_yoksa_atla()
+    yonetim = yetkili_istemci(Rol.YONETIM)
+    yanit = yonetim.post(
+        "/api/kullanici",
+        json={
+            "kullanici_adi": _benzersiz("hayalet").lower().replace("_", "-"),
+            "parola": "yeterince-uzun-parola",
+            "rol": "calisan",
+            "personel_id": 999999999,
+        },
+    )
+    assert yanit.status_code == 400
+    assert "999999999" in yanit.json()["detail"]
+
+
+# --- Ozel gun / resmi tatil (FR-1.10) --------------------------------------
+
+
+def test_ozel_gun_isaretle_listele_guncelle_sil(istemci: TestClient) -> None:
+    """FR-1.10: resmi tatiller takvimde isaretlenebilir.
+
+    Tablo ve cozucu tarafi bastan beri vardi (baglam_kurucu ozel gunleri
+    okuyor); eksik olan YAZMA yoluydu, dolayisiyla talep matrisinin
+    `resmi_tatil` gun tipi hicbir zaman tetiklenemiyordu.
+    """
+    tarih = "2026-04-23"
+    olusan = istemci.post("/api/ozel-gun", json={"tarih": tarih, "ad": "Ulusal Egemenlik"})
+    assert olusan.status_code == 201
+    assert olusan.json() == {"tarih": tarih, "ad": "Ulusal Egemenlik"}
+
+    liste = istemci.get("/api/ozel-gun")
+    assert liste.status_code == 200
+    assert any(g["tarih"] == tarih for g in liste.json())
+
+    yeniden = istemci.put(f"/api/ozel-gun/{tarih}", json={"ad": "23 Nisan"})
+    assert yeniden.status_code == 200
+    assert yeniden.json()["ad"] == "23 Nisan"
+
+    assert istemci.delete(f"/api/ozel-gun/{tarih}").status_code == 204
+    assert all(g["tarih"] != tarih for g in istemci.get("/api/ozel-gun").json())
+
+
+def test_ayni_tarihi_ikinci_kez_isaretlemek_adi_gunceller(istemci: TestClient) -> None:
+    """Anahtar tarihin kendisi (SDD 4.2.1): "bu tarih zaten tatil" bir
+    cakisma degil, zaten istenen sonuctur. Hata dondurmek, kullaniciyi
+    once silip sonra eklemeye zorlardi."""
+    tarih = "2026-05-19"
+    istemci.post("/api/ozel-gun", json={"tarih": tarih, "ad": "Ilk ad"})
+    ikinci = istemci.post("/api/ozel-gun", json={"tarih": tarih, "ad": "Ikinci ad"})
+    assert ikinci.status_code == 201
+    assert ikinci.json()["ad"] == "Ikinci ad"
+    assert sum(1 for g in istemci.get("/api/ozel-gun").json() if g["tarih"] == tarih) == 1
+    istemci.delete(f"/api/ozel-gun/{tarih}")
+
+
+def test_ozel_gun_liste_tarihe_gore_sirali(istemci: TestClient) -> None:
+    """Takvim gibi okunan bir liste sirasiz donerse her tuketici kendi
+    siralamasini yazar; siralama depoda, tek yerde."""
+    for tarih in ("2026-08-30", "2026-01-01", "2026-10-29"):
+        istemci.post("/api/ozel-gun", json={"tarih": tarih, "ad": f"Gun {tarih}"})
+    tarihler = [g["tarih"] for g in istemci.get("/api/ozel-gun").json()]
+    assert tarihler == sorted(tarihler)
+    for tarih in ("2026-08-30", "2026-01-01", "2026-10-29"):
+        istemci.delete(f"/api/ozel-gun/{tarih}")
+
+
+def test_olmayan_ozel_gun_404(istemci: TestClient) -> None:
+    assert istemci.delete("/api/ozel-gun/2099-01-01").status_code == 404
+    assert istemci.put("/api/ozel-gun/2099-01-01", json={"ad": "x"}).status_code == 404

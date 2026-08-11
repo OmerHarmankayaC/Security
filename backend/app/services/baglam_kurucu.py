@@ -77,12 +77,17 @@ def baglam_olustur(
 
     vardiya_tipleri = {
         v.vardiya_tipi_id: VardiyaTipiBilgisi(
-            v.vardiya_tipi_id, v.baslangic_saati, v.bitis_saati, float(v.sure_saat), v.gece_mi
+            v.vardiya_tipi_id,
+            v.baslangic_saati,
+            v.bitis_saati,
+            float(v.sure_saat),
+            v.gece_mi,
+            ad=v.ad,
         )
         for v in oturum.execute(vardiya_sorgusu).scalars().all()
     }
     gorev_noktalari = {
-        n.nokta_id: GorevNoktasiBilgisi(n.nokta_id, n.onkosul_yetkinlik_id, n.bina_id)
+        n.nokta_id: GorevNoktasiBilgisi(n.nokta_id, n.onkosul_yetkinlik_id, n.bina_id, ad=n.ad)
         for n in oturum.execute(nokta_sorgusu).scalars().all()
     }
     personel = {

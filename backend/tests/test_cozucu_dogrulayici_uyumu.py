@@ -114,3 +114,35 @@ def test_kasten_bozulan_cizelge_h2_ihlali_yakalar() -> None:
 
     assert len(ihlaller) == 1
     assert ihlaller[0].kural_kimlik == "H2"
+
+
+def test_kasten_bozulan_cizelge_s1_fazla_kadroyu_yakalar() -> None:
+    """S1 icin ayni negatif kontrol (11.08.2026 hata bildirimi).
+
+    `modele_ekle` bir noktaya talepten fazla atama uretilmesini ZORUNLU
+    olarak engeller (`Σ_p x <= talep`); cozucu boyle bir cizelgeyi HICBIR
+    ZAMAN uretemez. Standart uyum testi (yukaridaki iki fonksiyon) bu
+    yuzden bu hatayi yakalayamazdi - yalnizca cozucunun URETEBILECEGI
+    ornekleri doguluyor. Bu test elle bozulmus bir girdi kullanarak
+    doğrulayicinin ayni kisiti KENDI BASINA da tanidigini kanitlar; SDD
+    3.2.1'in istedigi "cozucunun gecerli SAYMAYACAGI bir cizelgede
+    dogrulayicinin de ihlal bulmasi" yonunun testidir.
+    """
+    from app.kurallar.esnek import S1TalepKarsilama
+
+    baglam = _baglam()
+    baglam.talep[(date(2026, 2, 2), GUNDUZ, KAPI)] = 1
+
+    # Cozucunun ureteceginden FAZLASI: talep 1 iken 2 kisi atanmis.
+    fazla = [
+        AtamaKaydi(personel_id=1, tarih=date(2026, 2, 2), vardiya_tipi_id=GUNDUZ, nokta_id=KAPI),
+        AtamaKaydi(personel_id=2, tarih=date(2026, 2, 2), vardiya_tipi_id=GUNDUZ, nokta_id=KAPI),
+    ]
+    ihlaller = S1TalepKarsilama(parametreler={}, agirlik=10000).dogrula(fazla, baglam)
+
+    assert len(ihlaller) == 1
+    assert ihlaller[0].kural_kimlik == "S1"
+    assert "fazla" in ihlaller[0].aciklama
+    # Fazla kadro CEZA URETMEZ (bkz. S1TalepKarsilama.dogrula docstring'i);
+    # bulgu yalnizca metin olarak tasinir.
+    assert ihlaller[0].ceza is None

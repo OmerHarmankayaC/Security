@@ -16,6 +16,7 @@ from app.models.sonuc import (
     CozumIsi,
     CozumIsiDurumu,
     Donem,
+    FazlaKadro,
     KapsamaAcigi,
 )
 from app.models.tanim import (
@@ -41,6 +42,7 @@ __all__ = [
     "Donem",
     "GorevNoktasi",
     "GunTipi",
+    "FazlaKadro",
     "KapsamaAcigi",
     "Kullanici",
     "Kural",

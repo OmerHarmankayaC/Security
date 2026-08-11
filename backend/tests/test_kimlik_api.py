@@ -16,7 +16,6 @@ from typing import Annotated
 import pytest
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import text
 
 from app.config import ayarlar
 from app.db import OturumYerel
@@ -33,6 +32,7 @@ from app.services.oturum_servisi import (
     belirtec_ozeti,
 )
 from app.services.parola import ozetle
+from app.veri_temizligi import HesapKapsami, hesaplari_temizle
 from tests.conftest import pg_yoksa_atla
 
 PAROLA = "cok-uzun-bir-parola"
@@ -49,7 +49,7 @@ def istemci() -> TestClient:
 def _temizle() -> None:
     oturum = OturumYerel()
     try:
-        oturum.execute(text("TRUNCATE oturum, kullanici CASCADE"))
+        hesaplari_temizle(oturum, kapsam=HesapKapsami.HEPSI)
         oturum.commit()
     finally:
         oturum.close()

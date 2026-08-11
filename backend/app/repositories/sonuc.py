@@ -12,6 +12,7 @@ from app.models.sonuc import (
     CizelgeSurumuDurumu,
     CozumIsi,
     Donem,
+    FazlaKadro,
     KapsamaAcigi,
 )
 from app.repositories.taban import TabanDepo
@@ -212,6 +213,39 @@ class AtamaDeposu(TabanDepo[Atama]):
             Atama.surum_id == surum_id, Atama.personel_id == personel_id, Atama.tarih == tarih
         )
         return self.oturum.execute(stmt).scalar_one_or_none()
+
+
+class FazlaKadroDeposu(TabanDepo[FazlaKadro]):
+    """Talepten fazla kadro kayitlari (bkz. goc a4d92c15e807).
+
+    `KapsamaAcigiDeposu` ile ayni yuzeyi tasir; iki tablonun ayri
+    tutulmasinin gerekcesi model ve goc dosyasinda yazili.
+    """
+
+    def __init__(self, oturum: Session) -> None:
+        super().__init__(oturum, FazlaKadro)
+
+    def surume_gore_sil(self, surum_id: int) -> None:
+        self.oturum.execute(delete(FazlaKadro).where(FazlaKadro.surum_id == surum_id))
+
+    def surume_gore_getir(self, surum_id: int) -> Sequence[FazlaKadro]:
+        stmt = (
+            select(FazlaKadro)
+            .where(FazlaKadro.surum_id == surum_id)
+            .order_by(FazlaKadro.tarih, FazlaKadro.vardiya_tipi_id, FazlaKadro.nokta_id)
+        )
+        return self.oturum.execute(stmt).scalars().all()
+
+    def surumlere_gore_fazla_toplami(self, surum_idleri: Sequence[int]) -> dict[int, int]:
+        """Surum basina toplam fazla KISI sayisi (Surumler ekrani icin)."""
+        if not surum_idleri:
+            return {}
+        stmt = (
+            select(FazlaKadro.surum_id, func.sum(FazlaKadro.fazla_sayi))
+            .where(FazlaKadro.surum_id.in_(surum_idleri))
+            .group_by(FazlaKadro.surum_id)
+        )
+        return {surum_id: int(toplam or 0) for surum_id, toplam in self.oturum.execute(stmt)}
 
 
 class KapsamaAcigiDeposu(TabanDepo[KapsamaAcigi]):

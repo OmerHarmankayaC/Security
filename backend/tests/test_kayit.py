@@ -12,13 +12,13 @@ import uuid
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import text
 
 from app.db import OturumYerel
 from app.kayit import _temizle
 from app.main import app
 from app.models.kimlik import Kullanici, Rol
 from app.services.parola import ozetle
+from app.veri_temizligi import HesapKapsami, hesaplari_temizle
 from tests.conftest import oturumlu_istemci, pg_yoksa_atla
 
 PAROLA = "kayit-testi-icin-uzun-parola"
@@ -30,7 +30,7 @@ def temiz() -> None:
     pg_yoksa_atla()
     oturum = OturumYerel()
     try:
-        oturum.execute(text("TRUNCATE oturum, kullanici CASCADE"))
+        hesaplari_temizle(oturum, kapsam=HesapKapsami.HEPSI)
         oturum.commit()
     finally:
         oturum.close()

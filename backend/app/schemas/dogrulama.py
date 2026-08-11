@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 
 class AtamaDegisikligiIstek(BaseModel):
@@ -36,7 +36,27 @@ class IhlalOku(BaseModel):
     ceza: float | None
 
 
+class CezaKalemiOku(BaseModel):
+    """Bir esnek hedefin ceza degisimi, agirligiyla birlikte (FR-4.8)."""
+
+    kural_kimlik: str
+    ad: str
+    ham_fark: float
+    agirlik: float
+    agirlikli_fark: float
+
+
 class DogrulamaSonucuOku(BaseModel):
     kabul_edilebilir: bool
     zorunlu_ihlaller: list[IhlalOku]
+    # Ham (agirliksiz) toplam. Korunuyor ama arayuzun gostermesi gereken
+    # deger `agirlikli_ceza_degisimi`: ham toplam, farkli birimlerdeki
+    # cezalari (kisi, vardiya, saat, gun) agirliksiz topladigi icin
+    # buyuklukleri karsilastirilabilir degil.
     ceza_degisimi: float
+    agirlikli_ceza_degisimi: float = 0.0
+    ceza_dokumu: list[CezaKalemiOku] = Field(default_factory=list)
+    # Degisikligin yeni dogurdugu, bir yere isaret eden esnek bulgular
+    # (kapsama acigi, fazla kadro). Zorunlu ihlal DEGILDIR: degisiklik
+    # uygulanir, karar kullaniciya birakilir (SDD 5.5).
+    uyarilar: list[IhlalOku] = Field(default_factory=list)

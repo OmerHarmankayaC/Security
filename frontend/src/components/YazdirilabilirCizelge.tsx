@@ -37,6 +37,7 @@ export function YazdirilabilirCizelge({
   surum,
   atamalar,
   kapsamaAcigi,
+  fazlaKadro,
   personelMap,
   vardiyaMap,
   noktaMap,
@@ -66,6 +67,15 @@ export function YazdirilabilirCizelge({
     [kapsamaAcigi],
   )
   const toplamEksik = acikSatirlari.reduce((toplam, k) => toplam + k.eksik_sayi, 0)
+
+  const fazlaSatirlari = useMemo(
+    () =>
+      fazlaKadro
+        .slice()
+        .sort((a, b) => a.tarih.localeCompare(b.tarih) || a.nokta_id - b.nokta_id),
+    [fazlaKadro],
+  )
+  const toplamFazla = fazlaSatirlari.reduce((toplam, f) => toplam + f.fazla_sayi, 0)
 
   return (
     <div className="yazdirma-alani bg-white text-black">
@@ -183,6 +193,55 @@ export function YazdirilabilirCizelge({
           </>
         )}
       </section>
+
+      {/* Fazla kadro AYRI bir bolum: kapsama acigiyla ayni tabloya konsaydi
+          iki zit yondeki sapma tek listede karisir, "3" gorunen bir satirin
+          eksik mi fazla mi oldugu satir satir okunmadan anlasilmazdi.
+          Bolum yalnizca sapma VARSA basilir - kapsama acigindan farki bu:
+          acik bolumu "acik yok" cumlesiyle de basilir cunku onun yoklugu
+          raporun asil vaadidir; fazla kadro ise beklenen durumun disinda
+          bir olaydir ve yoklugu bildirilmesi gereken bir sey degildir. */}
+      {fazlaSatirlari.length > 0 && (
+        <section className="mt-4 break-inside-avoid">
+          <h2 className="m-0 mb-1 text-[9pt] font-semibold">Talepten Fazla Kadro</h2>
+          <p className="m-0 mb-1 text-[8pt]">
+            {fazlaSatirlari.length} hücrede toplam {toplamFazla} kişi fazla. SRS 4.3 S1 bu
+            sınırı zorunlu tanımlar; aşılması elle yapılmış bir düzenlemeden gelir.
+          </p>
+          <table className="w-auto border-collapse">
+            <thead>
+              <tr>
+                {['Tarih', 'Vardiya', 'Görev Noktası', 'Fazla'].map((b) => (
+                  <th
+                    key={b}
+                    className="border border-neutral-400 px-2 py-0.5 text-left text-[8pt] font-semibold"
+                  >
+                    {b}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {fazlaSatirlari.map((f) => (
+                <tr key={f.fazla_id}>
+                  <td className="border border-neutral-400 px-2 py-0.5 text-[8pt]">
+                    {tarihBicimle(f.tarih)}
+                  </td>
+                  <td className="border border-neutral-400 px-2 py-0.5 text-[8pt]">
+                    {vardiyaMap.get(f.vardiya_tipi_id)?.ad ?? '—'}
+                  </td>
+                  <td className="border border-neutral-400 px-2 py-0.5 text-[8pt]">
+                    {noktaMap.get(f.nokta_id)?.ad ?? '—'}
+                  </td>
+                  <td className="border border-neutral-400 px-2 py-0.5 text-right font-mono text-[8pt]">
+                    {f.fazla_sayi}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
     </div>
   )
 }

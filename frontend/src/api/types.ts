@@ -24,6 +24,10 @@ export interface CizelgeSurumu {
   toplam_ceza: number | null
   // Açık hücre sayısı değil, toplam eksik KİŞİ sayısı.
   kapsama_acigi_sayisi: number
+  // Talepten FAZLA yazılmış toplam kişi sayısı (SRS 4.3 S1 üst sınırı).
+  // Kapsama açığıyla toplanmaz: iki zıt yöndeki sapmayı tek sayıda
+  // gizlemek "3 açık" ile "3 fazla"yı aynı gösterirdi.
+  fazla_kadro_sayisi: number
 }
 
 // --- Sürümler / Karşılaştır (SDD 6.3.5) -------------------------------------
@@ -74,6 +78,15 @@ export interface KapsamaAcigi {
   eksik_sayi: number
 }
 
+/** Bir noktaya talepten fazla kişi atanmış olması (SRS 4.3 S1 üst sınırı). */
+export interface FazlaKadro {
+  fazla_id: number
+  tarih: string
+  vardiya_tipi_id: number
+  nokta_id: number
+  fazla_sayi: number
+}
+
 export interface Personel {
   personel_id: number
   ad_soyad: string
@@ -83,6 +96,12 @@ export interface Personel {
   aktif_baslangic: string
   aktif_bitis: string | null
   yetkinlik_idleri: number[]
+}
+
+/** Resmî tatil işareti (FR-1.10). Anahtar tarihin kendisidir (SDD 4.2.1). */
+export interface OzelGun {
+  tarih: string
+  ad: string
 }
 
 export interface VardiyaTipi {
@@ -153,10 +172,28 @@ export interface Ihlal {
   ceza: number | null
 }
 
+/** Bir esnek hedefin ceza değişimi, ağırlığıyla birlikte (FR-4.8). */
+export interface CezaKalemi {
+  kural_kimlik: string
+  ad: string
+  ham_fark: number
+  agirlik: number
+  agirlikli_fark: number
+}
+
 export interface DogrulamaSonucu {
   kabul_edilebilir: boolean
   zorunlu_ihlaller: Ihlal[]
+  /** Ham (ağırlıksız) toplam. Ekranda GÖSTERİLMEZ: farklı birimlerdeki
+   *  cezaları (kişi, vardiya, saat, gün) ağırlıksız topladığı için
+   *  büyüklükleri karşılaştırılabilir değil. */
   ceza_degisimi: number
+  agirlikli_ceza_degisimi: number
+  ceza_dokumu: CezaKalemi[]
+  /** Değişikliğin yeni doğurduğu, bir yere işaret eden esnek bulgular
+   *  (kapsama açığı, fazla kadro). Zorunlu ihlal DEĞİLDİR — değişiklik
+   *  uygulanır, karar kullanıcıya bırakılır (SDD 5.5). */
+  uyarilar: Ihlal[]
 }
 
 export interface AtamaDegisikligiIstek {
@@ -308,9 +345,23 @@ export interface SaatDengesi {
   sapma: number
 }
 
+/** Analiz ekranının fazla kadro satırı — adlarıyla birlikte (NFR-5). */
+export interface FazlaKadroKalemi {
+  tarih: string
+  vardiya_tipi_id: number
+  vardiya_tipi_ad: string
+  nokta_id: number
+  nokta_ad: string
+  fazla_sayi: number
+}
+
 export interface Analiz {
   surum_id: number
   kapsama_orani: number
+  /** Kapsama oranından AYRI: oran "talebin ne kadarı karşılandı" sorusunu
+   *  yanıtlar, fazla kadro o soruya bir şey eklemez. */
+  fazla_kadro: FazlaKadroKalemi[]
+  toplam_fazla_kadro: number
   kisi_basina_gece: KisiSayisi[]
   kisi_basina_hafta_sonu: KisiSayisi[]
   saat_dagilimi: SaatDengesi[]

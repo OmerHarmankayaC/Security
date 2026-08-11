@@ -40,6 +40,7 @@ from app.repositories.sonuc import (
     CizelgeSurumuDeposu,
     CozumIsiDeposu,
     DonemDeposu,
+    FazlaKadroDeposu,
     KapsamaAcigiDeposu,
 )
 from app.services.baglam_kurucu import baglam_olustur, donem_gunlerini_uret, zaman_ekseni_olustur
@@ -208,6 +209,11 @@ def cozum_isini_calistir(oturum: Session, is_id: int) -> None:
     # ayirt edilemeyecegi icin yanilticidir.
     atama_depo.surume_gore_sil(surum.surum_id)
     kapsama_depo.surume_gore_sil(surum.surum_id)
+    # Fazla kadro satirlari da temizlenir. Cozucu boyle bir satir URETEMEZ
+    # (S1'in ust siniri modele zorunlu kisit olarak giriyor), ama surum
+    # yeniden cozulmeden ONCE elle duzenlenmis olabilir; o turdan kalan
+    # satirlar cozucunun urettigi yeni cizelgeyle ilgisiz olurdu.
+    FazlaKadroDeposu(oturum).surume_gore_sil(surum.surum_id)
     for personel_id, tarih, vardiya_tipi_id, nokta_id in sonuc.atanan_anahtarlar:
         oturum.add(
             Atama(

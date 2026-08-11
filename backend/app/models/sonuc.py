@@ -95,6 +95,26 @@ class KapsamaAcigi(Base, ZamanDamgasiKarisimi):
     eksik_sayi: Mapped[int]
 
 
+class FazlaKadro(Base, ZamanDamgasiKarisimi):
+    """Bir noktaya TALEPTEN FAZLA kisi atanmis olmasi (SRS 4.3 S1 ust siniri).
+
+    `KapsamaAcigi`'nin aynadaki goruntusu ama AYRI bir tablo; gerekcesi
+    goc dosyasinda (a4d92c15e807) uzun uzun yazili. Ozeti: kapsama acigi
+    cozucunun `eksik` degiskeniyle birebirdir (SDD 4.2.4), fazla kadronun
+    ise cozucude hicbir karsiligi yoktur - kaynagi yalnizca manuel
+    duzenlemedir.
+    """
+
+    __tablename__ = "fazla_kadro"
+
+    fazla_id: Mapped[int] = mapped_column(primary_key=True)
+    surum_id: Mapped[int] = mapped_column(ForeignKey("cizelge_surumu.surum_id"), index=True)
+    tarih: Mapped[date] = mapped_column(Date)
+    vardiya_tipi_id: Mapped[int] = mapped_column(ForeignKey("vardiya_tipi.vardiya_tipi_id"))
+    nokta_id: Mapped[int] = mapped_column(ForeignKey("gorev_noktasi.nokta_id"))
+    fazla_sayi: Mapped[int]
+
+
 __all__ = [
     "Atama",
     "AtamaKaynagi",
@@ -103,5 +123,6 @@ __all__ = [
     "CozumIsi",
     "CozumIsiDurumu",
     "Donem",
+    "FazlaKadro",
     "KapsamaAcigi",
 ]

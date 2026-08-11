@@ -1,4 +1,5 @@
 import type {
+  FazlaKadro,
   Atama,
   CizelgeSurumu,
   Donem,
@@ -42,6 +43,7 @@ export interface CizelgeVerisi {
   surum: CizelgeSurumu
   atamalar: Atama[]
   kapsamaAcigi: KapsamaAcigi[]
+  fazlaKadro: FazlaKadro[]
   personelMap: Map<number, Personel>
   vardiyaMap: Map<number, VardiyaTipi>
   noktaMap: Map<number, GorevNoktasi>
@@ -67,7 +69,30 @@ const CIZELGE_BASLIKLARI = [
   'sure_saat',
 ] as const
 
-const KAPSAMA_BASLIKLARI = ['tarih', 'vardiya_tipi', 'gorev_noktasi', 'eksik_sayi'] as const
+/**
+ * Talep sapması başlıkları.
+ *
+ * SRS 7.2 dört sütun tanımlıyordu: tarih, vardiya_tipi, gorev_noktasi,
+ * eksik_sayi. İkisi değişti ve nedeni şu: dosya artık talepten sapmanın
+ * İKİ yönünü birden taşıyor — eksik (kapsama açığı) ve fazla (S1 üst
+ * sınırının aşılması). `tur` sütunu ayrımı yapar, `kisi_sayisi` her iki
+ * yönde de pozitif kalır ("eksik_sayi = 2, tur = fazla" okunmaz bir
+ * satır olurdu).
+ *
+ * NEDEN AYRI DOSYA DEĞİL. SRS 7.2'nin kapsama açığını çizelgeden ayrı bir
+ * dosyaya koyma gerekçesi, iki farklı SATIR ŞEKLİNİN tek dosyada
+ * birleşmesiydi ("hiçbir tablo programı böyle bir dosyayı tek tablo
+ * olarak açamaz"). Burada şekil aynı: aynı dört anahtar, aynı sayı. Ayrı
+ * bir üçüncü dosya, iki ekrana üçüncü bir indirme eklerdi ve "çizelgem
+ * talepten nerede saptı" sorusunun yanıtını ikiye bölerdi.
+ */
+const SAPMA_BASLIKLARI = [
+  'tarih',
+  'vardiya_tipi',
+  'gorev_noktasi',
+  'tur',
+  'kisi_sayisi',
+] as const
 
 /**
  * Tek bir CSV hücresi.
@@ -144,23 +169,49 @@ export function cizelgeCsvOlustur(veri: CizelgeVerisi): string {
  * yazdırılabilir görünümde cümleyle yazılır.
  */
 export function kapsamaAcigiCsvOlustur(veri: CizelgeVerisi): string {
-  const satirlar = veri.kapsamaAcigi
-    .slice()
+  type SapmaSatiri = {
+    tarih: string
+    vardiya_tipi_id: number
+    nokta_id: number
+    tur: 'eksik' | 'fazla'
+    kisi_sayisi: number
+  }
+
+  const sapmalar: SapmaSatiri[] = [
+    ...veri.kapsamaAcigi.map((k) => ({
+      tarih: k.tarih,
+      vardiya_tipi_id: k.vardiya_tipi_id,
+      nokta_id: k.nokta_id,
+      tur: 'eksik' as const,
+      kisi_sayisi: k.eksik_sayi,
+    })),
+    ...veri.fazlaKadro.map((f) => ({
+      tarih: f.tarih,
+      vardiya_tipi_id: f.vardiya_tipi_id,
+      nokta_id: f.nokta_id,
+      tur: 'fazla' as const,
+      kisi_sayisi: f.fazla_sayi,
+    })),
+  ]
+
+  const satirlar = sapmalar
     .sort(
       (a, b) =>
         a.tarih.localeCompare(b.tarih) ||
         a.vardiya_tipi_id - b.vardiya_tipi_id ||
-        a.nokta_id - b.nokta_id,
+        a.nokta_id - b.nokta_id ||
+        a.tur.localeCompare(b.tur),
     )
-    .map((k) =>
+    .map((s) =>
       satir([
-        k.tarih,
-        veri.vardiyaMap.get(k.vardiya_tipi_id)?.ad ?? '',
-        veri.noktaMap.get(k.nokta_id)?.ad ?? '',
-        k.eksik_sayi,
+        s.tarih,
+        veri.vardiyaMap.get(s.vardiya_tipi_id)?.ad ?? '',
+        veri.noktaMap.get(s.nokta_id)?.ad ?? '',
+        s.tur,
+        s.kisi_sayisi,
       ]),
     )
-  return csvBirlestir([satir(KAPSAMA_BASLIKLARI), ...satirlar])
+  return csvBirlestir([satir(SAPMA_BASLIKLARI), ...satirlar])
 }
 
 /**

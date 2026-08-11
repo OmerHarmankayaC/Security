@@ -19,6 +19,7 @@ from app.repositories.sonuc import (
     AtamaDeposu,
     CizelgeSurumuDeposu,
     CozumIsiDeposu,
+    FazlaKadroDeposu,
     KapsamaAcigiDeposu,
 )
 from app.repositories.tanim import GorevNoktasiDeposu, PersonelDeposu, VardiyaTipiDeposu
@@ -57,6 +58,7 @@ class SurumServisi:
         self.atama = AtamaDeposu(oturum)
         self.cozum_isi = CozumIsiDeposu(oturum)
         self.kapsama = KapsamaAcigiDeposu(oturum)
+        self.fazla_kadro = FazlaKadroDeposu(oturum)
         self.personel = PersonelDeposu(oturum)
         self.vardiya_tipi = VardiyaTipiDeposu(oturum)
         self.nokta = GorevNoktasiDeposu(oturum)
@@ -68,6 +70,7 @@ class SurumServisi:
         surum_idleri = [s.surum_id for s in surumler]
         cezalar = self.cozum_isi.surumlere_gore_en_son_ceza(surum_idleri)
         eksikler = self.kapsama.surumlere_gore_eksik_toplami(surum_idleri)
+        fazlalar = self.fazla_kadro.surumlere_gore_fazla_toplami(surum_idleri)
         return [
             SurumOzetiOku(
                 surum_id=s.surum_id,
@@ -80,6 +83,7 @@ class SurumServisi:
                 guncelleme_zamani=s.guncelleme_zamani,
                 toplam_ceza=cezalar.get(s.surum_id),
                 kapsama_acigi_sayisi=eksikler.get(s.surum_id, 0),
+                fazla_kadro_sayisi=fazlalar.get(s.surum_id, 0),
             )
             for s in surumler
         ]

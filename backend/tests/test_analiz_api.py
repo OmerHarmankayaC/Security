@@ -8,7 +8,6 @@ from datetime import UTC, date, datetime, time, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import text
 
 from app.db import OturumYerel
 from app.models.girdi import Tercih, TercihDurumu, TercihTipi
@@ -23,7 +22,7 @@ from app.models.sonuc import (
     KapsamaAcigi,
 )
 from app.models.tanim import GorevNoktasi, GunTipi, Personel, Talep, VardiyaTipi
-from tests.conftest import pg_yoksa_atla, yetkili_istemci
+from tests.conftest import pg_yoksa_atla, senaryo_verisini_temizle, yetkili_istemci
 
 
 @pytest.fixture
@@ -52,14 +51,7 @@ def test_analiz_metrikleri_dogru_hesaplanir(istemci: TestClient) -> None:
         # kendi verisini baskasiyla karismadan olcebilmek icin once
         # ilgili tablolari temizler (bu projede tekrarlayan bir desen,
         # bkz. tests/test_agirlik_kalibrasyonu.py).
-        oturum.execute(
-            text(
-                "TRUNCATE kapsama_acigi, cozum_isi, atama, cizelge_surumu, musaitlik, "
-                "donem, talep, personel_yetkinlik, personel, gorev_noktasi, "
-                "vardiya_tipi, bina, yetkinlik, kural, tercih CASCADE"
-            )
-        )
-        oturum.commit()
+        senaryo_verisini_temizle(oturum)
 
         gunduz = VardiyaTipi(
             ad=f"Gunduz-{on_ek}",

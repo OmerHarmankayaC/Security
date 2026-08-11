@@ -12,7 +12,6 @@ import uuid
 from pathlib import Path
 
 import pytest
-from sqlalchemy import text
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -22,6 +21,7 @@ from app.db import OturumYerel  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models.kimlik import Kullanici, Rol  # noqa: E402
 from app.services.parola import ASGARI_UZUNLUK, dogrula  # noqa: E402
+from app.veri_temizligi import HesapKapsami, hesaplari_temizle
 from scripts.yonetim_hesabi_olustur import (  # noqa: E402
     hesap_ac,
     main,
@@ -37,7 +37,7 @@ def oturum():  # noqa: ANN201 - Session
     pg_yoksa_atla()
     oturum = OturumYerel()
     try:
-        oturum.execute(text("TRUNCATE oturum, kullanici CASCADE"))
+        hesaplari_temizle(oturum, kapsam=HesapKapsami.HEPSI)
         oturum.commit()
         yield oturum
     finally:

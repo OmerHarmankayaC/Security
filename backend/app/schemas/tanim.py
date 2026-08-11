@@ -2,8 +2,9 @@
 
 from datetime import date, time
 from decimal import Decimal
+from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from app.models.tanim import GunTipi, Personel
 
@@ -134,9 +135,15 @@ class GorevNoktasiOku(BaseModel):
 # --- Personel ------------------------------------------------------------
 
 
+# Sicil kirpilir ve bos birakilamaz. Kirpma sunucuda yapilir, arayuzde
+# degil: bastaki/sondaki bosluk gorunmez ve "AY-1" ile "AY-1 " iki ayri
+# kayit olarak gecip benzersizlik kontrolunu anlamsiz kilardi.
+Sicil = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+
+
 class PersonelOlustur(BaseModel):
     ad_soyad: str
-    sicil_no: str
+    sicil_no: Sicil
     haftalik_hedef_saat: int
     sabit_vardiya_tipi_id: int | None = None
     aktif_baslangic: date
@@ -146,7 +153,7 @@ class PersonelOlustur(BaseModel):
 
 class PersonelGuncelle(BaseModel):
     ad_soyad: str | None = None
-    sicil_no: str | None = None
+    sicil_no: Sicil | None = None
     haftalik_hedef_saat: int | None = None
     sabit_vardiya_tipi_id: int | None = None
     aktif_baslangic: date | None = None
@@ -178,6 +185,32 @@ class PersonelOku(BaseModel):
             aktif_bitis=personel.aktif_bitis,
             yetkinlik_idleri=[y.yetkinlik_id for y in personel.yetkinlikler],
         )
+
+
+# --- Ozel Gun (resmi tatil) ------------------------------------------------
+
+
+class OzelGunOlustur(BaseModel):
+    tarih: date
+    ad: str
+
+
+class OzelGunGuncelle(BaseModel):
+    """Yalniz ad degisir; tarih birincil anahtardir (SDD 4.2.1).
+
+    Tarihi degistirmek yeni bir kayit acmakla aynidir ve o yol zaten
+    ekleme/silme ikilisiyle aciktir; PUT'a tarih koymak, ayni islemin ikinci
+    bir yolunu yaratirdi.
+    """
+
+    ad: str
+
+
+class OzelGunOku(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    tarih: date
+    ad: str
 
 
 # --- Talep -----------------------------------------------------------------

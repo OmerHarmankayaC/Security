@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
@@ -20,6 +19,7 @@ from app.models.sonuc import CozumIsiDurumu
 from app.repositories.sonuc import CozumIsiDeposu
 from app.services.oturum_servisi import OturumBaglami
 from app.services.parola import ozetle
+from app.veri_temizligi import HesapKapsami, hesaplari_temizle, veriyi_temizle
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -92,8 +92,8 @@ def _durumu_oku(is_id: int) -> CozumIsiDurumu | None:
 #                       yine gercek koddan gecer, yalniz oturumun
 #                       cozulmesi atlanir.
 #
-# Ikincisinin nedeni somut: senaryo kuran testler `TRUNCATE personel CASCADE`
-# calistirir ve bu, `kullanici`yi de (yabanci anahtar) siler - yani veri
+# Ikincisinin nedeni somut: senaryo kuran testler `senaryo_verisini_temizle`
+# cagirir ve o da hesap tablolarini HEPSI kapsamiyla bosaltir - yani veri
 # temizligi acik oturumu dusurur. Konusu cizelge olan bir testin kimlik
 # tablolarinin silinme sirasina bagimli olmasi, testi olctugu seyden baska
 # bir sebeple kirilgan yapardi.
@@ -149,7 +149,25 @@ def yetkili_istemci(rol: Rol = Rol.YONETIM, *, personel_id: int | None = None) -
 
 
 def _kimlik_tablolarini_temizle(oturum: Session) -> None:
-    oturum.execute(text("TRUNCATE oturum, kullanici CASCADE"))
+    hesaplari_temizle(oturum, kapsam=HesapKapsami.HEPSI)
+    oturum.commit()
+
+
+def senaryo_verisini_temizle(oturum: Session) -> None:
+    """Senaryo kuran testlerin ortak temizligi (app/veri_temizligi.py).
+
+    Eskiden her test kendi `TRUNCATE ... CASCADE` dizesini tasiyordu.
+    `CASCADE`, silinecekler listesini PostgreSQL'e yazdirir: `kullanici`
+    tablosu listede gorunmedigi halde, `personel`e yabanci anahtarla
+    baktigi icin BUTUNUYLE bosaliyordu - personele hic bagli olmayan
+    yonetim hesaplari dahil. Liste artik tek bir yerde ve ACIK; hesaplarin
+    silinmesi de burada gorunur bir SECIM (`HesapKapsami.HEPSI`), yabanci
+    anahtarin yan etkisi degil.
+
+    Testlerde kapsam HEPSI'dir ve olmasi gereken de budur: fikstürlerin
+    actigi hesaplar testler arasinda sizmamalidir.
+    """
+    veriyi_temizle(oturum, hesaplar=HesapKapsami.HEPSI)
     oturum.commit()
 
 

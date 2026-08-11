@@ -1,17 +1,27 @@
 """Tanim yonetimi servis katmani (SDD 3.2: is mantigi burada, SQL depo katmaninda)."""
 
+from datetime import date
 from decimal import Decimal
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from app.kurallar import kayit_defteri
-from app.models.tanim import Bina, GorevNoktasi, Personel, Talep, VardiyaTipi, Yetkinlik
+from app.models.tanim import (
+    Bina,
+    GorevNoktasi,
+    OzelGun,
+    Personel,
+    Talep,
+    VardiyaTipi,
+    Yetkinlik,
+)
 from app.repositories.girdi import MusaitlikDeposu, TercihDeposu
 from app.repositories.kural import KuralDeposu
 from app.repositories.tanim import (
     BinaDeposu,
     GorevNoktasiDeposu,
+    OzelGunDeposu,
     PersonelDeposu,
     TalepDeposu,
     VardiyaTipiDeposu,
@@ -36,6 +46,17 @@ class KuralParametresiError(ValueError):
     """Kural parametresi katalogdaki tanima uymuyor; mesaj kullaniciya gosterilir."""
 
 
+class SicilKullanimdaError(ValueError):
+    """Sicil numarasi baska bir personel kaydinda (router 409'a cevirir).
+
+    Benzersizlik veritabaninda da kisitli (personel.sicil_no UNIQUE), ama
+    yalnizca orada kalmasi yeterli degildi: kisit ihlali yakalanmamis bir
+    IntegrityError olarak disari cikip 500 uretiyordu. Kullanicinin gordugu
+    sey "sunucu hatasi" oluyordu, oysa yaptigi sey gecerli bir veri girisi
+    denemesiydi ve duzeltmesi tek bir alani degistirmekten ibaretti (NFR-5).
+    """
+
+
 class TanimServisi:
     def __init__(self, oturum: Session) -> None:
         self.oturum = oturum
@@ -48,16 +69,20 @@ class TanimServisi:
         self.kural = KuralDeposu(oturum)
         self.musaitlik = MusaitlikDeposu(oturum)
         self.tercih = TercihDeposu(oturum)
+        self.ozel_gun = OzelGunDeposu(oturum)
 
     # --- Personel (FR-1.1, FR-1.2) ---------------------------------------
 
     def personel_olustur(self, veri: PersonelOlustur) -> Personel:
+        self._sicili_dogrula(veri.sicil_no)
         alanlar = veri.model_dump(exclude={"yetkinlik_idleri"})
         personel = self.personel.olustur(**alanlar)
         self.personel.yetkinlikleri_ayarla(personel, veri.yetkinlik_idleri)
         return personel
 
     def personel_guncelle(self, id_: int, veri: PersonelGuncelle) -> Personel | None:
+        if veri.sicil_no is not None:
+            self._sicili_dogrula(veri.sicil_no, haric_personel_id=id_)
         alanlar = veri.model_dump(exclude={"yetkinlik_idleri"}, exclude_unset=True)
         personel = self.personel.guncelle(id_, **alanlar) if alanlar else self.personel.getir(id_)
         if personel is None:
@@ -65,6 +90,31 @@ class TanimServisi:
         if veri.yetkinlik_idleri is not None:
             self.personel.yetkinlikleri_ayarla(personel, veri.yetkinlik_idleri)
         return personel
+
+    def _sicili_dogrula(self, sicil_no: str, *, haric_personel_id: int | None = None) -> None:
+        cakisan = self.personel.sicille_bul(sicil_no, haric_personel_id=haric_personel_id)
+        if cakisan is not None:
+            raise SicilKullanimdaError(
+                f"{sicil_no} sicil numarasi baska bir personel kaydinda kullaniliyor"
+            )
+
+    # --- Ozel gun / resmi tatil (FR-1.10) ----------------------------------
+
+    def ozel_gun_isaretle(self, tarih: date, ad: str) -> OzelGun:
+        """Tarihi resmi tatil olarak isaretler; zaten isaretliyse adini gunceller.
+
+        Ayni tarih icin ikinci bir POST'un hata vermesi yerine adi
+        guncellemesi bilincli: birincil anahtar tarihin kendisi oldugundan
+        (SDD 4.2.1) "bu tarih zaten tatil" durumu bir cakisma degil, zaten
+        istenen sonuctur. Kullanicinin gordugu sey ya "isaretlendi" ya da
+        "adi degisti" olur; ikisi de dogru ve ikisi de guvenlidir.
+        """
+        mevcut = self.ozel_gun.getir(tarih)
+        if mevcut is not None:
+            mevcut.ad = ad
+            self.oturum.flush()
+            return mevcut
+        return self.ozel_gun.olustur(tarih=tarih, ad=ad)
 
     # --- Yetkinlik / Bina (FR-1.2, FR-1.5) --------------------------------
 

@@ -21,28 +21,35 @@ veritabanina yazar. Ayni havuz ve talep uzerinde iki donem uretilir:
 Kullanim:
     python scripts/demo_veri_uret.py [--reset]
 
---reset verilirse, once (yalnizca) bu betigin urettigi turden veriler
-(tum tanim/girdi/kural/donem satirlari) silinip yeniden uretilir. Betik,
-zaten demo verisi bulunan bir veritabaninda --reset verilmeden calistirilirsa
-acik bir hatayla durur (sessizce yinelenen kayit olusturmaz).
+--reset verilirse, once tum tanim/girdi/kural/sonuc satirlari silinip
+yeniden uretilir (silinecek tablolarin listesi app/veri_temizligi.py'de).
+Betik, zaten demo verisi bulunan bir veritabaninda --reset verilmeden
+calistirilirsa acik bir hatayla durur (sessizce yinelenen kayit olusturmaz).
+
+HESAPLAR. --reset, bir PERSONEL KAYDINA BAGLI hesaplari da siler ve kac
+hesap silindigini yazar; bunlar `personel` satirlarini tutan yabanci
+anahtarlardir ve silinmezlerse temizlik bir kisit hatasiyla duserdi.
+Personel kaydina bagli OLMAYAN yonetim hesaplarina dokunulmaz - demo
+verisini tazelemek sistemin giris kapisini kapatmamalidir.
+
+Betik, VERI_TEMIZLIGINE_IZIN ortam degiskeni verilmeden calismaz
+(app/veri_temizligi.py, uretim kilidi).
 """
 
 import argparse
 import sys
 from datetime import date, time, timedelta
 
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import OturumYerel
-from app.models.girdi import Musaitlik, MusaitlikDilimi, MusaitlikTipi, Tercih
+from app.models.girdi import Musaitlik, MusaitlikDilimi, MusaitlikTipi
 from app.models.kural import Kural, KuralTipi
-from app.models.sonuc import Atama, CizelgeSurumu, CozumIsi, Donem, KapsamaAcigi
+from app.models.sonuc import Donem
 from app.models.tanim import (
-    Bina,
     GorevNoktasi,
     Personel,
-    PersonelYetkinlik,
     Talep,
     VardiyaTipi,
     Yetkinlik,
@@ -53,6 +60,12 @@ from app.services.ornek_senaryo import (
     talep_satirlarini_olustur,
 )
 from app.services.vardiya_hesaplari import sure_saat_hesapla
+from app.veri_temizligi import (
+    HesapKapsami,
+    TemizlikSonucu,
+    UretimKilidiError,
+    veriyi_temizle,
+)
 
 # SRS 3.3.1'deki vardiya tipi tablosu BIREBIR: (baslangic, bitis, gece_mi).
 #
@@ -152,27 +165,19 @@ def _mevcut_demo_verisi_var_mi(oturum: Session) -> bool:
     return oturum.execute(stmt).scalar_one_or_none() is not None
 
 
-def _her_seyi_temizle(oturum: Session) -> None:
-    """Sonuc -> girdi -> tanim sirasiyla (FK bagimliligi) tum demo verisini siler."""
-    for model in (
-        KapsamaAcigi,
-        CozumIsi,
-        Atama,
-        CizelgeSurumu,
-        Musaitlik,
-        Tercih,
-        Donem,
-        Talep,
-        PersonelYetkinlik,
-        Personel,
-        GorevNoktasi,
-        VardiyaTipi,
-        Bina,
-        Yetkinlik,
-        Kural,
-    ):
-        oturum.execute(delete(model))
-    oturum.flush()
+def _her_seyi_temizle(oturum: Session) -> TemizlikSonucu:
+    """Tum demo verisini siler (app/veri_temizligi.py'deki tek sozlesme).
+
+    Silinecek tablolarin listesi ve sirasi burada DEGIL, o modulde durur;
+    testler de ayni listeyi kullanir. Ikisi ayri yerde yazildiginda
+    birbirinden sessizce ayrisiyordu.
+
+    Hesap kapsami PERSONELE_BAGLI: bir personel kaydina bagli hesaplar
+    (yani `DELETE FROM personel`i engelleyen satirlar) silinir, yonetim
+    hesaplari KALIR. Demo verisini yeniden uretmek sisteme giris yolunu
+    kapatmamalidir.
+    """
+    return veriyi_temizle(oturum, hesaplar=HesapKapsami.PERSONELE_BAGLI)
 
 
 def _vardiya_tiplerini_olustur(oturum: Session) -> dict[str, VardiyaTipi]:
@@ -302,6 +307,7 @@ def _donemleri_ve_izinleri_olustur(
 
 def uret(*, sifirla: bool) -> None:
     oturum = OturumYerel()
+    temizlik: TemizlikSonucu | None = None
     try:
         if not sifirla and _mevcut_demo_verisi_var_mi(oturum):
             print(
@@ -316,7 +322,7 @@ def uret(*, sifirla: bool) -> None:
             # olcumu verisi) bulunan bir veritabaninda --reset sessizce hicbir
             # sey silmiyor ve uretec artiklarin USTUNE ekliyordu; ortaya iki
             # veri kumesinin karistigi bir durum cikiyordu.
-            _her_seyi_temizle(oturum)
+            temizlik = _her_seyi_temizle(oturum)
 
         vardiyalar = _vardiya_tiplerini_olustur(oturum)
         yetkinlikler = _yetkinlikleri_olustur(oturum)
@@ -338,6 +344,16 @@ def uret(*, sifirla: bool) -> None:
         f"Demo verisi uretildi: {toplam_personel} personel, "
         f"{len(NOKTA_TANIMLARI)} gorev noktasi, {len(_KURAL_TANIMLARI)} kural, 2 donem."
     )
+    # Silinen hesap SESSIZ kalmamali: silinen sey bir kullanicinin sisteme
+    # girisidir, gecmis dondugunde geri gelmez.
+    if temizlik is not None and temizlik.silinen_hesap:
+        print(
+            f"UYARI: personel kaydina bagli {temizlik.silinen_hesap} hesap "
+            f"({temizlik.silinen_oturum} acik oturum) silindi; bu personel icin "
+            f"hesaplar Kullanicilar ekranindan yeniden acilmalidir. "
+            f"Personel kaydina bagli OLMAYAN yonetim hesaplarina dokunulmadi.",
+            file=sys.stderr,
+        )
 
 
 if __name__ == "__main__":
@@ -346,4 +362,11 @@ if __name__ == "__main__":
         "--reset", action="store_true", help="Mevcut demo verisini silip yeniden uretir."
     )
     argumanlar = ayristirici.parse_args()
-    uret(sifirla=argumanlar.reset)
+    try:
+        uret(sifirla=argumanlar.reset)
+    except UretimKilidiError as hata:
+        # Yigin izi YAZILMAZ. Bu bir program hatasi degil, kasitli bir ret;
+        # mesajin kendisi ne yapilacagini soyluyor (NFR-5: hata mesajlari
+        # operasyon diliyle). Yigin izi burada yalnizca gurultudur.
+        print(f"REDDEDILDI: {hata}", file=sys.stderr)
+        sys.exit(2)

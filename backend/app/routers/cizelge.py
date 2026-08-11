@@ -12,16 +12,23 @@ from sqlalchemy.orm import Session
 
 from app.db import oturum_al
 from app.guvenlik import yonetici_yetkisi
+from app.kurallar.temel import Ihlal
 from app.models.sonuc import CozumIsiDurumu
 from app.repositories.sonuc import (
     AtamaDeposu,
     CizelgeSurumuDeposu,
     CozumIsiDeposu,
     DonemDeposu,
+    FazlaKadroDeposu,
     KapsamaAcigiDeposu,
 )
 from app.schemas.cozum import CozumBaslatIstek, CozumOku
-from app.schemas.dogrulama import AtamaDegisikligiIstek, DogrulamaSonucuOku, IhlalOku
+from app.schemas.dogrulama import (
+    AtamaDegisikligiIstek,
+    CezaKalemiOku,
+    DogrulamaSonucuOku,
+    IhlalOku,
+)
 from app.schemas.on_kontrol import BulguOku, OnKontrolIstek, OnKontrolYaniti
 from app.schemas.surum import (
     AtamaKilitIstek,
@@ -29,6 +36,7 @@ from app.schemas.surum import (
     CizelgeSurumuOku,
     DonemOku,
     DonemOlustur,
+    FazlaKadroOku,
     KapsamaAcigiOku,
     SurumKarsilastirmaOku,
     SurumOzetiOku,
@@ -129,20 +137,33 @@ def _degisiklige_cevir(istek: AtamaDegisikligiIstek) -> AtamaDegisikligi:
     )
 
 
+def _ihlali_cevir(i: Ihlal) -> IhlalOku:
+    return IhlalOku(
+        kural_kimlik=i.kural_kimlik,
+        aciklama=i.aciklama,
+        personel_id=i.personel_id,
+        tarih=i.tarih,
+        ceza=i.ceza,
+    )
+
+
 def _sonucu_cevir(sonuc: DogrulamaSonucu) -> DogrulamaSonucuOku:
     return DogrulamaSonucuOku(
         kabul_edilebilir=sonuc.kabul_edilebilir,
-        zorunlu_ihlaller=[
-            IhlalOku(
-                kural_kimlik=i.kural_kimlik,
-                aciklama=i.aciklama,
-                personel_id=i.personel_id,
-                tarih=i.tarih,
-                ceza=i.ceza,
-            )
-            for i in sonuc.zorunlu_ihlaller
-        ],
+        zorunlu_ihlaller=[_ihlali_cevir(i) for i in sonuc.zorunlu_ihlaller],
         ceza_degisimi=sonuc.ceza_degisimi,
+        agirlikli_ceza_degisimi=sonuc.agirlikli_ceza_degisimi,
+        ceza_dokumu=[
+            CezaKalemiOku(
+                kural_kimlik=k.kural_kimlik,
+                ad=k.ad,
+                ham_fark=k.ham_fark,
+                agirlik=k.agirlik,
+                agirlikli_fark=k.agirlikli_fark,
+            )
+            for k in sonuc.ceza_dokumu
+        ],
+        uyarilar=[_ihlali_cevir(i) for i in sonuc.uyarilar],
     )
 
 
@@ -280,3 +301,15 @@ def surum_atamalarini_getir(surum_id: int, oturum: Oturum) -> list[AtamaOku]:
 @router.get("/surum/{surum_id}/kapsama-acigi", response_model=list[KapsamaAcigiOku])
 def surum_kapsama_acigini_getir(surum_id: int, oturum: Oturum) -> list[KapsamaAcigiOku]:
     return list(KapsamaAcigiDeposu(oturum).surume_gore_getir(surum_id))  # type: ignore[return-value]
+
+
+@router.get("/surum/{surum_id}/fazla-kadro", response_model=list[FazlaKadroOku])
+def surum_fazla_kadrosunu_getir(surum_id: int, oturum: Oturum) -> list[FazlaKadroOku]:
+    """Talepten fazla kadro yazilmis hucreler (SRS 4.3 S1 ust siniri).
+
+    AYRI bir uc nokta; kapsama acigi uc noktasinin sozlesmesi
+    degistirilmedi. O uc noktayi "her satir bir aciktir" varsayimiyla
+    okuyan ekranlar (cizelge izgarasi, yazdirma gorunumu, Ozet) boylece
+    hicbir degisiklik gerektirmeden dogru kalir.
+    """
+    return list(FazlaKadroDeposu(oturum).surume_gore_getir(surum_id))  # type: ignore[return-value]

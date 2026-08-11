@@ -32,6 +32,7 @@ from app.services.kullanici_servisi import (
     KullaniciBulunamadiError,
     KullaniciServisi,
     PersonelBaglantisiGerekliError,
+    PersonelBulunamadiError,
     PersonelZatenBagliError,
 )
 from app.services.parola import ParolaKuraliError
@@ -49,6 +50,7 @@ _ISTEK_HATALARI = (
     KullaniciAdiGecersizError,
     KullaniciAdiKullanimdaError,
     PersonelBaglantisiGerekliError,
+    PersonelBulunamadiError,
     PersonelZatenBagliError,
     ParolaKuraliError,
 )

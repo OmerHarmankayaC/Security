@@ -33,6 +33,7 @@ const SURUM: CizelgeSurumu = {
   guncelleme_zamani: '2026-02-01T09:00:00Z',
   toplam_ceza: 912,
   kapsama_acigi_sayisi: 0,
+  fazla_kadro_sayisi: 0,
 }
 
 const PERSONEL: Personel[] = [
@@ -90,6 +91,7 @@ function veriKur(atamalar: Atama[], kapsamaAcigi: KapsamaAcigi[] = []): CizelgeV
     surum: SURUM,
     atamalar,
     kapsamaAcigi,
+    fazlaKadro: [],
     personelMap: new Map(PERSONEL.map((p) => [p.personel_id, p])),
     vardiyaMap: new Map(VARDIYALAR.map((v) => [v.vardiya_tipi_id, v])),
     noktaMap: new Map(NOKTALAR.map((n) => [n.nokta_id, n])),

@@ -5,6 +5,7 @@ import { AppShell, type NavOgesi } from '../components/AppShell'
 import { Buton, Kart, KartEtiketi, Sayi } from '../components/app-ui'
 import { donemAraligiBicimle } from '../lib/tarih'
 import { csvDisaAktar } from '../lib/disaAktarma'
+import { cn } from '../lib/utils'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -131,9 +132,10 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
   const disaAktar = async () => {
     if (surumId === null || !donem || !surum) return
     try {
-      const [atamalar, kapsamaAcigi, noktalar] = await Promise.all([
+      const [atamalar, kapsamaAcigi, fazlaKadro, noktalar] = await Promise.all([
         api.surumAtamalari(surumId),
         api.surumKapsamaAcigi(surumId),
+        api.surumFazlaKadro(surumId),
         api.noktaListele(),
       ])
       csvDisaAktar({
@@ -141,6 +143,7 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
         surum,
         atamalar,
         kapsamaAcigi,
+        fazlaKadro,
         personelMap,
         vardiyaMap,
         noktaMap: new Map(noktalar.map((n) => [n.nokta_id, n])),
@@ -207,11 +210,28 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
 
       {analiz && (
         <>
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-5 gap-4">
             <Kart>
               <KartEtiketi>dönem kapsaması</KartEtiketi>
               <p className="m-0 font-mono text-2xl font-semibold text-accent">
                 {yuzdeBicimle(analiz.kapsama_orani)}
+              </p>
+            </Kart>
+            {/* Kapsama oranının YANINDA ama ondan ayrı: oran "talebin ne
+                kadarı karşılandı" sorusunu yanıtlar; fazla kadro o soruya
+                bir şey eklemez, fazla atama bir hücreyi daha iyi kapsamış
+                olmaz (SRS 4.3 S1). */}
+            <Kart>
+              <KartEtiketi renk={analiz.toplam_fazla_kadro > 0 ? 'warn' : undefined}>
+                talepten fazla
+              </KartEtiketi>
+              <p
+                className={cn(
+                  'm-0 font-mono text-2xl font-semibold',
+                  analiz.toplam_fazla_kadro > 0 ? 'text-signal' : 'text-ink',
+                )}
+              >
+                {analiz.toplam_fazla_kadro}
               </p>
             </Kart>
             <Kart>

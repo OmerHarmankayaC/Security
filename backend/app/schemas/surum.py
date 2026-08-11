@@ -81,6 +81,22 @@ class KapsamaAcigiOku(BaseModel):
     eksik_sayi: int
 
 
+class FazlaKadroOku(BaseModel):
+    """Bir noktaya talepten fazla kisi atanmis olmasi (SRS 4.3 S1 ust siniri).
+
+    `KapsamaAcigiOku` ile ayni sekli tasir; ayri tutulmasinin gerekcesi
+    goc a4d92c15e807'de yazili.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    fazla_id: int
+    tarih: date
+    vardiya_tipi_id: int
+    nokta_id: int
+    fazla_sayi: int
+
+
 class AtamaKilitIstek(BaseModel):
     surum_id: int
     personel_id: int
@@ -111,6 +127,10 @@ class SurumOzetiOku(BaseModel):
     toplam_ceza: float | None
     # Acik hucre sayisi degil toplam eksik KISI sayisi (bkz. depo metodu).
     kapsama_acigi_sayisi: int
+    # Talepten FAZLA yazilmis toplam kisi sayisi (SRS 4.3 S1 ust siniri).
+    # Ayri bir alan: kapsama acigiyla toplanmasi iki zit yondeki sapmayi
+    # tek sayida gizler ve "3 acik" ile "3 fazla" ayni gorunurdu.
+    fazla_kadro_sayisi: int = 0
 
 
 class AtamaFarkiOku(BaseModel):

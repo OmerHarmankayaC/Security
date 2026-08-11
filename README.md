@@ -78,6 +78,29 @@ python scripts/demo_veri_uret.py           # ilk calistirma
 python scripts/demo_veri_uret.py --reset   # var olan demo verisini silip yeniden uretir
 ```
 
+## ⚠️ Veritabanını boşaltan komutlar
+
+Üç şey, üzerinde çalıştığı veritabanını **boşaltır**:
+
+| Komut | Ne siler |
+|---|---|
+| `python -m pytest` | Tanım/girdi/kural/sonuç tabloları **ve bütün hesaplar** — yönetim hesabı dahil |
+| `scripts/kabul_olcumu.py` | Aynı tablolar + **personel kaydına bağlı** hesaplar (yönetim hesapları kalır) |
+| `scripts/demo_veri_uret.py --reset` | Aynı sözleşme |
+
+Silinecek tabloların listesi tek yerdedir: [`backend/app/veri_temizligi.py`](backend/app/veri_temizligi.py).
+
+Üçü de `VERI_TEMIZLIGINE_IZIN` ayarı olmadan **çalışmayı reddeder**. Ayar
+geliştirme makinesinde `backend/.env` içindedir:
+
+```
+VERI_TEMIZLIGINE_IZIN=true
+```
+
+**Gösterim sunucusuna eklenmez.** Kilit tam da ayarın yokluğunda devrededir;
+sunucuda `.env` bu satırı taşımadığı sürece bu komutlar oraya zarar veremez
+(bkz. [`deploy/DAGITIM.md`](deploy/DAGITIM.md) bölüm 8).
+
 Frontend:
 
 ```bash

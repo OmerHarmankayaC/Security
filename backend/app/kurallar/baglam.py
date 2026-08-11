@@ -23,6 +23,11 @@ class VardiyaTipiBilgisi:
     bitis_saati: time
     sure_saat: float
     gece_mi: bool
+    # Yalniz KULLANICIYA GOSTERILEN metin icin; hicbir kural karari ada
+    # bakmaz (SRS 2.4: "kurallar vardiya adina degil zaman bilgisine gore
+    # ifade edilir"). Varsayilani bos: ad tasimayan bir baglam kurmak
+    # (testler) hala gecerli, yalnizca ihlal metni kimlikle yazilir.
+    ad: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,6 +35,7 @@ class GorevNoktasiBilgisi:
     nokta_id: int
     onkosul_yetkinlik_id: int | None = None
     bina_id: int | None = None
+    ad: str = ""
 
 
 @dataclass(frozen=True, slots=True)
