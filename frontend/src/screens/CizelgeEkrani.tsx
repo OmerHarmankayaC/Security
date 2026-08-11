@@ -407,6 +407,18 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
         }
       : null
 
+  // Yalnizca taslak ve cozuldu duzenlenebilir; yayinlanmis/arsiv surumde
+  // sunucu 409 doner (services/dogrulama_servisi.py). Arayuz bunu denemeden
+  // once soyler — aksi halde kullanici degisikligi yapip butona basiyor ve
+  // ancak o zaman reddedildigini ogreniyordu.
+  const surumDuzenlenebilir = surum !== null && (surum.durum === 'taslak' || surum.durum === 'cozuldu')
+
+  // Sunucunun kurali: vardiya ve nokta BIRLIKTE dolu ya da BIRLIKTE bos
+  // (schemas/dogrulama.py). Yarim cift 422 doner, o yuzden hic gonderilmez.
+  const secimGonderilebilir =
+    surumDuzenlenebilir &&
+    (seciliVardiyaTipiId === BOSALT_DEGERI) === (seciliNoktaId === BOSALT_DEGERI)
+
   const seciliPersonel = seciliHucre ? personelMap.get(seciliHucre.personelId) : null
   const seciliMevcutAtama = seciliHucre ? atamaBul(seciliHucre.personelId, seciliHucre.tarih) : null
 
@@ -877,7 +889,16 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                   id="vardiya-sec"
                   className={SECIM_SINIFI}
                   value={seciliVardiyaTipiId}
-                  onChange={(e) => setSeciliVardiyaTipiId(e.target.value)}
+                  // "Boşalt" seçilince nokta da BIRLIKTE temizlenir. Nokta
+                  // alanı yalnızca pasifleşiyordu, değeri duruyordu; sunucu
+                  // ise ikisinin birlikte dolu ya da birlikte boş olmasını
+                  // şart koşuyor (schemas/dogrulama.py) ve yarım çift 422
+                  // dönüyordu.
+                  onChange={(e) => {
+                    setSeciliVardiyaTipiId(e.target.value)
+                    if (e.target.value === BOSALT_DEGERI) setSeciliNoktaId(BOSALT_DEGERI)
+                  }}
+                  disabled={!surumDuzenlenebilir}
                 >
                   <option value={BOSALT_DEGERI}>— Boşalt —</option>
                   {vardiyaTipleri.map((v) => (
@@ -896,7 +917,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                   className={SECIM_SINIFI}
                   value={seciliNoktaId}
                   onChange={(e) => setSeciliNoktaId(e.target.value)}
-                  disabled={seciliVardiyaTipiId === BOSALT_DEGERI}
+                  disabled={!surumDuzenlenebilir || seciliVardiyaTipiId === BOSALT_DEGERI}
                 >
                   <option value={BOSALT_DEGERI}>—</option>
                   {noktalar.map((n) => (
@@ -906,18 +927,47 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                   ))}
                 </select>
               </div>
-              <Buton varyant="ikincil" onClick={dogrula} disabled={panelYukleniyor}>
+              <Buton
+                varyant="ikincil"
+                onClick={dogrula}
+                disabled={panelYukleniyor || !secimGonderilebilir}
+              >
                 Doğrula
               </Buton>
-              <Buton varyant="birincil" onClick={uygula} disabled={panelYukleniyor}>
+              <Buton
+                varyant="birincil"
+                onClick={uygula}
+                disabled={panelYukleniyor || !secimGonderilebilir}
+              >
                 Uygula
               </Buton>
               {seciliMevcutAtama && (
-                <Buton varyant="hayalet" onClick={kilidiDegistir} disabled={panelYukleniyor}>
+                <Buton
+                  varyant="hayalet"
+                  onClick={kilidiDegistir}
+                  disabled={panelYukleniyor || !surumDuzenlenebilir}
+                >
                   {seciliMevcutAtama.kilitli ? 'Kilidi Aç' : 'Kilitle'}
                 </Buton>
               )}
             </div>
+
+            {/* Engelin NEDENİ butonun yanında yazar. Önceden yarım çift
+                sunucuya gidiyor ve 422'nin ham gövdesi kullanıcıya "Doğrulama
+                başarısız" olarak dönüyordu — kuralı söylemeyen bir hata. */}
+            {!surumDuzenlenebilir ? (
+              <p className="text-sm text-ink-muted">
+                {SURUM_DURUM_METNI[surum?.durum ?? ''] ?? 'Bu'} durumdaki bir sürüm
+                düzenlenemez. Değişiklik için Sürümler ekranından taslak türetin.
+              </p>
+            ) : (
+              !secimGonderilebilir && (
+                <p className="text-sm text-signal">
+                  Vardiya ve görev noktası birlikte seçilmeli. Hücreyi boşaltmak için
+                  vardiyayı “— Boşalt —” yapın.
+                </p>
+              )
+            )}
 
             {panelHata && <p className="text-sm text-signal">{panelHata}</p>}
 
