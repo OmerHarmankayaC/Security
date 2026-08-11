@@ -204,7 +204,7 @@ export function TercihlerimEkrani() {
                     </span>
                     <span className="flex-1 text-sm text-ink">{tercihAciklamasi(t.tip, t.vardiya_tipi_ad)}</span>
                     {durum && (
-                      <Rozet varyant={durum.varyant} genislik={92}>
+                      <Rozet varyant={durum.varyant} genislik={104}>
                         {durum.etiket}
                       </Rozet>
                     )}

@@ -6,6 +6,7 @@ import { Buton, Kart, KartEtiketi, Sayi } from '../components/app-ui'
 import { donemAraligiBicimle } from '../lib/tarih'
 import { csvDisaAktar } from '../lib/disaAktarma'
 import { cn } from '../lib/utils'
+import { sayiBicimle, sapmaBicimle } from '../lib/sayi'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -27,9 +28,10 @@ function yuzdeBicimle(oran: number | null): string {
   return oran === null ? '—' : `%${Math.round(oran * 100)}`
 }
 
-function sapmaBicimle(sapma: number): string {
-  const isaret = sapma > 0 ? '+' : ''
-  return `${isaret}${sapma.toFixed(1)} sa`
+// Birim burada eklenir, sayının kendisi lib/sayi.ts'ten gelir — işaret ve
+// ondalık ayracı kararı tek yerde durur.
+function saatSapmasi(sapma: number): string {
+  return `${sapmaBicimle(sapma, 1)} sa`
 }
 
 export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
@@ -249,7 +251,7 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
             <Kart>
               <KartEtiketi>toplam ceza</KartEtiketi>
               <Sayi className="text-sayi-buyuk font-semibold text-ink">
-                {analiz.toplam_ceza !== null ? analiz.toplam_ceza.toFixed(0) : '—'}
+                {analiz.toplam_ceza !== null ? sayiBicimle(analiz.toplam_ceza, 0) : '—'}
               </Sayi>
             </Kart>
           </div>
@@ -290,8 +292,8 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                 <span className="size-2.5 rounded-sm bg-accent" /> Hafta sonu
               </span>
               <span>
-                ortalama: <Sayi>{ortalamaGece.toFixed(1)}</Sayi> gece /{' '}
-                <Sayi>{ortalamaHaftaSonu.toFixed(1)}</Sayi> hafta sonu
+                ortalama: <Sayi>{sayiBicimle(ortalamaGece, 1)}</Sayi> gece /{' '}
+                <Sayi>{sayiBicimle(ortalamaHaftaSonu, 1)}</Sayi> hafta sonu
               </span>
             </div>
           </Kart>
@@ -321,17 +323,17 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                       <tr key={s.personel_id} className="border-t border-rule">
                         <td className="px-3 py-3 text-sm font-medium text-ink">{s.ad_soyad}</td>
                         <td className="px-3 py-3 font-mono text-sm text-ink-muted">
-                          {s.toplam_saat.toFixed(0)} sa
+                          {sayiBicimle(s.toplam_saat, 0)} sa
                         </td>
                         <td className="px-3 py-3 font-mono text-sm text-ink-muted">
-                          {s.hedef_saat.toFixed(0)} sa
+                          {sayiBicimle(s.hedef_saat, 0)} sa
                         </td>
                         <td
                           className={`px-3 py-3 font-mono text-sm font-semibold ${
                             Math.abs(s.sapma) > s.hedef_saat * 0.1 ? 'text-signal' : 'text-ink'
                           }`}
                         >
-                          {sapmaBicimle(s.sapma)}
+                          {saatSapmasi(s.sapma)}
                         </td>
                       </tr>
                     ))}

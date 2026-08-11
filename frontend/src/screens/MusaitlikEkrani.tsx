@@ -234,7 +234,7 @@ export function MusaitlikEkrani({ ekranSec }: Props) {
                 </td>
                 <td className="px-3 py-3 font-mono text-sm text-ink-muted">{DILIM_METNI[k.dilim]}</td>
                 <td className="px-3 py-3">
-                  <Rozet varyant="notr" genislik={72}>
+                  <Rozet varyant="notr" genislik={84}>
                     {TIP_METNI[k.tip]}
                   </Rozet>
                 </td>

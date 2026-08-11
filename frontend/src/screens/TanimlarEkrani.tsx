@@ -620,7 +620,7 @@ export function TanimlarEkrani({ ekranSec }: Props) {
                   <p className="m-0 etiket-caps text-ink-muted">
                     HAFTALIK KİŞİ-VARDİYA YÜKÜ
                   </p>
-                  <Sayi className="text-xl font-semibold text-ink">
+                  <Sayi className="text-sayi-buyuk font-semibold text-ink">
                     {yukGostergesi.haftalik_kisi_vardiya}
                   </Sayi>
                 </div>
@@ -628,13 +628,13 @@ export function TanimlarEkrani({ ekranSec }: Props) {
                   <p className="m-0 etiket-caps text-ink-muted">
                     ASGARİ KADRO (KURAL PARAMETRELERİNE GÖRE)
                   </p>
-                  <Sayi className="text-xl font-semibold text-ink">{yukGostergesi.asgari_kadro}</Sayi>
+                  <Sayi className="text-sayi-buyuk font-semibold text-ink">{yukGostergesi.asgari_kadro}</Sayi>
                 </div>
                 <div>
                   <p className="m-0 etiket-caps text-ink-muted">
                     MEVCUT PERSONEL
                   </p>
-                  <Sayi className="text-xl font-semibold text-ink">{personelListesi.length}</Sayi>
+                  <Sayi className="text-sayi-buyuk font-semibold text-ink">{personelListesi.length}</Sayi>
                 </div>
               </div>
             </Kart>
@@ -706,7 +706,7 @@ export function TanimlarEkrani({ ekranSec }: Props) {
                         )}
                       >
                         <span className="w-28 shrink-0 font-mono text-sm text-ink">{g.tarih}</span>
-                        <span className="truncate text-base font-medium text-ink">{g.ad}</span>
+                        <span className="truncate text-baslik-bolum font-medium text-ink">{g.ad}</span>
                       </button>
                     </li>
                   )

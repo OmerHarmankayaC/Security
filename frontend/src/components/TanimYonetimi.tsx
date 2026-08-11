@@ -100,7 +100,7 @@ export function TanimListesi<T>({
                 )}
               >
                 <div className="min-w-0">
-                  <p className="m-0 truncate text-base font-medium text-ink">
+                  <p className="m-0 truncate text-baslik-bolum font-medium text-ink">
                     {gorunum.baslik(kayit)}
                   </p>
                   <p className="m-0 mt-0.5 text-sm text-ink-muted">{gorunum.ozet(kayit)}</p>

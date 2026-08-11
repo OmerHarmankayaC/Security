@@ -87,9 +87,15 @@ export function YazdirilabilirCizelge({
           {buyukHarf('Vardiya Çizelgesi')} ·{' '}
           {donemAraligiBicimle(donem.baslangic_tarihi, donem.bitis_tarihi)}
         </h1>
-        <p className="m-0 font-mono text-[10px]">
-          Sürüm {surum.surum_no} · {gunler.length} gün · {personeller.length} personel ·{' '}
-          {tarihBicimle(uretimTarihi)} tarihinde üretildi
+        {/* Sayılar mono, cümle değil: "… tarihinde üretildi" düz metindir ve
+            Azeret Mono yalnızca sayı ve koda ayrılmıştır (TASARIM_REFERANSI.md
+            — "Düz cümle asla Mono değildir"). Önceki hâlinde bütün satır
+            mono'ya kaçmıştı. */}
+        <p className="m-0 text-[10px]">
+          Sürüm <span className="font-mono">{surum.surum_no}</span> ·{' '}
+          <span className="font-mono">{gunler.length}</span> gün ·{' '}
+          <span className="font-mono">{personeller.length}</span> personel ·{' '}
+          <span className="font-mono">{tarihBicimle(uretimTarihi)}</span> tarihinde üretildi
         </p>
       </header>
 

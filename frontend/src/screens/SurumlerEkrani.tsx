@@ -11,6 +11,7 @@ import { Buton, Kart, KartEtiketi, Rozet, Sayi } from '../components/app-ui'
 import { buyukHarf } from '../lib/metin'
 import { donemAraligiBicimle, gunKisaltmasiVeNumarasi, goreliZaman } from '../lib/tarih'
 import { cn } from '../lib/utils'
+import { sayiBicimle } from '../lib/sayi'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -262,7 +263,7 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
         surumler.map((s) => (
           <Kart key={s.surum_id}>
             <div className="flex items-center gap-6">
-              <Rozet varyant={DURUM_VARYANTI[s.durum]} genislik={92}>
+              <Rozet varyant={DURUM_VARYANTI[s.durum]} genislik={104}>
                 {DURUM_METNI[s.durum]}
               </Rozet>
               <span className="w-24 shrink-0 text-sm font-semibold text-ink">
@@ -275,8 +276,8 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                 <p className="m-0 etiket-caps text-ink-muted">
                   {buyukHarf('Toplam Ceza')}
                 </p>
-                <Sayi className="text-base font-semibold text-ink">
-                  {s.toplam_ceza === null ? '—' : Math.round(s.toplam_ceza).toLocaleString('tr-TR')}
+                <Sayi className="text-sayi-orta font-semibold text-ink">
+                  {s.toplam_ceza === null ? '—' : sayiBicimle(Math.round(s.toplam_ceza))}
                 </Sayi>
               </div>
               <div className="w-20 shrink-0">
@@ -285,7 +286,7 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                 </p>
                 <Sayi
                   className={cn(
-                    'text-base font-semibold',
+                    'text-sayi-orta font-semibold',
                     s.kapsama_acigi_sayisi > 0 ? 'text-signal' : 'text-ink',
                   )}
                 >
@@ -301,7 +302,7 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                   <p className="m-0 etiket-caps text-ink-muted">
                     {buyukHarf('Fazla')}
                   </p>
-                  <Sayi className="text-base font-semibold text-signal">
+                  <Sayi className="text-sayi-orta font-semibold text-signal">
                     {s.fazla_kadro_sayisi}
                   </Sayi>
                 </div>
@@ -433,7 +434,7 @@ function KarsilastirmaSonucu({ sonuc }: { sonuc: SurumKarsilastirmasi }) {
                   {gunKisaltmasiVeNumarasi(f.tarih)}
                 </td>
                 <td className="px-3 py-2.5">
-                  <Rozet varyant={f.tur === 'kaldirildi' ? 'eksik' : 'kilitli'} genislik={84}>
+                  <Rozet varyant={f.tur === 'kaldirildi' ? 'eksik' : 'kilitli'} genislik={96}>
                     {FARK_ETIKETI[f.tur]}
                   </Rozet>
                 </td>
@@ -462,7 +463,7 @@ function FarkSayaci({ etiket, deger }: { etiket: string; deger: number }) {
       <p className="m-0 etiket-caps text-ink-muted">
         {buyukHarf(etiket)}
       </p>
-      <Sayi className="text-xl font-semibold text-ink">{deger}</Sayi>
+      <Sayi className="text-sayi-buyuk font-semibold text-ink">{deger}</Sayi>
     </div>
   )
 }

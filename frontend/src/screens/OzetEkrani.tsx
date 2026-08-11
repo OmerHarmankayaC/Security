@@ -13,6 +13,7 @@ import type {
 import { AppShell, type NavOgesi } from '../components/AppShell'
 import { Kart, KartEtiketi, Rozet, Sayi } from '../components/app-ui'
 import { bugunIso, gunKisaltmasiVeNumarasi, isoAyristir } from '../lib/tarih'
+import { sayiBicimle } from '../lib/sayi'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -122,7 +123,7 @@ export function OzetEkrani({ ekranSec }: Props) {
         <Kart>
           <KartEtiketi>toplam ceza</KartEtiketi>
           <Sayi className="text-sayi-buyuk font-semibold text-ink">
-            {analiz?.toplam_ceza != null ? analiz.toplam_ceza.toFixed(0) : '—'}
+            {analiz?.toplam_ceza != null ? sayiBicimle(analiz.toplam_ceza, 0) : '—'}
           </Sayi>
         </Kart>
         <Kart>
@@ -186,7 +187,7 @@ export function OzetEkrani({ ekranSec }: Props) {
                   {gunKisaltmasiVeNumarasi(m.baslangic_tarihi)}
                   {m.baslangic_tarihi !== m.bitis_tarihi && ` – ${gunKisaltmasiVeNumarasi(m.bitis_tarihi)}`}
                 </span>
-                <Rozet varyant="notr" genislik={80}>
+                <Rozet varyant="notr" genislik={84}>
                   {MUSAITLIK_TIP_METNI[m.tip] ?? m.tip}
                 </Rozet>
               </li>

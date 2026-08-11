@@ -123,8 +123,25 @@ export function haftaSonuMu(iso: string): boolean {
 }
 
 export function gunKisaltmasiVeNumarasi(iso: string): string {
+  const { kisaltma, numara } = gunBasligiParcalari(iso)
+  return `${kisaltma} ${numara}`
+}
+
+/**
+ * Aynı başlığın PARÇALI hâli — Çizelge ızgarasının gün sütunu bunu iki
+ * satıra yayar ve yalnızca numarayı "bugün" dairesinin içine alır.
+ *
+ * Birleşik dizeyi ekranda ikiye bölmek yerine ayrı bir biçimleyici var,
+ * çünkü bölme işi `split(' ')` ile ekrana taşınsaydı gün adı boşluk içeren
+ * bir yerelde sessizce yanlış parçalanırdı. Büyütme Türkçe yereliyle
+ * yapılır — düz `toUpperCase` "i" harfini noktasız "I" yapar.
+ */
+export function gunBasligiParcalari(iso: string): { kisaltma: string; numara: string } {
   const tarih = isoAyristir(iso)
-  return `${GUN_KISALTMALARI[tarih.getDay()]} ${tarih.getDate()}`.toLocaleUpperCase('tr-TR')
+  return {
+    kisaltma: GUN_KISALTMALARI[tarih.getDay()]!.toLocaleUpperCase('tr-TR'),
+    numara: String(tarih.getDate()),
+  }
 }
 
 // Çalışan Paneli — Vardiyalarım (SDD 6.1): "03 Ağustos Pazartesi".

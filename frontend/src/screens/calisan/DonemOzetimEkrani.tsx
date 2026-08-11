@@ -1,6 +1,7 @@
 import type { Vardiyalarim } from '@/api/types'
 import { Kart, KartEtiketi, Rozet } from '@/components/app-ui'
 import { donemAraligiBicimle } from '@/lib/tarih'
+import { sayiBicimle } from '@/lib/sayi'
 
 interface Props {
   veri: Vardiyalarim
@@ -12,8 +13,8 @@ function karsilastirmaMetni(sen: number, ekip: number, birim: string): string {
   const fark = sen - ekip
   if (Math.abs(fark) < ESIK) return `ortalamaya yakınsın`
   return fark > 0
-    ? `ekip ortalamasının ${Math.abs(fark).toFixed(1)} ${birim} üzerindesin`
-    : `ekip ortalamasının ${Math.abs(fark).toFixed(1)} ${birim} altındasın`
+    ? `ekip ortalamasının ${sayiBicimle(Math.abs(fark), 1)} ${birim} üzerindesin`
+    : `ekip ortalamasının ${sayiBicimle(Math.abs(fark), 1)} ${birim} altındasın`
 }
 
 function MetrikKarti({
@@ -36,13 +37,13 @@ function MetrikKarti({
       <div className="mb-4 flex items-center justify-between">
         <KartEtiketi>{etiket}</KartEtiketi>
         {Math.abs(fark) >= ESIK && (
-          <Rozet varyant={fark > 0 ? 'kilitli' : 'notr'} genislik={150}>
+          <Rozet varyant={fark > 0 ? 'kilitli' : 'notr'} genislik={192}>
             {fark > 0 ? 'Ortalamanın Üstünde' : 'Ortalamanın Altında'}
           </Rozet>
         )}
       </div>
       <p className="m-0 font-mono text-sayi-buyuk font-semibold text-ink">
-        {sen.toFixed(ondalik)} <span className="text-base font-normal text-ink-muted">{birim}</span>
+        {sayiBicimle(sen, ondalik)} <span className="text-sm font-normal text-ink-muted">{birim}</span>
       </p>
       <div className="mt-4 flex flex-col gap-2">
         <BarSatiri etiket="SEN" deger={sen} maks={maks} renk="bg-accent" ondalik={ondalik} />
@@ -74,7 +75,12 @@ function BarSatiri({
           style={{ width: `${Math.min(100, (deger / maks) * 100)}%` }}
         />
       </div>
-      <span className="w-10 shrink-0 text-right font-mono text-sm text-ink">{deger.toFixed(ondalik)}</span>
+      {/* w-14: bu satır her zaman bir ondalık basamak yazar ve "Toplam Saat"
+          üç haneli olabilir — "168,0" Azeret Mono 14px ile 45,5px sürer,
+          eski w-10 (40px) taşıyordu. */}
+      <span className="w-14 shrink-0 text-right font-mono text-sm text-ink">
+        {sayiBicimle(deger, ondalik)}
+      </span>
     </div>
   )
 }

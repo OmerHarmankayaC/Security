@@ -102,7 +102,7 @@ export function VardiyalarimEkrani({ veri }: Props) {
           >
             {buyukHarf('Sıradaki Vardiyan')}
           </p>
-          <p className={cn('m-0 text-lg font-semibold', veri.siradaki.gece_mi ? 'text-vardiya-gece-ink' : 'text-ink')}>
+          <p className={cn('m-0 text-baslik-bolum font-semibold', veri.siradaki.gece_mi ? 'text-vardiya-gece-ink' : 'text-ink')}>
             {gunEtiketi(veri.siradaki.tarih, bugun)} · {tarihUzunBicim(veri.siradaki.tarih)}
           </p>
           <div className="mt-2 flex items-center gap-2">
@@ -169,7 +169,7 @@ export function VardiyalarimEkrani({ veri }: Props) {
                 )}
                 title={degisimBasligi}
               >
-                <Sayi className="text-base font-semibold">{g.slice(-2)}</Sayi>
+                <Sayi className="text-sayi-orta font-semibold">{g.slice(-2)}</Sayi>
                 <span className="etiket-caps">
                   {v ? buyukHarf(v.nokta_ad.slice(0, 3)) : '–'}
                 </span>
@@ -302,7 +302,9 @@ function ListeSatiri({
         )}
       </div>
       <div className="flex items-center gap-3 sm:contents">
-        <Sayi className={cn('shrink-0 text-sm sm:w-24', soluk, kaldirildi && 'line-through')}>
+        {/* sm:w-28: "08:00-16:00" Azeret Mono 14px ile 100,1px sürüyor ve
+            eski w-24'e (96px) sığmıyordu — sürüm 3'ün Mono'suyla 92px'ti. */}
+        <Sayi className={cn('shrink-0 text-sm sm:w-28', soluk, kaldirildi && 'line-through')}>
           {saatler}
         </Sayi>
         <span className="shrink-0 etiket-caps text-ink-muted">

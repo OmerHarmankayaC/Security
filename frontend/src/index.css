@@ -10,8 +10,8 @@
    Koyu şasi (yan menü/üst çubuk) + açık tuval, derin teal aksan, turuncu
    yalnızca uyarı, Public Sans + Azeret Mono, köşe 3-4px, GÖLGE YOK (bkz.
    docs/tasarim/TASARIM_REFERANSI.md). Sürüm 1 (tuğla kırmızısı), sürüm 2
-   (mavi SaaS) ve sürüm 3 (IBM Plex) tokenlerinin hiçbir kalıntısı burada
-   tutulmaz — Condensed kesim de dahil, sürüm 4'te ayrı bir dar aile yok. */
+   (mavi SaaS) ve sürüm 3'ün tipografisinin hiçbir kalıntısı burada tutulmaz
+   — Condensed kesim de dahil, sürüm 4'te ayrı bir dar aile yok. */
 :root {
   /* Şasi (yan menü, üst çubuk — koyu) */
   --chrome-base: #1a1f26;
@@ -182,7 +182,7 @@
   --text-sayi-buyuk--line-height: 1.15;
 }
 
-/* Sürüm 3'te BÜYÜK HARF etiketler IBM Plex Sans Condensed ile yazılıyordu.
+/* Sürüm 3'te BÜYÜK HARF etiketler ayrı bir Condensed aileyle yazılıyordu.
    Public Sans'ın dar bir kesimi yok; aynı işi Medium + %14 harf aralığı
    görür. Tek yardımcı sınıf: `tracking-[0.14em]`'in on dört ayrı yere elle
    yazılması sürüm 3'te tam olarak böyle başlamıştı. */

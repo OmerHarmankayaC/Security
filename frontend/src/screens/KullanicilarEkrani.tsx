@@ -92,7 +92,7 @@ export function KullanicilarEkrani({ ekranSec, kendiKullaniciAdi }: Props) {
           </Rozet>
         )}
         {k.parola_degistirmeli && (
-          <Rozet varyant="kilitli" genislik={104}>
+          <Rozet varyant="kilitli" genislik={148}>
             Parola bekliyor
           </Rozet>
         )}

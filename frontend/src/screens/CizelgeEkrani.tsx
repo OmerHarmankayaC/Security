@@ -17,8 +17,11 @@ import { csvDisaAktar, type CizelgeVerisi } from '../lib/disaAktarma'
 import { Buton, Kart, KartEtiketi, Sayi } from '../components/app-ui'
 import { cn } from '../lib/utils'
 import { buyukHarf, kisalt } from '../lib/metin'
+import { sayiBicimle } from '../lib/sayi'
 import {
+  bugunIso,
   donemAraligiBicimle,
+  gunBasligiParcalari,
   gunKisaltmasiVeNumarasi,
   gunlerListesi,
   haftaSonuMu,
@@ -62,13 +65,29 @@ type Gorunum = 'personel' | 'nokta'
 // 150px'te kesiliyor ve tam da ayirt edici sicil ekini kaybediyordu.
 const AD_SUTUNU = 'w-[180px] min-w-[180px] max-w-[180px]'
 const GUN_SUTUNU = 'w-[60px] min-w-[60px] max-w-[60px]'
+
+// --- Satir yukseklikleri (surum 4) ---------------------------------------
+// Dokumanin mutlak olculeri (baslik 54, satir 46) 7 GUNLUK Figma donemi ve
+// 128px'lik gun sutunlari icin verilmis; buradaki izgara 28 gunluk donemi
+// sigdirmak icin sutunlari 60px'e sikistirdigindan (yukaridaki gerekce)
+// personel satirinda mutlak deger degil ORAN devralindi: +%15.
+//
+// Baslik satiri ise dokumanin tam degerine (54) cikiyor, oran hesabina degil
+// GEOMETRIYE bakarak: gun basligi artik iki satir (gun kisaltmasi + numara)
+// ve bugun isareti 28px'lik bir daire. 28 + ~15px kisaltma + arada 2px
+// bosluk + dolgu, 54'un altina sigmiyor.
+const HUCRE_YUKSEKLIGI = 'h-8' // 28 -> 32
+const BASLIK_SATIRI = 'h-[54px]' // 32 -> 54
+
 // Kaydirilabilir alanin yuksekligi: ust cubuk (64) + icerik dolgusu (56) +
 // secim karti (~140) + kart araligi (20). Izgara kendi icinde kaydigi icin
-// yapiskan baslik satiri gorunur kalir.
-const IZGARA_YUKSEKLIGI = 'max-h-[calc(100svh-280px)]'
+// yapiskan baslik satiri gorunur kalir. Surum 4'te baslik ve satirlar
+// buyudugu icin pay 280 -> 292.
+const IZGARA_YUKSEKLIGI = 'max-h-[calc(100svh-292px)]'
 
 // Vardiya kodlaması yalnızca Çizelge ızgarasında kullanılır (TASARIM_REFERANSI.md):
-// gündüz açık/beyaz, akşam sage, gece koyu — vardiya tipinin kendisi bunu
+// gündüz soluk sıcak (#E9E7D9 — sürüm 4'te beyazdan çıkarıldı, boş hücreden
+// ayrılsın diye), akşam sage, gece koyu — vardiya tipinin kendisi bunu
 // taşımadığından (yalnızca gece_mi var) başlangıç saatinden yaklaştırılır.
 function vardiyaHucreSinifi(vardiya: VardiyaTipi | undefined): string {
   if (!vardiya) return 'bg-surface'
@@ -175,6 +194,9 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
   const noktaMap = useMemo(() => new Map(noktalar.map((n) => [n.nokta_id, n])), [noktalar])
 
   const gunler = donem ? gunlerListesi(donem.baslangic_tarihi, donem.bitis_tarihi) : []
+  // Bugun isareti icin: bileşen saat OKUMAZ demek burada gecerli degil —
+  // isaret tanimi geregi "su anki gun"e bagli. lib/tarih.ts'ten gecer.
+  const bugun = bugunIso()
 
   const izgaraPersonelleri = useMemo(() => {
     const idler = new Set(atamalar.map((a) => a.personel_id))
@@ -326,8 +348,8 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
       ekranSec={ekranSec}
       baslik="Çizelge"
       altBaslik={
+        // `etiket/mono-caps` — durum ve sürüm numarası veri, cümle değil.
         surum ? (
-          {/* `etiket/mono-caps` — durum ve sürüm numarası veri, cümle değil. */}
           <span className="mono-caps rounded-sm bg-sunken px-2 py-1 text-ink-muted">
             {buyukHarf(SURUM_DURUM_METNI[surum.durum] ?? surum.durum)} · SÜRÜM{' '}
             {surum.surum_no}
@@ -438,18 +460,40 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                       AD_SUTUNU,
                     )}
                   />
-                  {gunler.map((gun) => (
-                    <th
-                      key={gun}
-                      className={cn(
-                        'sticky top-0 z-20 h-8 border-b border-rule bg-surface text-center font-mono text-mono-kucuk font-medium whitespace-nowrap text-ink-muted',
-                        GUN_SUTUNU,
-                        haftaSonuMu(gun) && 'bg-sunken',
-                      )}
-                    >
-                      {gunKisaltmasiVeNumarasi(gun)}
-                    </th>
-                  ))}
+                  {gunler.map((gun) => {
+                    const { kisaltma, numara } = gunBasligiParcalari(gun)
+                    const bugunMu = gun === bugun
+                    return (
+                      <th
+                        key={gun}
+                        className={cn(
+                          'sticky top-0 z-20 border-b border-rule bg-surface text-center font-mono text-mono-kucuk font-medium whitespace-nowrap text-ink-muted',
+                          BASLIK_SATIRI,
+                          GUN_SUTUNU,
+                          haftaSonuMu(gun) && 'bg-sunken',
+                        )}
+                      >
+                        <span className="flex flex-col items-center justify-center gap-0.5">
+                          <span>{kisaltma}</span>
+                          {/* Bugün işareti: 28px tam yuvarlak accent daire,
+                              içinde chrome-ink metin. Takvimlerden tanıdık
+                              olduğu için açıklama gerektirmez. Yalnızca bugün
+                              bu dönem içindeyse çizilir — `gunler` zaten
+                              dönemin günleri olduğundan kıyas yeterlidir. */}
+                          <span
+                            className={cn(
+                              'flex size-7 items-center justify-center font-semibold',
+                              bugunMu
+                                ? 'rounded-full bg-accent text-chrome-ink'
+                                : 'text-ink',
+                            )}
+                          >
+                            {numara}
+                          </span>
+                        </span>
+                      </th>
+                    )
+                  })}
                 </tr>
               </thead>
               <tbody>
@@ -484,7 +528,8 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                               <button
                                 type="button"
                                 className={cn(
-                                  'box-border h-7 w-full rounded-sm px-1 text-center font-mono text-mono-kucuk leading-none whitespace-nowrap',
+                                  'box-border w-full rounded-sm px-1 text-center font-mono text-mono-kucuk leading-none whitespace-nowrap',
+                                  HUCRE_YUKSEKLIGI,
                                   // Bos hucre: kenarlik ve zemin yok — goz yalniz
                                   // dolu hucreleri gorur, 28 gunluk izgarada
                                   // bosluklar arka plana cekilir.
@@ -652,7 +697,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                       büyüklükte görünüyordu. */}
                   <Sayi>
                     {dogrulamaSonucu.agirlikli_ceza_degisimi > 0 ? '+' : ''}
-                    {dogrulamaSonucu.agirlikli_ceza_degisimi.toFixed(0)}
+                    {sayiBicimle(dogrulamaSonucu.agirlikli_ceza_degisimi, 0)}
                   </Sayi>
                 </p>
 
@@ -703,16 +748,16 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                           <td className="py-1 text-right">
                             <Sayi>
                               {kalem.ham_fark > 0 ? '+' : ''}
-                              {kalem.ham_fark.toFixed(1)}
+                              {sayiBicimle(kalem.ham_fark, 1)}
                             </Sayi>
                           </td>
                           <td className="py-1 text-right text-ink-muted">
-                            <Sayi>{kalem.agirlik.toFixed(0)}</Sayi>
+                            <Sayi>{sayiBicimle(kalem.agirlik, 0)}</Sayi>
                           </td>
                           <td className="py-1 text-right">
                             <Sayi>
                               {kalem.agirlikli_fark > 0 ? '+' : ''}
-                              {kalem.agirlikli_fark.toFixed(0)}
+                              {sayiBicimle(kalem.agirlikli_fark, 0)}
                             </Sayi>
                           </td>
                         </tr>
