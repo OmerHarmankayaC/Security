@@ -223,6 +223,11 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
   const calisiyorMu = isKaydi !== null && CALISAN_DURUMLAR.has(isKaydi.durum)
   const kararBekliyorMu = isKaydi !== null && isKaydi.durum === 'durduruldu'
   const sonuclandiMi = isKaydi !== null && !calisiyorMu && !kararBekliyorMu
+  // Devam eden iş varken "Çözümü Başlat" pasiftir (SDD 6.3.2) — KARAR
+  // BEKLEYEN iş de buna dahil. Değilse, yeni bir çözüm başlatmak karar
+  // bekleyen işi göstergeden düşürür ve kullanıcı bir daha ona dönemez:
+  // iş, kararı verilmeden askıda kalır.
+  const yeniCozumEngelli = calisiyorMu || kararBekliyorMu
 
   const cezaGirdileri = isKaydi?.ceza_dokumu
     ? Object.entries(isKaydi.ceza_dokumu).sort(([a], [b]) => a.localeCompare(b))
@@ -278,7 +283,7 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
             <Buton
               varyant="birincil"
               onClick={cozumBaslat}
-              disabled={donemId === null || calisiyorMu}
+              disabled={donemId === null || yeniCozumEngelli}
             >
               Çözümü Başlat
             </Buton>

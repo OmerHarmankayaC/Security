@@ -119,6 +119,31 @@ describe('CozumEkrani — karar paneli (SDD 6.3.2)', () => {
     expect(kullan.disabled).toBe(true)
     expect(container.textContent).toContain('ulaşmadan durduruldu')
   })
+
+  it('sayaç ARAMANIN süresinde donar, karar beklerken işlemez', async () => {
+    // `bitis_zamani` aramanın bittiği anı taşır (SDD 4.2.4) ve karar
+    // sonradan verildiğinde değişmez. Sayaç karar beklerken işlemeye devam
+    // ederse kullanıcının düşünme süresi aramanın süresine eklenir.
+    // Fikstür 10:00:00 → 10:02:00 arası, yani tam iki dakika; "şimdi"nin
+    // ne olduğundan bağımsız olarak 02:00 görünmeli.
+    ekraniAc(DURDURULMUS)
+    await waitFor(() => expect(screen.getByText('KARAR BEKLENİYOR')).toBeDefined())
+
+    // İki yerde birden görünür: karar panelindeki "Geçen Süre" ve üst
+    // çubuktaki gösterge. İkisi de aynı kaynaktan beslendiği için ikisi de
+    // donmuş olmalı.
+    expect(screen.getAllByText('02:00').length).toBe(2)
+  })
+
+  it('karar beklerken yeni çözüm başlatılamaz', async () => {
+    // Başlatılabilseydi, karar bekleyen iş göstergeden düşer ve kullanıcı
+    // bir daha ona dönemezdi: iş kararı verilmeden askıda kalırdı.
+    ekraniAc(DURDURULMUS)
+    await waitFor(() => expect(screen.getByText('KARAR BEKLENİYOR')).toBeDefined())
+
+    const baslat = screen.getByRole('button', { name: 'Çözümü Başlat' }) as HTMLButtonElement
+    expect(baslat.disabled).toBe(true)
+  })
 })
 
 describe('Çalışan iş göstergesi (SRS FR-4.11)', () => {

@@ -82,11 +82,9 @@ function sureBicimle(saniye: number): string {
  * kimliği saklamaz.
  */
 function CalisanIsGostergesi({ ekranSec }: { ekranSec: (ekran: NavOgesi) => void }) {
-  const { aktifIs, sonuclananIs, gecenSure, sonucuKapat } = useAktifIs()
+  const { aktifIs, sonuclananIs, bildirimGorunur, gecenSure, sonucuKapat } = useAktifIs()
 
-  if (aktifIs === null && sonuclananIs === null) return null
-
-  const is = aktifIs ?? sonuclananIs
+  const is = aktifIs ?? (bildirimGorunur ? sonuclananIs : null)
   if (is === null) return null
   const kararBekliyor = is.durum === 'durduruldu'
   const bitti = aktifIs === null
@@ -171,7 +169,11 @@ export function AppShell({
     // (`justify-between` ile aşağı itilen blok) görünür alanın çok altına
     // düşürür — bu bölgede bir kez yaşandı.
     <div className="flex h-svh overflow-hidden bg-canvas text-ink">
-      <aside className="flex h-full w-[260px] shrink-0 flex-col justify-between overflow-y-auto bg-chrome-base px-[18px] pt-[26px] pb-[22px]">
+      {/* Yan menüde KAYDIRMA YOK (`overflow-hidden`, `overflow-y-auto`
+          değil): kaydırma yüzeyi sağdaki içerik alanıdır. Menü kısa ve
+          sabit bir listedir; kendi çubuğunu taşıması, sayfanın iki ayrı
+          yerinden kaydırılabildiği izlenimi veriyordu. */}
+      <aside className="flex h-full w-[260px] shrink-0 flex-col justify-between overflow-hidden bg-chrome-base px-[18px] pt-[26px] pb-[22px]">
         <div className="flex flex-col">
           <p className="m-0 text-base font-semibold tracking-wide text-chrome-ink">
             {buyukHarf('Vardiya Çizelgeleme')}
@@ -287,8 +289,17 @@ export function AppShell({
         {/* Kaydırılan yüzey burasıdır. Üst çubuk (`shrink-0`) ve yan menü
             yerinde kalır; içindeki `sticky` başlıklar (ör. çizelge
             ızgarası) artık bu alana göre yapışır - üst çubuğun hemen
-            altına, sayfanın tepesine değil. */}
-        <main className="flex flex-1 flex-col gap-5 overflow-y-auto px-8 py-7">{children}</main>
+            altına, sayfanın tepesine değil.
+
+            `[&>*]:shrink-0` ŞART. Kartlar (`ui/card`) `overflow-hidden`
+            taşıyor; bir flex öğesinde bu, otomatik asgari boyutu sıfıra
+            düşürür. Sabit yükseklikli bir sütunun içinde kartlar o zaman
+            TAŞMAK yerine sıkışır ve içeriklerini kırpar — sayılar ve
+            butonlar yarım görünür, kaydırma da hiç doğmaz çünkü ortada
+            taşan bir şey kalmaz. */}
+        <main className="flex flex-1 flex-col gap-5 overflow-y-auto px-8 py-7 [&>*]:shrink-0">
+          {children}
+        </main>
       </div>
     </div>
   )

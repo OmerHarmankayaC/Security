@@ -35,10 +35,16 @@ export interface AktifIsDurumu {
   aktifIs: CozumIsi | null
   /**
    * Az önce sonuçlanmış iş (tamamlandı / uyarılı / başarısız / iptal).
-   * Gösterge sonucu bildirsin diye tutulur; kullanıcı kapatınca gider.
+   * Çözüm ekranının sonuç özetini besler ve yeni bir iş başlayana kadar
+   * durur — bildirimin kapatılması bunu SİLMEZ.
    */
   sonuclananIs: CozumIsi | null
-  /** Aktif işin başlangıcından bu yana geçen saniye. */
+  /** Kabuktaki göstergenin sonuçlanmış işi bildirip bildirmediği. */
+  bildirimGorunur: boolean
+  /**
+   * İşin geçen süresi. Arama bittiğinde DONAR: ölçülen süre aramanın
+   * süresidir, kullanıcının karar verme süresi değil (SDD 4.2.4).
+   */
   gecenSure: number
   /** Sunucuyu hemen yeniden sorar (çözüm başlatıldıktan sonra kullanılır). */
   yenile: () => Promise<void>
@@ -55,15 +61,27 @@ export function useAktifIs(): AktifIsDurumu {
   return durum
 }
 
-function gecenSureSaniye(baslangicIso: string): number {
-  // Sunucu zaman damgaları saat dilimi taşır (timestamptz); Date bunu
-  // doğrudan ayrıştırır.
-  return Math.max(0, Math.floor((Date.now() - new Date(baslangicIso).getTime()) / 1000))
+/**
+ * İşin geçen süresi. Arama bittiyse SAYAÇ DONAR.
+ *
+ * `bitis_zamani` aramanın bittiği anı taşır (SDD 4.2.4) ve karar sonradan
+ * verildiğinde değişmez. Sayacın karar beklerken işlemeye devam etmesi,
+ * kullanıcının düşünme süresini aramanın süresine ekler; ekranda "24
+ * saniyede bulundu" yazması gereken yerde dakikalar görünür.
+ *
+ * Sunucu zaman damgaları saat dilimi taşır (timestamptz); Date bunu
+ * doğrudan ayrıştırır.
+ */
+function gecenSureSaniye(is: CozumIsi): number {
+  const baslangic = new Date(is.baslangic_zamani).getTime()
+  const bitis = is.bitis_zamani === null ? Date.now() : new Date(is.bitis_zamani).getTime()
+  return Math.max(0, Math.floor((bitis - baslangic) / 1000))
 }
 
 export function AktifIsSaglayici({ children }: PropsWithChildren) {
   const [aktifIs, setAktifIs] = useState<CozumIsi | null>(null)
   const [sonuclananIs, setSonuclananIs] = useState<CozumIsi | null>(null)
+  const [bildirimKapali, setBildirimKapali] = useState(false)
   const [gecenSure, setGecenSure] = useState(0)
   // Yalnızca "iş kayboldu" geçişini yakalamak için; okuma kaynağı değil.
   const oncekiIsId = useRef<number | null>(null)
@@ -74,8 +92,9 @@ export function AktifIsSaglayici({ children }: PropsWithChildren) {
       setAktifIs(guncel)
       if (guncel !== null) {
         oncekiIsId.current = guncel.is_id
-        setGecenSure(gecenSureSaniye(guncel.baslangic_zamani))
+        setGecenSure(gecenSureSaniye(guncel))
         setSonuclananIs(null)
+        setBildirimKapali(false)
         return
       }
       const bitenId = oncekiIsId.current
@@ -84,7 +103,9 @@ export function AktifIsSaglayici({ children }: PropsWithChildren) {
         // İş listeden düştü: son hâlini bir kez okuyup bildiriyoruz.
         // Kimlik burada bir kez KULLANILIYOR, saklanmıyor — sunucunun bir
         // önceki yanıtından geldi ve bu istekten sonra bırakılıyor.
-        setSonuclananIs(await api.cozumDurumu(bitenId))
+        const biten = await api.cozumDurumu(bitenId)
+        setSonuclananIs(biten)
+        setGecenSure(gecenSureSaniye(biten))
       }
     } catch {
       // Gösterge ikincil bir bilgi alanıdır; ağ hatasında sessizce bekler
@@ -102,20 +123,28 @@ export function AktifIsSaglayici({ children }: PropsWithChildren) {
     return () => clearInterval(aralik)
   }, [yenile, isVarMi])
 
+  // Saat YALNIZCA arama sürerken işler. `durduruldu` durumundaki iş hâlâ
+  // aktiftir (karar bekliyor) ama araması bitmiştir; sayacın orada da
+  // işlemesi, karar verme süresini aramanın süresine ekliyordu.
+  const aramaSuruyorMu = aktifIs !== null && aktifIs.bitis_zamani === null
   useEffect(() => {
-    if (aktifIs === null) return
-    const saat = setInterval(() => setGecenSure(gecenSureSaniye(aktifIs.baslangic_zamani)), 1000)
+    if (aktifIs === null || !aramaSuruyorMu) return
+    const saat = setInterval(() => setGecenSure(gecenSureSaniye(aktifIs)), 1000)
     return () => clearInterval(saat)
-  }, [aktifIs])
+  }, [aktifIs, aramaSuruyorMu])
 
   return (
     <AktifIsBaglami.Provider
       value={{
         aktifIs,
+        // Bildirim kapatıldığında SON İŞ KAYBOLMAZ, yalnızca kabuktaki
+        // gösterge gizlenir: göstergeye tıklamak Çözüm ekranını açıyor ve
+        // aynı anda orada görülecek özeti silmek anlamsızdı.
         sonuclananIs,
+        bildirimGorunur: sonuclananIs !== null && !bildirimKapali,
         gecenSure,
         yenile,
-        sonucuKapat: () => setSonuclananIs(null),
+        sonucuKapat: () => setBildirimKapali(true),
       }}
     >
       {children}
