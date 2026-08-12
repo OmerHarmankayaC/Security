@@ -351,7 +351,7 @@ rsync -az --delete frontend/dist/ root@46.225.109.40:/opt/vardiya/web/
 rsync -az --delete --exclude '.venv/' --exclude '__pycache__/' \
       --exclude '.pytest_cache/' --exclude '.ruff_cache/' --exclude '.env' \
       backend/ root@46.225.109.40:/opt/vardiya/backend/
-ssh root@46.225.109.40 'cd /opt/vardiya/backend && .venv/bin/pip install -q -e ".[dev]" \
+ssh $SSH_ANAHTARI root@46.225.109.40 'cd /opt/vardiya/backend && .venv/bin/pip install -q -e ".[dev]" \
     && chown -R vardiya:vardiya /opt/vardiya/backend \
     && systemctl restart vardiya-api vardiya-cozucu'
 ```
@@ -402,7 +402,7 @@ rsync -az --delete --exclude '.venv/' --exclude '__pycache__/' \
       backend/ root@46.225.109.40:/opt/vardiya/backend/
 
 # 3) Göçü uygula, SONRA servisleri yeniden başlat
-ssh root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
+ssh $SSH_ANAHTARI root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
   cd /opt/vardiya/backend
   sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic upgrade head
   sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic current
@@ -415,7 +415,7 @@ ssh root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
 ### Doğrulama
 
 ```bash
-ssh root@46.225.109.40 'systemctl is-active vardiya-api vardiya-cozucu'
+ssh $SSH_ANAHTARI root@46.225.109.40 'systemctl is-active vardiya-api vardiya-cozucu'
 curl -s https://vardiya.omerharmankaya.com/api/donem | head -c 120
 
 # Yeni uç noktalar (tur boyunca eklenenler)
@@ -435,7 +435,7 @@ Göç geri alınabilir (`downgrade` üç sütunu düşürür), ama önce eski ko
 sürümüne dönülmelidir — yeni kod `aktif` sütunu olmadan çalışmaz:
 
 ```bash
-ssh root@46.225.109.40 'cd /opt/vardiya/backend
+ssh $SSH_ANAHTARI root@46.225.109.40 'cd /opt/vardiya/backend
   sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic downgrade c8f2d1a45b73'
 ```
 
@@ -475,8 +475,8 @@ hesabının açılması**.
 **Silinecek satır** (tek satır, değeri önemsiz):
 
 ```bash
-ssh root@46.225.109.40 "sed -i '/^CALISAN_PANELI_BAGLANTI_ANAHTARI=/d' /opt/vardiya/.env"
-ssh root@46.225.109.40 "grep -c CALISAN_PANELI /opt/vardiya/.env"   # 0 dönmeli
+ssh $SSH_ANAHTARI root@46.225.109.40 "sed -i '/^CALISAN_PANELI_BAGLANTI_ANAHTARI=/d' /opt/vardiya/.env"
+ssh $SSH_ANAHTARI root@46.225.109.40 "grep -c CALISAN_PANELI /opt/vardiya/.env"   # 0 dönmeli
 ```
 
 **Eklenecek satırlar.** Hiçbiri sır değildir ve hepsinin kodda bir
@@ -492,7 +492,7 @@ olması içindir. `OTURUM_CEREZI_SECURE` dışındakiler atlanabilir.
 | `OTURUM_CEREZI_SECURE` | `true` | **Sunucuda true kalmalı.** Site HTTPS'te; `false` yapmak oturum çerezini düz HTTP'de de göndermeye açar |
 
 ```bash
-ssh root@46.225.109.40 "cat >> /opt/vardiya/.env <<'EOF'
+ssh $SSH_ANAHTARI root@46.225.109.40 "cat >> /opt/vardiya/.env <<'EOF'
 
 # --- Kimlik dogrulama (SRS 5.10) ---
 OTURUM_HAREKETSIZLIK_DAKIKA=30
@@ -533,7 +533,7 @@ cd frontend && npm ci && npm run build && npm test   # 115 test
 cd ../backend && .venv/bin/python -m pytest -q       # 279 test
 
 # 2) .env'i düzelt — YENİDEN BAŞLATMADAN ÖNCE
-ssh root@46.225.109.40 "sed -i '/^CALISAN_PANELI_BAGLANTI_ANAHTARI=/d' /opt/vardiya/.env"
+ssh $SSH_ANAHTARI root@46.225.109.40 "sed -i '/^CALISAN_PANELI_BAGLANTI_ANAHTARI=/d' /opt/vardiya/.env"
 # (12.1'deki yeni satırlar da burada eklenir)
 
 # 3) Kodu yükle
@@ -544,7 +544,7 @@ rsync -az --delete --exclude '.venv/' --exclude '__pycache__/' \
       backend/ root@46.225.109.40:/opt/vardiya/backend/
 
 # 4) Bağımlılık, göç, sonra yeniden başlatma
-ssh root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
+ssh $SSH_ANAHTARI root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
   cd /opt/vardiya/backend
   .venv/bin/pip install -q -e ".[dev]"
   sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic upgrade head
@@ -563,7 +563,7 @@ nokta yoktur ve olmayacaktır. Hesap, sunucuda etkileşimli olarak açılır —
 düşerdi), betik onu ekrana yazmadan sorar.
 
 ```bash
-ssh -t root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
+ssh -t $SSH_ANAHTARI root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
   cd /opt/vardiya/backend
   sudo -u vardiya --preserve-env=VERITABANI_URL \
       .venv/bin/python scripts/yonetim_hesabi_olustur.py'
@@ -583,7 +583,7 @@ girmesi gereken her personel için hesap açılmalıdır.
 ### 12.6 Doğrulama
 
 ```bash
-ssh root@46.225.109.40 'systemctl is-active vardiya-api vardiya-cozucu'
+ssh $SSH_ANAHTARI root@46.225.109.40 'systemctl is-active vardiya-api vardiya-cozucu'
 
 # Oturumsuz istek 401 dönmeli — 200 dönen bir uç nokta kalmamalı
 curl -s -o /dev/null -w '%{http_code}\n' https://vardiya.omerharmankaya.com/api/donem     # 401
@@ -604,7 +604,7 @@ başka bir ekrana geçilemez.
 Kayıtlar (FR-10.9):
 
 ```bash
-ssh root@46.225.109.40 "journalctl -u vardiya-api --since today | grep 'olay=giris'"
+ssh $SSH_ANAHTARI root@46.225.109.40 "journalctl -u vardiya-api --since today | grep 'olay=giris'"
 ```
 
 `olay=giris_basarili kullanici=… rol=…` ve `olay=giris_basarisiz …
@@ -616,7 +616,7 @@ görünmemelidir**; görünürse bu bir hatadır.
 Sırayla: eski koda dön, göçü geri al, `.env`'e eski sırrı geri koy.
 
 ```bash
-ssh root@46.225.109.40 'cd /opt/vardiya/backend
+ssh $SSH_ANAHTARI root@46.225.109.40 'cd /opt/vardiya/backend
   sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic downgrade e3b81f47a95c'
 ```
 
@@ -654,7 +654,7 @@ kutusu).
 Doğrulama:
 
 ```bash
-ssh root@46.225.109.40 "grep -c VERI_TEMIZLIGINE_IZIN /opt/vardiya/.env"   # 0 dönmeli
+ssh $SSH_ANAHTARI root@46.225.109.40 "grep -c VERI_TEMIZLIGINE_IZIN /opt/vardiya/.env"   # 0 dönmeli
 ```
 
 ### 13.2 Değişiklikler
@@ -677,12 +677,12 @@ ssh root@46.225.109.40 "grep -c VERI_TEMIZLIGINE_IZIN /opt/vardiya/.env"   # 0 d
 Bir göç var (13.0) ve **kod yüklendikten SONRA** uygulanır: `alembic`
 sunucudaki depodan okunur, dolayısıyla göç dosyası önce oraya varmalıdır.
 
-**SSH anahtarı:** bağlantı `~/.ssh/vera_hetzner` ile kurulur (makinedeki
-varsayılan `id_ed25519` bu sunucuda tanımlı DEĞİLDİR — `Permission denied
-(publickey)` alırsanız sebep budur):
+**SSH anahtarı — İKİ değişken birden.** `RSYNC_RSH` yalnızca rsync'i
+etkiler; düz `ssh` çağrıları onu okumaz (bkz. 15.4).
 
 ```bash
-export RSYNC_RSH="ssh -o IdentitiesOnly=yes -i $HOME/.ssh/vera_hetzner"
+export SSH_ANAHTARI="-o IdentitiesOnly=yes -i $HOME/.ssh/vera_hetzner"
+export RSYNC_RSH="ssh $SSH_ANAHTARI"
 ```
 
 ```bash
@@ -698,7 +698,7 @@ rsync -az --delete --exclude '.venv/' --exclude '__pycache__/' \
       backend/ root@46.225.109.40:/opt/vardiya/backend/
 
 # 3) Göçü uygula, SONRA yeniden başlat
-ssh root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
+ssh $SSH_ANAHTARI root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
   cd /opt/vardiya/backend
   sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic upgrade head
   sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic current
@@ -709,7 +709,7 @@ ssh root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
 ### 13.4 Doğrulama
 
 ```bash
-ssh root@46.225.109.40 'systemctl is-active vardiya-api vardiya-cozucu'
+ssh $SSH_ANAHTARI root@46.225.109.40 'systemctl is-active vardiya-api vardiya-cozucu'
 
 # Yeni uç noktalar oturumsuz 401 dönmeli (açık kalan bir yol yok)
 curl -s -o /dev/null -w '%{http_code}\n' https://vardiya.omerharmankaya.com/api/ozel-gun  # 401
@@ -722,7 +722,7 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 # 44 personelin, 17 sürümün ve 2.155 atamanın silinmesiyle öğrenirsiniz.
 # `uretim_kilidini_dogrula` betiğin çağırdığı aynı kapıdır ve hiçbir şeye
 # dokunmaz.
-ssh root@46.225.109.40 'cd /opt/vardiya/backend
+ssh $SSH_ANAHTARI root@46.225.109.40 'cd /opt/vardiya/backend
   set -a; . /opt/vardiya/.env; set +a
   sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/python -c "
 from app.veri_temizligi import uretim_kilidini_dogrula, UretimKilidiError
@@ -756,7 +756,7 @@ döküm tablosu görünmelidir. Bir noktaya talepten fazla kişi yazıldığınd
 Önce eski kod sürümüne dönülür, sonra göç geri alınır:
 
 ```bash
-ssh root@46.225.109.40 'cd /opt/vardiya/backend
+ssh $SSH_ANAHTARI root@46.225.109.40 'cd /opt/vardiya/backend
   sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic downgrade f7c1d9034ae6'
 ```
 
@@ -821,7 +821,7 @@ ayar olur. Uygulama bu değeri zaten hiç okumaz, yalnızca
 `VERI_TEMIZLIGINE_IZIN` de eskisi gibi **yoktur** ve olmamalıdır.
 
 ```bash
-ssh root@46.225.109.40 "grep -cE 'TEST_VERITABANI_URL|VERI_TEMIZLIGINE_IZIN' /opt/vardiya/.env"   # 0
+ssh $SSH_ANAHTARI root@46.225.109.40 "grep -cE 'TEST_VERITABANI_URL|VERI_TEMIZLIGINE_IZIN' /opt/vardiya/.env"   # 0
 ```
 
 ### 14.2 Değişiklikler
@@ -844,12 +844,12 @@ geldi). Güncel liste `docs/EK_B_UC_NOKTALAR.md`'de.
 Göçler **kod yüklendikten SONRA** uygulanır: `alembic` sunucudaki depodan
 okunur, dolayısıyla göç dosyaları önce oraya varmalıdır.
 
-**SSH anahtarı:** bağlantı `~/.ssh/vera_hetzner` ile kurulur (makinedeki
-varsayılan `id_ed25519` bu sunucuda tanımlı DEĞİLDİR — `Permission denied
-(publickey)` alırsanız sebep budur):
+**SSH anahtarı — İKİ değişken birden.** `RSYNC_RSH` yalnızca rsync'i
+etkiler; düz `ssh` çağrıları onu okumaz (bkz. 15.4).
 
 ```bash
-export RSYNC_RSH="ssh -o IdentitiesOnly=yes -i $HOME/.ssh/vera_hetzner"
+export SSH_ANAHTARI="-o IdentitiesOnly=yes -i $HOME/.ssh/vera_hetzner"
+export RSYNC_RSH="ssh $SSH_ANAHTARI"
 ```
 
 ```bash
@@ -865,7 +865,7 @@ rsync -az --delete --exclude '.venv/' --exclude '__pycache__/' \
       backend/ root@46.225.109.40:/opt/vardiya/backend/
 
 # 3) Göçleri uygula, SONRA yeniden başlat
-ssh root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
+ssh $SSH_ANAHTARI root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
   cd /opt/vardiya/backend
   sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic upgrade head
   sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic current
@@ -885,8 +885,8 @@ kurulu değil. Uygulamanın açılışına hiçbir etkisi yoktur.
 ### 14.4 Doğrulama
 
 ```bash
-ssh root@46.225.109.40 'systemctl is-active vardiya-api vardiya-cozucu'
-ssh root@46.225.109.40 'journalctl -u vardiya-api -u vardiya-cozucu --since "5 min ago" -p warning'
+ssh $SSH_ANAHTARI root@46.225.109.40 'systemctl is-active vardiya-api vardiya-cozucu'
+ssh $SSH_ANAHTARI root@46.225.109.40 'journalctl -u vardiya-api -u vardiya-cozucu --since "5 min ago" -p warning'
 
 # Yeni uç noktalar oturumsuz 401 dönmeli (açık kalan bir yol yok)
 for yol in /api/cozum/aktif /api/cozum/1/durdur /api/cozum/1/karar; do
@@ -900,7 +900,7 @@ curl -s -o /dev/null -w '%{http_code}\n' \
   -X POST https://vardiya.omerharmankaya.com/api/cozum/1/iptal
 
 # Göç uygulandı mı — üç sütun ve enum değeri
-ssh root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
+ssh $SSH_ANAHTARI root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
   psql "$VERITABANI_URL" -tAc "
     select column_name from information_schema.columns
      where table_name = '"'"'cozum_isi'"'"'
@@ -927,7 +927,7 @@ Arayüzde gözle bakılacaklar (oturum açmayı gerektirir):
 Önce eski kod sürümüne dönülür, sonra göçler geri alınır:
 
 ```bash
-ssh root@46.225.109.40 'cd /opt/vardiya/backend
+ssh $SSH_ANAHTARI root@46.225.109.40 'cd /opt/vardiya/backend
   sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic downgrade a4d92c15e807'
 ```
 
@@ -974,7 +974,7 @@ sırasıyla değiştirilir, 14.0'daki iki göç zincirin ilk iki halkasıdır.
 Kaç göç uygulanacağı sunucunun bulunduğu noktaya bağlı. Salt okunur:
 
 ```bash
-ssh root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
+ssh $SSH_ANAHTARI root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
   cd /opt/vardiya/backend
   sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic current'
 ```
@@ -1013,7 +1013,7 @@ Bu göç üç şey yapıyor ve ilk ikisi geri döndürülemez veri işlemidir:
 Yedek — göçten önce, tek komut:
 
 ```bash
-ssh root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
+ssh $SSH_ANAHTARI root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
   mkdir -p /opt/vardiya/yedek
   pg_dump "$VERITABANI_URL" -Fc -f /opt/vardiya/yedek/vardiya-$(date +%Y%m%d-%H%M).dump
   ls -lh /opt/vardiya/yedek/ | tail -3'
@@ -1053,13 +1053,20 @@ Kabul ölçümü (geliştirme makinesi, simetri gruplamasından sonra):
 Göçler **kod yüklendikten SONRA** uygulanır: `alembic` sunucudaki depodan
 okunur, dolayısıyla göç dosyaları önce oraya varmalıdır.
 
-**SSH anahtarı:** bağlantı `~/.ssh/vera_hetzner` ile kurulur (varsayılan
-`id_ed25519` bu sunucuda tanımlı DEĞİLDİR):
+**SSH anahtarı — İKİ değişken birden gerekir.** Bağlantı
+`~/.ssh/vera_hetzner` ile kurulur; makinedeki varsayılan `id_ed25519` bu
+sunucuda tanımlı DEĞİLDİR. `RSYNC_RSH` **yalnızca rsync'i** etkiler;
+düz `ssh` çağrıları onu okumaz ve `Permission denied (publickey)` alır.
+Bu, 12.08.2026'da yarım bir dağıtıma yol açtı: rsync geçti, yedek ve göç
+geçmedi, canlıda yeni arayüz eski backend'le kaldı.
 
 ```bash
-export RSYNC_RSH="ssh -o IdentitiesOnly=yes -i $HOME/.ssh/vera_hetzner"
+export SSH_ANAHTARI="-o IdentitiesOnly=yes -i $HOME/.ssh/vera_hetzner"
+export RSYNC_RSH="ssh $SSH_ANAHTARI"
 ```
 
+Aşağıdaki komutların hepsi `$SSH_ANAHTARI` taşır; ikisini de aynı kabukta
+tanımlayın.
 ```bash
 # 1) Yerelde derle ve testleri geçir (sunucuda Node yok — ve pytest de yok)
 cd frontend && npm ci && npm run build && npm test   # 155 test
@@ -1075,7 +1082,7 @@ rsync -az --delete --exclude '.venv/' --exclude '__pycache__/' \
       backend/ root@46.225.109.40:/opt/vardiya/backend/
 
 # 4) Göçleri uygula, SONRA yeniden başlat
-ssh root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
+ssh $SSH_ANAHTARI root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
   cd /opt/vardiya/backend
   sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic upgrade head
   sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic current
@@ -1096,8 +1103,8 @@ bırakır.
 ### 15.5 Doğrulama
 
 ```bash
-ssh root@46.225.109.40 'systemctl is-active vardiya-api vardiya-cozucu'
-ssh root@46.225.109.40 'journalctl -u vardiya-api -u vardiya-cozucu --since "5 min ago" -p warning'
+ssh $SSH_ANAHTARI root@46.225.109.40 'systemctl is-active vardiya-api vardiya-cozucu'
+ssh $SSH_ANAHTARI root@46.225.109.40 'journalctl -u vardiya-api -u vardiya-cozucu --since "5 min ago" -p warning'
 
 # Yeni uçlar oturumsuz 401 dönmeli
 for yol in /api/talep /api/talep/1; do
@@ -1111,7 +1118,7 @@ curl -s -o /dev/null -w 'PUT /api/talep -> %{http_code}\n' \
   -X PUT https://vardiya.omerharmankaya.com/api/talep
 
 # Dönüşüm gerçekten oldu mu — talep artık aralık taşıyor
-ssh root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
+ssh $SSH_ANAHTARI root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
   psql "$VERITABANI_URL" -tAc "
     select column_name from information_schema.columns
      where table_name = '"'"'talep'"'"'
@@ -1146,7 +1153,7 @@ Arayüzde gözle bakılacaklar (oturum açmayı gerektirir):
 Önce eski kod sürümüne dönülür, sonra göç geri alınır:
 
 ```bash
-ssh root@46.225.109.40 'cd /opt/vardiya/backend
+ssh $SSH_ANAHTARI root@46.225.109.40 'cd /opt/vardiya/backend
   sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic downgrade c9a4b7e21f38'
 ```
 
@@ -1164,7 +1171,7 @@ yönde zaten taşınmamışlardı). Atama, sürüm ve tanım verisi etkilenmez.
 Yedekten tam dönüş gerekirse:
 
 ```bash
-ssh root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
+ssh $SSH_ANAHTARI root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
   systemctl stop vardiya-api vardiya-cozucu
   pg_restore -c -d "$VERITABANI_URL" /opt/vardiya/yedek/vardiya-<ZAMAN>.dump
   systemctl start vardiya-api vardiya-cozucu'
@@ -1183,3 +1190,56 @@ _Dağıtım yapıldığında doldurulacak._
 | Servisler | — |
 | Uyarı/hata günlüğü | — |
 | Silinen açık/fazla kadro satırı | — |
+
+### 15.8 12.08.2026 — yarım dağıtım ve toparlanması
+
+**Ne oldu.** `RSYNC_RSH` tanımlandı, `SSH_ANAHTARI` tanımlanmadı (o gün
+runbook yalnızca birincisini yazıyordu). Sonuç: **rsync geçti, ssh
+geçmedi.**
+
+| Adım | Sonuç |
+|---|---|
+| Yedek | ❌ `Permission denied (publickey)` |
+| `rsync` frontend + backend | ✅ yüklendi |
+| `alembic upgrade head` | ❌ `Permission denied (publickey)` |
+| `systemctl restart` | ❌ çalışmadı |
+
+Yani **canlıda yeni arayüz, eski backend** kaldı. Yayındaki paket
+(`index-CVUlCaag.js`) yeni ekranı taşıyordu ("talep aralıkları", "Devir
+Fazla Çalışma"), API ise hâlâ eski sözleşmeyi konuşuyordu:
+`PUT /api/talep` → 401 (uç duruyor), `POST /api/talep` → 405 (uç yok).
+
+**İki somut sonucu vardı:**
+
+1. **Talep ekranı canlıda kırıktı.** Yeni arayüz `POST /api/talep`e
+   yazıyor, eski backend 405 dönüyordu.
+2. **`vardiya-api` herhangi bir sebeple yeniden başlasaydı** (çökme,
+   reboot) diskteki YENİ kod, göç edilmemiş ESKİ şemayla açılacaktı;
+   talep sorguları var olmayan `baslangic` sütununu okuyup düşerdi.
+
+**Ders — runbook'a işlendi.** `RSYNC_RSH` bir rsync değişkenidir ve düz
+`ssh` onu okumaz. Runbook artık her `ssh` çağrısında `$SSH_ANAHTARI`
+taşıyor ve iki değişkeni birlikte tanımlatıyor. Sessiz kısmi başarı en
+kötü kip: komutlar `&&` ile zincirlenmediği için her biri kendi başına
+düştü ve dağıtım yarıda kaldı.
+
+**Toparlama sırası** — yedeksiz göç yok, ama pencere de hızla kapanmalı:
+
+```bash
+export SSH_ANAHTARI="-o IdentitiesOnly=yes -i $HOME/.ssh/vera_hetzner"
+export RSYNC_RSH="ssh $SSH_ANAHTARI"
+
+# Tek zincir: yedek başarısız olursa göç ÇALIŞMAZ.
+ssh $SSH_ANAHTARI root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
+  mkdir -p /opt/vardiya/yedek
+  pg_dump "$VERITABANI_URL" -Fc -f /opt/vardiya/yedek/vardiya-$(date +%Y%m%d-%H%M).dump
+  ls -lh /opt/vardiya/yedek/ | tail -3
+  cd /opt/vardiya/backend
+  sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic upgrade head
+  sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic current
+  chown -R vardiya:vardiya /opt/vardiya/backend
+  systemctl restart vardiya-api vardiya-cozucu'
+```
+
+Kod zaten sunucuda olduğu için rsync adımı tekrarlanmaz; tekrarlanması da
+zararsızdır.
