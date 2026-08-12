@@ -957,3 +957,229 @@ _Dağıtım yapıldığında doldurulacak._
 | Servisler | — |
 | Uyarı/hata günlüğü | — |
 | Veri (öncesi → sonrası) | — |
+
+---
+
+## 15. Tur 3 — saatlik düzenin veri temeli (12.08.2026) — ÇIKIŞ HAZIR
+
+**Bu, şimdiye kadarki en riskli çıkıştır ve tek farkla öncekilerden ayrılır:
+göçlerden biri VERİ DÖNÜŞTÜRÜYOR.** Bölüm 14 (tur 1 + tur 2) hâlâ
+sunucuya çıkmadıysa üç göç birlikte gider; 14'ün sırası bu bölümün
+sırasıyla değiştirilir, 14.0'daki iki göç zincirin ilk iki halkasıdır.
+
+**Yeni bağımlılık yok, yeni sır yok, `.env` değişmiyor.**
+
+### 15.0 Önce: sunucu nerede
+
+Kaç göç uygulanacağı sunucunun bulunduğu noktaya bağlı. Salt okunur:
+
+```bash
+ssh root@SUNUCU 'set -a; . /opt/vardiya/.env; set +a
+  cd /opt/vardiya/backend
+  sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic current'
+```
+
+| Çıktı | Uygulanacak göç |
+|---|---|
+| `a4d92c15e807` | üçü birden: `b6e2f81d3c07` → `c9a4b7e21f38` → `d1f83a6c40b2` |
+| `c9a4b7e21f38` | yalnız `d1f83a6c40b2` |
+| `d1f83a6c40b2 (head)` | zaten çıkmış |
+
+### 15.1 ⚠ `d1f83a6c40b2` veriyi dönüştürüyor — önce yedek
+
+Bu göç üç şey yapıyor ve ilk ikisi geri döndürülemez veri işlemidir:
+
+1. **`talep` satırları bloktan aralığa çevriliyor.** `vardiya_tipi_id`
+   sütunu düşüyor, yerine `baslangic` / `bitis` (TIME) geliyor. Dönüşüm
+   göç içinde yapılıyor ve **sayılarak doğrulanıyor**: satır sayısı ile
+   toplam kişi-saat yükü dönüşümden önce ve sonra eşit değilse göç hata
+   verip **duruyor**. Sessizce devam etseydi kaybolan bir talep satırı
+   hiçbir yerde görünmezdi — talep düştüğü için kapsama açığı da doğmaz.
+2. **`kapsama_acigi` ve `fazla_kadro` satırları SİLİNİYOR** (dönüştürülmüyor).
+   Bu iki tablo bir çözümün çıktısıdır, kullanıcının girdiği veri değil;
+   blok eksenli bir açık kaydını aralığa çevirmek, o kaydın üretildiği
+   andaki talebi yeniden kurmayı gerektirir ve talep aynı göçte değişiyor.
+   Yanlış dönüşmüş bir açık kaydı hiç olmamasından kötüdür: rapora doğru
+   gibi girer.
+3. `personel`e devir bakiyesi alanları, `cozum_isi`ye
+   `on_kontrol_bulgulari` ekleniyor (yalnızca ekleme, risksiz).
+
+> **Görünür sonuç: yayındaki sürümlerin kapsama açığı sayıları sıfırlanır.**
+> Analiz ekranı, sürüm listesindeki açık sayıları ve açık dosyası, ilgili
+> sürüm **yeniden çözülene ya da elle düzenlenene kadar** boş görünür.
+> Atamalar, sürümler, tanımlar ve hesaplar etkilenmez. Bunu personele
+> duyurmak gerekebilir.
+
+Yedek — göçten önce, tek komut:
+
+```bash
+ssh root@SUNUCU 'set -a; . /opt/vardiya/.env; set +a
+  mkdir -p /opt/vardiya/yedek
+  pg_dump "$VERITABANI_URL" -Fc -f /opt/vardiya/yedek/vardiya-$(date +%Y%m%d-%H%M).dump
+  ls -lh /opt/vardiya/yedek/ | tail -3'
+```
+
+Dönüşümün ölçüsü (geliştirme veritabanı): **27 satır → 27 satır, 384
+kişi-saat → 384 kişi-saat.** Sunucudaki sayı farklı olacaktır; önemli olan
+göçün kendi kendini doğrulaması.
+
+### 15.2 API sözleşmesi kırıldı — iki taraf BİRLİKTE gitmeli
+
+`PUT /api/talep` **kaldırıldı**. Talep artık bir matris hücresi değil bir
+zaman aralığı kaydı; yerine `POST /api/talep`, `PUT /api/talep/{id}` ve
+`DELETE /api/talep/{id}` geldi (**uç nokta sayısı 72 → 74**).
+
+Sonucu: **backend'i güncelleyip eski `dist/`i bırakmak Talep ekranını
+çalışmaz hâle getirir** — ekran var olmayan bir uca yazar ve hiçbir talep
+kaydedilemez. Frontend derlemesi ile backend aynı çıkışta gider.
+
+### 15.3 Değişiklikler
+
+| İş | Ne değişti |
+|---|---|
+| 1–4 | Talep, kapsama ve S1 kısıtı **saat eksenine** taşındı. Açık/fazla kadro kayıtları artık aralık; ardışık ve sayısı eşit saatler tek satırda birleşiyor (00…07'de 1 kişi eksik → tek `00.00–08.00 / 1` kaydı). |
+| 5 | `personel.devir_fazla_calisma_saat` ve `kota_yili` — alanlar toplanıyor, **hiçbir kural okumuyor** (Tur 4'ün kota hesabı için). |
+| 6 | Blok kataloğu kısıtları: aynı `(başlangıç, süre)` ikinci kez tanımlanamaz (**409**), süre günlük azamiyi (11 sa) aşamaz (**400**). |
+| 7 | Talep ekranı aralık listesi oldu; saatler açılır liste, gün sonu **24.00**. |
+| 8 | Ön kontrol bulguları çözümü **düşürmüyor**; `cozum_isi.on_kontrol_bulgulari`na yazılıp çözüme devam ediliyor. |
+| 9 | Kapsama oranı artık **atama kayıtlarından** hesaplanıyor. |
+| 10 | Bulgu metinleri veritabanı kimliği değil **ad** taşıyor. |
+
+Kabul ölçümü (geliştirme makinesi, simetri gruplamasından sonra):
+**K1 1,01 sn · K2 0 · K3 0,61 · K4 13 aralık · K5 0,035 sn — 5/5.**
+
+### 15.4 Sıra
+
+Göçler **kod yüklendikten SONRA** uygulanır: `alembic` sunucudaki depodan
+okunur, dolayısıyla göç dosyaları önce oraya varmalıdır.
+
+**SSH anahtarı:** bağlantı `~/.ssh/vera_hetzner` ile kurulur (varsayılan
+`id_ed25519` bu sunucuda tanımlı DEĞİLDİR):
+
+```bash
+export RSYNC_RSH="ssh -o IdentitiesOnly=yes -i $HOME/.ssh/vera_hetzner"
+```
+
+```bash
+# 1) Yerelde derle ve testleri geçir (sunucuda Node yok — ve pytest de yok)
+cd frontend && npm ci && npm run build && npm test   # 155 test
+cd ../backend && .venv/bin/python -m pytest -q       # 327 test
+
+# 2) YEDEK — göçten önce (15.1)
+
+# 3) Kodu yükle
+cd ..
+rsync -az --delete frontend/dist/ root@SUNUCU:/opt/vardiya/web/
+rsync -az --delete --exclude '.venv/' --exclude '__pycache__/' \
+      --exclude '.pytest_cache/' --exclude '.ruff_cache/' --exclude '.env' \
+      backend/ root@SUNUCU:/opt/vardiya/backend/
+
+# 4) Göçleri uygula, SONRA yeniden başlat
+ssh root@SUNUCU 'set -a; . /opt/vardiya/.env; set +a
+  cd /opt/vardiya/backend
+  sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic upgrade head
+  sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic current
+  chown -R vardiya:vardiya /opt/vardiya/backend
+  systemctl restart vardiya-api vardiya-cozucu'
+```
+
+`alembic current` çıktısı **`d1f83a6c40b2 (head)`** olmalıdır. Göç kendi
+doğrulamasında düşerse çıktıda `RuntimeError` görünür ve **işlem geri
+alınır** — o durumda yedekten dönmeye gerek yoktur, ama sebep
+araştırılmadan tekrar denenmemelidir.
+
+**İki servis de yeniden başlatılmak zorunda.** Yeni uçlar API'de, saat
+eksenli kapsama kısıtı ve yeni sütunlar işçide kullanılıyor; yalnız birini
+yeniden başlatmak, talebi yazan tarafla okuyan tarafı farklı sürümlerde
+bırakır.
+
+### 15.5 Doğrulama
+
+```bash
+ssh root@SUNUCU 'systemctl is-active vardiya-api vardiya-cozucu'
+ssh root@SUNUCU 'journalctl -u vardiya-api -u vardiya-cozucu --since "5 min ago" -p warning'
+
+# Yeni uçlar oturumsuz 401 dönmeli
+for yol in /api/talep /api/talep/1; do
+  curl -s -o /dev/null -w "$yol -> %{http_code}\n" \
+    -X POST https://vardiya.omerharmankaya.com$yol
+done   # ikisi de 401
+
+# Kaldırılan uç artık YOK: 404 ya da 405 dönmeli, 401 DEĞİL.
+# 401 dönerse eski kod hâlâ ayakta demektir.
+curl -s -o /dev/null -w 'PUT /api/talep -> %{http_code}\n' \
+  -X PUT https://vardiya.omerharmankaya.com/api/talep
+
+# Dönüşüm gerçekten oldu mu — talep artık aralık taşıyor
+ssh root@SUNUCU 'set -a; . /opt/vardiya/.env; set +a
+  psql "$VERITABANI_URL" -tAc "
+    select column_name from information_schema.columns
+     where table_name = '"'"'talep'"'"'
+       and column_name in ('"'"'baslangic'"'"','"'"'bitis'"'"','"'"'vardiya_tipi_id'"'"')
+     order by column_name;
+    select count(*) as talep_satiri from talep;
+    select sum(gereken_sayi * ((extract(hour from bitis)::int
+           - extract(hour from baslangic)::int + 24) % 24
+           + case when extract(hour from bitis) = extract(hour from baslangic)
+                  then 24 else 0 end)) as kisi_saat from talep;"'
+```
+
+`baslangic` ve `bitis` görünmeli, `vardiya_tipi_id` **görünmemelidir**.
+
+Arayüzde gözle bakılacaklar (oturum açmayı gerektirir):
+
+- **Tanımlar → Talep**: liste hâlinde aralıklar, gün sonu **24.00** olarak
+  yazılı (`08.00–24.00`, `00.00–08.00`). Sağ üstte Ekle · Değiştir · Sil.
+  Bir aralık eklenip düzenlenebilmeli ve silinebilmeli; aynı nokta ve gün
+  tipi için çakışan bir aralık girildiğinde **hangi aralıkla çakıştığını
+  söyleyen** bir hata çıkmalı.
+- **Tanımlar → Vardiya Tipi**: var olan bir bloğun saatlerinin aynısıyla
+  ikinci bir blok açmayı denediğinizde reddedilmeli; 12 saatlik bir blok
+  "günlük azami 11 saat" diyerek reddedilmeli.
+- **Tanımlar → Personel**: formda **Devir Fazla Çalışma (saat)** ve
+  **Kota Yılı** alanları. Boş bırakılabilir.
+- **Analiz / Sürümler**: açık sayıları **sıfırlanmış** olacak (15.1);
+  bir sürümü yeniden çözünce açıklar aralık olarak geri gelmeli.
+
+### 15.6 Geri alma
+
+Önce eski kod sürümüne dönülür, sonra göç geri alınır:
+
+```bash
+ssh root@SUNUCU 'cd /opt/vardiya/backend
+  sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic downgrade c9a4b7e21f38'
+```
+
+**Geri alma her zaman başarılı olmaz ve bu bilinçlidir.** `downgrade`, her
+talep aralığını **birebir eşleşen** bir çalışma bloğuna geri bağlar;
+eşleşme bulunamayan bir satır varsa **durur**. Yani bu çıkıştan sonra
+katalogla hizalanmayan bir aralık girilirse (örneğin `09.00–17.00`), geri
+alma o satır silinene ya da uygun bir blok tanımlanana kadar mümkün
+olmaz. Alternatif, satırı sessizce düşürmekti; o da talebi azaltır ve
+hiçbir raporda görünmez.
+
+`kapsama_acigi` / `fazla_kadro` satırları geri almada da boşaltılır (ileri
+yönde zaten taşınmamışlardı). Atama, sürüm ve tanım verisi etkilenmez.
+
+Yedekten tam dönüş gerekirse:
+
+```bash
+ssh root@SUNUCU 'set -a; . /opt/vardiya/.env; set +a
+  systemctl stop vardiya-api vardiya-cozucu
+  pg_restore -c -d "$VERITABANI_URL" /opt/vardiya/yedek/vardiya-<ZAMAN>.dump
+  systemctl start vardiya-api vardiya-cozucu'
+```
+
+### 15.7 Çıkış kaydı
+
+_Dağıtım yapıldığında doldurulacak._
+
+| | |
+|---|---|
+| Kod sürümü | `c149314` |
+| Göçler | `→ d1f83a6c40b2` |
+| Yedek dosyası | — |
+| Talep satırı / kişi-saat (öncesi → sonrası) | — |
+| Servisler | — |
+| Uyarı/hata günlüğü | — |
+| Silinen açık/fazla kadro satırı | — |
