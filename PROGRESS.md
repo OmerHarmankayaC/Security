@@ -3631,3 +3631,138 @@ Sıra: göç → uygulama sunucusu ve çözüm işçisi servislerinin yeniden
 başlatılması (`/durdur` ve `/karar` uçları ile `durduruldu` ENUM değeri
 ikisinde birden gerekiyor). `VERI_TEMIZLIGINE_IZIN` satırı sunucudaki
 `.env`'e **eklenmemeli**.
+
+---
+
+## 2026-08-12 — İkinci Aşama, Tur 2: Doküman Borçları ve Test İzolasyonu
+
+Kaynak: `docs/turlar/CLAUDE_CODE_PROMPTU_TUR2.md`. Dört iş, dört ayrı
+commit. Doküman sürümleri turun başında doğrulandı: SDD 1.20, SRS 1.13,
+Backlog 1.6, Proje Tanım Dokümanı 1.2.
+
+İşlerin üçü tur 1'de bildirilen borçların karşılığı; ikisinde tasarım
+uyguladığımdan farklı çıktı ve dokümandaki gerekçe uygulandı.
+
+### İş 3 — Testler ayrı veritabanına (B-20) — önce yapıldı
+
+Backlog B-20 bunu "tur 2'nin ilk işi" diyor; diğer işlerin testleri de
+ayrılmış veritabanında koşsun diye sıradan önce alındı.
+
+**Kapı deponun kökünde** (`backend/conftest.py`), `tests/` içinde değil.
+Neden sıra: pytest kök dizindeki conftest'i `tests/conftest.py`den ve
+dolayısıyla `app.db`den önce okur; bağlantı adresi ancak orada, motor
+kurulmadan önce değiştirilebilir.
+
+**Kapı üç durumda da yüksek sesle durur:** adres tanımlı değilse, adında
+`test` geçmiyorsa, ya da o veritabanına bağlanılamıyorsa. Varsayılana
+düşüp geliştirme verisini sessizce temizlemek tam olarak kaçınılan şeydi.
+`VERI_TEMIZLIGINE_IZIN` kilidinin yerine geçmez, yanında durur: birincisi
+"yıkıcı işlem yapılabilir mi", ikincisi "hangi veritabanında".
+
+Test veritabanı geliştirme veritabanıyla **aynı göç zincirini** izler, yani
+göçlerin kendisi her koşumda dolaylı olarak sınanıyor.
+
+**Ölçüldü.** Tam koşumdan sonra geliştirme veritabanındaki personel, dönem
+ve kullanıcı sayıları değişmedi (16/3/0 → 16/3/0). Tam takım, **çözüm
+işçisi arka planda çalışırken** geçiyor — bu turun kabul kriteri buydu.
+
+`scripts/kabul_olcumu.py` kapsam dışı bırakıldı (prompt); kendi kilidiyle
+geliştirme veritabanında kalmaya devam ediyor.
+
+### İş 1 — Çözücü ipucu ayrı sütuna (SDD 4.2.4)
+
+Göç `c9a4b7e21f38`: `cozum_isi.cozum_ipucu` JSONB NULL. Veri taşıma yok —
+ipucu yalnızca çalışan bir işin girdisidir ve göç anında çalışan bir iş
+varsa zaten modelini kurmuştur.
+
+Tur 1'de ipucu yeni işin `gecici_sonuc` alanında taşınıyor ve model
+kurulur kurulmaz boşaltılıyordu. İkisi de değişti:
+
+- **Girdi ile çıktı ayrı sütunlarda.** Tek alanda taşınmaları hâlinde aynı
+  değer bir işte "kullanıcı kararı bekliyor", başkasında "modele verilecek
+  ipucu" anlamına gelir; alanın doluluğuna bakan bir sorgu henüz
+  başlamamış bir işi karar bekliyor sanabilirdi.
+- **Boşaltma iş sonlandığında.** Model kurulumunda silinseydi, işçi yeniden
+  başladığında iş ipucusuz devam eder, sonuç sessizce kötüleşir ve bunu
+  gösteren hiçbir iz kalmazdı.
+
+Sonlanma tek yordama çıkarıldı (`_isi_sonlandir`): `tamamlandi`, `uyarili`,
+`basarisiz` ve `iptal` oradan geçiyor, `durduruldu` geçmiyor — o terminal
+değil. `bitis_zamani` daha önce yazılmışsa dokunulmuyor; durdurulan işte o
+damga **aramanın** bittiği anı taşır.
+
+**Ayrıca kontrol edildi (prompt istedi):** `GET /api/cozum/aktif` karar
+bekleyen işi `durum` alanına göre buluyor, `gecici_sonuc IS NOT NULL`
+sorgusu hiç olmamış — değişiklik gerekmedi.
+
+### İş 2 — Arama başlamadan gelen durdurma doğrudan iptal (SDD 5.4.1)
+
+`POST /api/cozum/{is_id}/durdur` artık işin durumuna göre ayrışıyor:
+`cozuluyor` → `durduruldu` (karar akışı), `kuyrukta`/`on_kontrol` →
+doğrudan `iptal` (karar sorulmaz), diğerleri → 409 ve **hangi durumda
+olduğunu söyleyen** bir mesaj ("zaten kararınızı bekliyor" ile "on dakika
+önce bitti" aynı cümleye sığmaz).
+
+**Geçiş tek bir koşullu UPDATE**; yol, veritabanının döndürdüğü satırdan
+seçiliyor. Önce okuyup sonra yazsaydık, tam o aralıkta işçi işi
+`on_kontrol`den `cozuluyor`a geçirmiş olabilir ve karar noktası doğması
+gereken bir iş sessizce iptal edilirdi.
+
+Bunun bir yan etkisi vardı ve kapatıldı: işçi, model kurulumundan sonraki
+taze okumada artık `iptal`i de tanıyor. Tanımasaydı, ön kontrol sırasında
+iptal edilen bir iş çözmeye devam edip sonucu yazardı.
+
+Arayüz: karar paneli yalnız `durduruldu`da açılıyor; iptal edilen işte
+sonuç özetinde "İş iptal edildi, çizelge sürümü değişmedi" yazıyor.
+"Durdur" butonunun altındaki metin de duruma göre değişiyor — arama
+başlamamışken ne olacağını önceden söylüyor.
+
+### İş 4 — İzlenmeyen dosyaların depoya alınması
+
+Tur görev tanımları ve `yapilacaklar.md` → `docs/turlar/`, yanına bunların
+**kanonik olmadığını** yazan bir README. Kanonik dörtlünün yanında
+durduklarında kaynak gibi okunuyorlardı. `docs/tasarim/logolar/` olduğu
+yerde commit'lendi.
+
+### Doğrulama
+
+- `pytest`: 322 test geçiyor — çözüm işçisi arka planda çalışırken de.
+- `ruff check`, `ruff format --check`, `tsc -b`, `oxlint` temiz;
+  140 vitest testi geçiyor.
+- Yeni testler: ipucunun model kurulduktan sonra yerinde durması ve iş
+  bitince boşalması, kuyruktaki işin durdurulmasının iptal olması,
+  çözülürken durdurmanın karar noktası doğurması, sonlanmış işin
+  durdurulmasının anlaşılır hata vermesi.
+
+### BEKLEYEN GÖÇLER — dağıtım yapılmadı
+
+Sunucuda **iki göç birikti**; dağıtım kararı proje yürütücüsünde.
+
+| Göç | İçerik |
+| --- | --- |
+| `b6e2f81d3c07` | `durduruldu` ENUM değeri, `gecici_sonuc`, `devam_kaynagi_is_id` |
+| `c9a4b7e21f38` | `cozum_ipucu` sütunu |
+
+İkisi de yalnızca ekleme; veri taşıma yok. Sıra: `alembic upgrade head` →
+`vardiya-api` ve `vardiya-cozucu` servislerinin **ikisi birden** yeniden
+başlatılır (yeni uç noktalar API'de, yeni durum ve sütunlar işçide).
+Sunucudaki `/opt/vardiya/.env` dosyasına `TEST_VERITABANI_URL`
+**eklenmez** — orada test koşturulmaz.
+
+### DOKÜMAN BORCU
+
+1. **SDD 6.3.2 — "Durdur Butonu" maddesi.** Metin hâlâ "iş karar bekleyen
+   duruma geçer ve ekranda karar paneli açılır" diyor; 5.4.1 ise arama
+   başlamamışsa doğrudan iptal olduğunu yazıyor. Uygulama 5.4.1'i izliyor.
+   6.3.2'nin bu maddesi koşullu hâle getirilmeli.
+2. **SDD Ek B / `EK_B_UC_NOKTALAR.md` — `/durdur` uç noktasının yanıtı.**
+   Uç nokta artık işin durumuna göre `durduruldu` ya da `iptal` döndürüyor
+   ve durdurulamaz durumlarda 409 veriyor; iki dosyada da yalnızca
+   "aramanın sonlandırılması" yazılı. (Uç nokta sayısı değişmedi: 72.)
+
+### Sıradaki oturumun ilk işi
+
+Saatlik sisteme geçiş (günlük 11 saat tavanı, yıllık 270 saat fazla
+çalışma kotası) — kural kataloğu, talep matrisi ve `vardiya_tipi`
+tablosunu baştan tanımlayacak tur. Test izolasyonu bu tur için hazırdı:
+o turun çok sayıda test koşumu artık geliştirme verisine dokunmuyor.
