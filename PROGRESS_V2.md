@@ -177,37 +177,36 @@ adıyla birlikte tersine çevrildi: artık
 çizelgenin **üretildiğini**, bulgunun iş kaydında kaldığını, açığın
 kapsama açığı olarak raporlandığını ölçüyor.
 
+### İş 9 — kapsama oranı atamalardan (SDD 5.7, K19)
+
+Oran artık `Σ min(atanan, talep) / Σ talep` ile **atama kayıtlarından**
+hesaplanıyor; kapsama açığı tablosu bir raporlama detayı. `min(...)` şart:
+bir saatteki fazla kadro başka bir saatteki açığı kapatmaz. Talep yoksa
+oran **tanımsız** (`None`) — sıfır bölme yerine yüzde yüz varsaymak, boş
+bir dönemi kusursuz bir çizelge gibi gösterirdi.
+
+### Takım yeşil — ara commit atıldı
+
+**322/322 geçiyor**, `ruff check` ve `ruff format --check` temiz. Buraya
+kadarki iş `374caa3` ile commit'lendi (TUR3_DEVAM'ın istediği ara commit).
+
 ### KALANLAR — sıradaki oturumun işi
 
-Takım **320/322**. Kalan iki hata, henüz başlanmamış iki işin karşılığı;
-başka bir kırık yok:
-
-| Düşen test | Bekleyen iş |
-|---|---|
-| `test_personel_yetkinlik_nokta_talep_zinciri` (405) | **İş 7** — talep uç noktaları kayıt tabanlı olacak (`POST`, `PUT/{id}`, `DELETE/{id}`) |
-| `test_fazla_kadro_kapsama_oranini_bozmaz` | **İş 9** — kapsama oranı atamalardan hesaplanacak |
-
-Sırayla:
-
-1. **İş 9** — kapsama oranı atamalardan: `Σ min(atanan, talep) / Σ talep`;
-   atama yoksa %0, talep yoksa tanımsız. Analiz, Çizelge başlığı ve Özet
-   aynı yerden beslenmeli.
-2. **İş 7** — talep uç noktaları + Talep ekranı. Ekran **şu anda kırık**:
-   kaldırılmış uca istek atıyor. Matris yerine aralık listesi;
-   ekle/düzenle/sil, çakışma hatası.
-3. **İş 6** — blok kataloğu kısıtları: aynı `(baslangic_saati, sure_saat)`
+1. **İş 7'nin arayüz tarafı.** Uç noktalar kayıt tabanlı hâle geldi
+   (`GET, POST` + `PUT, DELETE /{id}`, çakışan aralık 409) ve testleri
+   geçiyor; **Talep ekranı hâlâ eski matrisi çiziyor ve kırık.**
+2. **İş 6** — blok kataloğu kısıtları: aynı `(baslangic_saati, sure_saat)`
    ikinci kez tanımlanamaz; süre günlük azami çalışma saatini (11) aşamaz.
    Değer kural kataloğundan okunacak bir parametre olarak tasarlanmalı
    (H9 Tur 4'te yazılacak, aynı değeri kullanacak).
-4. İş 5'in form tarafı (devir bakiyesi alanları).
-5. Blok görünümü türevini kullanan her yere **tek uzunluklu katalog
+3. **İş 5'in form tarafı** — devir bakiyesi alanları personel formunda.
+4. Blok görünümü türevini kullanan her yere **tek uzunluklu katalog
    varsayımı** yorumu (TUR3_DEVAM'ın isteği; Tur 4'te türev kalkacak).
-6. Kabul ölçümü koşumu (K1 süresi buraya yazılacak),
-   `EK_B_UC_NOKTALAR.md`nin yeniden üretilmesi, commit'ler.
-
-**Commit durumu:** hâlâ hiçbir şey commit edilmedi. TUR3_DEVAM ara commit
-istiyor ama koşulu "takımı yeşile çeker çekmez" — iki test İş 7 ve İş 9
-bitmeden geçmiyor.
+5. **Kabul ölçümü** (`scripts/kabul_olcumu.py`) — K1 süresi buraya
+   yazılacak. Plan bunu her turun kabulüne dahil ediyor (K17); gruplama
+   **sonrası** ölçülecek, önceki rakamlar teşhis kaydı.
+6. `EK_B_UC_NOKTALAR.md`nin yeniden üretilmesi (talep uçları değişti:
+   72 → 74) ve kalan commit'ler.
 
 ### Bekleyen göçler — dağıtım yapılmadı
 
