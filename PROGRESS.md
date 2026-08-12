@@ -3484,3 +3484,150 @@ DAGITIM.md bölüm 13'teki çıkış. **Artık bir göç var** (`a4d92c15e807`,
 yalnızca ekleme); sıra: göç → servis yeniden başlatma. Kritik nokta
 değişmedi: `VERI_TEMIZLIGINE_IZIN` satırı sunucudaki `.env`'e
 **eklenmemeli**.
+
+---
+
+## 2026-08-11 — İkinci Aşama, Tur 1: Durdurma Akışı ve Kabuk
+
+Kaynak: `docs/CLAUDE_CODE_PROMPTU_TUR1.md`. Dört iş, dört ayrı commit.
+Referans dokümanların sürümleri turun başında doğrulandı: SRS 1.12,
+SDD 1.19, Backlog 1.5, Proje Tanım Dokümanı 1.2.
+
+### İş 1 — Durdurmanın gecikmesiz uygulanması (SDD 5.4.2)
+
+Durdurma isteği ara çözüm geri çağırmasında okunuyordu; geri çağırma
+yalnızca çözücü **daha iyi** bir çözüm bulunca tetiklendiği için istek
+iki iyileşme arasındaki sessizlikte bekliyordu.
+
+**Önce doğrulandı (SDD 5.4.2'nin şartı).** Kurulu sürümde
+(`ortools 9.15.6755`) `stop_search()`, arama **başka bir iş
+parçacığında** yürürken ana iş parçacığından çağrıldı: 60×45×4 boyutlu
+bir modelde arama **0.02–0.05 saniyede** sonlandı ve o ana kadar
+bulunmuş çözüm korundu (durum FEASIBLE). Son iyileşmenin üzerinden 10.4
+saniye geçmiş olan ölçümde de aynı. Geri çağırma yolu bu yüzden
+**kaldırıldı**, yedek olarak bırakılmadı — SDD 5.4.2 iki yolun birlikte
+durmamasını istiyor.
+
+**Uygulama.** Arama işçi sürecinde ayrı bir iş parçacığında yürüyor
+(`AramaKolu`, `app/cozucu/adaptor.py`); oturumun tek sahibi olan ana
+döngü (`_aramayi_sur`) iş kaydının durumunu **yarım saniyede bir**
+veritabanından taze okuyor ve `durduruldu` görünce aramayı dışarıdan
+sonlandırıyor. İlerleme artık geri çağırmadan veritabanına yazılmıyor,
+bellekten (`Ilerleme`) ana döngüye taşınıyor — geri çağırma çözücünün
+kendi iş parçacığında çalışıyor ve SQLAlchemy oturumu iş parçacıkları
+arasında paylaşılamaz.
+
+**Ölçülen gecikme (kabul kriteri).** Referans ölçekli dönem (28 gün, 44
+personel), hiçbir iyileşmenin olmadığı bir an seçilerek: çözücü **8.3
+saniyedir** yeni çözüm bildirmezken durdurma yazıldı, iş **0.35
+saniyede** sonlandı. Eski yolda bu isteğin bekleyeceği süre en az o 8.3
+saniye, üst sınırı ise zaman limitinin kendisiydi.
+
+### İş 2 — Durdurma → üç seçenekli karar (SDD 4.2.4, 5.4.1, 6.3.2)
+
+Göç `b6e2f81d3c07`: `durum` ENUM'una `DURDURULDU`, `gecici_sonuc` JSONB,
+`devam_kaynagi_is_id` FK. **`bitis_zamani` kontrol edildi: sütun zaten
+`timestamptz`** — göç `c8f2d1a45b73` onu daha önce çevirmiş. Olmayan bir
+farkı "düzeltmek" için ALTER TYPE yazmak mevcut değerleri ikinci kez
+yorumlama riski doğururdu; göç bunu gerekçesiyle yazıyor.
+
+`durduruldu` **terminal bir durum değil**: karar `kullan` ise
+tamamlandı/uyarılı, `at` ve `devam` ise iptal. Yazma bloğu tek bir
+yordama çıkarıldı (`_sonucu_yaz`); normal tamamlanma yolu ile "kullan"
+kararı aynı yerden geçiyor.
+
+Uç noktalar: `/iptal` → `/durdur` (anlamı değişti: iptal değil
+sonlandırma), yeni `/karar` (kullan | at | devam) ve `/aktif`.
+
+**Geçici sonucun okuma yüzeylerine sızmadığı test edildi**
+(`test_gecici_sonuc_hicbir_okuma_yuzeyine_sizmaz`): durdurulmuş bir iş
+elinde çözüm tutarken atama, kapsama açığı, fazla kadro ve sürüm listesi
+uçları boş dönüyor. API alanın **içeriğini hiç vermiyor**; yalnızca var
+olup olmadığını (`kullanilabilir_sonuc_var`) ve kapsama açığı sayısını
+(`gecici_kapsama_acigi_sayisi`) bildiriyor — karar panelinin ihtiyacı
+bu ikisi.
+
+"Devam", aramanın sürdürülmesi değil: bulunan çözüm yeni bir işe
+`AddHint` olarak veriliyor, süre sıfırdan işliyor, iki iş
+`devam_kaynagi_is_id` ile bağlanıyor. Ekranda "kaldığı yerden devam"
+ifadesi geçmiyor; bunu doğrulayan bir arayüz testi var.
+
+### İş 3 — Çalışan iş göstergesi kabukta (SDD 6.1, SRS FR-4.11)
+
+**Önce teşhis doğrulandı.** Çözüm sürerken, her istekte sıfırdan kurulan
+bir istemciyle — yani sayfanın tamamen yenilenmesinin karşılığı —
+`GET /api/cozum/{is_id}` çağrıldı: 32 saniye boyunca ilerleme aktı
+(en iyi ceza 2 423 803 → 41 460). Backend hiç durmuyordu; sorun,
+yoklama döngüsünün Çözüm ekranı bileşeninde yaşayıp unmount'ta ölmesi ve
+iş kimliğinin o bileşenin state'inde durmasıydı.
+
+Yoklama yönetici kabuğuna taşındı (`AktifIsSaglayici`, ekran anahtarının
+üstünde); gösterge üst çubukta, her ekranda: durum, geçen süre, o ana
+kadarki en iyi ceza, tıklanınca Çözüm ekranı. Karar bekleyen iş de
+görünüyor. **İş kimliği tarayıcıya yazılmıyor** — ne state'e ne
+localStorage'a; kabuk `/api/cozum/aktif` soruyor, kimlik yanıtın içinden
+geliyor.
+
+### İş 4 — Yan menü kaydırma davranışı
+
+Kabuk artık görünür alanın tamamını kaplıyor ve kendisi kaydırılmıyor;
+kaydırılan yüzey `main`. Yan menü `h-full` ile kapsayıcıdan yükseklik
+alıyor, `items-start` **yazılmadı** — bu bölgede hizalamayı gevşetmek
+Dönem bloğunu bir kez görünür alanın 2000px altına itmişti.
+
+**Tarayıcıda doğrulandı** (kabuk düzeninin birebir kopyası, uzun
+içerikle): içerik sonuna kadar kaydırıldığında Dönem bloğu aynı görünür
+konumda kalıyor (`top` 629 → 629), sayfanın kendisi hiç kaymıyor
+(`document.scrollHeight <= innerHeight`), üst çubuk yerinde duruyor.
+
+### Doğrulama
+
+- `pytest`: 319 test geçiyor. `ruff check` ve `ruff format --check` temiz.
+- Frontend: `tsc -b` temiz, `oxlint` temiz, 140 vitest testi geçiyor.
+- Yeni testler: geçici sonucun sızmaması, "at" kararının sürümü
+  değiştirmemesi, "devam"ın ipucu bağını kurması, `/aktif`in rol kapısı,
+  durdurmanın yeni bir ara çözüm beklemeden uygulanması, karar panelinin
+  üç seçeneği ve "kaldığı yerden devam" demediği.
+- `docs/EK_B_UC_NOKTALAR.md` yeniden üretildi: **70 → 72 uç nokta**
+  (`/iptal` gitti; `/durdur`, `/karar`, `/aktif` geldi).
+
+**Not:** `python -m pytest`, çözüm işçisi (`scripts/cozum_iscisi.py`)
+arka planda çalışırken koşturulmamalı — işçi test kuyruğundan iş kapıyor
+ve `test_agirlik_kalibrasyonu` gibi uzun testler zaman aşımına düşüyor.
+Bu turda bir kez yaşandı; işçi durdurulunca test tek başına da tam
+takımda da geçti.
+
+### DOKÜMAN BORCU
+
+Aşağıdakiler tasarım etkisi doğuruyor; `docs/` altındaki dosyalar bu
+oturumda değiştirilmedi.
+
+1. **SDD 4.2.4 — `gecici_sonuc` alanının ikinci kullanımı.** "Devam et"
+   kararında ipucu, **yeni işin kendi `gecici_sonuc` alanında** taşınıyor
+   ve model kurulur kurulmaz boşaltılıyor. Doküman alanı yalnızca
+   "durdurulan işin sonucu" olarak tanımlıyor; şu anki metin ipucunun
+   nerede durduğunu söylemiyor. Alternatif ayrı bir `cozum_ipucu` sütunu
+   açmaktı — SDD 4.2.4'te olmayan bir alan olduğu için tercih edilmedi.
+   Alanın sözleşmesi bozulmuyor: hâlâ tek yönlü, tek seferlik bir aktarım
+   tamponu ve hiçbir okuma yüzeyinin kaynağı değil.
+2. **SDD 4.2.4 — `bitis_zamani`'nin anlamı.** Durdurulan işte damga
+   **aramanın bittiği** ana yazılıyor; karar daha sonra verildiğinde
+   değiştirilmiyor. "İşin sonlandığı an" ifadesi bu ayrımı yazmıyor.
+3. **SDD Ek B / 6.3.2 — karar panelinin veri ihtiyacı.** Panel kapsama
+   açığı sayısını gösteriyor ve bu, atamalar yazılmadığı için sürümden
+   okunamıyor; `GET /api/cozum/{id}` iki özet alan taşıyor
+   (`kullanilabilir_sonuc_var`, `gecici_kapsama_acigi_sayisi`). Ek B bu
+   iki alanı listelemiyor.
+4. **SRS FR-4.10 / SDD 5.4.1 — çözüm bulunmadan durdurma.** Çözücü
+   çalışmaya başlamadan (kuyrukta veya ön kontrolde) durdurulan iş de
+   `durduruldu` durumuna giriyor ve elinde sonuç olmadan karar bekliyor:
+   "kullan" pasif, "at" ve "devam" açık. Doküman bu ucu yalnızca
+   "çözücü ilk uygun çözüme ulaşamadan" hâli için yazıyor.
+
+### Sıradaki oturumun ilk işi
+
+Sunucuya dağıtım: **bir göç var** (`b6e2f81d3c07`, yalnızca ekleme).
+Sıra: göç → uygulama sunucusu ve çözüm işçisi servislerinin yeniden
+başlatılması (`/durdur` ve `/karar` uçları ile `durduruldu` ENUM değeri
+ikisinde birden gerekiyor). `VERI_TEMIZLIGINE_IZIN` satırı sunucudaki
+`.env`'e **eklenmemeli**.
