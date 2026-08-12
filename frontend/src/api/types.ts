@@ -173,7 +173,7 @@ export interface OnKontrolBulgu {
   tip: OnKontrolBulguTipi
   // false ise bulgu çözümü DURDURMAZ: yapısal engel değil, yapılandırma
   // uyarısı (ör. S1 pasif). Arayüz ikisini ayrı gösterir.
-  engel_mi: boolean
+  kesin_mi: boolean
   aciklama: string
   eksik: number | null
   yetkinlik_id: number | null

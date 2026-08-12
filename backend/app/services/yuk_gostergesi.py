@@ -9,6 +9,7 @@ dogrulanabilir.
 from collections.abc import Sequence
 from decimal import Decimal
 
+from app.kurallar.zaman_araligi import aralik_sure_saat
 from app.models.tanim import GunTipi, Talep, VardiyaTipi
 from app.schemas.tanim import YukGostergesi
 from app.services.kadro_hesaplari import kisi_basina_azami_haftalik_vardiya
@@ -30,7 +31,9 @@ def yuk_gostergesi_hesapla(
     Tekil tarih istisnalari (hucre.tarih dolu) haftalik yuke girmez; onlar
     donemin belirli bir gunune ozgudur, her hafta tekrarlanmaz.
     """
-    haftalik_kisi_vardiya = 0
+    # KISI-SAAT ARTIK DOGRUDAN OLCULUR. Talep bir zaman araligidir (SDD
+    # 4.2.2); yuk, araligin uzunlugu ile gereken sayinin carpimidir ve
+    # blok kataloguna hic bakmaz.
     haftalik_kisi_saat = Decimal(0)
     for hucre in hucreler:
         if hucre.tarih is not None:
@@ -38,10 +41,19 @@ def yuk_gostergesi_hesapla(
         tekrar = _HAFTALIK_TEKRAR[hucre.gun_tipi]
         if tekrar == 0:
             continue
-        haftalik_kisi_vardiya += hucre.gereken_sayi * tekrar
-        vardiya = vardiya_tipleri.get(hucre.vardiya_tipi_id)
-        if vardiya is not None:
-            haftalik_kisi_saat += Decimal(hucre.gereken_sayi * tekrar) * vardiya.sure_saat
+        sure = aralik_sure_saat(hucre.baslangic, hucre.bitis)
+        haftalik_kisi_saat += Decimal(hucre.gereken_sayi * tekrar * sure)
+
+    # KISI-VARDIYA TUREVDIR. Asgari kadro hesabi kisi basina azami VARDIYA
+    # sayisindan gecer (SRS 3.3.6) ve bu, tam sayi vardiya varsayimini
+    # tasir: sekiz saatlik bloklarla haftada 45 saat, 5,6 degil BES vardiya
+    # eder. Talep artik blok tasimadigi icin kisi-vardiya, kisi-saatin
+    # katalogdaki ORTALAMA blok uzunluguna bolunmesiyle bulunur; tek
+    # uzunluklu katalogda (bu turdaki uc blok) bolum tamdir ve SRS
+    # 3.3.6'daki referans ornegi birebir verir (1.152 saat / 8 = 144
+    # kisi-vardiya, 29 kisilik asgari kadro).
+    ortalama_blok = _ortalama_blok_suresi(vardiya_tipleri)
+    haftalik_kisi_vardiya = int(-(-haftalik_kisi_saat // ortalama_blok)) if ortalama_blok > 0 else 0
 
     asgari_kadro = _asgari_kadro_hesapla(
         haftalik_kisi_vardiya,
@@ -54,6 +66,19 @@ def yuk_gostergesi_hesapla(
         haftalik_kisi_saat=haftalik_kisi_saat,
         asgari_kadro=asgari_kadro,
     )
+
+
+def _ortalama_blok_suresi(vardiya_tipleri: dict[int, VardiyaTipi]) -> Decimal:
+    """Aktif blok katalogunun ortalama uzunlugu; katalog bossa sekiz saat.
+
+    Katalog bos oldugunda da bir sayi uretilmesi gerekir: gosterge talep
+    girilirken de okunuyor ve blok tanimlanmadan once sifira bolme
+    olusurdu. Sekiz saat, sistemin ciktigi ucluk duzenin uzunlugudur.
+    """
+    sureler = [Decimal(v.sure_saat) for v in vardiya_tipleri.values() if v.aktif]
+    if not sureler:
+        return Decimal(8)
+    return sum(sureler) / len(sureler)
 
 
 def _asgari_kadro_hesapla(

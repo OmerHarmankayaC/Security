@@ -1,12 +1,13 @@
 """Tanim yonetimi servis katmani (SDD 3.2: is mantigi burada, SQL depo katmaninda)."""
 
-from datetime import date
+from datetime import date, time
 from decimal import Decimal
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from app.kurallar import kayit_defteri
+from app.kurallar.zaman_araligi import cakisiyor_mu
 from app.models.tanim import (
     Bina,
     GorevNoktasi,
@@ -30,7 +31,7 @@ from app.repositories.tanim import (
 from app.schemas.tanim import (
     PersonelGuncelle,
     PersonelOlustur,
-    TalepHucresi,
+    TalepYazma,
     VardiyaTipiGuncelle,
     VardiyaTipiOlustur,
     YukGostergesi,
@@ -55,6 +56,15 @@ class SicilKullanimdaError(ValueError):
     sey "sunucu hatasi" oluyordu, oysa yaptigi sey gecerli bir veri girisi
     denemesiydi ve duzeltmesi tek bir alani degistirmekten ibaretti (NFR-5).
     """
+
+
+class CakisanTalepAraligiError(ValueError):
+    """Ayni nokta ve gun tipi icin cakisan talep araligi (SDD 4.2.2)."""
+
+
+def _saat(an: time) -> str:
+    """Gun sonu 24.00 olarak gosterilir; veritabaninda 00.00 durur."""
+    return f"{an.hour:02d}.00" if an.hour else "24.00"
 
 
 class TanimServisi:
@@ -215,14 +225,44 @@ class TanimServisi:
         hucreler = list(self.talep.tumunu_getir())
         return hucreler, self._yuk_gostergesi_hesapla(hucreler)
 
-    def talep_hucresini_guncelle(self, hucre: TalepHucresi) -> Talep:
-        return self.talep.hucreyi_guncelle(
-            nokta_id=hucre.nokta_id,
-            vardiya_tipi_id=hucre.vardiya_tipi_id,
-            gun_tipi=hucre.gun_tipi,
-            tarih=hucre.tarih,
-            gereken_sayi=hucre.gereken_sayi,
-        )
+    def talep_araligi_ekle(self, veri: TalepYazma) -> Talep:
+        self._cakismayi_denetle(veri, mevcut_id=None)
+        return self.talep.olustur(**veri.model_dump())
+
+    def talep_araligi_guncelle(self, talep_id: int, veri: TalepYazma) -> Talep | None:
+        mevcut = self.talep.getir(talep_id)
+        if mevcut is None:
+            return None
+        self._cakismayi_denetle(veri, mevcut_id=talep_id)
+        for alan, deger in veri.model_dump().items():
+            setattr(mevcut, alan, deger)
+        self.oturum.flush()
+        return mevcut
+
+    def talep_araligi_sil(self, talep_id: int) -> bool:
+        mevcut = self.talep.getir(talep_id)
+        if mevcut is None:
+            return False
+        self.oturum.delete(mevcut)
+        self.oturum.flush()
+        return True
+
+    def _cakismayi_denetle(self, veri: TalepYazma, *, mevcut_id: int | None) -> None:
+        """Ayni nokta ve gun tipi icin CAKISAN aralik reddedilir (SDD 4.2.2).
+
+        Cakisan iki kayit ayni saat icin iki farkli gereken sayi uretir ve
+        hangisinin gecerli oldugu tanimsiz kalir. Girise kapatmak, cozum
+        aninda kesfetmekten ucuzdur.
+        """
+        for komsu in self.talep.ayni_kapsamdakiler(
+            nokta_id=veri.nokta_id, gun_tipi=veri.gun_tipi, tarih=veri.tarih
+        ):
+            if komsu.talep_id == mevcut_id:
+                continue
+            if cakisiyor_mu(veri.baslangic, veri.bitis, komsu.baslangic, komsu.bitis):
+                raise CakisanTalepAraligiError(
+                    f"{_saat(komsu.baslangic)}–{_saat(komsu.bitis)} aralığıyla çakışıyor"
+                )
 
     def _yuk_gostergesi_hesapla(self, hucreler: list[Talep]) -> YukGostergesi:
         vardiya_tipleri = {v.vardiya_tipi_id: v for v in self.vardiya_tipi.tumunu_getir()}

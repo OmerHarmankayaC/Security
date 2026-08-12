@@ -72,18 +72,33 @@ class AnalizServisi:
 
         personel_satirlari: Sequence[Personel] = self.personel.tumunu_getir()
 
-        # --- Kapsama orani (FR-8.1): karsilanan / toplam talep, kapsama
-        # acigi tablosundan turetilir (SDD 5.7). Toplam talep, donem
-        # icindeki talep hucrelerinin toplamidir (baglam.talep isitma
-        # penceresini de kapsayan zaman ekseni icin cozulur, TD-6 geregi
-        # burada donem_icinde filtresi uygulanir).
-        toplam_talep = sum(
-            gereken
-            for (tarih, _vardiya_tipi_id, _nokta_id), gereken in baglam.talep.items()
-            if baglam.donem_icinde(tarih)
-        )
-        toplam_eksik = sum(k.eksik_sayi for k in self.kapsama.surume_gore_getir(surum_id))
-        kapsama_orani = (toplam_talep - toplam_eksik) / toplam_talep if toplam_talep > 0 else 1.0
+        # --- Kapsama orani (FR-8.1, SDD 5.7): ATAMA KAYITLARINDAN.
+        #
+        #   karsilanan = Σ min(atanan[d,t,n], talep[d,t,n])
+        #   toplam     = Σ talep[d,t,n]
+        #
+        # Kaynagin atamalar olmasi sarttir. Oran daha once kapsama acigi
+        # TABLOSUNDAN tureiliyordu ve o tabloda kayit bulunmamasi "acik yok"
+        # sayiliyordu: hic atamasi olmayan, cozum dahi calistirilmamis bir
+        # surum %100 kapsama raporluyordu. Gozlenmis bir hatadir. Acik
+        # tablosu bir RAPORLAMA DETAYIDIR, oranin kaynagi degildir.
+        #
+        # `min(...)` sart: bir saatteki fazla kadro, baska bir saatteki
+        # acigi kapatmaz.
+        #
+        # Birim KISI-SAAT (TD-6 geregi yalniz donem gunleri; `talep_saat`
+        # isitma penceresini de kapsayan eksen icin cozulur).
+        atanan_saat = baglam.atanan_saat_sayilari(atamalar)
+        toplam_talep = 0
+        karsilanan = 0
+        for anahtar, gereken in baglam.talep_saat.items():
+            if not baglam.donem_icinde(anahtar[0]):
+                continue
+            toplam_talep += gereken
+            karsilanan += min(atanan_saat.get(anahtar, 0), gereken)
+        # Talep yoksa oran TANIMSIZ (None) - sifir bolme yerine yuzde yuz
+        # varsaymak, bos bir donemi kusursuz bir cizelge gibi gosterir.
+        kapsama_orani = karsilanan / toplam_talep if toplam_talep > 0 else None
 
         # --- Fazla kadro (SRS 4.3 S1 ust siniri). Kapsama ORANINA
         # KARISTIRILMAZ: oran "talebin ne kadari karsilandi" sorusunu
@@ -94,8 +109,8 @@ class AnalizServisi:
         fazla_kadro = [
             FazlaKadroKalemi(
                 tarih=f.tarih,
-                vardiya_tipi_id=f.vardiya_tipi_id,
-                vardiya_tipi_ad=_ad(baglam.vardiya_tipleri.get(f.vardiya_tipi_id)),
+                baslangic=f.baslangic,
+                bitis=f.bitis,
                 nokta_id=f.nokta_id,
                 nokta_ad=_ad(baglam.gorev_noktalari.get(f.nokta_id)),
                 fazla_sayi=f.fazla_sayi,

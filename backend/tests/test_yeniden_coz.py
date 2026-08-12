@@ -82,7 +82,8 @@ def kurulum() -> dict:
             oturum.add(
                 Talep(
                     nokta_id=nokta.nokta_id,
-                    vardiya_tipi_id=vardiya_tipi.vardiya_tipi_id,
+                    baslangic=vardiya_tipi.baslangic_saati,
+                    bitis=vardiya_tipi.bitis_saati,
                     gun_tipi=GunTipi.HAFTA_ICI if gun_ofset < 5 else GunTipi.HAFTA_SONU,
                     tarih=baslangic + timedelta(days=gun_ofset),
                     gereken_sayi=1,

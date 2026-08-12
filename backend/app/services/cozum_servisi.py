@@ -22,7 +22,7 @@ elindeki en iyi cozumu ATAMALARA degil `gecici_sonuc` alanina yazar; is
 import enum
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time
 from decimal import Decimal
 from typing import Any
 
@@ -33,6 +33,7 @@ from app.config import ayarlar
 from app.cozucu import AramaKolu, CozucuAdaptoru, CozumSonucu, Ilerleme, model_kur
 from app.kurallar.baglam import AtamaKaydi
 from app.kurallar.kayit_defteri import kurallari_yukle
+from app.kurallar.zaman_araligi import saatleri_araliklara_birlestir
 from app.models.kural import Kural
 from app.models.sonuc import (
     Atama,
@@ -53,7 +54,7 @@ from app.repositories.sonuc import (
     KapsamaAcigiDeposu,
 )
 from app.services.baglam_kurucu import baglam_olustur, donem_gunlerini_uret, zaman_ekseni_olustur
-from app.services.on_kontrol import Bulgu, engelleyenler, on_kontrol_yap
+from app.services.on_kontrol import Bulgu, on_kontrol_yap
 
 _VARSAYILAN_ZAMAN_LIMITI_SANIYE = 60
 # SDD 5.4.2: ana dongunun durdurma istegini yoklama araligi (saniye).
@@ -65,6 +66,26 @@ _COZUM_BULUNAMADI_MESAJI = "Cozucu, zaman limiti icinde uygun bir cizelge bulama
 _DURDURMADA_COZUM_YOK_MESAJI = (
     "Cozucu ilk uygun cizelgeye ulasmadan durduruldu; kullanilabilir bir sonuc yok"
 )
+
+
+def _araliklara_cevir(
+    saat_eksikleri: dict[tuple[date, int, int], int],
+) -> tuple[tuple[date, time, time, int, int], ...]:
+    """Cozucunun `(gun, saat, nokta) -> eksik` ciktisini ARALIGA cevirir.
+
+    Birlestirme YAZMA aninda yapilir (SDD 4.2.4) ve `dogrula` yolunun
+    kullandigi ayni yardimciya dayanir; iki yerde yazilsaydi ayni cizelge
+    icin farkli sayida acik kaydi uretilirdi.
+    """
+    nokta_saatleri: dict[int, dict[tuple[date, int], int]] = {}
+    for (tarih, saat, nokta_id), sayi in saat_eksikleri.items():
+        if sayi > 0:
+            nokta_saatleri.setdefault(nokta_id, {})[(tarih, saat)] = sayi
+    cikti: list[tuple[date, time, time, int, int]] = []
+    for nokta_id, saatler in sorted(nokta_saatleri.items()):
+        for tarih, bas, bit, sayi in saatleri_araliklara_birlestir(saatler):
+            cikti.append((tarih, bas, bit, nokta_id, sayi))
+    return tuple(cikti)
 
 
 class Karar(enum.StrEnum):
@@ -128,13 +149,14 @@ class CozumYazmaVerisi:
     """
 
     atamalar: tuple[tuple[int, date, int, int], ...]
-    kapsama_eksikleri: tuple[tuple[date, int, int, int], ...]
+    # (tarih, baslangic, bitis, nokta_id, sayi) — ARALIK (SDD 4.2.4).
+    kapsama_eksikleri: tuple[tuple[date, time, time, int, int], ...]
     # Cozucu fazla kadro URETEMEZ (S1'in ust siniri modele zorunlu kisit
     # olarak giriyor), bu yuzden cozum sonucundan gelen deger her zaman
     # bostur. Alan yine de tasinir: SDD 4.2.4 gecici sonucun icerigini
     # boyle tanimlar ve yazma blogu ucuncu tabloyu da temizledigi icin
     # sozlesme eksiksiz kalir.
-    fazla_kadro: tuple[tuple[date, int, int, int], ...] = ()
+    fazla_kadro: tuple[tuple[date, time, time, int, int], ...] = ()
     ceza_dokumu: dict[str, float] = field(default_factory=dict)
     toplam_ceza: float | None = None
     sure_saniye: float | None = None
@@ -143,12 +165,10 @@ class CozumYazmaVerisi:
     def cozum_sonucundan(cls, sonuc: CozumSonucu) -> "CozumYazmaVerisi":
         return cls(
             atamalar=tuple(sorted(sonuc.atanan_anahtarlar)),
-            kapsama_eksikleri=tuple(
-                (tarih, vardiya_tipi_id, nokta_id, eksik_sayi)
-                for (tarih, vardiya_tipi_id, nokta_id), eksik_sayi in sorted(
-                    sonuc.kapsama_eksikleri.items()
-                )
-            ),
+            # Cozucunun SAAT eksenli eksikleri, yazma aninda ARALIGA
+            # birlestirilir (SDD 4.2.4): birlestirme tek yerde, `dogrula`
+            # yolunun kullandigi ayni yardimciyla yapilir.
+            kapsama_eksikleri=_araliklara_cevir(sonuc.kapsama_eksikleri),
             ceza_dokumu={k: float(v) for k, v in sonuc.ceza_dokumu.items()},
             toplam_ceza=sonuc.toplam_ceza,
             sure_saniye=sonuc.sure_saniye,
@@ -162,12 +182,12 @@ class CozumYazmaVerisi:
                 for personel_id, tarih, vardiya_tipi_id, nokta_id in self.atamalar
             ],
             "kapsama_eksikleri": [
-                [tarih.isoformat(), vardiya_tipi_id, nokta_id, sayi]
-                for tarih, vardiya_tipi_id, nokta_id, sayi in self.kapsama_eksikleri
+                [tarih.isoformat(), bas.isoformat(), bit.isoformat(), nokta_id, sayi]
+                for tarih, bas, bit, nokta_id, sayi in self.kapsama_eksikleri
             ],
             "fazla_kadro": [
-                [tarih.isoformat(), vardiya_tipi_id, nokta_id, sayi]
-                for tarih, vardiya_tipi_id, nokta_id, sayi in self.fazla_kadro
+                [tarih.isoformat(), bas.isoformat(), bit.isoformat(), nokta_id, sayi]
+                for tarih, bas, bit, nokta_id, sayi in self.fazla_kadro
             ],
             "ceza_dokumu": self.ceza_dokumu,
             "toplam_ceza": self.toplam_ceza,
@@ -181,12 +201,24 @@ class CozumYazmaVerisi:
                 (int(p), date.fromisoformat(g), int(v), int(n)) for p, g, v, n in veri["atamalar"]
             ),
             kapsama_eksikleri=tuple(
-                (date.fromisoformat(g), int(v), int(n), int(sayi))
-                for g, v, n, sayi in veri.get("kapsama_eksikleri", [])
+                (
+                    date.fromisoformat(g),
+                    time.fromisoformat(b),
+                    time.fromisoformat(s),
+                    int(n),
+                    int(k),
+                )
+                for g, b, s, n, k in veri.get("kapsama_eksikleri", [])
             ),
             fazla_kadro=tuple(
-                (date.fromisoformat(g), int(v), int(n), int(sayi))
-                for g, v, n, sayi in veri.get("fazla_kadro", [])
+                (
+                    date.fromisoformat(g),
+                    time.fromisoformat(b),
+                    time.fromisoformat(s),
+                    int(n),
+                    int(k),
+                )
+                for g, b, s, n, k in veri.get("fazla_kadro", [])
             ),
             ceza_dokumu=dict(veri.get("ceza_dokumu") or {}),
             toplam_ceza=veri.get("toplam_ceza"),
@@ -284,19 +316,27 @@ def cozum_isini_calistir(oturum: Session, is_id: int) -> None:
     is_kaydi.durum = CozumIsiDurumu.ON_KONTROL
     oturum.commit()
 
+    # ON KONTROL BULGULARI ISI DUSURMEZ (SDD 5.2, SRS FR-5.1/FR-5.2, karar
+    # notu K18). Onceki davranis, yapisal bir bulguda cozumu hic
+    # baslatmiyordu; sonucta sürüm "basarisiz" damgasiyla, TEK BIR ATAMA
+    # OLMADAN kaliyordu. Bu, "personel yetersizliginde cozumu reddetmek
+    # yerine cizelgeyi uret ve kapsama aciklarini goster" gereksinimini
+    # dogrudan ihlal ediyor ve S1'in zorunlu kisit yerine baskin agirlikli
+    # ESNEK hedef olarak tasarlanmasinin tek gerekcesini islevsiz
+    # birakiyordu.
+    #
+    # On kontrolun soyleyebildigi ile cozucunun soyleyebildigi ayni sey
+    # degildir: on kontrol kadro aritmetigine bakar ve "su kadar acik
+    # olusacak" der; HANGI GUN, HANGI SAAT, HANGI NOKTADA olusacagini
+    # soyleyemez. Kullanicinin acigi kapatmak icin ihtiyac duydugu bilgi
+    # ikincisidir ve yalnizca cozucu uretir.
+    #
+    # Bulgular sonucla BIRLIKTE gosterilir ve is kaydinda KALICI olur;
+    # yalnizca cozum aninda gorunup kaybolan bir bilgi, yayinlanmis
+    # cizelgeye sonradan bakan kisi icin hic var olmamistir.
     bulgular = _on_kontrolu_calistir(oturum, kural_depo, donem)
-    # Yalnizca YAPISAL engeller isi durdurur. Yapilandirma uyarilari (or. S1
-    # pasif) kullanicinin bilincli bir ayari olabilir; sistem onun yerine
-    # karar vermez, uyariyi is kaydina yazar ve cozume devam eder.
-    engeller = engelleyenler(bulgular)
-    if engeller:
-        is_kaydi.hata_mesaji = _bulgulari_ozetle(engeller)
-        _isi_sonlandir(is_kaydi, CozumIsiDurumu.BASARISIZ)
-        oturum.commit()
-        return
-    if bulgular:
-        is_kaydi.hata_mesaji = _bulgulari_ozetle(bulgular)
-        oturum.commit()
+    is_kaydi.on_kontrol_bulgulari = [_bulguyu_json_yap(b) for b in bulgular]
+    oturum.commit()
 
     kural_satirlari = list(kural_depo.aktif_kurallari_getir())
     kurallar = kurallari_yukle(kural_satirlari)
@@ -407,19 +447,21 @@ def _sonucu_yaz(
                 kaynak=AtamaKaynagi.COZUCU,
             )
         )
-    for tarih, vardiya_tipi_id, nokta_id, eksik_sayi in veri.kapsama_eksikleri:
+    for tarih, bas, bit, nokta_id, eksik_sayi in veri.kapsama_eksikleri:
         kapsama_depo.olustur(
             surum_id=surum.surum_id,
             tarih=tarih,
-            vardiya_tipi_id=vardiya_tipi_id,
+            baslangic=bas,
+            bitis=bit,
             nokta_id=nokta_id,
             eksik_sayi=eksik_sayi,
         )
-    for tarih, vardiya_tipi_id, nokta_id, fazla_sayi in veri.fazla_kadro:
+    for tarih, bas, bit, nokta_id, fazla_sayi in veri.fazla_kadro:
         fazla_depo.olustur(
             surum_id=surum.surum_id,
             tarih=tarih,
-            vardiya_tipi_id=vardiya_tipi_id,
+            baslangic=bas,
+            bitis=bit,
             nokta_id=nokta_id,
             fazla_sayi=fazla_sayi,
         )
@@ -676,6 +718,21 @@ def _on_kontrolu_calistir(oturum: Session, kural_depo: KuralDeposu, donem: Donem
         haftalik_asgari_izin_gunu=haftalik_asgari_izin_gunu,
         aktif_kural_kimlikleri=frozenset(k.kimlik for k in kural_depo.aktif_kurallari_getir()),
     )
+
+
+def _bulguyu_json_yap(bulgu: Bulgu) -> dict[str, Any]:
+    """Bulguyu is kaydinda SAKLANABILIR bicime cevirir (SDD 5.2).
+
+    Bulgular sonucla birlikte gosterilmek ve surum raporunda kalici olmak
+    zorunda; cozum anindaki gecici bir liste bunu saglamaz.
+    """
+    return {
+        "tip": bulgu.tip.value,
+        "aciklama": bulgu.aciklama,
+        "kesin_mi": bulgu.kesin_mi,
+        "eksik": bulgu.eksik,
+        "tarih": bulgu.tarih.isoformat() if bulgu.tarih else None,
+    }
 
 
 def _bulgulari_ozetle(bulgular: list[Bulgu]) -> str:

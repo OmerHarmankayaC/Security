@@ -6,9 +6,9 @@ dogrula metotlari, SDD Ek A'daki S2 ornegiyle tutarli olarak agirliksiz
 Sprint 3 Gun 12) tarafindan hesaplanir.
 """
 
-from collections import Counter, defaultdict
+from collections import defaultdict
 from collections.abc import Callable
-from datetime import date, timedelta
+from datetime import date, time, timedelta
 from math import ceil, floor
 
 from ortools.sat.python import cp_model
@@ -17,7 +17,14 @@ from app.kurallar.baglam import AtamaKaydi, Baglam
 from app.kurallar.kayit_defteri import kayitli
 from app.kurallar.temel import EsnekHedef, Ihlal, KuralKapsami, XAnahtari
 from app.kurallar.yardimcilar import calisilan_gunler
+from app.kurallar.zaman_araligi import aralik_sure_saat as _aralik_sure_saat
+from app.kurallar.zaman_araligi import saatleri_araliklara_birlestir
 from app.models.girdi import TercihTipi
+
+
+def _saat_metni(an: time) -> str:
+    """Saati "08.00" bicimiyle yazar; gun sonu 24.00 olarak gosterilir."""
+    return f"{an.hour:02d}.00" if an.hour else "24.00"
 
 
 @kayitli("S1")
@@ -34,29 +41,74 @@ class S1TalepKarsilama(EsnekHedef):
     def modele_ekle(
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
     ) -> cp_model.LinearExprT:
-        """SRS S1: ust sinir (kadro) zorunlu, alt sinir (kapsama) esnek — ikisi de burada
-        eklenir; ust sinir zorunlu olmasina ragmen model_kur onceden atlama kosuluyla
-        Σ_p x <= talep'i degil, talebi asan fazladan atama uretilmesini engellemez, o
-        yuzden bu kisit ayrica eklenir."""
-        eksik_terimleri: list[cp_model.IntVar] = []
-        for g in baglam.donem_gunleri:
+        """SRS S1: kapsama kisiti SAAT EKSENINDE yazilir.
+
+        ```
+        ∀d, ∀t (saat), ∀n :
+            Σ_p Σ_{b ∋ t} x[p,d,b,n] + eksik[d,t,n] ≥ talep[d,t,n]   (alt sinir, esnek)
+            Σ_p Σ_{b ∋ t} x[p,d,b,n]                ≤ talep[d,t,n]   (ust sinir, zorunlu)
+        ```
+
+        Talep bir bloga degil bir ZAMAN ARALIGINA baglidir (SRS 3.3.4,
+        TD-13); bir personel bir saatte, o saati kapsayan bloga atanmissa
+        sayilir. Bloklarin uzunluklari farkli olabildiginden ayni saati
+        farkli bloklardan gelen personel birlikte doldurabilir - blok
+        eksenli eski kisit bunu ifade edemiyordu.
+
+        Ceza SAAT BASINA birikir: iki saat bir kisi eksik kalmak, bir saat
+        iki kisi eksik kalmakla ayni cezayi uretir. Ikisi de ayni miktarda
+        karsilanmamis kisi-saattir.
+
+        UST SINIR BU TURDA ZORUNLU KALIR (K4 Tur 4'un isi). Uc blok talep
+        araliklariyla hizali oldugu icin sorun cikarmaz; hizalanmayan bir
+        katalogda bir saatte fazla kadro YAPISAL olarak kacinilmaz olur ve
+        model cozulemez hale gelir.
+        """
+        # Bir blogun kapsadigi saatler o gunun disina tasabilir (gece
+        # yarisini asan blok); atamayi ilgili saate baglayan tablo bu.
+        saati_kapsayan: dict[tuple[date, int], frozenset[tuple[date, int]]] = defaultdict(frozenset)
+        for g in baglam.zaman_ekseni or baglam.donem_gunleri:
             for v in baglam.vardiya_tipleri:
-                for n in baglam.gorev_noktalari:
-                    gereken = baglam.gereken_sayi(g, v, n)
-                    if gereken == 0:
-                        continue
-                    ilgili = [
-                        degiskenler[(p, g, v, n)]
-                        for p in baglam.personel
-                        if (p, g, v, n) in degiskenler
-                    ]
-                    atanan_ifadesi = sum(ilgili) if ilgili else 0
-                    model.add(atanan_ifadesi <= gereken)
-                    eksik = model.new_int_var(0, gereken, f"s1_eksik_g{g}_v{v}_n{n}")
-                    model.add(atanan_ifadesi + eksik >= gereken)
-                    eksik_terimleri.append(eksik)
-                    baglam.kapsama_eksikleri[(g, v, n)] = eksik
-        return sum(eksik_terimleri) if eksik_terimleri else 0
+                for saat_gunu, saat in baglam.blok_saatleri(g, v):
+                    saati_kapsayan[(saat_gunu, saat)] |= {(g, v)}
+
+        # AYNI KISITI URETEN SAATLER TEK DEGISKENDE TOPLANIR. Talep araliklari
+        # blok sinirlariyla hizali oldugunda bir blogun sekiz saati ayni
+        # personel kumesini ve ayni gerekeni tasir; her saate ayri bir `eksik`
+        # degiskeni acmak sekiz BIRBIRININ YERINE GECEBILEN degisken uretir ve
+        # cozucu bu simetriyi kirmak zorunda kalir - olculdu: ayni donem 120
+        # saniyede sifir aciktan 704 kisi-saat acikla cikiyordu. Gruplama
+        # ANLAMI DEGISTIRMEZ: ceza saat basina birikmeye devam eder, cunku
+        # degiskenin amac fonksiyonundaki katsayisi grubun saat sayisidir.
+        gruplar: dict[tuple[frozenset[tuple[date, int]], int, int], list[tuple[date, int]]] = (
+            defaultdict(list)
+        )
+        for (saat_gunu, saat, n), gereken in sorted(baglam.talep_saat.items()):
+            if gereken == 0 or not baglam.donem_icinde(saat_gunu):
+                continue
+            gruplar[(saati_kapsayan[(saat_gunu, saat)], gereken, n)].append((saat_gunu, saat))
+
+        ceza_terimi: cp_model.LinearExprT = 0
+        for (kapsayanlar, gereken, n), saatler in gruplar.items():
+            ilgili = [
+                degiskenler[(p, g, v, n)]
+                for (g, v) in sorted(kapsayanlar)
+                for p in baglam.personel
+                if (p, g, v, n) in degiskenler
+            ]
+            atanan_ifadesi = sum(ilgili) if ilgili else 0
+            model.add(atanan_ifadesi <= gereken)
+            ilk_gun, ilk_saat = min(saatler)
+            eksik = model.new_int_var(0, gereken, f"s1_eksik_g{ilk_gun}_t{ilk_saat}_n{n}")
+            model.add(atanan_ifadesi + eksik >= gereken)
+            # Katsayi = grubun kapsadigi saat sayisi; bir kisi bir saat eksik
+            # kalmak bir birim ceza uretir (SRS 4.3 S1).
+            ceza_terimi = ceza_terimi + len(saatler) * eksik
+            # Cozumden sonra kapsama_acigi tablosuna SAAT SAAT yazilabilmesi
+            # icin grubun her saati ayni degiskene bakar.
+            for saat_gunu, saat in saatler:
+                baglam.kapsama_eksikleri[(saat_gunu, saat, n)] = eksik
+        return ceza_terimi
 
     def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
         """S1'in IKI YARISI da denetlenir.
@@ -78,48 +130,52 @@ class S1TalepKarsilama(EsnekHedef):
         farkli toplam uretirdi. Bulgu kullaniciya metin olarak gider
         (urun karari, 11.08.2026: fazla kadro engel degil uyaridir).
         """
-        atanan = Counter((a.tarih, a.vardiya_tipi_id, a.nokta_id) for a in atamalar)
+        # Talep ile atamanin farki BAGLAMDA tek yerde tanimli; sapma
+        # tablolarini yazan yol da ayni tanimi kullanir (SDD 3.2.1).
+        # Bulgu SAAT SAAT degil ARALIK olarak bildirilir: yirmi dort satirlik
+        # bir liste kullaniciya hicbir sey anlatmaz (SRS 4.3 S1).
+        eksik_saatler, fazla_saatler = baglam.sapma_saatleri(atamalar)
+
         ihlaller: list[Ihlal] = []
-        for anahtar, gereken in sorted(baglam.talep.items()):
-            tarih, vardiya_tipi_id, nokta_id = anahtar
-            fark = atanan.get(anahtar, 0) - gereken
-            if fark == 0:
-                continue
-            yer = self._yer_metni(baglam, tarih, vardiya_tipi_id, nokta_id)
-            if fark < 0:
+        for nokta_id, saatler in sorted(eksik_saatler.items()):
+            for tarih, bas, bit, sayi in saatleri_araliklara_birlestir(saatler):
                 ihlaller.append(
                     Ihlal(
                         kural_kimlik=self.kimlik,
                         tarih=tarih,
-                        ceza=-fark,
-                        aciklama=f"{yer} — {-fark} kişi eksik (talep {gereken})",
+                        ceza=sayi * _aralik_sure_saat(bas, bit),
+                        aciklama=(
+                            f"{self._yer_metni(baglam, tarih, bas, bit, nokta_id)} — "
+                            f"{sayi} kişi eksik"
+                        ),
                     )
                 )
-            else:
+        for nokta_id, saatler in sorted(fazla_saatler.items()):
+            for tarih, bas, bit, sayi in saatleri_araliklara_birlestir(saatler):
                 ihlaller.append(
                     Ihlal(
                         kural_kimlik=self.kimlik,
                         tarih=tarih,
                         ceza=None,
-                        aciklama=f"{yer} — talepten {fark} kişi fazla (talep {gereken})",
+                        aciklama=(
+                            f"{self._yer_metni(baglam, tarih, bas, bit, nokta_id)} — "
+                            f"talepten {sayi} kişi fazla"
+                        ),
                     )
                 )
         return ihlaller
 
     @staticmethod
-    def _yer_metni(baglam: Baglam, tarih: date, vardiya_tipi_id: int, nokta_id: int) -> str:
-        """ "2026-02-02 · Akşam · Vardiya Şefliği" — kimlik degil AD (NFR-5).
+    def _yer_metni(baglam: Baglam, tarih: date, baslangic: time, bitis: time, nokta_id: int) -> str:
+        """ "2026-02-02 · 00.00–08.00 · Vardiya Şefliği" — kimlik degil AD (NFR-5).
 
         Eski metin "3 nolu vardiyada 2 nolu noktada" diyordu; o sayilar
         veritabani kimlikleri ve kullaniciya hicbir sey anlatmiyordu.
         """
-        nokta = baglam.gorev_noktalari.get(nokta_id)
-        vardiya = baglam.vardiya_tipleri.get(vardiya_tipi_id)
-        nokta_adi = (nokta.ad if nokta and nokta.ad else None) or f"#{nokta_id} nolu nokta"
-        vardiya_adi = (
-            vardiya.ad if vardiya and vardiya.ad else None
-        ) or f"#{vardiya_tipi_id} nolu vardiya"
-        return f"{tarih.isoformat()} · {vardiya_adi} · {nokta_adi}"
+        return (
+            f"{tarih.isoformat()} · {_saat_metni(baslangic)}–{_saat_metni(bitis)} · "
+            f"{baglam.nokta_adi(nokta_id)}"
+        )
 
 
 @kayitli("S2")

@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from app.db import OturumYerel
 from app.models.sonuc import Donem
 from app.models.tanim import GorevNoktasi, GunTipi, Talep, VardiyaTipi
-from tests.conftest import pg_yoksa_atla, yetkili_istemci
+from tests.conftest import pg_yoksa_atla, senaryo_verisini_temizle, yetkili_istemci
 
 
 @pytest.fixture
@@ -30,12 +30,17 @@ def test_on_kontrol_kadro_yeterliyken_yapisal_engel_bildirmez(istemci: TestClien
     """Bu testin olctugu sey KADRO ARITMETIGI: talep kadroyla karsilanabiliyorsa
     yapisal engel bildirilmemeli.
 
-    Yapilandirma uyarilari (engel_mi=False) bu olcumun disindadir ve burada
+    Yapilandirma uyarilari (kesin_mi=False) bu olcumun disindadir ve burada
     ayiklanir: bu fikstur kural satiri kurmadigindan katalogda S1 bulunmayabilir
     ve o durumda uyari cikmasi DOGRUDUR (talep kisiti kurulmaz)."""
     on_ek = uuid.uuid4().hex[:8]
     oturum = OturumYerel()
     try:
+        # On kontrol BUTUN tanim verisine bakar; baska bir testin
+        # biraktigi nokta/talep burada bulgu uretir ve olculen sey
+        # (kadro aritmetigi) kaybolur.
+        senaryo_verisini_temizle(oturum)
+
         vardiya_tipi = VardiyaTipi(
             ad=f"Gunduz-{on_ek}",
             baslangic_saati=time(8, 0),
@@ -52,7 +57,8 @@ def test_on_kontrol_kadro_yeterliyken_yapisal_engel_bildirmez(istemci: TestClien
         oturum.add(
             Talep(
                 nokta_id=nokta.nokta_id,
-                vardiya_tipi_id=vardiya_tipi.vardiya_tipi_id,
+                baslangic=vardiya_tipi.baslangic_saati,
+                bitis=vardiya_tipi.bitis_saati,
                 gun_tipi=GunTipi.HAFTA_ICI,
                 tarih=None,
                 gereken_sayi=0,
@@ -71,5 +77,5 @@ def test_on_kontrol_kadro_yeterliyken_yapisal_engel_bildirmez(istemci: TestClien
 
     yanit = istemci.post("/api/on-kontrol", json={"donem_id": donem_id})
     assert yanit.status_code == 200
-    engeller = [b for b in yanit.json()["bulgular"] if b["engel_mi"]]
+    engeller = [b for b in yanit.json()["bulgular"] if b["kesin_mi"]]
     assert engeller == []

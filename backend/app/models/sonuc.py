@@ -1,8 +1,8 @@
 import enum
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 
-from sqlalchemy import Date, ForeignKey, Numeric, UniqueConstraint
+from sqlalchemy import Date, ForeignKey, Numeric, Time, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -104,18 +104,35 @@ class CozumIsi(Base, ZamanDamgasiKarisimi):
     # is kuyruga doner) is ipucusuz devam eder, sonuc sessizce kotulesir ve
     # bunu gosteren hicbir iz kalmaz.
     cozum_ipucu: Mapped[dict | None] = mapped_column(JSONB)
+    # ON KONTROL BULGULARI, isle birlikte KALICI (SDD 5.2, karar notu K18).
+    # Bulgular artik isi dusurmuyor; sonucla BIRLIKTE gosterilmeleri ve
+    # surumun raporunda kalmalari gerekiyor. Yalnizca cozum aninda
+    # gorunup kaybolan bir bilgi, yayinlanmis cizelgeye sonradan bakan
+    # kisi icin hic var olmamistir.
+    on_kontrol_bulgulari: Mapped[list | None] = mapped_column(JSONB)
     # "Devam et" karariyla turetilmis islerde, ipucunun alindigi onceki is.
     devam_kaynagi_is_id: Mapped[int | None] = mapped_column(ForeignKey("cozum_isi.is_id"))
     hata_mesaji: Mapped[str | None]
 
 
 class KapsamaAcigi(Base, ZamanDamgasiKarisimi):
+    """Talebin karsilanamadigi ZAMAN ARALIKLARI (SDD 4.2.4).
+
+    Kayit saat saat degil aralik olarak tutulur: ardisik ve eksik sayisi esit
+    olan saatler tek satirda birlestirilir. Yirmi dort satirlik bir liste
+    kullaniciya hicbir sey anlatmaz; "00.00-08.00 arasi bir kisi eksik"
+    anlatir. Birlestirme YAZMA aninda yapilir, okuma aninda degil - aksi
+    halde her tuketici kendi birlestirme mantigini yazar ve ikisi ayrisir
+    (bkz. app/services/aralik_birlestirme.py).
+    """
+
     __tablename__ = "kapsama_acigi"
 
     acik_id: Mapped[int] = mapped_column(primary_key=True)
     surum_id: Mapped[int] = mapped_column(ForeignKey("cizelge_surumu.surum_id"))
     tarih: Mapped[date] = mapped_column(Date)
-    vardiya_tipi_id: Mapped[int] = mapped_column(ForeignKey("vardiya_tipi.vardiya_tipi_id"))
+    baslangic: Mapped[time] = mapped_column(Time)
+    bitis: Mapped[time] = mapped_column(Time)
     nokta_id: Mapped[int] = mapped_column(ForeignKey("gorev_noktasi.nokta_id"))
     eksik_sayi: Mapped[int]
 
@@ -135,7 +152,8 @@ class FazlaKadro(Base, ZamanDamgasiKarisimi):
     fazla_id: Mapped[int] = mapped_column(primary_key=True)
     surum_id: Mapped[int] = mapped_column(ForeignKey("cizelge_surumu.surum_id"), index=True)
     tarih: Mapped[date] = mapped_column(Date)
-    vardiya_tipi_id: Mapped[int] = mapped_column(ForeignKey("vardiya_tipi.vardiya_tipi_id"))
+    baslangic: Mapped[time] = mapped_column(Time)
+    bitis: Mapped[time] = mapped_column(Time)
     nokta_id: Mapped[int] = mapped_column(ForeignKey("gorev_noktasi.nokta_id"))
     fazla_sayi: Mapped[int]
 

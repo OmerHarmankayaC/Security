@@ -6,6 +6,7 @@ boylece iki yerde ayni tablo iki kez elle yazilip birbirinden sapmaz.
 """
 
 from dataclasses import dataclass
+from datetime import time
 
 from app.models.tanim import GunTipi
 
@@ -28,69 +29,69 @@ class NoktaTanimi:
 # SRS 3.3.3 — Gorev Noktalari (surum 1.1: bina ayrimi kaldirildi, kapi ve kontrol
 # odasi tek bir "Guvenlik" noktasinda birlesti — kontrol odasindaki personel zaten
 # ayri bir meslek grubu degil, ayni yetkinlige sahip bir guvenlik gorevlisiydi).
-# Sira, TALEP_DEGERLERI ile index uzerinden eslenir.
+# Sira, TALEP_ARALIKLARI ile index uzerinden eslenir.
 NOKTA_TANIMLARI: tuple[NoktaTanimi, ...] = (
     NoktaTanimi("Vardiya Şefliği", None, VARDIYA_SEFI),
     NoktaTanimi("Güvenlik", None, GUVENLIK_GOREVI),
     NoktaTanimi("Müracaat", None, MURACAAT_GOREVLISI),
 )
 
-# SRS 3.3.4 — Talep Matrisi: (hafta_ici_gunduz, hafta_ici_aksam, gece/hafta_sonu/tatil).
-# Ucuncu deger; hafta ici gece VE hafta sonu/resmi tatildeki her uc vardiya icin ortaktir
-# ("Hafta sonu ve resmi tatillerde uc vardiyanin tamami azaltilmis kadroyla calisir").
-# Guvenlik talebi, onceki surumde ayri satirlar olan kapi ve kontrol odasi
-# taleplerinin toplamidir; toplam kisi sayisi degismemistir, yalnizca
-# noktanin kendisi birlesmistir.
-TALEP_DEGERLERI: tuple[tuple[int, int, int], ...] = (
-    (1, 1, 1),  # Vardiya Şefliği
-    (7, 7, 3),  # Güvenlik
-    (2, 2, 0),  # Müracaat
+# SRS 3.3.4 — Talep, bir calisma bloguna DEGIL bir ZAMAN ARALIGINA baglidir.
+# Her satir: (nokta_index, hafta ici araliklari, azaltilmis kadro sayisi).
+# Azaltilmis kadro hafta sonu VE resmi tatilde gun boyu (00.00-24.00)
+# gecerlidir - SRS 3.3.4 ikisini tek sutunda tutar.
+#
+# GUN SONU 00.00 ILE YAZILIR (SDD 4.2.2): `bitis <= baslangic` araligin gun
+# sonuna kadar surdugunu gosterir.
+_GUN_BASI = time(0, 0)
+_SEKIZ = time(8, 0)
+
+# nokta_index -> (hafta ici araliklari, azaltilmis kadro)
+TALEP_ARALIKLARI: tuple[tuple[tuple[tuple[time, time, int], ...], int], ...] = (
+    # Vardiya Şefliği: gun boyu bir kisi.
+    (((_GUN_BASI, _GUN_BASI, 1),), 1),
+    # Güvenlik: gunduz+aksam saatlerinde yedi, gece uc.
+    (((_SEKIZ, _GUN_BASI, 7), (_GUN_BASI, _SEKIZ, 3)), 3),
+    # Müracaat: yalnizca hafta ici gunduz saatlerinde acik.
+    (((_SEKIZ, _GUN_BASI, 2),), 0),
 )
 
 
 @dataclass(frozen=True, slots=True)
-class TalepSatiriTanimi:
+class TalepAraligiTanimi:
     nokta_index: int
-    vardiya_tipi: str
     gun_tipi: GunTipi
+    baslangic: time
+    bitis: time
     gereken_sayi: int
 
 
-def talep_satirlarini_olustur() -> list[TalepSatiriTanimi]:
-    """SRS 3.3.4'teki ozet tabloyu tam acilmis (nokta, vardiya, gun_tipi) satirlarina cevirir.
+def talep_satirlarini_olustur() -> list[TalepAraligiTanimi]:
+    """SRS 3.3.4'teki ozet tabloyu tam acilmis aralik satirlarina cevirir.
 
     RESMI_TATIL satirlari da uretilir ve bu ZORUNLUDUR, susleme degil.
-    `talep_matrisini_coz` bir gun icin once tarihe ozgu istisnayi, sonra o
-    GUN TIPINE karsilik gelen genel satiri arar; hicbiri yoksa hucreyi
-    sonuca HIC KOYMAZ. Yani resmi tatil satiri bulunmayan bir matriste bir
-    gunu tatil olarak isaretlemek (FR-1.10), o gunun talebini sessizce
-    SIFIRLAR - cizelge o gun icin kimseyi istemez ve bu bir hata gibi
-    gorunmez, cunku kapsama acigi da olusmaz (talep sifirdir).
+    Acilim bir gun icin once tarihe ozgu istisnayi, sonra o GUN TIPINE
+    karsilik gelen genel satiri arar; hicbiri yoksa o gun icin hicbir saat
+    talep tasimaz. Yani resmi tatil satiri bulunmayan bir tanimda bir gunu
+    tatil olarak isaretlemek (FR-1.10), o gunun talebini sessizce SIFIRLAR
+    - cizelge o gun icin kimseyi istemez ve bu bir hata gibi gorunmez,
+    cunku kapsama acigi da olusmaz (talep sifirdir).
 
-    Degerler SRS 3.3.4'un ucuncu sutunundan gelir: "Gece / Hafta Sonu /
-    Tatil" tek bir azaltilmis kadro sutunudur, yani tatil gunu hafta
-    sonuyla ayni kadroyla calisir (TD-3 ile tutarli: adalet sayaclarinda
-    da ayni sayaca eklenir).
+    Muracaat noktasinin hafta sonu/tatil satirlari SIFIR degerle yine de
+    yazilir: "bu noktada o gun kimse gerekmiyor" ile "bu nokta icin satir
+    girmeyi unuttuk" arasindaki farki veride gorunur kilar.
 
-    Haftalik yuk gostergesi (FR-1.9) bu satirlardan ETKILENMEZ: resmi
-    tatil her hafta tekrarlanmadigi icin `yuk_gostergesi`ndeki haftalik
-    tekrar carpani sifirdir. SRS 3.3.6'nin referans sayilari (144
-    kisi-vardiya, 1.152 saat, 29 kisilik kadro) degismez.
+    Haftalik yuk (FR-1.9) bu satirlardan ETKILENMEZ: resmi tatil her hafta
+    tekrarlanmadigi icin haftalik tekrar carpani sifirdir. SRS 3.3.6'nin
+    referans sayilari korunur - 1.152 kisi-saat, sekiz saatlik katalogda
+    144 kisi-vardiya ve 29 kisilik asgari kadro.
     """
-    satirlar: list[TalepSatiriTanimi] = []
-    for index, (hi_gunduz, hi_aksam, azaltilmis) in enumerate(TALEP_DEGERLERI):
-        satirlar.append(TalepSatiriTanimi(index, GUNDUZ, GunTipi.HAFTA_ICI, hi_gunduz))
-        satirlar.append(TalepSatiriTanimi(index, AKSAM, GunTipi.HAFTA_ICI, hi_aksam))
-        for vardiya_tipi, gun_tipi in (
-            (GECE, GunTipi.HAFTA_ICI),
-            (GUNDUZ, GunTipi.HAFTA_SONU),
-            (AKSAM, GunTipi.HAFTA_SONU),
-            (GECE, GunTipi.HAFTA_SONU),
-            (GUNDUZ, GunTipi.RESMI_TATIL),
-            (AKSAM, GunTipi.RESMI_TATIL),
-            (GECE, GunTipi.RESMI_TATIL),
-        ):
-            satirlar.append(TalepSatiriTanimi(index, vardiya_tipi, gun_tipi, azaltilmis))
+    satirlar: list[TalepAraligiTanimi] = []
+    for index, (hafta_ici_araliklar, azaltilmis) in enumerate(TALEP_ARALIKLARI):
+        for baslangic, bitis, gereken in hafta_ici_araliklar:
+            satirlar.append(TalepAraligiTanimi(index, GunTipi.HAFTA_ICI, baslangic, bitis, gereken))
+        for gun_tipi in (GunTipi.HAFTA_SONU, GunTipi.RESMI_TATIL):
+            satirlar.append(TalepAraligiTanimi(index, gun_tipi, _GUN_BASI, _GUN_BASI, azaltilmis))
     return satirlar
 
 

@@ -23,8 +23,8 @@ from app.kurallar.baglam import (
 )
 from app.models.girdi import Musaitlik, Tercih, TercihDurumu
 from app.models.sonuc import Donem
-from app.models.tanim import GorevNoktasi, OzelGun, Personel, Talep, VardiyaTipi
-from app.services.talep_cozucu import talep_matrisini_coz
+from app.models.tanim import GorevNoktasi, OzelGun, Personel, Talep, VardiyaTipi, Yetkinlik
+from app.services.talep_cozucu import blok_gorunumu_uret, talebi_saate_ac
 
 
 def donem_gunlerini_uret(baslangic: date, bitis: date) -> list[date]:
@@ -100,6 +100,10 @@ def baglam_olustur(
         )
         for p in oturum.execute(select(Personel)).scalars().all()
     }
+    # Bulgu metinleri kimlik degil AD tasir (SRS FR-5.6).
+    yetkinlik_adlari = {
+        y.yetkinlik_id: y.ad for y in oturum.execute(select(Yetkinlik)).scalars().all()
+    }
     musaitlik = [
         MusaitlikKaydi(m.personel_id, m.baslangic_tarihi, m.bitis_tarihi, m.dilim)
         for m in oturum.execute(select(Musaitlik)).scalars().all()
@@ -128,16 +132,20 @@ def baglam_olustur(
 
     zaman_ekseni = zaman_ekseni_olustur(donem, isitma_penceresi_gun=isitma_penceresi_gun)
     talep_satirlari = oturum.execute(select(Talep)).scalars().all()
-    talep = talep_matrisini_coz(talep_satirlari, zaman_ekseni, ozel_gunler)
+    # Saat ekseni TEK KAYNAK (SDD 5.3); blok gorunumu ondan turetilir.
+    talep_saat = talebi_saate_ac(talep_satirlari, zaman_ekseni, ozel_gunler)
+    talep = blok_gorunumu_uret(talep_saat, vardiya_tipleri)
 
     return Baglam(
         vardiya_tipleri=vardiya_tipleri,
         gorev_noktalari=gorev_noktalari,
         personel=personel,
         musaitlik=musaitlik,
+        talep_saat=talep_saat,
         talep=talep,
         donem_baslangic=donem.baslangic_tarihi,
         donem_bitis=donem.bitis_tarihi,
         ozel_gunler=ozel_gunler,
+        yetkinlik_adlari=yetkinlik_adlari,
         tercihler=tercihler,
     )

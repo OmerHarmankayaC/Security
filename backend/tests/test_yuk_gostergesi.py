@@ -4,6 +4,7 @@ Veritabani gerektirmez; Talep/VardiyaTipi ORM nesneleri saf veri tasiyici
 olarak (oturuma eklenmeden) kullanilir.
 """
 
+from datetime import time
 from decimal import Decimal
 
 from app.models.tanim import GunTipi, Talep, VardiyaTipi
@@ -19,7 +20,12 @@ ORNEK_NOKTA_ID = (
 def _vardiya_tipleri() -> dict[int, VardiyaTipi]:
     return {
         vid: VardiyaTipi(
-            vardiya_tipi_id=vid, sure_saat=Decimal(8), gece_mi=(vid == _VARDIYA_ID[GECE])
+            vardiya_tipi_id=vid,
+            baslangic_saati=time(8 * (vid - 1) % 24),
+            bitis_saati=time(8 * vid % 24),
+            sure_saat=Decimal(8),
+            gece_mi=(vid == _VARDIYA_ID[GECE]),
+            aktif=True,
         )
         for vid in _VARDIYA_ID.values()
     }
@@ -31,7 +37,8 @@ def _guvenlik_personeli_talep_matrisi() -> list[Talep]:
         Talep(
             talep_id=i,
             nokta_id=tanim.nokta_index,
-            vardiya_tipi_id=_VARDIYA_ID[tanim.vardiya_tipi],
+            baslangic=tanim.baslangic,
+            bitis=tanim.bitis,
             gun_tipi=tanim.gun_tipi,
             tarih=None,
             gereken_sayi=tanim.gereken_sayi,
@@ -69,7 +76,8 @@ def test_tekil_tarih_istisnasi_haftalik_yuke_girmez() -> None:
         Talep(
             talep_id=1,
             nokta_id=ORNEK_NOKTA_ID,
-            vardiya_tipi_id=GUNDUZ,
+            baslangic=time(8, 0),
+            bitis=time(16, 0),
             gun_tipi=GunTipi.HAFTA_ICI,
             tarih=date(2026, 3, 1),  # tekil istisna
             gereken_sayi=99,
@@ -86,7 +94,8 @@ def test_resmi_tatil_haftalik_yuke_girmez() -> None:
         Talep(
             talep_id=1,
             nokta_id=ORNEK_NOKTA_ID,
-            vardiya_tipi_id=GUNDUZ,
+            baslangic=time(8, 0),
+            bitis=time(16, 0),
             gun_tipi=GunTipi.RESMI_TATIL,
             tarih=None,
             gereken_sayi=5,

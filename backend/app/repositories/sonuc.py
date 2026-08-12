@@ -261,7 +261,7 @@ class FazlaKadroDeposu(TabanDepo[FazlaKadro]):
         stmt = (
             select(FazlaKadro)
             .where(FazlaKadro.surum_id == surum_id)
-            .order_by(FazlaKadro.tarih, FazlaKadro.vardiya_tipi_id, FazlaKadro.nokta_id)
+            .order_by(FazlaKadro.tarih, FazlaKadro.baslangic, FazlaKadro.nokta_id)
         )
         return self.oturum.execute(stmt).scalars().all()
 

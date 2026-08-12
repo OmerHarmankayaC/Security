@@ -21,9 +21,12 @@ class BulguOku(BaseModel):
     tarih: date | None = None
     vardiya_tipi_id: int | None = None
     nokta_id: int | None = None
-    # False ise bulgu cozumu DURDURMAZ; arayuz onu uyari olarak gosterir
-    # (yapisal engel degil, yapilandirma uyarisi).
-    engel_mi: bool = True
+    # KESIN BULGU MU, UYARI MI (SDD 5.2, K18). Hicbir bulgu cozumu
+    # DUSURMEZ; ayrim yalnizca okuma amaclidir. Kesin bulgu, ortaya
+    # cikacak acigin kadro yetersizliginden kaynaklandigini ONCEDEN
+    # dogrular; uyari ise sonucun hangi kosulla okunmasi gerektigini
+    # bildirir.
+    kesin_mi: bool = True
 
 
 class OnKontrolYaniti(BaseModel):

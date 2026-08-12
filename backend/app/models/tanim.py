@@ -22,6 +22,17 @@ class Personel(Base, ZamanDamgasiKarisimi):
     ad_soyad: Mapped[str]
     sicil_no: Mapped[str] = mapped_column(unique=True)
     haftalik_hedef_saat: Mapped[int]
+    # SDD 4.2.1 / SRS FR-1.1: icinde bulunulan kota yilinda, sistemin bildigi
+    # donemlerden ONCE birikmis fazla calisma saati ve bu bakiyenin ait oldugu
+    # takvim yili. Birikim normalde yayinlanmis surumlerin atamalarindan
+    # turetilir ve saklanmaz (karar notu K11); devir bakiyesi tek istisnadir -
+    # sistem canliya alinmadan onceki aylari bilemez. Turetilen deger buna
+    # EKLENIR, bunun yerine gecmez.
+    #
+    # BU TURDA HICBIR KURAL BU ALANLARI OKUMAZ; Tur 5'te (GecmisSayaclar)
+    # kullanilacak, simdilik yalnizca veri girilebilir hale geliyor.
+    devir_fazla_calisma_saat: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=Decimal(0))
+    kota_yili: Mapped[int | None]
     sabit_vardiya_tipi_id: Mapped[int | None] = mapped_column(
         ForeignKey("vardiya_tipi.vardiya_tipi_id")
     )
@@ -86,11 +97,30 @@ class VardiyaTipi(Base, ZamanDamgasiKarisimi):
 
 
 class Talep(Base, ZamanDamgasiKarisimi):
+    """Talep bir calisma bloguna degil bir ZAMAN ARALIGINA baglanir (SRS 3.3.4,
+    TD-13; SDD 4.2.2).
+
+    Blok katalogu genisledikce blok eksenli talep hem anlamini hem
+    kullanilabilirligini kaybeder: "06.00-14.00 blogunda yedi kisi" kullanicinin
+    soylemek istedigi sey degildir, "sabah sekizden aksam on ikiye kadar yedi
+    kisi bulunsun"dur. Hangi bloklarin bu araligi hangi bilesimle kapatacagi
+    cozucunun kararidir.
+
+    GUN SONU `00.00` ILE GOSTERILIR. SDD 4.2.2 bunun icin `24.00` yaziyor;
+    PostgreSQL o degeri saklayabiliyor fakat surucu (psycopg) `datetime.time`
+    24:00 tasiyamadigi icin geri OKUYAMIYOR. Bunun yerine `vardiya_tipi`
+    tablosunda ZATEN kullanilan sozlesme uygulanir: `bitis <= baslangic` ise
+    aralik gun sonuna kadar surer ve gece yarisini asiyorsa ertesi gune tasar
+    (bkz. Baglam.vardiya_araligi). Yeni bir kavram girmez; acilim tek yerde
+    (`talebi_saate_ac`) bu kurali uygular.
+    """
+
     __tablename__ = "talep"
 
     talep_id: Mapped[int] = mapped_column(primary_key=True)
     nokta_id: Mapped[int] = mapped_column(ForeignKey("gorev_noktasi.nokta_id"))
-    vardiya_tipi_id: Mapped[int] = mapped_column(ForeignKey("vardiya_tipi.vardiya_tipi_id"))
+    baslangic: Mapped[time] = mapped_column(Time)
+    bitis: Mapped[time] = mapped_column(Time)
     gun_tipi: Mapped[GunTipi]
     tarih: Mapped[date | None] = mapped_column(Date)
     gereken_sayi: Mapped[int]

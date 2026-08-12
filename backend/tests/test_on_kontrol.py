@@ -15,8 +15,8 @@ from app.models.girdi import MusaitlikDilimi
 from app.services.on_kontrol import (
     Bulgu,
     BulguTipi,
-    engelleyenler,
     kapsama_kurali_bulgusu,
+    kesin_bulgular,
     on_kontrol_yap,
 )
 
@@ -219,14 +219,14 @@ def test_s1_uyarisi_cozumu_durdurmaz() -> None:
     karar vermez. Yapisal engellerden ayiran alan bu."""
     bulgu = kapsama_kurali_bulgusu(frozenset())
     assert bulgu is not None
-    assert bulgu.engel_mi is False
-    assert engelleyenler([bulgu]) == []
+    assert bulgu.kesin_mi is False
+    assert kesin_bulgular([bulgu]) == []
 
 
 def test_yapisal_engeller_cozumu_durdurmaya_devam_eder() -> None:
     engel = Bulgu(tip=BulguTipi.DONEM_KAPASITESI_YETERSIZ, aciklama="x", eksik=3)
-    assert engel.engel_mi is True
-    assert engelleyenler([engel, kapsama_kurali_bulgusu(frozenset())]) == [engel]
+    assert engel.kesin_mi is True
+    assert kesin_bulgular([engel, kapsama_kurali_bulgusu(frozenset())]) == [engel]
 
 
 def test_s1_uyarisi_uc_sonucu_da_soyler() -> None:

@@ -4,8 +4,9 @@ from datetime import date, time
 from decimal import Decimal
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
+from app.kurallar.zaman_araligi import tam_saat_mi
 from app.models.tanim import GunTipi, Personel
 
 # --- Silme on kontrolu -----------------------------------------------------
@@ -216,12 +217,28 @@ class OzelGunOku(BaseModel):
 # --- Talep -----------------------------------------------------------------
 
 
-class TalepHucresi(BaseModel):
+class TalepYazma(BaseModel):
+    """Bir talep ARALIGI (SDD 4.2.2, SRS FR-1.7).
+
+    Gun sonu `00.00` ile yazilir; `bitis <= baslangic` araligin gun sonuna
+    kadar surdugunu (ya da gece yarisini astigini) gosterir - `vardiya_tipi`
+    tablosunun zaten kullandigi sozlesme.
+    """
+
     nokta_id: int
-    vardiya_tipi_id: int
     gun_tipi: GunTipi
     tarih: date | None = None
+    baslangic: time
+    bitis: time
     gereken_sayi: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def _saat_basinda_olmali(self) -> "TalepYazma":
+        # Kapsama kisiti saat ekseninde yazilir (SRS 4.3 S1); yarim saatlik
+        # bir sinir hicbir saate denk dusmez ve talep sessizce kaybolurdu.
+        if not tam_saat_mi(self.baslangic) or not tam_saat_mi(self.bitis):
+            raise ValueError("Talep araliklari saat basinda baslar ve biter")
+        return self
 
 
 class TalepOku(BaseModel):
@@ -229,9 +246,10 @@ class TalepOku(BaseModel):
 
     talep_id: int
     nokta_id: int
-    vardiya_tipi_id: int
     gun_tipi: GunTipi
     tarih: date | None
+    baslangic: time
+    bitis: time
     gereken_sayi: int
 
 

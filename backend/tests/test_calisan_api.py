@@ -197,21 +197,24 @@ def senaryo() -> dict[str, int]:
             [
                 Talep(
                     nokta_id=nokta.nokta_id,
-                    vardiya_tipi_id=gunduz.vardiya_tipi_id,
+                    baslangic=gunduz.baslangic_saati,
+                    bitis=gunduz.bitis_saati,
                     gun_tipi=GunTipi.HAFTA_ICI,
                     tarih=None,
                     gereken_sayi=1,
                 ),
                 Talep(
                     nokta_id=nokta.nokta_id,
-                    vardiya_tipi_id=gece.vardiya_tipi_id,
+                    baslangic=gece.baslangic_saati,
+                    bitis=gece.bitis_saati,
                     gun_tipi=GunTipi.HAFTA_ICI,
                     tarih=None,
                     gereken_sayi=1,
                 ),
                 Talep(
                     nokta_id=nokta.nokta_id,
-                    vardiya_tipi_id=gece.vardiya_tipi_id,
+                    baslangic=gece.baslangic_saati,
+                    bitis=gece.bitis_saati,
                     gun_tipi=GunTipi.HAFTA_SONU,
                     tarih=None,
                     gereken_sayi=1,

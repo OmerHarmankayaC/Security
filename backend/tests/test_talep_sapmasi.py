@@ -73,14 +73,16 @@ def senaryo() -> dict:
             [
                 Talep(
                     nokta_id=seflik.nokta_id,
-                    vardiya_tipi_id=vardiya.vardiya_tipi_id,
+                    baslangic=vardiya.baslangic_saati,
+                    bitis=vardiya.bitis_saati,
                     gun_tipi=GunTipi.HAFTA_ICI,
                     tarih=None,
                     gereken_sayi=1,
                 ),
                 Talep(
                     nokta_id=guvenlik.nokta_id,
-                    vardiya_tipi_id=vardiya.vardiya_tipi_id,
+                    baslangic=vardiya.baslangic_saati,
+                    bitis=vardiya.bitis_saati,
                     gun_tipi=GunTipi.HAFTA_ICI,
                     tarih=None,
                     gereken_sayi=2,
@@ -279,7 +281,7 @@ def test_resmi_tatil_gunu_talebi_sifira_dusurmez() -> None:
     azaltilmis kadroya duser (SRS 3.3.4).
     """
     from app.services.ornek_senaryo import talep_satirlarini_olustur
-    from app.services.talep_cozucu import gun_tipi_belirle, talep_matrisini_coz
+    from app.services.talep_cozucu import gun_tipi_belirle, talebi_saate_ac
 
     tatil = date(2026, 4, 23)  # Persembe
     hafta_ici = date(2026, 4, 22)  # Carsamba
@@ -290,14 +292,15 @@ def test_resmi_tatil_gunu_talebi_sifira_dusurmez() -> None:
         Talep(
             talep_id=i,
             nokta_id=t.nokta_index + 1,
-            vardiya_tipi_id={"Gece": 1, "Gündüz": 2, "Akşam": 3}[t.vardiya_tipi],
+            baslangic=t.baslangic,
+            bitis=t.bitis,
             gun_tipi=t.gun_tipi,
             tarih=None,
             gereken_sayi=t.gereken_sayi,
         )
         for i, t in enumerate(talep_satirlarini_olustur(), start=1)
     ]
-    cozulmus = talep_matrisini_coz(satirlar, [hafta_ici, tatil, hafta_sonu], frozenset({tatil}))
+    cozulmus = talebi_saate_ac(satirlar, [hafta_ici, tatil, hafta_sonu], frozenset({tatil}))
 
     def gun_toplami(gun: date) -> int:
         return sum(v for (t, _, _), v in cozulmus.items() if t == gun)

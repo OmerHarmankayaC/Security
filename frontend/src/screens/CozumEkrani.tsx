@@ -361,13 +361,13 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                     key={i}
                     className={cn(
                       'border-l-2 pl-3 text-sm',
-                      b.engel_mi
+                      b.kesin_mi
                         ? 'border-signal text-signal'
                         : 'border-accent text-ink',
                     )}
                   >
                     <span className="etiket-caps text-ink-muted">
-                      {buyukHarf(b.engel_mi ? 'Engel' : 'Uyarı')}
+                      {buyukHarf(b.kesin_mi ? 'Engel' : 'Uyarı')}
                     </span>
                     <br />
                     {b.aciklama}

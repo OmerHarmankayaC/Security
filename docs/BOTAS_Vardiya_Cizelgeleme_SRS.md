@@ -36,6 +36,8 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 11.08.2026 | Talep kayıtlarının gün tipi başına ayrı satırlar hâlinde tutulduğu ve resmî tatil satırlarının zorunluluğu 3.3.4'e yazıldı | 1.11 |
 | Ömer HARMANKAYA | 11.08.2026 | Çözüm işinin durdurulması tek yönlü iptal olmaktan çıkarıldı: durdurma anında bulunmuş çözüm kullanıcının kararına sunulur (FR-4.9, FR-4.10). Çalışan işin ekran değişiminden bağımsız izlenebilirliği (FR-4.11) ve durdurmanın yanıt süresi (NFR-14) tanımlandı | 1.12 |
 | Ömer HARMANKAYA | 11.08.2026 | FR-4.9'a, karar noktasının yalnızca arama başlamış işlerde doğduğu yazıldı; henüz kuyrukta veya ön kontrolde olan bir işin durdurulması doğrudan iptaldir | 1.13 |
+| Ömer HARMANKAYA | 12.08.2026 | Saatlik çalışma düzenine geçişin veri temeli tanımlandı: çalışma bloğu kavramı TD-13 olarak eklendi, talep tanımı zaman aralığı kaydına çevrildi (3.3.4, FR-1.7, FR-1.8), S1'in kapsama kısıtı saat eksenine taşındı, blok kataloğu kısıtları FR-1.3'e yazıldı, personel kaydına devir bakiyesi alanı eklendi (FR-1.1) | 1.14 |
+| Ömer HARMANKAYA | 12.08.2026 | FR-5.1'e ön kontrol bulgularının çözümü engellemediği, FR-5.3'e kapsama açığının saat aralığı düzeyinde raporlandığı, FR-8.1'e kapsama oranının atamalardan hesaplandığı yazıldı; FR-5.6 (bulgu metinlerinde ad kullanımı) eklendi | 1.15 |
 
 
 
@@ -216,19 +218,31 @@ Türetme yalnızca onaylanmış tercihler için yapılır ve tercihin tipine gö
 
 Değer ikili değil üç durumludur. Dönem için yayınlanmış bir çizelge sürümü henüz yoksa sonuç "karşılanmadı" değil "henüz belirsiz"dir; bu ayrım kullanıcı arayüzünde de korunmalıdır, aksi hâlde çizelge üretilmeden önce bütün tercihler reddedilmiş gibi görünür.
 
+### TD-13 — Çalışma bloğu
+
+Bir personelin bir takvim günündeki çalışması **en fazla bir bloktur** ve blok kesintisizdir. Gün içinde bölünmüş çalışma — dört saat çalışıp ara verip aynı gün beş saat daha çalışmak — tanımlı değildir.
+
+Bu kuralın sonucu olarak bir kişi-gün, `(başlangıç saati, süre)` çiftiyle tam olarak tanımlanır. Sistem bu nedenle çalışma zamanını sürekli bir karar değişkeni olarak değil, önceden tanımlanmış blokların seçimi olarak modeller: karar değişkeni `x[personel, gün, blok, nokta]` biçimini korur. Süre ve başlangıç saatinin ayrı tamsayı değişkenler olduğu sürekli zaman modeli, tek blok kuralı altında aynı çözüm kümesini üretir; karşılığında arama uzayını, doğrulayıcıyı ve manuel düzenleme yüzeyini karmaşıklaştırdığı için tercih edilmemiştir.
+
+Blok, önceki sürümlerdeki "vardiya tipi" kavramının genelleştirilmiş hâlidir ve aynı tanım tablosunda tutulur. Fark, kataloğun sabit üç satırla sınırlı olmaması ve blokların farklı uzunluklarda tanımlanabilmesidir. Veritabanı alan adlarında `vardiya_tipi` ifadesi geriye dönük uyumluluk için korunur.
+
 ## 3.3 Uygulama Alanı: Güvenlik Personeli
 
 Bu bölüm, bölüm 3.1 ve 3.2'de tanımlanan yapının ilk uygulama alanına ait somut değerlerini içerir. Buradaki hiçbir değer koda gömülü değildir; tamamı bölüm 5.1'deki tanım yönetimi gereksinimleri aracılığıyla düzenlenebilen veridir. Değerler mevcut işleyişten alınmış varsayımlara dayanmakta olup mentör görüşmesinde teyit edilecektir.
 
 Planlama dönemi varsayılan olarak bir haftadır; yönetici bunu istediği bir uzunluğa çıkarabilir. Bu bir kısıt değil bir başlangıç değeridir — sistem daha uzun dönemleri de destekler ve NFR-1'in kırk personel/yirmi sekiz gün ölçeğindeki performans hedefi bu daha büyük dönemler için hâlâ geçerlidir (bkz. 3.3.6).
 
-### 3.3.1 Vardiya Tipleri
+### 3.3.1 Çalışma Blokları
 
-| Vardiya Tipi | Saat Aralığı | Süre | gece_mi |
+| Blok | Saat Aralığı | Süre | gece_mi |
 | --- | --- | --- | --- |
 | Gece | 00.00 – 08.00 | 8 saat | Evet |
 | Gündüz | 08.00 – 16.00 | 8 saat | Hayır |
 | Akşam | 16.00 – 24.00 | 8 saat | Hayır |
+
+
+
+Bu üç blok, mevcut işleyişteki üçlü sekiz saatlik düzenin karşılığıdır ve kataloğun tamamı değil başlangıç hâlidir. Katalog kullanıcı tarafından tanımlanan bir listedir (FR-1.3): farklı başlangıç saatleri ve farklı uzunluklar eklenebilir. Bloklar parametrik olarak üretilmez — her başlangıç saatinin her süreyle çarpımı yüzlerce satır eder ve NFR-1'deki çözüm süresi hedefini tehdit eder; gerçek bir tesisin kullandığı blok sayısı ise sınırlıdır.
 
 
 
@@ -258,16 +272,26 @@ Tesiste iki bina bulunmaktadır, ancak görev noktaları bina ayrımı yapılmad
 
 ### 3.3.4 Talep Matrisi
 
-| Görev Noktası | Hafta İçi Gündüz | Hafta İçi Akşam | Gece / Hafta Sonu / Tatil |
+Talep, bir çalışma bloğuna değil bir **zaman aralığına** bağlanır. Bir talep kaydı `(görev noktası, gün tipi, başlangıç, bitiş, gereken sayı)` biçimindedir ve "bu noktada, bu saatler arasında şu kadar kişi bulunsun" anlamına gelir.
+
+| Görev Noktası | Gün Tipi | Aralık | Gereken |
 | --- | --- | --- | --- |
-| Vardiya Şefliği | 1 | 1 | 1 |
-| Güvenlik | 7 | 7 | 3 |
-| Müracaat | 2 | 2 | 0 |
-| Toplam | 10 | 10 | 4 |
+| Vardiya Şefliği | Hafta içi | 00.00 – 24.00 | 1 |
+| Vardiya Şefliği | Hafta sonu / tatil | 00.00 – 24.00 | 1 |
+| Güvenlik | Hafta içi | 08.00 – 24.00 | 7 |
+| Güvenlik | Hafta içi | 00.00 – 08.00 | 3 |
+| Güvenlik | Hafta sonu / tatil | 00.00 – 24.00 | 3 |
+| Müracaat | Hafta içi | 08.00 – 24.00 | 2 |
 
 
 
-Hafta sonu ve resmî tatillerde üç vardiyanın tamamı azaltılmış kadroyla çalışır. Tablodaki üçüncü sütun bu ortak kadroyu tanımlasa da, talep kayıtları gün tipi başına ayrı satırlar hâlinde tutulur: hafta içi, hafta sonu ve resmî tatil için ayrı satırlar bulunur. Resmî tatil satırlarının eksik olması, o gün için hiçbir genel satır bulunamamasına ve talebin sessizce sıfıra düşmesine yol açar; talep sıfır olduğunda kapsama açığı da doğmayacağı için durum hiçbir raporda görünmez. Bu nedenle resmî tatil satırları, tatil tanımı yapılabilen her kurulumda bulunmak zorundadır. Müracaat noktası yalnızca hafta içi gündüz ve akşam vardiyalarında açıktır. Güvenlik talebi, önceki sürümde ayrı satırlar olan kapı ve kontrol odası taleplerinin toplamıdır; toplam kişi sayısı değişmemiştir, yalnızca noktanın kendisi birleşmiştir.
+Bu tablo, önceki sürümdeki vardiya tipi eksenli matrisin birebir karşılığıdır: hafta içi gündüz ve akşam vardiyalarındaki 7 kişilik güvenlik talebi tek bir 08.00–24.00 aralığına, gece vardiyasındaki 3 kişilik talep 00.00–08.00 aralığına karşılık gelir. Toplam iş yükü değişmemiştir.
+
+Talebin bloktan ayrılmasının nedeni, kataloğun genişlemesiyle blok ekseninin hem anlamını hem kullanılabilirliğini kaybetmesidir. Yirmi bloklu bir katalogda "06.00–14.00 bloğunda yedi kişi" ifadesi kullanıcının söylemek istediği şey değildir; söylemek istediği "sabah sekizden akşam on ikiye kadar yedi kişi bulunsun"dur. Hangi blokların bu aralığı hangi bileşimle kapatacağı çözücünün kararıdır.
+
+Kapsama, aralık kaydından türetilen saat ekseninde değerlendirilir (bölüm 4.3, S1). Açılım tek bir yerde yapılır; talep ekranı, ön kontrol, çözücü, analiz ve kapsama açığı raporlaması aynı açılımı kullanır.
+
+Talep kayıtları gün tipi başına ayrı tutulur: hafta içi, hafta sonu ve resmî tatil için ayrı satırlar bulunur. Resmî tatil satırlarının eksik olması, o gün için hiçbir satır bulunamamasına ve talebin sessizce sıfıra düşmesine yol açar; talep sıfır olduğunda kapsama açığı da doğmayacağı için durum hiçbir raporda görünmez. Bu nedenle resmî tatil satırları, tatil tanımı yapılabilen her kurulumda bulunmak zorundadır. Müracaat noktası yalnızca hafta içi gündüz saatlerinde açıktır.
 
 ### 3.3.5 Kural Parametreleri
 
@@ -428,12 +452,23 @@ Esnek hedefler ihlal edildiğinde ceza puanı üretir. Her hedefin ağırlığı
 Talep karşılama zorunlu kısıt değil, baskın ağırlıklı esnek hedeftir. Bu tasarım kararı sayesinde personel fiziken yetersiz olduğunda sistem çözümü reddetmek yerine çizelgeyi üretir ve eksiğin nerede olduğunu gösterir.
 
 ```
-Nokta bazında kapsama (alt sınır, esnek):
-∀d, s, n :  Σ_p x[p,d,s,n] + eksik[d,s,n] ≥ talep[d,s,n],  eksik[d,s,n] ≥ 0
-Nokta bazında kadro (üst sınır, zorunlu):
-∀d, s, n :  Σ_p x[p,d,s,n] ≤ talep[d,s,n]
-Ceza:  w1 · Σ_{d,s,n} eksik[d,s,n]
+T(d)   : d gününün saat dilimleri
+b ∋ t  : b bloğu t saatini kapsıyor
+talep[d,t,n] : d gününde t saatinde n noktası için gereken personel
+               (aralık kayıtlarından açılarak elde edilir, 3.3.4)
+
+Saat bazında kapsama (alt sınır, esnek):
+∀d, t, n :  Σ_p Σ_{b ∋ t} x[p,d,b,n] + eksik[d,t,n] ≥ talep[d,t,n],  eksik ≥ 0
+Saat bazında kadro (üst sınır, zorunlu):
+∀d, t, n :  Σ_p Σ_{b ∋ t} x[p,d,b,n] ≤ talep[d,t,n]
+Ceza:  w1 · Σ_{d,t,n} eksik[d,t,n]
 ```
+
+Kısıt saat ekseninde yazılır çünkü talep bir bloğa değil bir zaman aralığına bağlıdır (3.3.4, TD-13). Bir personel bir saatte, o saati kapsayan bloğa atanmışsa sayılır; blokların uzunlukları farklı olabildiğinden aynı saati farklı bloklardan gelen personel birlikte doldurabilir.
+
+Ceza saat başına değil, açığın süresiyle orantılı olarak birikir: iki saat boyunca bir kişi eksik kalmak, bir saat boyunca iki kişi eksik kalmakla aynı cezayı üretir. Bu bilinçlidir — ikisi de aynı miktarda karşılanmamış kişi-saattir.
+
+Raporlamada ardışık ve eşit büyüklükteki saat açıkları tek bir aralık kaydı olarak birleştirilir; kullanıcıya saat saat liste değil, "02.06.2026, 00.00–08.00, Vardiya Şefliği: 1 kişi eksik" biçiminde aralık gösterilir.
 
 Talep sayısı üst sınır olarak zorunlu, alt sınır olarak esnektir. Personel yeterli olduğunda iki kısıt birlikte eşitliği zorlar; yetersiz olduğunda çözücü açığı eksik değişkenine yazar ve çizelgeyi yine de üretir.
 
@@ -557,15 +592,15 @@ Ağırlıkların tamamı kullanıcı tarafından ayarlanabilir. Sistem hangi hed
 
 | Kimlik | Gereksinim | Öncelik |
 | --- | --- | --- |
-| FR-1.1 | Sistem, personel kayıtlarının oluşturulmasına, güncellenmesine ve pasifleştirilmesine imkân vermelidir. Personel kaydı haftalık hedef saat ve aktiflik tarih aralığı içerir. | Zorunlu |
+| FR-1.1 | Sistem, personel kayıtlarının oluşturulmasına, güncellenmesine ve pasifleştirilmesine imkân vermelidir. Personel kaydı haftalık hedef saat, aktiflik tarih aralığı ve içinde bulunulan kota yılına ait devir fazla çalışma saatini içerir. | Zorunlu |
 | FR-1.2 | Sistem, yetkinlik tanımlarının oluşturulmasına ve personele seviyesiz olarak atanmasına imkân vermelidir. | Zorunlu |
-| FR-1.3 | Sistem, vardiya tiplerinin ad, başlangıç saati ve bitiş saatiyle tanımlanmasına imkân vermelidir. Süre, başlangıç ve bitiş saatinden hesaplanır. | Zorunlu |
+| FR-1.3 | Sistem, çalışma bloklarının ad, başlangıç saati ve bitiş saatiyle tanımlanmasına imkân vermelidir. Süre, başlangıç ve bitiş saatinden hesaplanır. Aynı başlangıç ve süre ikilisi iki kez tanımlanamaz; süresi günlük azami çalışma saatini aşan blok tanımlanamaz. | Zorunlu |
 | FR-1.4 | Sistem, vardiya tipi oluşturulurken gece_mi bayrağını TD-2'ye göre önermeli, kullanıcının bu öneriyi değiştirmesine imkân vermelidir. | Yüksek |
 | FR-1.5 | Sistem, bina tanımlarının oluşturulmasına ve güncellenmesine imkân vermelidir. | Zorunlu |
 | FR-1.6 | Sistem, görev noktalarının ad, bağlı olduğu bina ve ön koşul yetkinliğiyle tanımlanmasına imkân vermelidir. Bina alanı boş bırakıldığında nokta tesis geneli olarak değerlendirilir. | Zorunlu |
-| FR-1.7 | Sistem, talep tanımının görev noktası, vardiya tipi ve gün tipi kırılımında yapılmasına ve tekil tarihler için istisna tanımlanmasına imkân vermelidir. | Zorunlu |
-| FR-1.8 | Sistem, talep matrisini gün tipi ve vardiya tipi eksenlerinde tablo halinde göstermeli, hücrelerin doğrudan düzenlenmesine imkân vermelidir. | Yüksek |
-| FR-1.9 | Sistem, tanımlı talep matrisinden haftalık toplam kişi-vardiya yükünü ve kural parametreleri altındaki asgari kadro büyüklüğünü hesaplayarak göstermelidir. | Orta |
+| FR-1.7 | Sistem, talep tanımının görev noktası, zaman aralığı ve gün tipi kırılımında yapılmasına ve tekil tarihler için istisna tanımlanmasına imkân vermelidir. | Zorunlu |
+| FR-1.8 | Sistem, talep tanımlarını görev noktası ve gün tipi kırılımında, her kayıt bir zaman aralığı olacak biçimde göstermeli; aralıkların ve gereken sayıların doğrudan düzenlenmesine imkân vermelidir. Aynı nokta ve gün tipi için çakışan aralıklar tanımlanamaz. | Yüksek |
+| FR-1.9 | Sistem, tanımlı talepten haftalık toplam kişi-saat yükünü ve kural parametreleri altındaki asgari kadro büyüklüğünü hesaplayarak göstermelidir. | Orta |
 | FR-1.10 | Sistem, resmî tatillerin takvimde işaretlenmesine imkân vermelidir. | Yüksek |
 | FR-1.11 | Sistem, zorunlu kural parametrelerinin görüntülenmesine ve değiştirilmesine imkân vermelidir. | Zorunlu |
 | FR-1.12 | Sistem, esnek hedef ağırlıklarının görüntülenmesine ve değiştirilmesine imkân vermelidir. | Zorunlu |
@@ -636,11 +671,12 @@ seçenek kullanıcıya yeni bir zaman limiti sorularak sunulur ve arayüzde
 
 | Kimlik | Gereksinim | Öncelik |
 | --- | --- | --- |
-| FR-5.1 | Sistem, çözüm başlatılmadan önce talep ve mevcut personel sayısını karşılaştıran ön kontrol yapmalı, karşılanamayacak gün ve vardiyaları listelemelidir. | Yüksek |
+| FR-5.1 | Sistem, çözüm başlatılmadan önce talep ve mevcut personel sayısını karşılaştıran ön kontrol yapmalı, karşılanamayacak gün ve saatleri listelemelidir. Ön kontrol bulguları teşhis niteliğindedir ve çözüm işini engellemez; bulgular sonuçla birlikte gösterilir ve sürüm kaydında kalıcı olur. | Yüksek |
 | FR-5.2 | Sistem, personel yetersizliği durumunda çözümü reddetmek yerine çizelgeyi üretmeli ve kapsama açıklarını göstermelidir. | Zorunlu |
-| FR-5.3 | Sistem, kapsama açığını gün, vardiya tipi, gereken sayı, atanan sayı ve eksik sayı düzeyinde raporlamalıdır. | Zorunlu |
+| FR-5.3 | Sistem, kapsama açığını gün, saat aralığı, görev noktası, gereken sayı, atanan sayı ve eksik sayı düzeyinde raporlamalıdır. | Zorunlu |
 | FR-5.4 | Sistem, yetkinlik bazlı kapsama açıklarını toplam açıktan ayrı olarak göstermelidir. | Yüksek |
-| FR-5.5 | Sistem, zorunlu kısıtların çelişmesi nedeniyle çözüm bulunamadığında bunu kapsama açığından ayırt edilebilir biçimde bildirmelidir. | Yüksek |
+| FR-5.5 | Sistem, zorunlu kısıtların çelişmesi nedeniyle çözüm bulunamadığında bunu kapsama açığından ayırt edilebilir biçimde bildirmelidir. Çözüm işinin sonuçsuz kalmasının tek meşru nedeni budur; kadro yetersizliği çözümü engellemez. | Yüksek |
+| FR-5.6 | Sistem, ön kontrol bulgularında ve hata metinlerinde veritabanı kimliği yerine tanım adını göstermelidir. | Orta |
 
 
 
@@ -674,7 +710,7 @@ seçenek kullanıcıya yeni bir zaman limiti sorularak sunulur ve arayüzde
 
 | Kimlik | Gereksinim | Öncelik |
 | --- | --- | --- |
-| FR-8.1 | Sistem, dönem için kapsama oranını raporlamalıdır. | Zorunlu |
+| FR-8.1 | Sistem, dönem için kapsama oranını raporlamalıdır. Oran, karşılanan kişi-saatin toplam talep kişi-saatine bölünmesiyle atama kayıtlarından hesaplanır; ataması bulunmayan bir sürümde oran sıfırdır. | Zorunlu |
 | FR-8.2 | Sistem, kişi başına gece, hafta sonu ve toplam saat sayılarını tablo halinde raporlamalıdır. | Zorunlu |
 | FR-8.3 | Sistem, iş yükü dağılımını en yüklü ve en az yüklü personel arasındaki fark üzerinden ölçmelidir. | Yüksek |
 | FR-8.4 | Sistem, onaylanmış tercihlerin karşılanma oranını raporlamalıdır. | Yüksek |

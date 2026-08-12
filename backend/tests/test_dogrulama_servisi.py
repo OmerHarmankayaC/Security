@@ -407,14 +407,16 @@ def test_dogrula_ustan_uca_bir_noktayi_bosaltip_digerini_tasirsa_uyari_verir(
             [
                 Talep(
                     nokta_id=seflik_id,
-                    vardiya_tipi_id=aksam_id,
+                    baslangic=time(16, 0),
+                    bitis=time(0, 0),
                     gun_tipi=GunTipi.HAFTA_ICI,
                     tarih=None,
                     gereken_sayi=1,
                 ),
                 Talep(
                     nokta_id=nokta_id,
-                    vardiya_tipi_id=aksam_id,
+                    baslangic=time(16, 0),
+                    bitis=time(0, 0),
                     gun_tipi=GunTipi.HAFTA_ICI,
                     tarih=None,
                     gereken_sayi=2,
@@ -501,7 +503,11 @@ def test_dogrula_ustan_uca_bir_noktayi_bosaltip_digerini_tasirsa_uyari_verir(
 
     s1_kalemi = next(k for k in sonuc.ceza_dokumu if k.kural_kimlik == "S1")
     assert s1_kalemi.agirlik == 10000
-    assert s1_kalemi.agirlikli_fark == 10000  # eksik(1) - fazlanin cezasi(0) = +1 x 10000
+    # S1 artik KISI-SAAT olcuyor (SRS 4.3): sekiz saatlik blokta bir kisilik
+    # acik sekiz birim eder. Fazla kadro ceza uretmez (uyari), bu yuzden
+    # fark yalnizca eksikten gelir: 8 x 10000.
+    assert s1_kalemi.ham_fark == 8
+    assert s1_kalemi.agirlikli_fark == 80000
 
 
 def test_dogrula_bulunamayan_surumde_none_doner() -> None:
@@ -547,6 +553,11 @@ def _s1_baglami() -> Baglam:
         donem_baslangic=_S1_PZT,
         donem_bitis=_S1_PZT,
     )
+    # S1 SAAT ekseninde calisiyor: Aksam blogunun kapsadigi 16..23
+    # saatlerinin her birine ayni talep yazilir (SRS 4.3).
+    for saat in range(16, 24):
+        baglam.talep_saat[(_S1_PZT, saat, _S1_SEFLIK)] = 1
+        baglam.talep_saat[(_S1_PZT, saat, _S1_GUVENLIK)] = 2
     baglam.talep[(_S1_PZT, _S1_AKSAM, _S1_SEFLIK)] = 1
     baglam.talep[(_S1_PZT, _S1_AKSAM, _S1_GUVENLIK)] = 2
     return baglam
@@ -616,5 +627,5 @@ def test_s1_metni_kimlik_degil_ad_tasir() -> None:
     metinler = " ".join(i.aciklama for i in ihlaller)
 
     assert "Vardiya Şefliği" in metinler
-    assert "Akşam" in metinler
+    assert "16.00–24.00" in metinler
     assert "nolu" not in metinler

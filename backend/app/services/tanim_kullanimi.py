@@ -62,13 +62,13 @@ _KAYNAKLAR: dict[type[Base], tuple[KullanimKaynagi, ...]] = {
         KullanimKaynagi("görev noktası ön koşulu", GorevNoktasi.onkosul_yetkinlik_id),
     ),
     Bina: (KullanimKaynagi("görev noktası", GorevNoktasi.bina_id),),
+    # Talep, kapsama acigi ve fazla kadro artik BLOGA DEGIL zaman araligina
+    # baglidir (SDD 4.2.2, 4.2.4); bir blogun silinmesi o kayitlari
+    # etkilemez ve listede yer almazlar.
     VardiyaTipi: (
         KullanimKaynagi("atama", Atama.vardiya_tipi_id),
-        KullanimKaynagi("talep satırı", Talep.vardiya_tipi_id),
         KullanimKaynagi("tercih", Tercih.vardiya_tipi_id),
         KullanimKaynagi("sabit vardiyalı personel", Personel.sabit_vardiya_tipi_id),
-        KullanimKaynagi("kapsama açığı", KapsamaAcigi.vardiya_tipi_id),
-        KullanimKaynagi("fazla kadro kaydı", FazlaKadro.vardiya_tipi_id),
     ),
     GorevNoktasi: (
         KullanimKaynagi("atama", Atama.nokta_id),

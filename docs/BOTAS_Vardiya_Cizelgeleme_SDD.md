@@ -44,6 +44,9 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 11.08.2026 | Durdurma ve karar akışı tasarlandı: `durduruldu` durumu ile `gecici_sonuc` alanı 4.2.4'e, karar yordamı ve iptal gecikmesinin giderilmesi (T-06) 5.4'e, karar paneli 6.3.2'ye, çalışan iş göstergesinin uygulama kabuğunda tutulması 6.1'e eklendi | 1.19 |
 | Ömer HARMANKAYA | 11.08.2026 | Tur 1 uygulamasının doğurduğu dört tasarım borcu kapatıldı: çözücü ipucu için ayrı `cozum_ipucu` sütunu tanımlandı, `bitis_zamani`'nin durdurulan işteki anlamı yazıldı, karar panelinin veri kaynağı 6.3.2'ye eklendi, arama başlamadan gelen durdurmanın karar noktası doğurmadığı 5.4.1'e yazıldı | 1.20 |
 | Ömer HARMANKAYA | 12.08.2026 | 6.3.2'deki Durdur Butonu maddesi 5.4.1 ile hizalandı (koşulsuz karar paneli ifadesi düzeltildi), Ek B'ye `/durdur`un iki ayrı sonucu ve durdurulamaz hâllerdeki reddi yazıldı, işçinin taze okumada iptal durumunu da tanıması 5.4.2'ye eklendi | 1.21 |
+| Ömer HARMANKAYA | 12.08.2026 | Saatlik düzenin veri temeli tasarlandı: talep tablosu zaman aralığı kaydına çevrildi, kapsama açığı ve fazla kadro tabloları saat eksenine taşındı, çalışma bloğu kısıtları ve personelin devir bakiyesi alanları 4.2.1'e eklendi, talebin saate açılımı 5.3'e yazıldı | 1.22 |
+| Ömer HARMANKAYA | 12.08.2026 | Ön kontrol bulgularının çözüm işini düşürmesi kaldırıldı (5.2) — davranış SRS FR-5.2'yi ihlal ediyordu; kapsama oranının kaynağı kapsama açığı tablosundan atama kayıtlarına çevrildi (5.7) | 1.23 |
+| Ömer HARMANKAYA | 12.08.2026 | Tur 3 uygulamasının doğurduğu borçlar kapatıldı: gün sonunun kodlanışı (24.00 yerine bitiş ≤ başlangıç sözleşmesi) 4.2.2'ye, `cozum_isi.on_kontrol_bulgulari` 4.2.4'e, aynı kısıtı üreten saatlerin tek değişkende toplanması 5.3'e, talep uç noktalarının kayıt tabanlı hâli Ek B'ye yazıldı | 1.24 |
 
 
 
@@ -313,6 +316,8 @@ Aşağıdaki tablolar veritabanı şemasını alan düzeyinde tanımlar. Bütün
 | ad_soyad | VARCHAR | Görüntülenen ad |
 | sicil_no | VARCHAR (UNIQUE) | Kurum sicil numarası |
 | haftalik_hedef_saat | INT | S4 saat dengesi hedefinde kullanılan kişisel hedef |
+| devir_fazla_calisma_saat | NUMERIC | İçinde bulunulan kota yılında, sistemin bildiği dönemlerden önce birikmiş fazla çalışma saati |
+| kota_yili | INT | Devir bakiyesinin ait olduğu takvim yılı |
 | sabit_vardiya_tipi_id | INT (FK → vardiya_tipi), NULL | Doldurulduğunda personel yalnızca bu vardiya tipine atanır; boş ise rotasyona dahildir |
 | aktif_baslangic | DATE | Personelin çizelgeye dahil edildiği ilk tarih |
 | aktif_bitis | DATE, NULL | Personelin çizelgeden çıkarıldığı tarih; boş ise süresizdir. Pasifleştirme işlemi bu alana bir önceki günü yazar: bugünün tarihi yazıldığında personel bugünü kapsayan çözümlerde hâlâ müsait sayılır ve pasifleştirme aynı gün için etkisiz kalır |
@@ -397,7 +402,11 @@ Birincil anahtar iki alanın birleşimidir. İlişki seviyesizdir (SRS TD-9); bi
 | bitis_saati | TIME | Vardiyanın bitiş saati; başlangıçtan küçükse vardiya gece yarısını aşar |
 | sure_saat | NUMERIC | Başlangıç ve bitişten hesaplanan süre |
 | gece_mi | BOOLEAN | SRS TD-2 uyarınca tanımlanan gece bayrağı |
-| aktif | BOOLEAN | Pasifleştirilen vardiya tipleri yeni çizelgelerde kullanılmaz |
+| aktif | BOOLEAN | Pasifleştirilen bloklar yeni çizelgelerde kullanılmaz |
+
+Bu tablo SRS TD-13'teki **çalışma bloğu** kavramının karşılığıdır; alan adlarındaki `vardiya_tipi` ifadesi geriye dönük uyumluluk için korunmuştur. Kataloğun sabit üç satırla sınırlı olmaması dışında yapı değişmemiştir.
+
+İki kısıt uygulama katmanında uygulanır: aynı `(baslangic_saati, sure_saat)` ikilisi iki kez tanımlanamaz ve `sure_saat`, kural kataloğundaki günlük azami çalışma saati parametresini aşamaz. İkisi de girişte reddedilir, çözüm anına bırakılmaz — geçersiz veriyi girişte durdurmak, dakikalar süren bir çözümün sonunda keşfetmekten ucuzdur.
 
 
 
@@ -407,12 +416,25 @@ Birincil anahtar iki alanın birleşimidir. İlişki seviyesizdir (SRS TD-9); bi
 | --- | --- | --- |
 | talep_id | INT (PK) | Talep satırının benzersiz kimliği |
 | nokta_id | INT (FK → gorev_noktasi) | Talebin ait olduğu görev noktası |
-| vardiya_tipi_id | INT (FK → vardiya_tipi) | Talebin ait olduğu vardiya tipi |
+| baslangic | TIME | Talep aralığının başlangıcı |
+| bitis | TIME | Talep aralığının bitişi; `00.00` gün sonunu gösterir, `baslangic`tan küçük bir değer aralığın gece yarısını aştığını gösterir |
 | gun_tipi | ENUM | hafta_ici \| hafta_sonu \| resmi_tatil |
 | tarih | DATE, NULL | Doldurulduğunda bu satır yalnızca o tarih için geçerli bir istisnadır |
-| gereken_sayi | INT | O nokta, vardiya ve gün tipi için gereken personel sayısı |
+| gereken_sayi | INT | O nokta, aralık ve gün tipi için gereken personel sayısı |
 
-Bir gün için geçerli talep belirlenirken önce o tarihe özgü istisna satırı aranır; bulunamazsa günün tipine karşılık gelen genel satır kullanılır.
+Talep bir çalışma bloğuna değil bir zaman aralığına bağlanır (SRS 3.3.4, TD-13). Blok kataloğu genişlediğinde blok eksenli talep hem anlamını hem kullanılabilirliğini kaybeder; hangi blokların bir aralığı hangi bileşimle kapatacağı çözücünün kararıdır.
+
+**Gün sonunun kodlanışı.** Bir aralığın gün sonuna kadar sürdüğü `bitis = 00.00`
+ile gösterilir, `24.00` ile değil. `24:00:00` değeri PostgreSQL'de saklanabilse de
+Python'un `time` tipi ve sürücü bu değeri geri okuyamaz. Kullanılan sözleşme
+`vardiya_tipi` tablosunun zaten uyguladığı sözleşmedir: `bitis = 00.00` gün sonu,
+`bitis < baslangic` gece yarısını aşan aralık, `bitis > baslangic` gün içi aralık.
+Aynı sözleşmenin ikinci bir biçiminin tanımlanmaması bilinçlidir; kural tek bir
+yerde (`zaman_araligi` yardımcısı) uygulanır ve bütün tüketiciler oradan geçer.
+
+Aynı nokta ve gün tipi için çakışan aralıklar tanımlanamaz; kısıt uygulama katmanında uygulanır. Çakışan iki kayıt aynı saat için iki farklı gereken sayı üretir ve hangisinin geçerli olduğu tanımsız kalır.
+
+Bir gün için geçerli talep belirlenirken önce o tarihe özgü istisna satırları aranır; bulunamazsa günün tipine karşılık gelen genel satırlar kullanılır. Karışım yapılmaz: bir tarih için istisna satırı varsa o günün talebi yalnızca istisna satırlarından oluşur.
 
 #### ozel_gun
 
@@ -532,6 +554,7 @@ Parametrelerin belge alanında tutulmasının nedeni, her kural tipinin farklı 
 | gecici_sonuc | JSONB, NULL | Durdurulan işin, kullanıcı kararı beklerken atamalara yazılmamış çözümü (atama listesi + kapsama açıkları + fazla kadro + ceza dökümü). Karar verildiğinde boşaltılır |
 | cozum_ipucu | JSONB, NULL | "Devam et" kararıyla başlatılan işin çözücüye başlangıç ipucu olarak verdiği çözüm. İş sonlandığında boşaltılır |
 | devam_kaynagi_is_id | INT (FK → cozum_isi), NULL | "Devam et" kararıyla türetilmiş işlerde, ipucunun alındığı önceki iş |
+| on_kontrol_bulgulari | JSONB, NULL | İşin başında üretilen ön kontrol bulguları (kesin bulgular ve uyarılar) |
 | hata_mesaji | TEXT, NULL | Başarısızlık durumunda açıklama |
 
 **Girdi ile çıktı ayrı sütunlarda durur.** `gecici_sonuc` durdurulmuş bir işin
@@ -569,11 +592,14 @@ sürümün önceki hâlinin ayrıca saklanmasını gerektirirdi.
 | acik_id | INT (PK) | Kaydın benzersiz kimliği |
 | surum_id | INT (FK → cizelge_surumu) | Açığın tespit edildiği çizelge sürümü |
 | tarih | DATE | Açığın oluştuğu gün |
-| vardiya_tipi_id | INT (FK → vardiya_tipi) | Açığın oluştuğu vardiya |
+| baslangic | TIME | Açığın başladığı saat |
+| bitis | TIME | Açığın bittiği saat; gün sonu `00.00` ile gösterilir (4.2.2) |
 | nokta_id | INT (FK → gorev_noktasi) | Açığın oluştuğu görev noktası |
 | eksik_sayi | INT | Talebe göre eksik kalan personel sayısı |
 
-Bu tablo, S1 formülasyonundaki eksik değişkenlerinin sıfırdan büyük olduğu üçlülerin doğrudan karşılığıdır. Ayrı bir tablo olarak tutulması, açıkların çizelge sürümüyle birlikte kalıcı hâle gelmesini ve raporlanabilmesini sağlar.
+Kayıt saat saat değil aralık olarak tutulur: ardışık ve eksik sayısı eşit olan saatler tek bir satırda birleştirilir. Yirmi dört satırlık bir liste kullanıcıya hiçbir şey anlatmaz; "00.00–08.00 arası bir kişi eksik" anlatır. Birleştirme yazma anında yapılır, okuma anında değil — aksi hâlde her tüketici kendi birleştirme mantığını yazar ve ikisi ayrışır.
+
+Bu tablo, S1 formülasyonundaki eksik değişkenlerinin sıfırdan büyük olduğu üçlülerin aralığa indirgenmiş karşılığıdır. Ayrı bir tablo olarak tutulması, açıkların çizelge sürümüyle birlikte kalıcı hâle gelmesini ve raporlanabilmesini sağlar.
 
 #### fazla_kadro
 
@@ -582,9 +608,12 @@ Bu tablo, S1 formülasyonundaki eksik değişkenlerinin sıfırdan büyük oldu�
 | fazla_id | INT (PK) | Kaydın benzersiz kimliği |
 | surum_id | INT (FK → cizelge_surumu) | Kaydın ait olduğu çizelge sürümü |
 | tarih | DATE | Fazlalığın oluştuğu gün |
-| vardiya_tipi_id | INT (FK → vardiya_tipi) | Fazlalığın oluştuğu vardiya |
+| baslangic | TIME | Fazlalığın başladığı saat |
+| bitis | TIME | Fazlalığın bittiği saat; gün sonu `00.00` ile gösterilir (4.2.2) |
 | nokta_id | INT (FK → gorev_noktasi) | Fazlalığın oluştuğu görev noktası |
 | fazla_sayi | INT | Talebin üzerine çıkılan personel sayısı |
+
+Aralık birleştirmesi kapsama açığındaki kuralla aynıdır ve iki kayıt aynı geçişte yazıldığı için tek bir yerden uygulanır.
 
 Fazla kadro kayıtları, kapsama açığı tablosuna bir tür sütunu eklenerek değil ayrı bir tabloda tutulur. Üç gerekçesi vardır. Birincisi köken farkıdır: kapsama açığı S1'in eksik değişkeninin birebir karşılığıyken fazla kadronun çözücüde karşılığı yoktur — amaç fonksiyonunda terimi bulunmaz ve çözücü yapısal olarak üretemez; yalnızca manuel düzenlemeyle oluşur. İkincisi okuma güvenliğidir: kapsama açığı tablosunu okuyan her sorgu "her satır bir açıktır" varsayımını taşır, tür sütunu bu varsayımı sessizce geçersiz kılar ve tek bir eksik süzgeç kapsama oranını yanlış hesaplatır. Üçüncüsü, iki kaydın karşılıklı dışlayıcılığının yapıca korunmasıdır: ikisi de aynı geçişte, atanan ile gereken sayının tek bir karşılaştırmasından yazılır.
 
@@ -683,7 +712,15 @@ FONKSİYON on_kontrol(donem, tanimlar, musaitlikler):
 
 Bu kontroller gerek koşullardır, yeter koşul değildir. Hepsinin geçmesi çizelgenin çözülebileceğini garanti etmez; çünkü dinlenme süresi ve ardışıklık kuralları gibi zaman yapısına bağlı kısıtlar bu aritmetikle yakalanamaz. Buna karşılık yukarıdaki dört kontrolden herhangi birinin başarısız olması, çözümün kesinlikle açık vereceğini gösterir. Kullanıcıya bu ayrım açıkça bildirilir: yapısal bir ön kontrol bulgusu bir uyarı değil, kesin bir teşhistir; bulgusuzluk ise yalnızca bilinen engellerin bulunmadığı anlamına gelir.
 
-**Bulguların iki seviyesi.** Yukarıdaki dört kontrol kadro aritmetiğine bakar ve ürettiği bulgu yapısal bir engeldir; böyle bir bulguda çözüm işi başlatılmaz. Ön kontrol ayrıca yapılandırma uyarıları üretir: bunlar kullanıcının bilinçli bir ayarının sonucu olabileceğinden işi durdurmaz, yalnızca sonucun nasıl okunması gerektiğini bildirir. Ayrımı bulgu kaydındaki bir alan taşır; iş yalnızca engelleyici bulgularda düşer. Sistemin kullanıcı adına karar vermemesi ile kullanıcının sonucu yanlış okumasına izin vermemesi arasındaki denge bu ayrımla kurulur.
+**Ön kontrol bulguları çözümü engellemez.** Hiçbir bulgu çözüm işini düşürmez; ön kontrol teşhis üretir, karar vermez.
+
+Bu, önceki sürümdeki davranışın düzeltilmesidir. Yapısal bulgularda işin düşürülmesi, SRS FR-5.2'yi ("personel yetersizliğinde çözümü reddetmek yerine çizelgeyi üret ve kapsama açıklarını göster") doğrudan ihlal ediyor ve S1'in zorunlu kısıt yerine baskın ağırlıklı esnek hedef olarak tasarlanmasının tek gerekçesini işlevsiz bırakıyordu. Ön kontrolün söyleyebildiği ile çözücünün söyleyebildiği aynı şey değildir: ön kontrol kadro aritmetiğine bakar ve "şu kadar açık oluşacak" der; hangi gün, hangi saat ve hangi noktada oluşacağını söyleyemez, çünkü çizelgeye bakmaz. Kullanıcının açığı kapatmak için ihtiyaç duyduğu bilgi ikincisidir ve yalnızca çözücü üretir. Çözümü engellemek, kullanıcıyı elindeki tek teşhis aracından mahrum bırakır.
+
+**Bulguların iki seviyesi** okuma amacıyla korunur. Kesin bulgu, ortaya çıkacak açığın kadro yetersizliğinden kaynaklandığını önceden doğrular; uyarı ise sonucun hangi koşulla okunması gerektiğini bildirir. İkisi de sonuçla birlikte gösterilir ve sürüm kaydında kalıcıdır — yalnızca çözüm anında görünüp kaybolan bir bilgi, yayınlanmış çizelgeye bakan kişi için hiç var olmamış demektir.
+
+**İşin düşmesinin tek meşru nedeni**, çözücünün modeli çözülemez bulmasıdır: zorunlu kısıtların birbiriyle çeliştiği durum. Bu, kapsama açığından ayrı bir şeydir ve kullanıcıya ayırt edilebilir biçimde bildirilir (SRS FR-5.5).
+
+**S1 pasifken.** S1 pasifleştirilmişse kapsama açığı değişkenleri hiç oluşmaz ve sistem "açık yok" raporlar. Bu tehlikelidir, fakat çözümü engellemek doğru cevap değildir; kullanıcı kuralı bilinçli olarak kapatmış olabilir. Doğru davranış çizelgeyi üretmek ve **kapsama raporlanmıyor** damgasını sürümün raporunda kalıcı kılmaktır.
 
 Bu seviyenin ilk örneği, talep karşılama kuralının (S1) pasifleştirilmiş olmasıdır. S1 pasifken üç şey birden kaybolur: kapsama alt sınırının esnek hedefi, kadro üst sınırının zorunlu kısıtı ve kapsama açığı değişkenleri. İlk ikisi çizelgeye bakıldığında fark edilir; üçüncüsü edilmez ve tehlikeli olan da budur — açık hiç hesaplanmadığı için analiz ve çizelge ekranları, talebin büyük bölümü karşılanmamışken bile açık bulunmadığını bildirir. Yani sistem yalnızca eksik bir çizelge üretmekle kalmaz, kendi raporunu da yanlışlar. Bu nedenle S1'in pasif olması çözüm başlatılmadan önce açıkça bildirilir.
 
@@ -698,10 +735,14 @@ FONKSİYON model_kur(donem, tanimlar, kurallar, isitma_penceresi):
     model ← YeniCpModel()
     zaman_ekseni ← isitma_penceresi.gunler + donem.gunler
 
+    # Talebin saate açılımı — tek yer burasıdır
+    talep_saat ← talebi_saate_ac(tanimlar.talepler, zaman_ekseni)
+    # talep_saat[g, t, n] : g gününde t saatinde n noktası için gereken sayı
+
     # Karar değişkenleri
     x ← {}
-    HER (p, g, v, n) İÇİN personel × zaman_ekseni × vardiyalar × noktalar:
-        EĞER talep(g, v, n) = 0: ATLA
+    HER (p, g, v, n) İÇİN personel × zaman_ekseni × bloklar × noktalar:
+        EĞER v bloğunun kapsadığı hiçbir saatte talep_saat[g, ·, n] > 0 DEĞİL: ATLA
         EĞER n.onkosul YOK DEĞİL VE p.yetkinlikleri İÇERMEZ n.onkosul: ATLA
         EĞER p, g gününde v vardiyası için müsait DEĞİL: ATLA
         x[p, g, v, n] ← model.YeniBoolDegisken()
@@ -727,6 +768,34 @@ FONKSİYON model_kur(donem, tanimlar, kurallar, isitma_penceresi):
 
 
 Değişken oluşturmadaki üç atlama koşulu bir ön eleme uygular. Talebi sıfır olan noktalar, ön koşul yetkinliğini taşımayan personel ve müsait olmayan günler için değişken hiç üretilmez. Bu, H7 ve H8 kısıtlarının modele ayrıca eklenmesine gerek bırakmaz ve arama uzayını belirgin biçimde daraltır. Sözü geçen iki kural, kural kataloğunda yine tanımlıdır; oradaki tanımları doğrulayıcı yorumlayıcı tarafından manuel düzenlemede kullanılır.
+
+**Talebin saate açılımı.** Talep kayıtları zaman aralığıdır (4.2.2); kapsama
+kısıtı ise saat ekseninde yazılır (SRS 4.3, S1). Açılım `talebi_saate_ac`
+fonksiyonunda **bir kez** yapılır ve beş tüketici aynı çıktıyı kullanır: model
+kurucu, ön kontrol, doğrulayıcı, analiz servisi ve kabul ölçümü. Her tüketicinin
+kendi açılımını yazması hâlinde, aralık sınırlarının kapalılığı gibi bir ayrıntıda
+ayrışırlar ve aynı çizelge için farklı kapsama oranı raporlarlar; bu projede aynı
+hesabın iki yerde durmasının bedeli birkaç kez ödenmiştir.
+
+Aralık sınırları başlangıçta kapalı, bitişte açıktır: 08.00–16.00 aralığı 08, 09,
+… 15 saatlerini kapsar, 16'yı kapsamaz. Böylece 08.00–16.00 ve 16.00–24.00
+aralıkları çakışmadan bitişir. Gün sonu `00.00` ile gösterilir (4.2.2); gece
+yarısını aşan bloklar ertesi günün saatlerine taşar ve taşan kısım TD-1 uyarınca
+yine başlangıç gününe ait sayılır.
+
+**Aynı kısıtı üreten saatler tek değişkende toplanır.** Bir gün ve nokta için,
+aynı blok kümesi tarafından kapsanan ve aynı gereken sayıya sahip ardışık saatler
+tek bir kapsama kısıtı ve tek bir `eksik` değişkeni üretir; amaç fonksiyonundaki
+katsayı, grubun içerdiği saat sayısıdır. Ceza yine saat başına birikir — anlam
+değişmez, yalnızca aynı bilgiyi taşıyan yinelenmiş değişkenler kaldırılır.
+
+Bu, isteğe bağlı bir iyileştirme değildir. Gruplama yapılmadığında hizalı bir
+katalogda bir bloğun sekiz saati sekiz **birbirinin yerine geçebilen** `eksik`
+değişkeni doğurur; çözücü bu simetriyi kırmak için arama zamanının çoğunu harcar
+ve dakikalar süren aramalar bile açık veren çözümlerde takılır. Ölçülen: yedi
+günlük bir dönemde gruplama olmadan 120 saniyede 704 kişi-saat açık, 420 saniyede
+536; gruplamayla aynı dönem sıfır açıkla çözülür. Değişken sayısının fiziksel
+kısıt sayısına indirgenmesi, saat ekseninin ödediği bedeli geri alır.
 
 ## 5.4 Çözüm İşinin Yürütülmesi
 
@@ -950,13 +1019,25 @@ Analiz servisi, bir çizelge sürümü üzerinden aşağıdaki metrikleri hesapl
 
 | Metrik | Hesaplama |
 | --- | --- |
-| Kapsama oranı | Karşılanan talep toplamının toplam talebe oranı; kapsama açığı tablosundan türetilir |
+| Kapsama oranı | Karşılanan kişi-saatin toplam talep kişi-saatine oranı; **atama kayıtlarından** hesaplanır (aşağıya bakınız) |
 | Kişi başına gece sayısı | Gece bayrağı taşıyan vardiyalardaki atama sayısı, personel bazında |
 | Kişi başına hafta sonu sayısı | Hafta sonu ve resmî tatil günlerindeki atama sayısı, personel bazında |
 | Saat dağılımı | Personel başına toplam çalışma saati ile o personele düşen adil pay arasındaki sapma (SRS S4'teki pay[p]) |
 | Tercih karşılama oranı | Onaylanmış tercihlerden karşılananların oranı |
 | Ceza dökümü | Toplam ceza puanının S1…S8 hedefleri arasındaki dağılımı |
 | Bina değişim sayısı | Ardışık günlerde farklı binalarda görevlendirilme sayısı, personel bazında |
+
+**Kapsama oranının kaynağı atama kayıtlarıdır**, kapsama açığı tablosu değil:
+
+```
+karsilanan = Σ_{d,t,n} min( atanan[d,t,n], talep[d,t,n] )
+toplam     = Σ_{d,t,n} talep[d,t,n]
+kapsama    = karsilanan / toplam
+```
+
+Açık tablosundan türetilmesi hâlinde "açık kaydı bulunmaması" ile "açık bulunmaması" aynı sonucu verir: hiç ataması olmayan, çözüm dahi çalıştırılmamış bir sürüm %100 kapsama raporlar. Bu gözlenmiş bir hatadır. Aynı bilginin iki türetme yolunun bulunması, bu projede tekrarlayan bir kalıptır; oranın tek kaynağı atamalardır ve açık tablosu bir raporlama detayıdır.
+
+`min(...)` kullanılması, bir saatteki fazla kadronun başka bir saatteki açığı kapatmasını engeller. Atama bulunmayan bir sürümde oran sıfırdır. Talep de bulunmuyorsa oran tanımsızdır ve tire ile gösterilir — sıfır bölme yerine yüzde yüz varsaymak, boş bir dönemi kusursuz bir çizelge gibi gösterir.
 
 
 
@@ -1258,7 +1339,8 @@ Aşağıdaki tablo başlıca uç noktaların işlevsel bir özetidir. Uç noktal
 | /api/bina | GET, POST, PUT, DELETE | Bina tanımları |
 | /api/nokta | GET, POST, PUT, DELETE | Görev noktası tanımları |
 | /api/vardiya-tipi | GET, POST, PUT, DELETE | Vardiya tipi tanımları |
-| /api/talep | GET, PUT | Talep matrisinin okunması ve güncellenmesi |
+| /api/talep | GET, POST | Talep kayıtlarının okunması ve yeni aralık oluşturulması; çakışan aralık reddedilir |
+| /api/talep/{id} | PUT, DELETE | Talep aralığının güncellenmesi ve silinmesi |
 | /api/kural | GET, PUT | Kural parametrelerinin ve ağırlıkların yönetimi |
 | /api/musaitlik | GET, POST, DELETE | Müsaitlik kayıtları |
 | /api/tercih | GET, POST, PUT | Tercih bildirimi ve onay |

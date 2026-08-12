@@ -1,7 +1,7 @@
 """Analiz uc noktasinin yanit semasi (SDD 3.2: analiz_router; SDD 5.7, Ek B;
 SRS FR-8.x)."""
 
-from datetime import date
+from datetime import date, time
 
 from pydantic import BaseModel, Field
 
@@ -28,8 +28,10 @@ class FazlaKadroKalemi(BaseModel):
     """
 
     tarih: date
-    vardiya_tipi_id: int
-    vardiya_tipi_ad: str
+    # Fazla kadro artik bir bloga degil bir ZAMAN ARALIGINA baglidir
+    # (SDD 4.2.4); gun sonu 00.00 ile gosterilir.
+    baslangic: time
+    bitis: time
     nokta_id: int
     nokta_ad: str
     fazla_sayi: int
@@ -37,7 +39,10 @@ class FazlaKadroKalemi(BaseModel):
 
 class AnalizOku(BaseModel):
     surum_id: int
-    kapsama_orani: float
+    # TANIMSIZ olabilir: talep yoksa oran hesaplanamaz ve arayuz tire
+    # gosterir. Sifir bolme yerine yuzde yuz varsaymak, bos bir donemi
+    # kusursuz bir cizelge gibi gosterirdi (SDD 5.7).
+    kapsama_orani: float | None
     # Kapsama oranindan AYRI tutulur: oran "talebin ne kadari karsilandi"
     # sorusunu yanitlar, fazla kadro o soruya bir sey eklemez.
     fazla_kadro: list[FazlaKadroKalemi] = Field(default_factory=list)

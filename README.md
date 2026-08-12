@@ -5,8 +5,14 @@ CP-SAT) tabanlı bir vardiya çizelgeleme karar destek aracı. FastAPI + React +
 PostgreSQL üzerine kurulu bir web uygulamasıdır.
 
 Projenin kapsamı, mimarisi ve kural kataloğu için `docs/` altındaki dört
-dokümana (Charter, SRS, Backlog, SDD) ve geliştirme sürecinin gün gün
-planlandığı [`UYGULAMA_PLANI.md`](UYGULAMA_PLANI.md) dosyasına bakınız.
+dokümana (Charter, SRS, Backlog, SDD) bakınız.
+
+Geliştirme sürecinin planı iki dosyadadır: yürürlükteki plan
+[`UYGULAMA_PLANI_V2.md`](UYGULAMA_PLANI_V2.md) (ikinci aşama, turlar
+hâlinde), birinci aşamanın kapanmış günlük planı ise
+[`docs/turlar/UYGULAMA_PLANI.md`](docs/turlar/UYGULAMA_PLANI.md).
+İlerleme kaydı da ikiye ayrılır: yürürlükteki
+[`PROGRESS_V2.md`](PROGRESS_V2.md), arşiv [`PROGRESS.md`](PROGRESS.md).
 
 ## Gereksinimler
 

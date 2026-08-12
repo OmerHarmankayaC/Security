@@ -13,6 +13,7 @@ from datetime import date, datetime, time, timedelta
 from itertools import product
 from typing import Any
 
+from app.kurallar.zaman_araligi import aralik_saatleri as _aralik_saatleri
 from app.models.girdi import MusaitlikDilimi, TercihTipi
 
 
@@ -81,13 +82,24 @@ class Baglam:
     gorev_noktalari: dict[int, GorevNoktasiBilgisi]
     personel: dict[int, PersonelBilgisi]
     musaitlik: list[MusaitlikKaydi] = field(default_factory=list)
-    # (tarih, vardiya_tipi_id, nokta_id) -> gereken_sayi; istisna/genel talep satiri
-    # cakismasi (SDD 4.2.1) Baglam'i kuran taraf (repository/servis) tarafindan
-    # onceden cozulmus olarak verilir.
+    # SAAT EKSENLI TALEP — TEK KAYNAK (SDD 5.3, SRS 3.3.4).
+    # (tarih, saat, nokta_id) -> gereken_sayi. Talep kayitlari zaman
+    # araligidir; acilim `talebi_saate_ac`ta bir kez yapilir ve bes tuketici
+    # ayni ciktiyi kullanir. Kapsama kisiti (S1) bu eksende yazilir.
+    talep_saat: dict[tuple[date, int, int], int] = field(default_factory=dict)
+    # BLOK EKSENLI TUREV — (tarih, vardiya_tipi_id, nokta_id) -> gereken.
+    # `talep_saat`ten `blok_gorunumu_uret` ile TEK YERDE turetilir; ikinci
+    # bir tanim degildir. S2, S3 ve S4 talebi hala vardiya biriminde okudugu
+    # ve bu turda kural katalogu degismedigi icin duruyor (Tur 4'te kalkar).
     talep: dict[tuple[date, int, int], int] = field(default_factory=dict)
     donem_baslangic: date | None = None
     donem_bitis: date | None = None
     ozel_gunler: frozenset[date] = frozenset()
+    # Yalniz KULLANICIYA GOSTERILEN metinler icin (SRS FR-5.6, karar notu
+    # K20): bulgu metinleri veritabani kimligi degil AD tasir. Bos
+    # birakildiginda metin kimlige duser - elle kurulan test baglamlari
+    # icin gecerli kalir.
+    yetkinlik_adlari: dict[int, str] = field(default_factory=dict)
     tercihler: list[TercihKaydi] = field(default_factory=list)
     # Yalniz yeniden cozum dogrulamasinda dolu olur (S8); normalde None.
     onceki_atamalar: list[AtamaKaydi] | None = None
@@ -166,8 +178,83 @@ class Baglam:
         personel = self.personel.get(personel_id)
         return personel is not None and yetkinlik_id in personel.yetkinlikler
 
+    def yetkinlik_adi(self, yetkinlik_id: int) -> str:
+        """Bulgu metinleri icin ad; bilinmiyorsa kimlige duser (FR-5.6)."""
+        return self.yetkinlik_adlari.get(yetkinlik_id) or f"#{yetkinlik_id} nolu yetkinlik"
+
+    def nokta_adi(self, nokta_id: int) -> str:
+        nokta = self.gorev_noktalari.get(nokta_id)
+        return (nokta.ad if nokta and nokta.ad else "") or f"#{nokta_id} nolu nokta"
+
+    def vardiya_adi(self, vardiya_tipi_id: int) -> str:
+        vardiya = self.vardiya_tipleri.get(vardiya_tipi_id)
+        return (vardiya.ad if vardiya and vardiya.ad else "") or f"#{vardiya_tipi_id} nolu blok"
+
     def gereken_sayi(self, tarih: date, vardiya_tipi_id: int, nokta_id: int) -> int:
+        """BLOK eksenli gereken sayi (turev gorunum; bkz. `talep` alani)."""
         return self.talep.get((tarih, vardiya_tipi_id, nokta_id), 0)
+
+    def gereken_sayi_saat(self, tarih: date, saat: int, nokta_id: int) -> int:
+        """SAAT eksenli gereken sayi — kapsama kisitinin (S1) tabani."""
+        return self.talep_saat.get((tarih, saat, nokta_id), 0)
+
+    def blok_saatleri(self, tarih: date, vardiya_tipi_id: int) -> list[tuple[date, int]]:
+        """Blogun kapsadigi (gun, saat) duvar saati dilimleri.
+
+        Bir personel bir saatte, o saati kapsayan bloga atanmissa sayilir
+        (SRS 4.3 S1). Gece yarisini asan blok ertesi gunun saatlerini de
+        kapsar; atamanin KENDISI TD-1 uyarinca baslangic gunune yazili
+        kalir, degisen yalnizca hangi duvar saatlerini doldurdugudur.
+        """
+        vt = self.vardiya_tipleri[vardiya_tipi_id]
+        return list(_aralik_saatleri(tarih, vt.baslangic_saati, vt.bitis_saati))
+
+    def sapma_saatleri(
+        self, atamalar: Iterable[AtamaKaydi]
+    ) -> tuple[dict[int, dict[tuple[date, int], int]], dict[int, dict[tuple[date, int], int]]]:
+        """Talep ile atamanin SAAT BAZINDA farki: (eksik, fazla), nokta basina.
+
+        TEK TANIM. Dogrulayicinin S1 bulgulari da, kalici sapma tablolari da
+        (kapsama_acigi / fazla_kadro) buradan cikar; iki yerde yazilsaydi
+        biri "her satir bir aciktir" varsayimini digeri baska bir esigi
+        tasirdi ve ayni cizelge icin farkli sayilar raporlanirdi.
+
+        Isitma penceresi DISARIDA: talep tam zaman ekseni icin cozulur
+        (TD-5) ama o gunlerin atamalari surumun parcasi degildir.
+        """
+        atanan = self.atanan_saat_sayilari(atamalar)
+        eksik: dict[int, dict[tuple[date, int], int]] = {}
+        fazla: dict[int, dict[tuple[date, int], int]] = {}
+        for anahtar in set(atanan) | set(self.talep_saat):
+            tarih, saat, nokta_id = anahtar
+            if not self.donem_icinde(tarih):
+                continue
+            fark = atanan.get(anahtar, 0) - self.talep_saat.get(anahtar, 0)
+            if fark < 0:
+                eksik.setdefault(nokta_id, {})[(tarih, saat)] = -fark
+            elif fark > 0:
+                fazla.setdefault(nokta_id, {})[(tarih, saat)] = fark
+        return eksik, fazla
+
+    def atanan_saat_sayilari(
+        self, atamalar: Iterable[AtamaKaydi]
+    ) -> dict[tuple[date, int, int], int]:
+        """Atamalarin SAAT eksenindeki karsiligi: `(gun, saat, nokta) -> kisi`.
+
+        "Atamalardan kapsama" hesabinin TEK tanimidir; dogrulayici (S1),
+        sapma tablolari ve analiz servisi ayni sayiyi uretmek zorundadir
+        (SDD 3.2.1). Bilinmeyen bir blok tipi tasiyan atama sessizce
+        atlanir - pasiflestirilmis bir blogun eski atamalari boyle
+        gorunebilir ve o atama zaten hicbir saati dolduramaz.
+        """
+        sayilar: dict[tuple[date, int, int], int] = {}
+        for atama in atamalar:
+            if atama.vardiya_tipi_id not in self.vardiya_tipleri:
+                continue
+            for saat_gunu, saat in self.blok_saatleri(atama.tarih, atama.vardiya_tipi_id):
+                anahtar = (saat_gunu, saat, atama.nokta_id)
+                sayilar[anahtar] = sayilar.get(anahtar, 0) + 1
+        return sayilar
 
     def hafta_sonu_mu(self, tarih: date) -> bool:
         """TD-3: cumartesi/pazar veya resmi tatil hafta sonu sayilir."""

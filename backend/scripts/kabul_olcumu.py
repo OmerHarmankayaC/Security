@@ -198,7 +198,8 @@ def _tanimlari_kur(oturum: Session) -> None:
         oturum.add(
             Talep(
                 nokta_id=noktalar[tanim.nokta_index].nokta_id,
-                vardiya_tipi_id=vardiyalar[tanim.vardiya_tipi].vardiya_tipi_id,
+                baslangic=tanim.baslangic,
+                bitis=tanim.bitis,
                 gun_tipi=tanim.gun_tipi,
                 tarih=None,
                 gereken_sayi=tanim.gereken_sayi,

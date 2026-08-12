@@ -78,7 +78,6 @@ def temel_kurulum() -> dict:
 
 def test_cozum_kadro_yeterliyken_tamamlandi_doner_ve_atama_yazilir(temel_kurulum: dict) -> None:
     on_ek = temel_kurulum["on_ek"]
-    vardiya_tipi_id = temel_kurulum["vardiya_tipi_id"]
     nokta_id = temel_kurulum["nokta_id"]
 
     baslangic = date(2026, 6, 1)
@@ -99,7 +98,8 @@ def test_cozum_kadro_yeterliyken_tamamlandi_doner_ve_atama_yazilir(temel_kurulum
             oturum.add(
                 Talep(
                     nokta_id=nokta_id,
-                    vardiya_tipi_id=vardiya_tipi_id,
+                    baslangic=time(8, 0),
+                    bitis=time(16, 0),
                     gun_tipi=GunTipi.HAFTA_ICI,
                     tarih=baslangic + timedelta(days=gun_ofset),
                     gereken_sayi=1,
@@ -155,22 +155,27 @@ def test_cozum_kadro_yeterliyken_tamamlandi_doner_ve_atama_yazilir(temel_kurulum
         oturum.close()
 
 
-def test_cozum_on_kontrolde_yapisal_engel_varsa_cozmeden_basarisiz_doner(
+def test_on_kontrol_bulgusu_cozumu_dusurmez_cizelge_yine_uretilir(
     temel_kurulum: dict,
 ) -> None:
-    """Iki kisilik havuzda izinlerin tam gun ortustugu bir gun, SDD 5.2'nin
-    Kontrol 4'unun (nokta bazli musaitlik) yakalayacagi turden acik bir
-    yapisal engeldir; SDD 5.4'e gore cozum isi bu durumda cozucuyu hic
-    calistirmadan basarisiz olarak sonlanir (bkz. Sprint 2 Gun 7: on_kontrol
-    yalnizca zaman-pencereli/kumulatif haftalik acikliklari kacirir, boyle
-    tam-gunluk bir engeli degil).
+    """SDD 5.2 / SRS FR-5.2: ON KONTROL BULGUSU COZUMU ENGELLEMEZ.
+
+    Iki kisilik havuzda izinlerin tam gun ortustugu bir gun, SDD 5.2'nin
+    Kontrol 4'unun (nokta bazli musaitlik) yakalayacagi turden kesin bir
+    bulgudur. Eskiden is bu durumda cozucu hic calistirilmadan
+    `basarisiz` oluyordu; bu, "personel yetersizliginde cozumu reddetmek
+    yerine cizelgeyi uret ve kapsama aciklarini goster" gereksinimini
+    dogrudan ihlal ediyordu ve S1'in baskin agirlikli ESNEK hedef olarak
+    tasarlanmasinin tek gerekcesini islevsiz birakiyordu.
+
+    Beklenen yeni davranis: cizelge URETILIR, atamalar yazilir, acik
+    kapsama acigi olarak raporlanir ve bulgu is kaydinda KALICI olur.
 
     Nokta, yalnizca bu iki kisinin sahip oldugu YENI bir yetkinlikle
     kisitlanir; aksi halde paylasilan test veritabanindaki ilgisiz (ve
     kisitsiz) diger personel de aday olup acigi kapatabilir.
     """
     on_ek = temel_kurulum["on_ek"]
-    vardiya_tipi_id = temel_kurulum["vardiya_tipi_id"]
 
     baslangic = date(2026, 6, 8)
     bitis = baslangic + timedelta(days=6)
@@ -224,7 +229,8 @@ def test_cozum_on_kontrolde_yapisal_engel_varsa_cozmeden_basarisiz_doner(
             oturum.add(
                 Talep(
                     nokta_id=nokta_id,
-                    vardiya_tipi_id=vardiya_tipi_id,
+                    baslangic=time(8, 0),
+                    bitis=time(16, 0),
                     gun_tipi=GunTipi.HAFTA_ICI,
                     tarih=baslangic + timedelta(days=gun_ofset),
                     gereken_sayi=1,
@@ -249,17 +255,30 @@ def test_cozum_on_kontrolde_yapisal_engel_varsa_cozmeden_basarisiz_doner(
         oturum.close()
 
     durum = isi_calistir_ve_bekle(is_id)
-    assert durum == CozumIsiDurumu.BASARISIZ
+    # Kadro yetersiz oldugu icin acik var: `uyarili`. `basarisiz` DEGIL -
+    # isin dusmesinin tek mesru nedeni cozucunun modeli cozulemez
+    # bulmasidir (FR-5.5).
+    assert durum == CozumIsiDurumu.UYARILI
 
     oturum = OturumYerel()
     try:
         is_kaydi = CozumIsiDeposu(oturum).getir(is_id)
         assert is_kaydi is not None
-        assert is_kaydi.hata_mesaji is not None
-        assert str(ortusen_gun) in is_kaydi.hata_mesaji
-        # Cozucu hic calistirilmadigi icin bu surume atama yazilmamis olmali.
+        # Bulgu KAYBOLMAZ: sonucla birlikte gosterilebilmesi ve surum
+        # raporunda kalmasi icin is kaydinda durur.
+        assert is_kaydi.on_kontrol_bulgulari
+        bulgu_metinleri = " ".join(b["aciklama"] for b in is_kaydi.on_kontrol_bulgulari)
+        assert str(ortusen_gun) in bulgu_metinleri
+        # Cizelge URETILDI: bulgunun isaret ettigi gun disinda atamalar var.
         atamalar = oturum.execute(select(Atama).where(Atama.surum_id == surum_id)).scalars().all()
-        assert atamalar == []
+        assert atamalar, "On kontrol bulgusu cizelgenin uretilmesini engellememeli"
+        # Acik, kapsama acigi olarak raporlandi.
+        acilar = (
+            oturum.execute(select(KapsamaAcigi).where(KapsamaAcigi.surum_id == surum_id))
+            .scalars()
+            .all()
+        )
+        assert acilar, "Kapatilamayan talep kapsama acigi olarak raporlanmali"
     finally:
         oturum.close()
 

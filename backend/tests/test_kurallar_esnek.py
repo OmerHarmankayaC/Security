@@ -62,19 +62,33 @@ def baglam() -> Baglam:
     )
 
 
+def _blok_talebi(baglam: Baglam, tarih: date, blok: int, nokta: int, gereken: int) -> None:
+    """Bir blogun kapsadigi HER SAATE ayni talebi yazar.
+
+    S1 artik saat ekseninde calisiyor (SRS 4.3): talep bir bloga degil bir
+    zaman araligina baglidir. Sekiz saatlik bir blokta bir kisilik acik,
+    sekiz kisi-saat ceza uretir.
+    """
+    for gun, saat in baglam.blok_saatleri(tarih, blok):
+        baglam.talep_saat[(gun, saat, nokta)] = gereken
+
+
 def test_s1_kapsama_acigi_ceza_uretir(baglam: Baglam) -> None:
     kural = S1TalepKarsilama(parametreler={}, agirlik=100)
-    baglam.talep[(date(2026, 1, 5), GUNDUZ, KAPI)] = 2
+    _blok_talebi(baglam, date(2026, 1, 5), GUNDUZ, KAPI, 2)
     atamalar = [AtamaKaydi(1, date(2026, 1, 5), GUNDUZ, KAPI)]
     ihlaller = kural.dogrula(atamalar, baglam)
+    # Sekiz saatin her birinde bir kisi eksik: TEK aralik kaydi, sekiz
+    # kisi-saat ceza.
     assert len(ihlaller) == 1
     assert ihlaller[0].kural_kimlik == "S1"
-    assert ihlaller[0].ceza == 1
+    assert ihlaller[0].ceza == 8
+    assert "08.00–16.00" in ihlaller[0].aciklama
 
 
 def test_s1_talep_karsilaninca_ceza_uretmez(baglam: Baglam) -> None:
     kural = S1TalepKarsilama(parametreler={}, agirlik=100)
-    baglam.talep[(date(2026, 1, 5), GUNDUZ, KAPI)] = 1
+    _blok_talebi(baglam, date(2026, 1, 5), GUNDUZ, KAPI, 1)
     atamalar = [AtamaKaydi(1, date(2026, 1, 5), GUNDUZ, KAPI)]
     assert kural.dogrula(atamalar, baglam) == []
 
@@ -347,7 +361,7 @@ def test_s1_modele_ekle_karsilanamayan_talep_icin_eksigi_zorunlu_kilar(baglam: B
     baglam.zaman_ekseni = [gun]
     baglam.donem_baslangic = gun
     baglam.donem_bitis = gun
-    baglam.talep[(gun, GUNDUZ, KAPI)] = 2
+    _blok_talebi(baglam, gun, GUNDUZ, KAPI, 2)
 
     kural = S1TalepKarsilama(parametreler={})
     terim = kural.modele_ekle(model, degiskenler, baglam)
@@ -357,7 +371,8 @@ def test_s1_modele_ekle_karsilanamayan_talep_icin_eksigi_zorunlu_kilar(baglam: B
     cozucu = cp_model.CpSolver()
     durum = cozucu.solve(model)
     assert durum == cp_model.OPTIMAL
-    assert cozucu.objective_value == 1
+    # Bir kisilik acik sekiz saat boyunca surer: sekiz kisi-saat.
+    assert cozucu.objective_value == 8
 
 
 def test_kayit_defterinde_s1_s8_ve_s6b_tamami_bulunur() -> None:

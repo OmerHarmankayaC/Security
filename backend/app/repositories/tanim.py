@@ -156,38 +156,30 @@ class TalepDeposu(TabanDepo[Talep]):
     def __init__(self, oturum: Session) -> None:
         super().__init__(oturum, Talep)
 
-    def dogal_anahtarla_bul(
-        self, *, nokta_id: int, vardiya_tipi_id: int, gun_tipi: GunTipi, tarih: date | None
-    ) -> Talep | None:
+    def tumunu_getir(self) -> Sequence[Talep]:
+        """Okunabilir bir sirada: nokta, gun tipi, tarih, baslangic.
+
+        Sirasiz dondugunde arayuzun her tuketicisi kendi siralamasini
+        yazardi ve iki liste ayrisirdi.
+        """
+        stmt = select(Talep).order_by(
+            Talep.nokta_id, Talep.gun_tipi, Talep.tarih.nulls_first(), Talep.baslangic
+        )
+        return self.oturum.execute(stmt).scalars().all()
+
+    def ayni_kapsamdakiler(
+        self, *, nokta_id: int, gun_tipi: GunTipi, tarih: date | None
+    ) -> Sequence[Talep]:
+        """Ayni (nokta, gun tipi, tarih) uclusundeki satirlar - cakisma denetiminin kumesi.
+
+        Istisna satirlari (tarih dolu) genel satirlarla CAKISMAZ: bir tarih
+        icin istisna varsa o gunun talebi yalnizca istisna satirlarindan
+        olusur (SDD 4.2.2), yani iki kume ayni gunde bir arada
+        degerlendirilmez.
+        """
         stmt = select(Talep).where(
             Talep.nokta_id == nokta_id,
-            Talep.vardiya_tipi_id == vardiya_tipi_id,
             Talep.gun_tipi == gun_tipi,
-            Talep.tarih == tarih,
+            Talep.tarih.is_(None) if tarih is None else Talep.tarih == tarih,
         )
-        return self.oturum.execute(stmt).scalar_one_or_none()
-
-    def hucreyi_guncelle(
-        self,
-        *,
-        nokta_id: int,
-        vardiya_tipi_id: int,
-        gun_tipi: GunTipi,
-        tarih: date | None,
-        gereken_sayi: int,
-    ) -> Talep:
-        """SDD 4.2.1: (nokta, vardiya, gun_tipi, tarih) dogal anahtarina gore olustur/guncelle."""
-        mevcut = self.dogal_anahtarla_bul(
-            nokta_id=nokta_id, vardiya_tipi_id=vardiya_tipi_id, gun_tipi=gun_tipi, tarih=tarih
-        )
-        if mevcut is not None:
-            mevcut.gereken_sayi = gereken_sayi
-            self.oturum.flush()
-            return mevcut
-        return self.olustur(
-            nokta_id=nokta_id,
-            vardiya_tipi_id=vardiya_tipi_id,
-            gun_tipi=gun_tipi,
-            tarih=tarih,
-            gereken_sayi=gereken_sayi,
-        )
+        return self.oturum.execute(stmt).scalars().all()

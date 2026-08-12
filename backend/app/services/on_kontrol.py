@@ -37,18 +37,25 @@ class Bulgu:
     tarih: date | None = None
     vardiya_tipi_id: int | None = None
     nokta_id: int | None = None
-    # Cozumu DURDURUR mu?
+    # KESIN BULGU MU, UYARI MI? (SDD 5.2, karar notu K18)
     #
-    # Yapisal engeller (kadro aritmetigi) icin True: cozum calistirilsa da
-    # kesinlikle acik verir, calistirmak zaman kaybidir. Yapilandirma
-    # bulgulari icin False: kullanicinin bilincli olarak yaptigi bir ayar
-    # olabilir ve sistem onun yerine karar vermez — yalnizca sonucun ne
-    # olacagini onceden soyler.
-    engel_mi: bool = True
+    # Bu alan bir zamanlar "cozumu durdurur mu" demekti ve yapisal bir
+    # bulguda cozum isi hic baslatilmiyordu. O davranis SRS FR-5.2'yi
+    # dogrudan ihlal ediyordu ("personel yetersizliginde cozumu reddetmek
+    # yerine cizelgeyi uret ve kapsama aciklarini goster") ve S1'in zorunlu
+    # kisit yerine baskin agirlikli esnek hedef olarak tasarlanmasinin tek
+    # gerekcesini islevsiz birakiyordu.
+    #
+    # ARTIK HICBIR BULGU ISI DUSURMEZ. Ayrim yalnizca OKUMA amaclidir:
+    #   True  — kesin bulgu: "bu acik kesinlikle olusacak"; cikan acigin
+    #           kadro yetersizliginden kaynaklandigini ONCEDEN dogrular.
+    #   False — uyari: "sonucu su kosulla oku" (or. S1 pasif).
+    kesin_mi: bool = True
 
 
-def engelleyenler(bulgular: list[Bulgu]) -> list[Bulgu]:
-    return [b for b in bulgular if b.engel_mi]
+def kesin_bulgular(bulgular: list[Bulgu]) -> list[Bulgu]:
+    """Kesin bulgular; uyarilardan AYRI gosterilirler, isi DUSURMEZLER."""
+    return [b for b in bulgular if b.kesin_mi]
 
 
 def kapsama_kurali_bulgusu(aktif_kural_kimlikleri: frozenset[str]) -> Bulgu | None:
@@ -73,7 +80,7 @@ def kapsama_kurali_bulgusu(aktif_kural_kimlikleri: frozenset[str]) -> Bulgu | No
         return None
     return Bulgu(
         tip=BulguTipi.KAPSAMA_KURALI_PASIF,
-        engel_mi=False,
+        kesin_mi=False,
         aciklama=(
             "S1 (Talep karşılama) kuralı pasif. Talep kısıtı modele eklenmeyecek: "
             "hiçbir vardiyanın doldurulması zorunlu olmayacak ve sonuç boş ya da büyük "
@@ -226,7 +233,10 @@ def _yetkinlik_havuzu_kontrolu(
                     tip=BulguTipi.YETKINLIK_HAVUZU_YETERSIZ,
                     yetkinlik_id=y,
                     eksik=eksik,
-                    aciklama=f"{y} nolu yetkinlik havuzunda {eksik} vardiyalık açık var",
+                    aciklama=(
+                        f"{baglam.yetkinlik_adi(y)} yetkinlik havuzunda "
+                        f"{eksik} vardiyalık açık var"
+                    ),
                 )
             )
     return bulgular
@@ -281,8 +291,8 @@ def _nokta_musaitlik_kontrolu(baglam: Baglam, donem_gunleri: list[date]) -> list
                             vardiya_tipi_id=v,
                             nokta_id=n_id,
                             aciklama=(
-                                f"{g} günü {v} nolu vardiyada {n_id} nolu nokta için "
-                                f"uygun personel yok"
+                                f"{g} günü {baglam.vardiya_adi(v)} bloğunda "
+                                f"{baglam.nokta_adi(n_id)} için uygun personel yok"
                             ),
                         )
                     )

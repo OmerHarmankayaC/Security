@@ -36,8 +36,8 @@ from app.schemas.tanim import (
     PersonelGuncelle,
     PersonelOku,
     PersonelOlustur,
-    TalepHucresi,
     TalepYaniti,
+    TalepYazma,
     VardiyaTipiGuncelle,
     VardiyaTipiOku,
     VardiyaTipiOlustur,
@@ -46,7 +46,12 @@ from app.schemas.tanim import (
     YetkinlikOlustur,
 )
 from app.services.tanim_kullanimi import kullanimi_olc
-from app.services.tanim_servisi import KuralParametresiError, SicilKullanimdaError, TanimServisi
+from app.services.tanim_servisi import (
+    CakisanTalepAraligiError,
+    KuralParametresiError,
+    SicilKullanimdaError,
+    TanimServisi,
+)
 
 # Butun tanim uc noktalari yonetici yetkisi ister (SRS 5.10: calisan rolu
 # tanim, cozum ve yayin islevlerine erisemez). Kapi ROUTER duzeyinde: bu
@@ -308,9 +313,45 @@ def talep_matrisini_getir(servis: Servis) -> TalepYaniti:
     return TalepYaniti(hucreler=hucreler, yuk_gostergesi=yuk)  # type: ignore[arg-type]
 
 
-@router.put("/talep", response_model=TalepYaniti)
-def talep_hucresini_guncelle(hucre: TalepHucresi, servis: Servis) -> TalepYaniti:
-    servis.talep_hucresini_guncelle(hucre)
+@router.post("/talep", response_model=TalepYaniti, status_code=201)
+def talep_araligi_ekle(veri: TalepYazma, servis: Servis) -> TalepYaniti:
+    """Yeni bir talep araligi (SRS FR-1.7).
+
+    Talep artik bir hucre degil bir ARALIK kaydidir; ekleme, duzenleme ve
+    silme ayri uclardan yapilir. Onceki `PUT /api/talep` bir matris hucresini
+    yerinde guncelliyordu ve aralik kayitlarinda karsiligi yok.
+    """
+    try:
+        servis.talep_araligi_ekle(veri)
+    except CakisanTalepAraligiError as hata:
+        raise HTTPException(status_code=409, detail=str(hata)) from hata
+    return _talep_yaniti(servis)
+
+
+@router.put("/talep/{talep_id}", response_model=TalepYaniti)
+def talep_araligi_guncelle(talep_id: int, veri: TalepYazma, servis: Servis) -> TalepYaniti:
+    try:
+        guncel = servis.talep_araligi_guncelle(talep_id, veri)
+    except CakisanTalepAraligiError as hata:
+        raise HTTPException(status_code=409, detail=str(hata)) from hata
+    if guncel is None:
+        raise HTTPException(status_code=404, detail="Talep kaydi bulunamadi")
+    return _talep_yaniti(servis)
+
+
+@router.delete("/talep/{talep_id}", response_model=TalepYaniti)
+def talep_araligi_sil(talep_id: int, servis: Servis) -> TalepYaniti:
+    if not servis.talep_araligi_sil(talep_id):
+        raise HTTPException(status_code=404, detail="Talep kaydi bulunamadi")
+    return _talep_yaniti(servis)
+
+
+def _talep_yaniti(servis: TanimServisi) -> TalepYaniti:
+    """Her yazma isleminden sonra LISTE ILE YUK birlikte doner.
+
+    Yuk gostergesi (FR-1.9) talepten turetiliyor; ayri bir istekle
+    alinsaydi arayuz iki cagri arasinda eski sayiyi gosterebilirdi.
+    """
     hucreler, yuk = servis.talep_matrisini_getir()
     return TalepYaniti(hucreler=hucreler, yuk_gostergesi=yuk)  # type: ignore[arg-type]
 

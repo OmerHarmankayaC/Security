@@ -30,11 +30,12 @@ sonucu verdigini olcer - SDD 3.2.1'in cozucu-dogrulayici uyum ilkesinin
 bu tabloya uygulanmis hali.
 """
 
-from collections import Counter
 from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
+from app.kurallar.baglam import AtamaKaydi
+from app.kurallar.zaman_araligi import aralik_sure_saat, saatleri_araliklara_birlestir
 from app.models.sonuc import FazlaKadro, KapsamaAcigi
 from app.repositories.sonuc import (
     AtamaDeposu,
@@ -79,50 +80,50 @@ def sapmalari_yenile(oturum: Session, surum_id: int) -> SapmaOzeti | None:
     # servisiyle ayni gerekce).
     baglam = baglam_olustur(oturum, donem, yalniz_aktif=False)
     atamalar = AtamaDeposu(oturum).surume_gore_getir(surum_id)
-    atanan = Counter((a.tarih, a.vardiya_tipi_id, a.nokta_id) for a in atamalar)
+    atama_kayitlari = [
+        AtamaKaydi(a.personel_id, a.tarih, a.vardiya_tipi_id, a.nokta_id) for a in atamalar
+    ]
 
     kapsama_depo = KapsamaAcigiDeposu(oturum)
     fazla_depo = FazlaKadroDeposu(oturum)
     kapsama_depo.surume_gore_sil(surum_id)
     fazla_depo.surume_gore_sil(surum_id)
 
+    # SAAT EKSENINDE hesaplanir, ARALIK olarak yazilir (SDD 4.2.4).
+    # ISITMA PENCERESI DISARIDA: `talep_saat` zaman ekseni uzerinde cozulur
+    # ve o eksen onceki donemin son yedi gununu de kapsar (SRS TD-5); o
+    # gunlerin atamalari BU surumun parcasi degildir. Cozucu de ayni siniri
+    # kullanir (esnek.py S1). Filtre olmadan tek gunluk bir donem yedi
+    # gunluk hayali bir acik uretiyordu.
+    eksik_saatler, fazla_saatler = baglam.sapma_saatleri(atama_kayitlari)
+
     eksik_hucre = eksik_kisi = fazla_hucre = fazla_kisi = 0
-    for anahtar, gereken in baglam.talep.items():
-        tarih, vardiya_tipi_id, nokta_id = anahtar
-        # ISITMA PENCERESI DISARIDA. `baglam.talep` zaman ekseni uzerinde
-        # cozulur ve o eksen onceki donemin son yedi gununu de kapsar
-        # (SRS TD-5); o gunlerin atamalari BU surumun parcasi degildir,
-        # dolayisiyla o hucreler burada bir sapma da uretmez. Cozucu de
-        # ayni siniri kullanir (`baglam.donem_gunleri`, esnek.py S1).
-        # Filtre olmadan tek gunluk bir donem yedi gunluk hayali bir acik
-        # uretiyordu.
-        if not baglam.donem_icinde(tarih):
-            continue
-        fark = atanan.get(anahtar, 0) - gereken
-        if fark == 0:
-            continue
-        if fark < 0:
+    for nokta_id, saatler in sorted(eksik_saatler.items()):
+        for tarih, bas, bit, sayi in saatleri_araliklara_birlestir(saatler):
             eksik_hucre += 1
-            eksik_kisi += -fark
+            eksik_kisi += sayi * aralik_sure_saat(bas, bit)
             oturum.add(
                 KapsamaAcigi(
                     surum_id=surum_id,
                     tarih=tarih,
-                    vardiya_tipi_id=vardiya_tipi_id,
+                    baslangic=bas,
+                    bitis=bit,
                     nokta_id=nokta_id,
-                    eksik_sayi=-fark,
+                    eksik_sayi=sayi,
                 )
             )
-        else:
+    for nokta_id, saatler in sorted(fazla_saatler.items()):
+        for tarih, bas, bit, sayi in saatleri_araliklara_birlestir(saatler):
             fazla_hucre += 1
-            fazla_kisi += fark
+            fazla_kisi += sayi * aralik_sure_saat(bas, bit)
             oturum.add(
                 FazlaKadro(
                     surum_id=surum_id,
                     tarih=tarih,
-                    vardiya_tipi_id=vardiya_tipi_id,
+                    baslangic=bas,
+                    bitis=bit,
                     nokta_id=nokta_id,
-                    fazla_sayi=fark,
+                    fazla_sayi=sayi,
                 )
             )
     oturum.flush()

@@ -77,11 +77,15 @@ def _kucuk_baglam() -> tuple[Baglam, list[date]]:
         for p in range(1, 6)
     }
     gunler = [date(2026, 2, 2) + timedelta(days=i) for i in range(3)]
+    # S1 artik SAAT ekseninde calisiyor: talep, GUNDUZ blogunun kapsadigi
+    # her saate yazilir (SRS 4.3). Blok gorunumu S2/S3/S4 icin duruyor.
+    talep_saat = {(g, saat, KAPI): 1 for g in gunler for saat in range(8, 16)}
     talep = {(g, GUNDUZ, KAPI): 1 for g in gunler}
     baglam = Baglam(
         vardiya_tipleri=vardiya_tipleri,
         gorev_noktalari=gorev_noktalari,
         personel=personel,
+        talep_saat=talep_saat,
         talep=talep,
         donem_baslangic=gunler[0],
         donem_bitis=gunler[-1],
@@ -185,7 +189,8 @@ def test_cozum_sonucu_atama_tablosuna_yaziliyor() -> None:
             oturum.add(
                 TalepSatiri(
                     nokta_id=nokta_satiri.nokta_id,
-                    vardiya_tipi_id=vardiya_satirlari["gunduz"].vardiya_tipi_id,
+                    baslangic=vardiya_satirlari["gunduz"].baslangic_saati,
+                    bitis=vardiya_satirlari["gunduz"].bitis_saati,
                     gun_tipi=GunTipi.HAFTA_ICI,
                     tarih=gun,
                     gereken_sayi=1,
@@ -223,10 +228,14 @@ def test_cozum_sonucu_atama_tablosuna_yaziliyor() -> None:
             (gun, vardiya_satirlari["gunduz"].vardiya_tipi_id, nokta_satiri.nokta_id): 1
             for gun in gunler
         }
+        talep_saat = {
+            (gun, saat, nokta_satiri.nokta_id): 1 for gun in gunler for saat in range(8, 16)
+        }
         baglam = Baglam(
             vardiya_tipleri=vardiya_tipleri,
             gorev_noktalari=gorev_noktalari,
             personel=personel,
+            talep_saat=talep_saat,
             talep=talep,
             donem_baslangic=gunler[0],
             donem_bitis=gunler[-1],
@@ -292,12 +301,19 @@ def _esnek_uyum_baglami() -> tuple[Baglam, list[date], list[AtamaKaydi]]:
     }
     gunler = [date(2026, 2, 2) + timedelta(days=i) for i in range(7)]  # Pzt..Paz (hafta sonu dahil)
 
+    # Blok gorunumu (S2/S3/S4) ve saat ekseni (S1) birlikte kurulur; ikisi de
+    # ayni taleple beslenir.
     talep = {}
+    talep_saat: dict[tuple[date, int, int], int] = {}
+    blok_saatleri = {GUNDUZ: range(8, 16), AKSAM: range(16, 24), GECE: range(0, 8)}
     for i, gun in enumerate(gunler):
-        talep[(gun, GUNDUZ, NOKTA_A)] = 1
-        talep[(gun, AKSAM, NOKTA_B)] = 1
+        hucreler = [(GUNDUZ, NOKTA_A), (AKSAM, NOKTA_B)]
         if i % 2 == 0:
-            talep[(gun, GECE, NOKTA_A)] = 1
+            hucreler.append((GECE, NOKTA_A))
+        for blok, nokta in hucreler:
+            talep[(gun, blok, nokta)] = 1
+            for saat in blok_saatleri[blok]:
+                talep_saat[(gun, saat, nokta)] = 1
 
     tercihler = [
         TercihKaydi(personel_id=1, tarih=gunler[0], tip=TercihTipi.CALISMAMA),
@@ -320,6 +336,7 @@ def _esnek_uyum_baglami() -> tuple[Baglam, list[date], list[AtamaKaydi]]:
         vardiya_tipleri=vardiya_tipleri,
         gorev_noktalari=gorev_noktalari,
         personel=personel,
+        talep_saat=talep_saat,
         talep=talep,
         donem_baslangic=gunler[0],
         donem_bitis=gunler[-1],
@@ -363,7 +380,9 @@ def test_esnek_hedefler_cozucu_dogrulayici_uyumu() -> None:
         sinif = bul(kimlik)
         assert sinif is not None
         kural = sinif(parametreler={})
-        dogrula_toplami = sum(ihlal.ceza for ihlal in kural.dogrula(atamalar, baglam))
+        dogrula_toplami = sum(
+            ihlal.ceza for ihlal in kural.dogrula(atamalar, baglam) if ihlal.ceza is not None
+        )
         if kimlik == "S4":
             # dogrula'nin onda-bir-saat hassasiyetli (kesirli) toplamini
             # modele_ekle'nin kendi ic olceginde (S4_OLCEK) yeniden tam sayiya

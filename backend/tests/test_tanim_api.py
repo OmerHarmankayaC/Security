@@ -94,7 +94,7 @@ def test_personel_yetkinlik_nokta_talep_zinciri(istemci: TestClient) -> None:
         "/api/nokta",
         json={"ad": "Kapi FR-zincir", "bina_id": bina_id, "onkosul_yetkinlik_id": yetkinlik_id},
     ).json()["nokta_id"]
-    vardiya_tipi_id = istemci.post(
+    istemci.post(
         "/api/vardiya-tipi",
         json={"ad": "Gunduz FR-zincir", "baslangic_saati": "08:00:00", "bitis_saati": "16:00:00"},
     ).json()["vardiya_tipi_id"]
@@ -114,19 +114,37 @@ def test_personel_yetkinlik_nokta_talep_zinciri(istemci: TestClient) -> None:
     personel_id = govde["personel_id"]
     assert govde["yetkinlik_idleri"] == [yetkinlik_id]
 
-    yanit = istemci.put(
+    # Talep artik HUCRE degil KAYIT: bir zaman araligi eklenir (SRS 3.3.4,
+    # FR-1.7). Vardiya tipi kimligi tasimaz.
+    yanit = istemci.post(
         "/api/talep",
         json={
             "nokta_id": nokta_id,
-            "vardiya_tipi_id": vardiya_tipi_id,
+            "baslangic": "08:00",
+            "bitis": "16:00",
             "gun_tipi": "hafta_ici",
             "gereken_sayi": 3,
         },
     )
-    assert yanit.status_code == 200
+    assert yanit.status_code == 201
     govde = yanit.json()
     assert any(h["nokta_id"] == nokta_id and h["gereken_sayi"] == 3 for h in govde["hucreler"])
-    assert govde["yuk_gostergesi"]["haftalik_kisi_vardiya"] >= 15  # 3 kisi x 5 gun
+    # 3 kisi x 5 hafta ici gun x 8 saat = 120 kisi-saat.
+    assert float(govde["yuk_gostergesi"]["haftalik_kisi_saat"]) >= 120
+
+    # Ayni nokta ve gun tipi icin CAKISAN aralik reddedilir (SDD 4.2.2):
+    # cakisan iki kayit ayni saat icin iki farkli gereken sayi uretir.
+    cakisan = istemci.post(
+        "/api/talep",
+        json={
+            "nokta_id": nokta_id,
+            "baslangic": "12:00",
+            "bitis": "20:00",
+            "gun_tipi": "hafta_ici",
+            "gereken_sayi": 1,
+        },
+    )
+    assert cakisan.status_code == 409
 
     yanit = istemci.get("/api/talep")
     assert yanit.status_code == 200

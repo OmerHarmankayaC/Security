@@ -96,7 +96,8 @@ def test_analiz_metrikleri_dogru_hesaplanir(istemci: TestClient) -> None:
         oturum.add(
             Talep(
                 nokta_id=nokta.nokta_id,
-                vardiya_tipi_id=gunduz.vardiya_tipi_id,
+                baslangic=gunduz.baslangic_saati,
+                bitis=gunduz.bitis_saati,
                 gun_tipi=GunTipi.HAFTA_ICI,
                 tarih=None,
                 gereken_sayi=1,
@@ -105,7 +106,8 @@ def test_analiz_metrikleri_dogru_hesaplanir(istemci: TestClient) -> None:
         oturum.add(
             Talep(
                 nokta_id=nokta.nokta_id,
-                vardiya_tipi_id=gece.vardiya_tipi_id,
+                baslangic=gece.baslangic_saati,
+                bitis=gece.bitis_saati,
                 gun_tipi=GunTipi.HAFTA_SONU,
                 tarih=None,
                 gereken_sayi=1,
@@ -146,7 +148,8 @@ def test_analiz_metrikleri_dogru_hesaplanir(istemci: TestClient) -> None:
             KapsamaAcigi(
                 surum_id=surum.surum_id,
                 tarih=date(2026, 9, 13),
-                vardiya_tipi_id=gece.vardiya_tipi_id,
+                baslangic=gece.baslangic_saati,
+                bitis=gece.bitis_saati,
                 nokta_id=nokta.nokta_id,
                 eksik_sayi=1,
             )
