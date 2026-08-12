@@ -899,7 +899,8 @@ curl -s -o /dev/null -w '%{http_code}\n' \
 
 # Göç uygulandı mı — üç sütun ve enum değeri
 ssh -o IdentitiesOnly=yes -i "$HOME/.ssh/vera_hetzner" root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
-  psql "$VERITABANI_URL" -tAc "
+  PGURL=$(printf %s "$VERITABANI_URL" | sed "s|+psycopg||")
+  psql "$PGURL" -tAc "
     select column_name from information_schema.columns
      where table_name = '"'"'cozum_isi'"'"'
        and column_name in ('"'"'gecici_sonuc'"'"','"'"'cozum_ipucu'"'"','"'"'devam_kaynagi_is_id'"'"')
@@ -1010,12 +1011,23 @@ Bu göç üç şey yapıyor ve ilk ikisi geri döndürülemez veri işlemidir:
 
 Yedek — göçten önce, tek komut:
 
+> **`VERITABANI_URL` doğrudan `pg_dump`a verilemez.** Değer
+> `postgresql+psycopg://…` ile başlar — SQLAlchemy'nin biçimi, libpq'nun
+> değil. pg_dump `postgresql://` ön ekini tanımayınca dizenin tamamını
+> **veritabanı adı** sanar, varsayılan sokete OS kullanıcısıyla bağlanır ve
+> `role "root" does not exist` der; üstelik **0 baytlık bir dosya bırakır**,
+> yani yedek almışsınız gibi görünür. `+psycopg` ayıklanmalıdır. Aynı şey
+> `psql` ve `pg_restore` için de geçerlidir.
+
 ```bash
 ssh -o IdentitiesOnly=yes -i "$HOME/.ssh/vera_hetzner" root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
-  mkdir -p /opt/vardiya/yedek
-  pg_dump "$VERITABANI_URL" -Fc -f /opt/vardiya/yedek/vardiya-$(date +%Y%m%d-%H%M).dump
+  mkdir -p /opt/vardiya/yedek &&
+  PGURL=$(printf %s "$VERITABANI_URL" | sed "s|+psycopg||") &&
+  pg_dump "$PGURL" -Fc -f /opt/vardiya/yedek/vardiya-$(date +%Y%m%d-%H%M).dump &&
   ls -lh /opt/vardiya/yedek/ | tail -3'
 ```
+
+**Dosya boyutunu gözle doğrulayın.** Sıfır baytsa yedek YOKTUR.
 
 Dönüşümün ölçüsü (geliştirme veritabanı): **27 satır → 27 satır, 384
 kişi-saat → 384 kişi-saat.** Sunucudaki sayı farklı olacaktır; önemli olan
@@ -1129,7 +1141,8 @@ curl -s -o /dev/null -w 'PUT /api/talep -> %{http_code}\n' \
 
 # Dönüşüm gerçekten oldu mu — talep artık aralık taşıyor
 ssh -o IdentitiesOnly=yes -i "$HOME/.ssh/vera_hetzner" root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
-  psql "$VERITABANI_URL" -tAc "
+  PGURL=$(printf %s "$VERITABANI_URL" | sed "s|+psycopg||")
+  psql "$PGURL" -tAc "
     select column_name from information_schema.columns
      where table_name = '"'"'talep'"'"'
        and column_name in ('"'"'baslangic'"'"','"'"'bitis'"'"','"'"'vardiya_tipi_id'"'"')
@@ -1183,23 +1196,33 @@ Yedekten tam dönüş gerekirse:
 ```bash
 ssh -o IdentitiesOnly=yes -i "$HOME/.ssh/vera_hetzner" root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
   systemctl stop vardiya-api vardiya-cozucu
-  pg_restore -c -d "$VERITABANI_URL" /opt/vardiya/yedek/vardiya-<ZAMAN>.dump
+  PGURL=$(printf %s "$VERITABANI_URL" | sed "s|+psycopg||")
+  pg_restore -c -d "$PGURL" /opt/vardiya/yedek/vardiya-<ZAMAN>.dump
   systemctl start vardiya-api vardiya-cozucu'
 ```
 
-### 15.7 Çıkış kaydı
-
-_Dağıtım yapıldığında doldurulacak._
+### 15.7 Çıkış kaydı (12.08.2026, 13:47 TSİ)
 
 | | |
 |---|---|
 | Kod sürümü | `c149314` |
-| Göçler | `→ d1f83a6c40b2` |
-| Yedek dosyası | — |
-| Talep satırı / kişi-saat (öncesi → sonrası) | — |
-| Servisler | — |
-| Uyarı/hata günlüğü | — |
-| Silinen açık/fazla kadro satırı | — |
+| Göç | `c9a4b7e21f38` → `d1f83a6c40b2`, `alembic current` = `d1f83a6c40b2 (head)` |
+| **Yedek dosyası** | **YOK** — üç denemede de alınamadı (15.8); göç ağsız koştu |
+| Servisler | `vardiya-api`, `vardiya-cozucu` → ikisi de `active` |
+| Uyarı/hata günlüğü | yeniden başlatmadan sonra `-p warning` boş |
+| `POST /api/talep` | **401** (uç var, oturum yok) |
+| `PUT /api/talep` | **405** (uç kaldırıldı — eski kod gitti) |
+| `DELETE /api/talep/1` | **401** |
+| Arayüz kökü | **200** |
+| Talep satırı / kişi-saat | **ölçülmedi** — göç kendi doğrulamasını geçti, ayrıca sayılmadı |
+| Silinen açık/fazla kadro satırı | **sayılmadı** (göç öncesi sayım yapılmadı) |
+
+**Bu dağıtım iki ölçümü kaydetmeden geçti** ve ikisi de bir daha
+alınamaz: göç öncesi talep satırı/kişi-saat sayısı ile silinen açık
+satırı sayısı. Göç kendi içinde saydığı ve eşleşmeseydi duracağı için
+veri tutarlılığı güvence altında; kayıt olarak eksik kalan, **öncesi ve
+sonrası** karşılaştırmasıdır. Sonraki veri dönüştüren göçte sayım
+göçten önce ayrı bir komutla alınmalı.
 
 ### 15.8 12.08.2026 — yarım dağıtım ve toparlanması
 
@@ -1245,18 +1268,45 @@ kabukta da aynı çalışıyorlar. Sessiz kısmi başarı en kötü kip: birinci
 denemede komutlar `&&` ile zincirlenmediği için her biri kendi başına
 düştü ve dağıtım yarıda kaldı.
 
+**Üçüncü deneme — geçti, ama YEDEKSİZ.** Anahtar sorunu çözüldü, göç
+uygulandı ve servisler yeniden başladı; **yedek yine alınamadı ve göç yine
+de koştu.** İki ayrı kusur üst üste geldi:
+
+1. **`pg_dump "$VERITABANI_URL"` çalışamazdı.** Değer
+   `postgresql+psycopg://…` ile başlıyor — SQLAlchemy'nin biçimi, libpq'nun
+   değil. pg_dump `postgresql://` ön ekini tanımayınca dizenin tamamını
+   **veritabanı adı** sandı, varsayılan sokete OS kullanıcısıyla bağlandı ve
+   `role "root" does not exist` dedi. Geriye **0 baytlık bir dosya** kaldı:
+   `ls` çıktısında bir yedek varmış gibi görünüyor. Aynı kusur runbook'un
+   `psql` ve `pg_restore` satırlarında da vardı ve ilk kez burada tetiklendi.
+2. **Zincir yoktu.** "Yedek başarısız olursa göç çalışmaz" yazılmıştı ama
+   komutlar `&&` ile değil **satır sonuyla** ayrılmıştı; her satır kendi
+   başına koştu, pg_dump düştü, alembic devam etti. Söylenen koruma orada
+   değildi.
+
+Sonuç: veri dönüştüren göç **ağsız** uygulandı. Göç kendi doğrulamasını
+geçti (satır sayısı ve kişi-saat eşleşmeseydi durup geri alırdı), o yüzden
+talep verisi tutarlı; ama `kapsama_acigi` / `fazla_kadro` satırları geri
+dönüşü olmadan silindi ve elde onları taşıyan bir yedek yok. Bu zaten
+planlanan sonuçtu — eksik olan ağdı.
+
+Runbook'ta düzeltildi: her libpq çağrısı önce şemayı ayıklıyor, yedek
+adımı `&&` ile bağlı ve dosya boyutunun gözle doğrulanması yazılı.
+
 **Toparlama sırası** — yedeksiz göç yok, ama pencere de hızla kapanmalı:
 
 ```bash
-# Tek zincir: yedek başarısız olursa göç ÇALIŞMAZ.
+# HER ADIM && ILE BAGLI: yedek duserse goc CALISMAZ. Satir sonu yeterli
+# degildir - her satir kendi basina kosar ve dusen yedek zinciri kirmaz.
 ssh -o IdentitiesOnly=yes -i "$HOME/.ssh/vera_hetzner" root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
-  mkdir -p /opt/vardiya/yedek
-  pg_dump "$VERITABANI_URL" -Fc -f /opt/vardiya/yedek/vardiya-$(date +%Y%m%d-%H%M).dump
-  ls -lh /opt/vardiya/yedek/ | tail -3
-  cd /opt/vardiya/backend
-  sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic upgrade head
-  sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic current
-  chown -R vardiya:vardiya /opt/vardiya/backend
+  mkdir -p /opt/vardiya/yedek &&
+  PGURL=$(printf %s "$VERITABANI_URL" | sed "s|+psycopg||") &&
+  pg_dump "$PGURL" -Fc -f /opt/vardiya/yedek/vardiya-$(date +%Y%m%d-%H%M).dump &&
+  ls -lh /opt/vardiya/yedek/ | tail -3 &&
+  cd /opt/vardiya/backend &&
+  sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic upgrade head &&
+  sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic current &&
+  chown -R vardiya:vardiya /opt/vardiya/backend &&
   systemctl restart vardiya-api vardiya-cozucu'
 ```
 
