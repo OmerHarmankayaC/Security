@@ -1207,15 +1207,59 @@ ssh -o IdentitiesOnly=yes -i "$HOME/.ssh/vera_hetzner" root@46.225.109.40 'set -
 |---|---|
 | Kod sürümü | `c149314` |
 | Göç | `c9a4b7e21f38` → `d1f83a6c40b2`, `alembic current` = `d1f83a6c40b2 (head)` |
-| **Yedek dosyası** | **YOK** — üç denemede de alınamadı (15.8); göç ağsız koştu |
+| **Yedek** | göç sırasında **YOK** (15.8); göç sonrası alındı: `/opt/vardiya/yedek/vardiya-20260812-1349.dump`, 84K |
 | Servisler | `vardiya-api`, `vardiya-cozucu` → ikisi de `active` |
 | Uyarı/hata günlüğü | yeniden başlatmadan sonra `-p warning` boş |
 | `POST /api/talep` | **401** (uç var, oturum yok) |
 | `PUT /api/talep` | **405** (uç kaldırıldı — eski kod gitti) |
 | `DELETE /api/talep/1` | **401** |
 | Arayüz kökü | **200** |
-| Talep satırı / kişi-saat | **ölçülmedi** — göç kendi doğrulamasını geçti, ayrıca sayılmadı |
+| Talep tablosu (göç sonrası) | **21 satır**; `vardiya_tipi_id` düştü, `baslangic`/`bitis` NOT NULL |
+| Talep satırı / kişi-saat (öncesi → sonrası) | **ölçülmedi** — göç kendi doğrulamasını geçti, ayrıca sayılmadı |
+| `kapsama_acigi` | **0 satır** (göç sildi; sürümler yeniden çözülene kadar boş) |
 | Silinen açık/fazla kadro satırı | **sayılmadı** (göç öncesi sayım yapılmadı) |
+
+Aralıklar blok sınırlarıyla hizalı çıktı ve gün sonu sözleşmesi doğru
+uygulandı (`16:00 → 00:00`):
+
+| Gün tipi | 00–08 | 08–16 | 16–24 |
+|---|---|---|---|
+| Hafta içi | 3 | 3 | 3 |
+| Hafta sonu | 3 | 3 | 3 |
+| **Resmî tatil** | **1** | **1** | **1** |
+
+### 15.9 Dağıtımda görünen veri boşluğu — resmî tatil satırları eksik
+
+Yukarıdaki tablo bir kusuru ortaya çıkardı ve **göçün yaptığı bir şey
+değil**: hafta içi ve hafta sonunda blok başına üç nokta varken resmî
+tatilde **yalnız bir** nokta satır taşıyor. Üç noktadan ikisinin resmî
+tatil talebi hiç girilmemiş.
+
+Sonucu ağır ve sessiz: `talebi_saate_ac` bir gün için önce tarihe özgü
+istisnayı, sonra o **gün tipine** karşılık gelen genel satırı arar;
+hiçbiri yoksa o gün o nokta **hiçbir saat talep taşımaz**. Takvimdeki 14
+resmî tatilin her birinde o iki nokta için çizelge kimseyi istemez ve
+**kapsama açığı da doğmaz** — talep sıfırdır. Yani hata hiçbir raporda
+görünmez; yalnızca nöbet yerinde kimse olmaz.
+
+Boşluğu bulan sorgu:
+
+```bash
+ssh -o IdentitiesOnly=yes -i "$HOME/.ssh/vera_hetzner" root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
+  PGURL=$(printf %s "$VERITABANI_URL" | sed "s|+psycopg||") &&
+  psql "$PGURL" -c "select n.ad,
+      count(*) filter (where t.gun_tipi = '"'"'HAFTA_ICI'"'"')   hafta_ici,
+      count(*) filter (where t.gun_tipi = '"'"'HAFTA_SONU'"'"')  hafta_sonu,
+      count(*) filter (where t.gun_tipi = '"'"'RESMI_TATIL'"'"') resmi_tatil
+    from gorev_noktasi n left join talep t on t.nokta_id = n.nokta_id
+    group by n.ad order by n.ad;"'
+```
+
+`resmi_tatil` sütunu 0 çıkan her nokta için Tanımlar → Talep ekranından
+satır girilmelidir. **Gerçekten kimse gerekmiyorsa bile `gereken_sayi = 0`
+ile girin**: "o gün kimse gerekmiyor" ile "satır girmeyi unuttuk"
+arasındaki farkı veride görünür kılan tek şey budur. Bu satırları girmenin
+yolu bu turdan önce zaten yoktu — Talep ekranı kırıktı.
 
 **Bu dağıtım iki ölçümü kaydetmeden geçti** ve ikisi de bir daha
 alınamaz: göç öncesi talep satırı/kişi-saat sayısı ile silinen açık
