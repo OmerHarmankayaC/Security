@@ -3766,3 +3766,81 @@ Saatlik sisteme geçiş (günlük 11 saat tavanı, yıllık 270 saat fazla
 çalışma kotası) — kural kataloğu, talep matrisi ve `vardiya_tipi`
 tablosunu baştan tanımlayacak tur. Test izolasyonu bu tur için hazırdı:
 o turun çok sayıda test koşumu artık geliştirme verisine dokunmuyor.
+
+---
+
+## 2026-08-12 — Dağıtım Sonrası Düzeltmeler (kabuk ve karar akışı)
+
+Tur 2 sunucuya çıktı; dağıtım doğrulandı: `/api/cozum/1/iptal` **404**
+(kaldırılan uç), `/durdur` · `/karar` · `/aktif` **401**, arayüz kökü 200,
+yayındaki JS paketi yeni metinleri taşıyor ve "kaldığı yerden" ifadesini
+taşımıyor. Ardından kullanıcı üç sorun bildirdi; biri daha inceleme
+sırasında çıktı.
+
+### 1. Sayaç durdurulduktan sonra da işliyordu
+
+Geçen süre `baslangic_zamani`den **şimdiye** ölçülüyordu; karar bekleyen iş
+hâlâ aktif olduğu için sayaç kullanıcının düşünme süresi boyunca da
+işliyordu. Artık `bitis_zamani` doluysa oraya kadar ölçülüyor — alanın
+anlamı zaten bu (SDD 4.2.4: ölçülen süre aramanın süresidir). Gösterge ile
+karar paneli aynı kaynaktan beslendiği için ikisi birden donuyor.
+
+### 2. İçerik kırpılıyordu, sağ tarafta kaydırma yoktu
+
+Kartlar (`ui/card`) `overflow-hidden` taşıyor; bu, bir flex öğesinin
+otomatik asgari boyutunu **sıfıra** düşürüyor. Sabit yükseklikli bir
+sütunun içinde kartlar taşmak yerine sıkışıp içeriklerini kırpıyordu —
+sayılar ve butonlar yarım görünüyor, kaydırma da hiç doğmuyordu çünkü
+ortada taşan bir şey kalmıyordu.
+
+**Ölçüldü:** doğal yüksekliği 124px olan kart, sıkışmaya açıkken **50px'e**
+iniyor ve kırpıyor; `[&>*]:shrink-0` ile 126px'te kalıyor ve içerik alanı
+1090px taşarak kaydırılabiliyor.
+
+### 3. Kaydırma ters taraftaydı
+
+Yan menüde `overflow-y-auto` vardı; istenen tam tersiydi. Menü artık
+kaydırılmıyor (`overflow-hidden`), kaydırma yüzeyi yalnızca içerik alanı.
+Doğrulandı: içerik sonuna kadar kaydırıldığında sayfanın kendisi kaymıyor,
+menüde çubuk yok, Dönem bloğu görünür kalıyor.
+
+**Ödünleşme:** çok kısa bir pencerede yan menü içeriği taşarsa artık
+kaydırılamaz, kırpılır. Menü sabit ve kısa bir liste olduğu için gerçekçi
+pencere boylarında sığıyor; kaydırmanın kalkması açık bir istekti.
+
+### 4. (İncelemede çıktı) Karar bekleyen iş sessizce askıda kalabiliyordu
+
+"Çözümü Başlat" yalnızca **çalışan** iş varken pasifti, karar bekleyen iş
+varken değil. Yeni bir çözüm başlatmak karar bekleyen işi göstergeden
+düşürüyor ve kullanıcının ona dönmesinin hiçbir yolu kalmıyordu — iş,
+kararı verilmeden askıda kalırdı. Buton artık ikisinde de pasif (SDD
+6.3.2'nin "devam eden bir iş varken pasifleşir" kuralı karar bekleyen işi
+de kapsıyor).
+
+Aynı incelemede ikinci bir kusur: sonuçlanmış işin göstergesine tıklamak
+Çözüm ekranını açıyor ama aynı anda orada görülecek özeti siliyordu.
+Bildirimin kapatılması artık yalnızca göstergeyi gizliyor.
+
+**Sunucu tarafında kalan boşluk (doküman etkisi yok, kayıt için):**
+`POST /api/cozum` karar bekleyen bir iş varken de yeni iş açabiliyor.
+Arayüz bunu engelliyor, sunucu engellemiyor; SDD 6.3.2 kuralı da bir arayüz
+kuralı olarak yazılmış. Başka bir cihazdan aynı anda çözüm başlatılırsa
+karar bekleyen iş göstergeden düşer. Kapatılması ayrı bir ürün kararı.
+
+### Doğrulama
+
+- 142 vitest testi geçiyor (iki yeni: sayacın donması, karar beklerken
+  başlatmanın pasif olması). `tsc -b` ve `oxlint` temiz.
+- Düzen, kabuk işaretlemesinin birebir kopyası üzerinde tarayıcıda ölçüldü
+  (yukarıdaki sayılar).
+- Backend'e dokunulmadı; göç yok.
+
+### Sıradaki oturumun ilk işi
+
+Bu düzeltmelerin sunucuya çıkarılması: **yalnızca frontend**. Göç yok,
+servis yeniden başlatma gerekmiyor.
+
+```
+cd frontend && npm ci && npm run build && npm test
+rsync -az --delete frontend/dist/ root@SUNUCU:/opt/vardiya/web/
+```
