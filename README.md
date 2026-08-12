@@ -160,7 +160,8 @@ npx tsc --noEmit -p tsconfig.app.json
 ```
 backend/    FastAPI uygulaması, SQLAlchemy modelleri, Alembic göçleri
 frontend/   Vite + React + TypeScript (strict mode)
-docs/       Charter, SRS, Backlog, SDD
+docs/       Charter, SRS, Backlog, SDD (kanonik dörtlü)
+docs/turlar/ Tur görev tanımları ve sıradaki işler — kaynak DEĞİL, kayıt
 scripts/    Kurulum ve yardımcı betikler
 ```
 
