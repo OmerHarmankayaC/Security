@@ -9,15 +9,16 @@ başlar.
 
 ---
 
-## 2026-08-12 — Tur 3: Saatlik Düzenin Veri Temeli — **YARIM**
+## 2026-08-12 — Tur 3: Saatlik Düzenin Veri Temeli — **SÜRÜYOR**
 
-Kaynak: `docs/turlar/CLAUDE_CODE_PROMPTU_TUR3.md`. On işlik bir tur; bu
-oturumda **mimari çekirdek tamamlandı, tur bitmedi**. Aşağıda ne bitti, ne
-kanıtlandı ve ne kaldığı ayrı ayrı yazılı. **Hiçbir şey commit edilmedi**;
-çalışma ağacı göç uygulanmış hâlde duruyor ve test takımı kırık.
+Kaynak: `docs/turlar/CLAUDE_CODE_PROMPTU_TUR3.md` ve `TUR3_DEVAM.md`. On
+işlik bir tur. **Sekiz iş bitti, takım yeşil ve commit'lendi** (`374caa3`);
+arayüz tarafında iki iş kaldı (aşağıda "KALANLAR").
 
-Doküman sürümleri turun başında doğrulandı: SRS **1.15**, SDD **1.23**,
-Backlog **1.9**, Proje Tanım Dokümanı 1.2.
+Doküman sürümleri iki kez doğrulandı: turun başında SRS 1.15 / SDD 1.23 /
+Backlog 1.9, devam yönergesinden sonra SRS **1.15** / SDD **1.24** /
+Backlog **1.10** / Proje Tanım Dokümanı 1.2. Bildirilen dört doküman
+borcunun tamamı kapatılmış olarak geldi.
 
 ### Uygulama planı
 
