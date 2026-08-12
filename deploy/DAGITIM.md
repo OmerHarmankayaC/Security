@@ -785,3 +785,175 @@ Yayındaki 17 sürümde fazla kadro varsa Analiz'de ancak o sürüm yeniden
 
 Bölüm 13.4'teki arayüz turu **yapılmadı** — sunucuda oturum açmayı
 gerektiriyor ve mevcut dört hesabın parolası bu makinede yok.
+
+---
+
+## 14. İkinci aşama, tur 1 + tur 2 (12.08.2026) — ÇIKIŞ HAZIR
+
+İki tur birikti, tek çıkışta gidiyor. **Yeni bağımlılık yok, yeni sır
+yok.** Gereken dört şey: **`.env`'e bir satır EKLENMEMESİ**, **iki
+veritabanı göçü**, **yeniden derlenmiş frontend** ve **her iki servisin**
+yeniden başlatılması.
+
+### 14.0 Göçler: `a4d92c15e807` → `b6e2f81d3c07` → `c9a4b7e21f38`
+
+| Göç | İçerik |
+|---|---|
+| `b6e2f81d3c07` | `cozum_isi.durum` ENUM'una `DURDURULDU`; `gecici_sonuc` JSONB; `devam_kaynagi_is_id` FK |
+| `c9a4b7e21f38` | `cozum_isi.cozum_ipucu` JSONB |
+
+**İkisi de yalnızca ekleme yapar.** Mevcut hiçbir sütun dönüştürülmez,
+hiçbir satır taşınmaz, veri kaybı riski yoktur. `alembic current` çıktısı
+`c9a4b7e21f38 (head)` olmalıdır.
+
+`bitis_zamani` bu turda TIMESTAMPTZ'ye çevrilmedi çünkü **zaten öyleydi**
+(göç `c8f2d1a45b73`, 08.08.2026). Olmayan bir farkı düzeltmek için ALTER
+TYPE yazmak mevcut değerleri ikinci kez yorumlama riski doğururdu.
+
+### 14.1 `.env` — hiçbir şey eklenmeyecek
+
+Tur 2'de `TEST_VERITABANI_URL` adında bir ayar eklendi. **Sunucudaki
+`/opt/vardiya/.env` dosyasına YAZILMAMALIDIR** — sunucuda test
+koşturulmaz; yazılırsa orada bulunmayan bir veritabanını gösteren ölü bir
+ayar olur. Uygulama bu değeri zaten hiç okumaz, yalnızca
+`backend/conftest.py` okur.
+
+`VERI_TEMIZLIGINE_IZIN` de eskisi gibi **yoktur** ve olmamalıdır.
+
+```bash
+ssh root@SUNUCU "grep -cE 'TEST_VERITABANI_URL|VERI_TEMIZLIGINE_IZIN' /opt/vardiya/.env"   # 0
+```
+
+### 14.2 Değişiklikler
+
+| Tur | Ne değişti |
+|---|---|
+| 1 · İş 1 | Durdurma isteği artık ara çözüm geri çağırmasında beklemiyor: arama işçi sürecinde ayrı bir iş parçacığında yürüyor, ana döngü durumu yarım saniyede bir taze okuyup `stop_search()` çağırıyor. Ölçülen gecikme **0,35 s** (eski yolda en az 8,3 s, üst sınır zaman limitinin kendisi). |
+| 1 · İş 2 | **Durdurma çözümü atmıyor.** Arama sonlanıyor, bulunan çözüm `gecici_sonuc`ta saklanıyor, kullanıcı karar veriyor: kullan / at / devam. `POST /api/cozum/{id}/iptal` **kaldırıldı**, yerine `/durdur` ve `/karar` geldi. |
+| 1 · İş 3 | Çalışan iş göstergesi yönetici kabuğunun üst çubuğunda; yoklama ekran değişiminde ölmüyor. Yeni uç: `GET /api/cozum/aktif`. İş kimliği tarayıcıda tutulmuyor. |
+| 1 · İş 4 | Yan menü sabit, içerik alanı kendi içinde kaydırılıyor. |
+| 2 · İş 1 | Çözücü ipucu kendi sütununda (`cozum_ipucu`) ve **iş sonlandığında** boşalıyor. |
+| 2 · İş 2 | Arama başlamadan gelen durdurma (`kuyrukta`/`on_kontrol`) **doğrudan iptal**; karar sorulmuyor. Geçiş tek koşullu UPDATE ile yarışsız. |
+| 2 · İş 3 | Test takımı ayrı veritabanında (`vardiya_test`). **Sunucuyu ilgilendirmez**, yalnızca geliştirme makinesini. |
+
+**Uç nokta sayısı 70 → 72** (`/iptal` gitti; `/durdur`, `/karar`, `/aktif`
+geldi). Güncel liste `docs/EK_B_UC_NOKTALAR.md`'de.
+
+### 14.3 Sıra
+
+Göçler **kod yüklendikten SONRA** uygulanır: `alembic` sunucudaki depodan
+okunur, dolayısıyla göç dosyaları önce oraya varmalıdır.
+
+**SSH anahtarı:** bağlantı `~/.ssh/vera_hetzner` ile kurulur (makinedeki
+varsayılan `id_ed25519` bu sunucuda tanımlı DEĞİLDİR — `Permission denied
+(publickey)` alırsanız sebep budur):
+
+```bash
+export RSYNC_RSH="ssh -o IdentitiesOnly=yes -i $HOME/.ssh/vera_hetzner"
+```
+
+```bash
+# 1) Yerelde derle ve testleri geçir (sunucuda Node yok — ve pytest de yok)
+cd frontend && npm ci && npm run build && npm test   # 140 test
+cd ../backend && .venv/bin/python -m pytest -q       # 322 test
+
+# 2) Kodu yükle
+cd ..
+rsync -az --delete frontend/dist/ root@SUNUCU:/opt/vardiya/web/
+rsync -az --delete --exclude '.venv/' --exclude '__pycache__/' \
+      --exclude '.pytest_cache/' --exclude '.ruff_cache/' --exclude '.env' \
+      backend/ root@SUNUCU:/opt/vardiya/backend/
+
+# 3) Göçleri uygula, SONRA yeniden başlat
+ssh root@SUNUCU 'set -a; . /opt/vardiya/.env; set +a
+  cd /opt/vardiya/backend
+  sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic upgrade head
+  sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic current
+  chown -R vardiya:vardiya /opt/vardiya/backend
+  systemctl restart vardiya-api vardiya-cozucu'
+```
+
+**İki servis de yeniden başlatılmak zorunda.** Yeni uç noktalar API'de,
+`durduruldu` durumu ile üç yeni sütun ise işçide kullanılıyor; yalnız
+birini yeniden başlatmak, durdurma isteğini yazan tarafla okuyan tarafın
+farklı sürümlerde kalması demektir.
+
+**Rsync sırasında sunucudaki `backend/conftest.py` de yerine gider.** Zararı
+yok: dosya yalnızca `pytest` çalıştırıldığında okunur ve sunucuda pytest
+kurulu değil. Uygulamanın açılışına hiçbir etkisi yoktur.
+
+### 14.4 Doğrulama
+
+```bash
+ssh root@SUNUCU 'systemctl is-active vardiya-api vardiya-cozucu'
+ssh root@SUNUCU 'journalctl -u vardiya-api -u vardiya-cozucu --since "5 min ago" -p warning'
+
+# Yeni uç noktalar oturumsuz 401 dönmeli (açık kalan bir yol yok)
+for yol in /api/cozum/aktif /api/cozum/1/durdur /api/cozum/1/karar; do
+  curl -s -o /dev/null -w "$yol -> %{http_code}\n" \
+    -X POST https://vardiya.omerharmankaya.com$yol
+done   # üçü de 401
+
+# Kaldırılan uç nokta artık YOK: 404 ya da 405 dönmeli, 401 DEĞİL.
+# 401 dönerse eski kod hâlâ ayakta demektir.
+curl -s -o /dev/null -w '%{http_code}\n' \
+  -X POST https://vardiya.omerharmankaya.com/api/cozum/1/iptal
+
+# Göç uygulandı mı — üç sütun ve enum değeri
+ssh root@SUNUCU 'set -a; . /opt/vardiya/.env; set +a
+  psql "$VERITABANI_URL" -tAc "
+    select column_name from information_schema.columns
+     where table_name = '"'"'cozum_isi'"'"'
+       and column_name in ('"'"'gecici_sonuc'"'"','"'"'cozum_ipucu'"'"','"'"'devam_kaynagi_is_id'"'"')
+     order by column_name;
+    select enumlabel from pg_enum e join pg_type t on t.oid = e.enumtypid
+     where t.typname = '"'"'cozumisidurumu'"'"' and enumlabel = '"'"'DURDURULDU'"'"';"'
+```
+
+Arayüzde gözle bakılacaklar (oturum açmayı gerektirir):
+
+- Üst çubukta **çalışan iş göstergesi**: çözüm başlatıp Tanımlar'a geçince
+  gösterge yerinde kalmalı, sayfa yenilendikten sonra da durmalı.
+- Yan menü: uzun içerikli ekranlarda (Kural sekmesi, Analiz, Çizelge)
+  sayfa kaydırılırken menü **yerinde kalmalı** ve alttaki Dönem bloğu
+  görünür olmalı.
+- **Durdur** → karar paneli: toplam ceza, hedef bazında döküm ve kapsama
+  açığı sayısı görünmeli; üç eylem sunulmalı; ekranda "kaldığı yerden
+  devam" ifadesi **geçmemeli**.
+- Kuyruktaki bir işi durdurmak: panel **açılmamalı**, iş iptal edilmeli.
+
+### 14.5 Geri alma
+
+Önce eski kod sürümüne dönülür, sonra göçler geri alınır:
+
+```bash
+ssh root@SUNUCU 'cd /opt/vardiya/backend
+  sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic downgrade a4d92c15e807'
+```
+
+**Geri almadan önce karar bekleyen iş kalmadığından emin olun.** `durduruldu`
+durumundaki bir iş, o durumu tanımayan eski kodun karşısına çıkarsa arayüz
+onu okuyamaz:
+
+```sql
+select is_id, durum from cozum_isi where durum = 'DURDURULDU';   -- boş olmalı
+```
+
+Geri alma üç sütunu düşürür; kaybolan tek şey karar bekleyen işlerin
+saklanmış çözümleridir — atama, kapsama açığı ve sürüm verisi etkilenmez.
+**ENUM değeri geri alınmaz** (göç dosyasında gerekçesi yazılı): bir enum
+değerini kaldırmak tipi baştan yaratıp bağımlı sütunları çevirmeyi
+gerektirir ve o işlem veri kaybettirebilir. Kullanılmayan bir enum değeri
+ise hiçbir şeye mal olmaz.
+
+### 14.6 Çıkış kaydı
+
+_Dağıtım yapıldığında doldurulacak._
+
+| | |
+|---|---|
+| Kod sürümü | `d134f2c` |
+| Göçler | `a4d92c15e807` → `b6e2f81d3c07` → `c9a4b7e21f38` |
+| Servisler | — |
+| Uyarı/hata günlüğü | — |
+| Veri (öncesi → sonrası) | — |
