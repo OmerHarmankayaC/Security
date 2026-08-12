@@ -107,7 +107,7 @@ listeliyordu ve kimlik doğrulama turunu hiç içermiyordu.
 | `/api/cozum` | POST | yonetici + yonetim | Cozum isinin baslatilmasi; is kimligi dondurur (FR-4.1) |
 | `/api/cozum/aktif` | GET | yonetici + yonetim | Devam eden ya da karar bekleyen is; kabuktaki gosterge bunu yoklar (FR-4.11) |
 | `/api/cozum/{is_id}` | GET | yonetici + yonetim | Cozum isinin durumu ve ilerlemesi (FR-4.7) |
-| `/api/cozum/{is_id}/durdur` | POST | yonetici + yonetim | Aramanin sonlandirilmasi; sonuc atilmaz, karar beklenir (FR-4.9) |
+| `/api/cozum/{is_id}/durdur` | POST | yonetici + yonetim | Aramanin sonlandirilmasi (FR-4.9). Arama suruyorsa is karar bekleyen duruma gecer; henuz kuyrukta veya on kontroldeyse dogrudan iptal edilir (SDD 5.4.1). Durdurulamayacak bir durumdaki is icin **409** doner |
 | `/api/cozum/{is_id}/karar` | POST | yonetici + yonetim | Durdurulan iste kullanici karari: kullan / at / devam (FR-4.10) |
 | `/api/on-kontrol` | POST | yonetici + yonetim | Cozucu calistirmadan on kontrol (FR-5.1) |
 

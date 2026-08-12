@@ -43,6 +43,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 11.08.2026 | Diyagramlar güncel mimariye göre yeniden üretildi ve veritabanı şeması diyagramı eklendi; 3.1'deki çözücünün süreç içi kütüphane olduğu ifadesi ile 3.2'deki yönlendirici ve servis sayıları düzeltildi | 1.18 |
 | Ömer HARMANKAYA | 11.08.2026 | Durdurma ve karar akışı tasarlandı: `durduruldu` durumu ile `gecici_sonuc` alanı 4.2.4'e, karar yordamı ve iptal gecikmesinin giderilmesi (T-06) 5.4'e, karar paneli 6.3.2'ye, çalışan iş göstergesinin uygulama kabuğunda tutulması 6.1'e eklendi | 1.19 |
 | Ömer HARMANKAYA | 11.08.2026 | Tur 1 uygulamasının doğurduğu dört tasarım borcu kapatıldı: çözücü ipucu için ayrı `cozum_ipucu` sütunu tanımlandı, `bitis_zamani`'nin durdurulan işteki anlamı yazıldı, karar panelinin veri kaynağı 6.3.2'ye eklendi, arama başlamadan gelen durdurmanın karar noktası doğurmadığı 5.4.1'e yazıldı | 1.20 |
+| Ömer HARMANKAYA | 12.08.2026 | 6.3.2'deki Durdur Butonu maddesi 5.4.1 ile hizalandı (koşulsuz karar paneli ifadesi düzeltildi), Ek B'ye `/durdur`un iki ayrı sonucu ve durdurulamaz hâllerdeki reddi yazıldı, işçinin taze okumada iptal durumunu da tanıması 5.4.2'ye eklendi | 1.21 |
 
 
 
@@ -866,6 +867,14 @@ döngü, iş kaydının durumunu düzenli aralıklarla veritabanından taze okur
 Süreçler arası iletişim yine yalnızca veritabanı üzerindendir (3.4.4); eklenen
 iş parçacığı tek bir sürecin içindedir ve mimariyi değiştirmez.
 
+**Ana döngü `iptal` durumunu da tanır.** 5.4.1'e göre kuyruktaki veya ön
+kontroldeki bir işin durdurulması doğrudan iptaldir; iş `durduruldu` durumuna hiç
+girmez. İşçi yalnızca `durduruldu` değerini arasaydı, ön kontrol sırasında iptal
+edilen bir iş çözülmeye devam eder ve sonucunu yazardı — kullanıcının durdurduğu
+bir işin çizelgeyi değiştirmesi, durdurmanın hiç işlememesiyle aynı sonucu verir.
+Model kurulumundan sonraki ilk taze okuma bu nedenle her iki sonlandırıcı durumu da
+kapsar.
+
 Çözücü kütüphanesinin dışarıdan sonlandırma çağrısının, arama başka bir iş
 parçacığında yürürken beklenen biçimde davrandığı uygulamadan önce doğrulanmalıdır.
 Davranmadığı durumda geri çağırma yolu yedek olarak korunur; iki yol birlikte
@@ -1041,7 +1050,7 @@ Silme eylemi, tanımın başka kayıtlarda kullanılıp kullanılmadığına gö
 
 - İlerleme Göstergesi: İşin durumunu, geçen süreyi ve o ana kadarki en iyi ceza puanını gösterir; düzenli aralıklarla güncellenir.
 
-- Durdur Butonu: Aramayı sonlandırır. Çözüm atılmaz; iş karar bekleyen duruma geçer ve ekranda karar paneli açılır.
+- Durdur Butonu: Aramayı sonlandırır. Çözüm atılmaz; iş karar bekleyen duruma geçer ve ekranda karar paneli açılır. Bu yalnızca arama sürerken geçerlidir: iş henüz kuyrukta veya ön kontroldeyse durdurma doğrudan iptaldir, panel açılmaz ve işin iptal edildiği bildirilir (5.4.1).
 
 - Karar Paneli: Yalnızca `durduruldu` durumundaki işlerde görünür. O ana kadar bulunmuş çözümün toplam cezasını, hedef bazında dökümünü ve kapsama açığı sayısını, çözüm tamamlanmış gibi tam ayrıntısıyla gösterir — kullanıcı kararını buna bakarak verir. Üç eylem sunar:
   - **Sonucu kullan:** Çözüm sürüme yazılır ve iş tamamlanmış sayılır.
@@ -1260,7 +1269,7 @@ Aşağıdaki tablo başlıca uç noktaların işlevsel bir özetidir. Uç noktal
 | /api/cozum | POST | Çözüm işinin başlatılması; iş kimliği döndürür |
 | /api/cozum/{id} | GET | Çözüm işinin durumu ve ilerlemesi |
 | /api/cozum/aktif | GET | Devam eden veya karar bekleyen iş; kabuktaki gösterge bunu yoklar |
-| /api/cozum/{id}/durdur | POST | Aramanın sonlandırılması; sonuç atılmaz, karar beklenir |
+| /api/cozum/{id}/durdur | POST | Aramanın sonlandırılması. Arama sürüyorsa iş karar bekleyen duruma geçer, henüz kuyrukta veya ön kontroldeyse doğrudan iptal edilir (5.4.1). Durdurulamayacak bir durumdaki iş için istek reddedilir |
 | /api/cozum/{id}/karar | POST | Durdurulan işte kullanıcı kararı (kullan / at / devam) |
 | /api/atama/dogrula | POST | Manuel değişikliğin kural doğrulaması |
 | /api/atama | PUT | Doğrulanmış manuel değişikliğin uygulanması |
