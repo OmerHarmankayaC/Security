@@ -28,6 +28,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 09.08.2026 | B-05 kapsama alındı; kimlik doğrulama kararları ve ertelenen maddeler (B-15 – B-18) eklendi | 1.3 |
 | Ömer HARMANKAYA | 11.08.2026 | Manuel düzenlemede fazla kadro, ayrı tablo ve cezasızlık kararları ile FR-1.10/FR-2.3 kapsam kararı işlendi; B-19 eklendi | 1.4 |
 | Ömer HARMANKAYA | 11.08.2026 | Durdurma ve karar akışı kararları işlendi; T-06 kapsama alındı, T-02 sıcak başlangıç "devam et" seçeneği kapsamında kısmen kapsama alındı | 1.5 |
+| Ömer HARMANKAYA | 11.08.2026 | Tur 1 uygulamasının doğurduğu üç karar işlendi: çözücü ipucunun ayrı sütunda tutulması, arama başlamadan gelen durdurmanın karar noktası doğurmaması, testlerin ayrı veritabanında koşturulması (B-20) | 1.6 |
 
 
 
@@ -80,6 +81,7 @@ Bu maddeler değerli bulunmuş ancak ilk sürüme alınmamıştır. Her biri, ç
 | B-17 | Kullanıcının kendi parolasını sıfırlaması. İlk sürümde unutulan parolayı yalnızca yönetim rolü sıfırlar; kendi kendine sıfırlama e-posta altyapısı gerektirir (K-04). | Bildirim altyapısı kapsama girdiğinde | Düşük / Orta |
 | B-18 | Ayrıntılı yetki matrisi. Roller şu anda üç adet ve sabittir; işlev başına yetki ataması yapılamaz. | Üç rolün ayıramadığı somut bir yetki ihtiyacı ortaya çıktığında | Düşük / Yüksek |
 | B-19 | Müsaitlik toplu içe aktarma (FR-2.3). Dosya biçimi SRS 7.2'de tanımlı ancak iş, dosya ayrıştırmaktan ibaret değildir: sicil eşleştirme, satır bazlı hata raporu, kısmen geçerli dosyada ne yapılacağı ve kapsama uyarısının toplu girişte nasıl gösterileceği ayrı ürün kararlarıdır. Kazancı, tek tek girilebilen bir kaydın daha hızlı girilmesidir ve hiçbir kabul kriterine dokunmaz. | Müsaitlik kayıtlarının elle girilmesi gerçek kullanımda darboğaza dönüştüğünde (örneğin bir dönemde yirmiden fazla kayıt) | Düşük / Orta |
+| B-20 | Test takımının ayrı bir veritabanında koşturulması. Testler ve kabul ölçümü şu anda geliştirme veritabanını kullanıyor; bunun üç ayrı belirtisi görüldü: çözüm işçisi arka planda çalışırken test kuyruğundan iş kapıyor, test takımı kullanıcı hesaplarını siliyor (`kullanici.personel_id` personel tablosuna bağlı), kabul ölçümü ile testler birbirinin verisini bozuyor. Bağlantı adresinde test veritabanı görülmediğinde takım anlaşılır bir hatayla durmalıdır. | Tur 2'nin ilk işi — saatlik geçiş çok sayıda test koşturacak, o tura bu tuzakla girilmemeli | Yüksek |
 
 
 
@@ -139,6 +141,9 @@ Aşağıdaki tablo, tasarım sürecinde alınan ve sonradan değiştirilen karar
 | 11.08.2026 | Durdurulan işin çözümü atamalara değil iş kaydındaki `gecici_sonuc` alanına yazılır | "At" kararının bedelsiz olması için sürümün hiç değişmemiş olması gerekir; sonuç doğrudan atamalara yazılsaydı sürümün önceki hâli ayrıca saklanmak zorunda kalırdı. Alan tek yönlü bir aktarım tamponudur: hiçbir okuma yüzeyi (çizelge, analiz, dışa aktarma, çalışan paneli) buradan beslenmez, tek doğru kaynak atama tablosu olarak kalır |
 | 11.08.2026 | "Devam et" seçeneği, aramanın sürdürülmesi değil bulunan çözümün ipucu verilerek yeniden başlatılması olarak tanımlandı | Çözücü sonlandırıldıktan sonra iç arama durumu geri yüklenemez. Kullanıcının beklediği sonucu verir (çözüm kötüleşmez) ancak süre sıfırdan işler; bu nedenle yeni zaman limiti sorulur ve arayüzde "kaldığı yerden devam" denmez. Aksi hâlde arayüz, sistemin yapamayacağı bir şeyi vaat eder |
 | 11.08.2026 | Çalışan işin kimliği istemcide tutulmaz; kabuk sunucuya "devam eden iş var mı" diye sorar | İşin varlığı zaten veritabanında kayıtlı ve tek doğru kaynak orası. Tarayıcı belleğindeki ikinci kopya, sayfa yenilendiğinde veya başka bir cihazdan girildiğinde ayrışır; işin sürdüğü hâlde arayüzde kaybolmasının nedeni buydu |
+| 11.08.2026 | Çözücü ipucu, `gecici_sonuc`'ta taşınmak yerine ayrı bir `cozum_ipucu` sütununa alındı; boşaltma anı model kurulumundan iş sonuna çekildi | Aynı alanda taşınmaları hâlinde tek sütun iki sözleşmeye bağlanırdı: aynı değer bir işte "kullanıcı kararı bekliyor", başka bir işte "modele verilecek ipucu" anlamına gelirdi ve alanın doluluğuna bakan bir sorgu henüz başlamamış bir işi karar bekliyor sanabilirdi. Boşaltmanın öne alınması ise işçi yeniden başladığında işin ipucusuz devam etmesine yol açardı — sonuç sessizce kötüleşir, iz kalmaz |
+| 11.08.2026 | Arama başlamadan gelen durdurma (iş kuyrukta veya ön kontrolde) karar noktası doğurmaz, doğrudan iptaldir | Henüz saklanacak bir sonuç yok. Böyle bir işte karar paneli açmak üç seçenekten ikisini anlamsız, birini de zaten var olan bir eylemin uzun yolu hâline getirir. Arama başlamış fakat çözüm bulunamamışsa karar sorulur — orada "devam" ipucusuz da olsa anlamlıdır, kullanıcı yeni bir zaman limiti veriyordur |
+| 11.08.2026 | Test takımı geliştirme veritabanından ayrıldı (B-20) | Aynı kökten üç ayrı belirti çıktı: çözüm işçisi arka planda çalışırken test kuyruğundan iş kapıyor, test takımı kullanıcı hesaplarını siliyor, kabul ölçümü ile testler birbirinin verisini bozuyor. Not düşmek üçünü de tekrar ettirirdi; bağlantı adresinde test veritabanı görülmediğinde takımın yüksek sesle durması, sessiz veri kaybının yerine geçer |
 
 
 

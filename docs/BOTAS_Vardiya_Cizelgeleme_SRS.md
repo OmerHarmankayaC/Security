@@ -35,6 +35,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 11.08.2026 | Kapsama açığı dışa aktarma biçimi fazla kadro kayıtlarını da taşıyacak biçimde genişletildi (tür sütunu, kisi_sayisi); uygulamada karşılığı bulunmayan sözleşme tipi alanı 3.1 ve FR-1.1'den çıkarıldı | 1.10 |
 | Ömer HARMANKAYA | 11.08.2026 | Talep kayıtlarının gün tipi başına ayrı satırlar hâlinde tutulduğu ve resmî tatil satırlarının zorunluluğu 3.3.4'e yazıldı | 1.11 |
 | Ömer HARMANKAYA | 11.08.2026 | Çözüm işinin durdurulması tek yönlü iptal olmaktan çıkarıldı: durdurma anında bulunmuş çözüm kullanıcının kararına sunulur (FR-4.9, FR-4.10). Çalışan işin ekran değişiminden bağımsız izlenebilirliği (FR-4.11) ve durdurmanın yanıt süresi (NFR-14) tanımlandı | 1.12 |
+| Ömer HARMANKAYA | 11.08.2026 | FR-4.9'a, karar noktasının yalnızca arama başlamış işlerde doğduğu yazıldı; henüz kuyrukta veya ön kontrolde olan bir işin durdurulması doğrudan iptaldir | 1.13 |
 
 
 
@@ -611,7 +612,7 @@ Ağırlıkların tamamı kullanıcı tarafından ayarlanabilir. Sistem hangi hed
 | FR-4.6 | Sistem, çözüm için üst zaman limiti tanımlanmasına imkân vermeli; limit dolduğunda o ana kadar bulunan en iyi çözümü döndürmelidir. | Yüksek |
 | FR-4.7 | Sistem, çözüm tamamlandığında çözüm süresini, çözüm durumunu ve toplam ceza puanını raporlamalıdır. | Zorunlu |
 | FR-4.8 | Sistem, toplam ceza puanını esnek hedef bazında ayrıştırarak göstermelidir. | Yüksek |
-| FR-4.9 | Sistem, çalışan bir çözüm işinin kullanıcı tarafından durdurulmasına imkân vermelidir. Durdurma anında bulunmuş en iyi çözüm atılmaz; karar verilene kadar saklanır ve kullanıcıya sunulur. | Zorunlu |
+| FR-4.9 | Sistem, çalışan bir çözüm işinin kullanıcı tarafından durdurulmasına imkân vermelidir. Durdurma anında bulunmuş en iyi çözüm atılmaz; karar verilene kadar saklanır ve kullanıcıya sunulur. Arama henüz başlamamışsa (iş kuyrukta veya ön kontroldeyse) durdurma doğrudan iptaldir ve karar sorulmaz. | Zorunlu |
 | FR-4.10 | Sistem, durdurulan bir işte kullanıcıya üç seçenek sunmalıdır: sonucu kullanmak, sonucu atmak ve bulunan çözümden devam etmek. Karar verilene kadar çizelge sürümü değişmez. Çözücü henüz hiçbir çözüm bulmamışsa "kullan" seçeneği sunulmaz ve bunun nedeni yazılır. | Zorunlu |
 | FR-4.11 | Sistem, çalışan veya karar bekleyen bir çözüm işini kullanıcının hangi ekranda olduğundan bağımsız olarak izlenebilir kılmalıdır. Ekran değiştirmek, sayfayı yenilemek veya oturumu başka bir cihazdan açmak işi durdurmaz ve ilerleme görünürlüğünü kaybettirmez. | Zorunlu |
 

@@ -42,6 +42,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 11.08.2026 | Talep matrisinin gün tipi ekseni üç değerli olarak tanımlandı ve resmî tatil sütunlarının zorunluluğu 6.3.1'e yazıldı | 1.17 |
 | Ömer HARMANKAYA | 11.08.2026 | Diyagramlar güncel mimariye göre yeniden üretildi ve veritabanı şeması diyagramı eklendi; 3.1'deki çözücünün süreç içi kütüphane olduğu ifadesi ile 3.2'deki yönlendirici ve servis sayıları düzeltildi | 1.18 |
 | Ömer HARMANKAYA | 11.08.2026 | Durdurma ve karar akışı tasarlandı: `durduruldu` durumu ile `gecici_sonuc` alanı 4.2.4'e, karar yordamı ve iptal gecikmesinin giderilmesi (T-06) 5.4'e, karar paneli 6.3.2'ye, çalışan iş göstergesinin uygulama kabuğunda tutulması 6.1'e eklendi | 1.19 |
+| Ömer HARMANKAYA | 11.08.2026 | Tur 1 uygulamasının doğurduğu dört tasarım borcu kapatıldı: çözücü ipucu için ayrı `cozum_ipucu` sütunu tanımlandı, `bitis_zamani`'nin durdurulan işteki anlamı yazıldı, karar panelinin veri kaynağı 6.3.2'ye eklendi, arama başlamadan gelen durdurmanın karar noktası doğurmadığı 5.4.1'e yazıldı | 1.20 |
 
 
 
@@ -521,15 +522,29 @@ Parametrelerin belge alanında tutulmasının nedeni, her kural tipinin farklı 
 | surum_id | INT (FK → cizelge_surumu) | İşin ürettiği çizelge sürümü |
 | durum | ENUM | kuyrukta \| on_kontrol \| cozuluyor \| durduruldu \| tamamlandi \| uyarili \| basarisiz \| iptal |
 | baslangic_zamani | TIMESTAMPTZ | İşin başlatıldığı an |
-| bitis_zamani | TIMESTAMPTZ, NULL | İşin sonlandığı an |
+| bitis_zamani | TIMESTAMPTZ, NULL | **Aramanın** bittiği an. Durdurulan bir işte damga durdurma anına yazılır ve kullanıcı kararı daha sonra verildiğinde değiştirilmez; ölçülen süre aramanın süresidir, kullanıcının düşünme süresi değil |
 | sure_saniye | NUMERIC, NULL | Çözüm süresi |
 | zaman_limiti_saniye | INT | Çözücüye verilen üst süre sınırı |
 | en_iyi_ceza | NUMERIC, NULL | Bulunan en iyi çözümün toplam ceza puanı |
 | ceza_dokumu | JSONB, NULL | Hedef bazında ceza dağılımı (S1…S8) |
 | kural_anlik_goruntu | JSONB | Çalıştırma anındaki kural parametreleri ve ağırlıkları |
 | gecici_sonuc | JSONB, NULL | Durdurulan işin, kullanıcı kararı beklerken atamalara yazılmamış çözümü (atama listesi + kapsama açıkları + fazla kadro + ceza dökümü). Karar verildiğinde boşaltılır |
+| cozum_ipucu | JSONB, NULL | "Devam et" kararıyla başlatılan işin çözücüye başlangıç ipucu olarak verdiği çözüm. İş sonlandığında boşaltılır |
 | devam_kaynagi_is_id | INT (FK → cozum_isi), NULL | "Devam et" kararıyla türetilmiş işlerde, ipucunun alındığı önceki iş |
 | hata_mesaji | TEXT, NULL | Başarısızlık durumunda açıklama |
+
+**Girdi ile çıktı ayrı sütunlarda durur.** `gecici_sonuc` durdurulmuş bir işin
+**çıktısıdır**, `cozum_ipucu` yeni bir işin **girdisidir**. Aynı çözüm nesnesini
+taşıdıkları için tek bir alanda birleştirilmeleri mümkündür, fakat o alan iki ayrı
+sözleşmeye bağlanmış olurdu: aynı değer bir işte "kullanıcı kararı bekliyor", başka
+bir işte "modele verilecek ipucu" anlamına gelirdi. Alanın doluluğuna bakan her
+sorgu bu iki hâli ayırt etmek zorunda kalır ve ayırt etmeyi unutan sorgu, henüz
+başlamamış bir işi karar bekliyor sanır.
+
+`cozum_ipucu` model kurulduğunda değil, **iş sonlandığında** boşaltılır. Model
+kurulur kurulmaz silinmesi hâlinde, işçi yeniden başladığında (servis yeniden
+başlatılır veya iş kuyruğa döner) iş ipucusuz devam eder: sonuç sessizce daha kötü
+olur ve bunu gösteren hiçbir iz kalmaz.
 
 **Geçici sonuç bir okuma kaynağı değildir.** `gecici_sonuc`, atama tablosuyla aynı
 bilgiyi taşıdığı için ilk bakışta aynı verinin iki yerde durması gibi görünür; bu
@@ -774,6 +789,20 @@ atamalara değil `gecici_sonuc` alanına yazar ve iş `durduruldu` durumunda kal
 kullanıcı kararını bekler. Durdurma kararı "aramanın devam etmesini istemiyorum"
 demektir; "bu çözümü istemiyorum" demek değildir (SRS FR-4.9).
 
+**Karar noktası yalnızca arama sürerken doğar.** Durdurma isteği işe `kuyrukta`
+veya `on_kontrol` durumundayken ulaşırsa iş doğrudan `iptal` olur; `durduruldu`
+durumuna hiç girmez ve kullanıcıya karar sorulmaz. Henüz arama başlamamıştır:
+saklanacak bir sonuç, dolayısıyla verilecek bir karar yoktur. Böyle bir işte karar
+paneli açmak, üç seçenekten ikisini anlamsız ("kullan" — ortada sonuç yok), birini
+de zaten var olan bir eylemin uzun yolu ("devam" — işi iptal edip yenisini
+başlatmak) hâline getirir. Karar noktası bu nedenle yalnızca `cozuluyor`
+durumundan geçilerek kurulur.
+
+Arama başlamış fakat ilk uygun çözüme ulaşamamışsa durum farklıdır: iş
+`durduruldu` olur ve karar sorulur. Burada "devam", ipucusuz da olsa anlamlıdır —
+kullanıcı verdiği sürenin yetmediğini görmüş ve yeni bir limit vermek istiyor
+olabilir.
+
 ```
 YORDAM durdurma_karari_uygula(is_id, karar, yeni_zaman_limiti):
     is ← CozumDeposu.getir(is_id)
@@ -795,8 +824,8 @@ YORDAM durdurma_karari_uygula(is_id, karar, yeni_zaman_limiti):
 
     EĞER karar = DEVAM:
         yeni_is ← CozumServisi.baslat(is.surum_id,
-                      zaman_limiti = yeni_zaman_limiti,
-                      cozum_ipucu  = is.gecici_sonuc,
+                      zaman_limiti  = yeni_zaman_limiti,
+                      cozum_ipucu   = is.gecici_sonuc,   # yeni işin cozum_ipucu alanına
                       devam_kaynagi = is.is_id)
         is.gecici_sonuc ← BOŞ
         is.durum ← iptal
@@ -1015,12 +1044,13 @@ Silme eylemi, tanımın başka kayıtlarda kullanılıp kullanılmadığına gö
 - Durdur Butonu: Aramayı sonlandırır. Çözüm atılmaz; iş karar bekleyen duruma geçer ve ekranda karar paneli açılır.
 
 - Karar Paneli: Yalnızca `durduruldu` durumundaki işlerde görünür. O ana kadar bulunmuş çözümün toplam cezasını, hedef bazında dökümünü ve kapsama açığı sayısını, çözüm tamamlanmış gibi tam ayrıntısıyla gösterir — kullanıcı kararını buna bakarak verir. Üç eylem sunar:
-
   - **Sonucu kullan:** Çözüm sürüme yazılır ve iş tamamlanmış sayılır.
   - **Sonucu at:** Sonuç silinir; sürüm durdurma öncesindeki hâliyle kalır. Onay istenir, çünkü işlem geri alınamaz.
   - **Bu çözümden devam et:** Yeni bir zaman limiti sorar ve bulunan çözümü ipucu alan yeni bir iş başlatır. Buton metni "kaldığı yerden devam" demez; ekranda yeni bir arama başladığı ve sürenin sıfırdan işlediği yazılıdır (SDD 5.4.1).
 
   Çözücü hiç çözüm bulamadan durdurulmuşsa "kullan" pasiftir ve nedeni panelde yazılır.
+
+  Panelin verisi `GET /api/cozum/{is_id}` yanıtından gelir. Toplam ceza ve hedef bazında döküm iş kaydında zaten bulunur; kapsama açığı sayısı ise atamalar henüz yazılmadığı için sürümden okunamaz. Yanıt bu nedenle iki özet alan taşır: kullanılabilir bir sonucun var olup olmadığı ve geçici sonuçtaki kapsama açığı sayısı. **Geçici sonucun kendisi hiçbir yanıtta yer almaz** — panelin ihtiyacı bu iki özettir, çözümün içeriği değil (4.2.4).
 
 - Sonuç Özeti: Çözüm tamamlandığında toplam ceza, hedef bazında ceza dökümü ve kapsama açığı sayısını gösterir. Açık varsa Çizelge ekranındaki ilgili hücrelere bağlantı verir.
 
