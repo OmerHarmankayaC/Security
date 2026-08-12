@@ -4,9 +4,30 @@ Bu doküman, projenin ikinci geliştirme aşamasını turlara böler. Her tur ba
 bir Claude Code oturumu olacak biçimde tasarlanmıştır: net bir hedefi, hangi
 doküman bölümüne dayandığı ve bittiğini nasıl anlayacağı (kabul) yazılıdır.
 
-Birinci aşamanın planı `docs/turlar/UYGULAMA_PLANI.md`'dir ve kapanmıştır. Bu
+Birinci aşamanın planı `UYGULAMA_PLANI.md`'dir (aynı klasörde) ve kapanmıştır. Bu
 doküman onun yerine geçmez, devamıdır: bölüm 0'daki genel kurallar oradan aynen
 geçerlidir ve aşağıda yalnızca **değişen veya eklenen** kurallar yazılmıştır.
+
+**Dosya yerleşimi.** Karışıklığı önlemek için kural tektir:
+
+```
+docs/
+  BOTAS_..._ProjectCharter.md      kanonik
+  BOTAS_..._SRS.md                 kanonik
+  BOTAS_..._SDD.md                 kanonik
+  BOTAS_..._Backlog.md             kanonik
+  SAATLIK_GECIS_KARARLARI.md       hazırlık girdisi (kanonik değil)
+  turlar/
+    UYGULAMA_PLANI.md              birinci aşama planı (kapandı)
+    UYGULAMA_PLANI_V2.md           bu dosya
+    CLAUDE_CODE_PROMPTU_TUR*.md    tur promptları
+    TUR*_DEVAM*.md                 tur içi yönergeler
+    yapilacaklar.md
+```
+
+Kanonik dört doküman `docs/` altındadır ve Claude Code onlara dokunmaz. Diğer
+her şey `docs/turlar/` altındadır; depo kökünde plan veya prompt dosyası
+bulunmaz.
 
 Referans dokümanlar (`docs/` altında):
 - `BOTAS_Vardiya_Cizelgeleme_ProjectCharter.md` — Proje Tanım Dokümanı

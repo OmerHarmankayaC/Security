@@ -8,7 +8,7 @@ Projenin kapsamı, mimarisi ve kural kataloğu için `docs/` altındaki dört
 dokümana (Charter, SRS, Backlog, SDD) bakınız.
 
 Geliştirme sürecinin planı iki dosyadadır: yürürlükteki plan
-[`UYGULAMA_PLANI_V2.md`](UYGULAMA_PLANI_V2.md) (ikinci aşama, turlar
+[`docs/turlar/UYGULAMA_PLANI_V2.md`](docs/turlar/UYGULAMA_PLANI_V2.md) (ikinci aşama, turlar
 hâlinde), birinci aşamanın kapanmış günlük planı ise
 [`docs/turlar/UYGULAMA_PLANI.md`](docs/turlar/UYGULAMA_PLANI.md).
 İlerleme kaydı da ikiye ayrılır: yürürlükteki
@@ -167,10 +167,12 @@ npx tsc --noEmit -p tsconfig.app.json
 backend/    FastAPI uygulaması, SQLAlchemy modelleri, Alembic göçleri
 frontend/   Vite + React + TypeScript (strict mode)
 docs/       Charter, SRS, Backlog, SDD (kanonik dörtlü)
-docs/turlar/ Tur görev tanımları ve sıradaki işler — kaynak DEĞİL, kayıt
+docs/turlar/ Planlar, tur promptları, devam yönergeleri — kaynak DEĞİL, kayıt
 scripts/    Kurulum ve yardımcı betikler
 ```
 
 ## İlerleme Takibi
 
-Oturumlar arası bağlam [`PROGRESS.md`](PROGRESS.md) dosyasında tutulur.
+Oturumlar arası bağlam [`PROGRESS_V2.md`](PROGRESS_V2.md) dosyasında
+tutulur; birinci aşamanın günlüğü [`PROGRESS.md`](PROGRESS.md) kapandı ve
+yalnızca arşivdir.

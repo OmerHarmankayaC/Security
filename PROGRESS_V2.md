@@ -22,9 +22,11 @@ borcunun tamamı kapatılmış olarak geldi.
 
 ### Uygulama planı
 
-[`UYGULAMA_PLANI_V2.md`](UYGULAMA_PLANI_V2.md) **depo kökündedir**,
-`docs/` altında değil; tur promptları ise `docs/turlar/` altında. Bir süre
-yanlış yerde arayıp "eksik" diye kaydetmiştim, düzeltildi.
+[`docs/turlar/UYGULAMA_PLANI_V2.md`](docs/turlar/UYGULAMA_PLANI_V2.md).
+Bir süre `docs/` altında arayıp "eksik" diye kaydetmiştim; dosya o sırada
+depo kökündeydi. Yerleşim kuralı artık planın kendisinde yazılı ve tek:
+**kanonik dört doküman `docs/` altında, plan/prompt/yönerge dosyalarının
+tamamı `docs/turlar/` altında**, depo kökünde plan veya prompt bulunmaz.
 
 Plan Tur 3 için bu turda yapılanları birebir doğruluyor ve iki kural
 ekliyor: **her turda kabul ölçümü koşulur** (K17 — blok kataloğu
@@ -127,7 +129,13 @@ taşıyor (`Baglam.yetkinlik_adi/nokta_adi/vardiya_adi`).
    katalogda eski tablonun birebir aynısını veriyor. Tur 4'te S2/S3 saate
    geçince türev kalkar.
 
-### DOKÜMAN BORCU
+### DOKÜMAN BORCU — **dördü de kapatıldı**
+
+Aşağıdaki dört madde bildirildikleri hâlleriyle duruyor; **hepsi SDD 1.24
+ve Backlog 1.10 ile karşılandı** (gün sonunun kodlanışı SDD 4.2.2'ye,
+`on_kontrol_bulgulari` 4.2.4'e, talep uç noktaları Ek B'ye yazıldı;
+FR-1.9'un kişi-vardiya türevi Backlog **B-21** olarak kaydedildi ve Tur
+4'te saat tabanına taşınacak). Açık borç DEĞİLDİR; kayıt olarak duruyor.
 
 1. **SDD 4.2.2 / 4.2.4 — gün sonunun kodlanışı.** "24.00 gün sonunu
    gösterir" ifadesi uygulanabilir değil (yukarıdaki 1. sapma).
