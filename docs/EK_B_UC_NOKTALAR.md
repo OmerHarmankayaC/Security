@@ -10,13 +10,27 @@
 > diğerlerinin alt kümesi DEĞİLDİR ve tersi de geçerlidir — yönetim
 > rolü çalışan panelinden geçemez.
 
-**Toplam 72 uç nokta.** SDD Ek B'nin önceki hâli 21 satır
+**Toplam 74 uç nokta.** SDD Ek B'nin önceki hâli 21 satır
 listeliyordu ve kimlik doğrulama turunu hiç içermiyordu.
+
+> Sayım ve **Gereken Rol** sütunu artık
+> `backend/scripts/uc_noktalari_listele.py` ile uygulamadan okunuyor;
+> `--denetle` bu dosyayı yönlendirme tablosuyla karşılaştırır ve fark
+> varsa sıfırdan farklı bir kodla çıkar. İşlev sütunu düz metindir ve
+> elle durur.
 
 > 11.08.2026 — durdurma turu: `/api/cozum/{id}/iptal` **kaldırıldı**,
 > yerine `/durdur` (sonlandırma, sonuç atılmaz), `/karar` (kullan / at /
 > devam) ve `/cozum/aktif` (kabuktaki çalışan iş göstergesi) geldi.
 > Uç nokta sayısı 70 → 72.
+>
+> 12.08.2026 — saatlik düzen turu: talep artık bir matris hücresi değil
+> bir **zaman aralığı kaydıdır** (SDD 4.2.2). `PUT /api/talep`
+> **kaldırıldı** — bir hücreyi yerinde güncelliyordu ve aralık
+> kayıtlarında karşılığı yok; yerine `POST /api/talep`,
+> `PUT /api/talep/{talep_id}` ve `DELETE /api/talep/{talep_id}` geldi.
+> Üçü de listeyi ve yük göstergesini birlikte döner. Uç nokta sayısı
+> 72 → 74.
 
 ## Kimlik dogrulama (FR-10.1 - FR-10.3, FR-10.7)
 
@@ -61,8 +75,10 @@ listeliyordu ve kimlik doğrulama turunu hiç içermiyordu.
 | `/api/personel/{personel_id}` | PUT | yonetici + yonetim | Personel kaydi guncelleme (FR-1.1); sicil cakismasinda 409 |
 | `/api/personel/{personel_id}` | DELETE | yonetici + yonetim | Silme veya pasiflestirme (aktif_bitis) |
 | `/api/personel/{personel_id}/kullanim` | GET | yonetici + yonetim | Silme oncesi kullanim dokumu |
-| `/api/talep` | GET | yonetici + yonetim | Talep matrisi ve yuk gostergesi (FR-1.7, FR-1.9) |
-| `/api/talep` | PUT | yonetici + yonetim | Talep matrisi hucresinin guncellenmesi (FR-1.8) |
+| `/api/talep` | GET | yonetici + yonetim | Talep araliklari ve yuk gostergesi (FR-1.7, FR-1.9) |
+| `/api/talep` | POST | yonetici + yonetim | Yeni talep araligi (FR-1.7); cakisan aralikta 409 |
+| `/api/talep/{talep_id}` | PUT | yonetici + yonetim | Talep araliginin guncellenmesi (FR-1.8); cakisan aralikta 409 |
+| `/api/talep/{talep_id}` | DELETE | yonetici + yonetim | Talep araliginin silinmesi (FR-1.8) |
 | `/api/vardiya-tipi` | GET | yonetici + yonetim | Vardiya tipi tanimlari (FR-1.3) |
 | `/api/vardiya-tipi` | POST | yonetici + yonetim | Vardiya tipi olusturma; gece_mi onerisi (FR-1.3, FR-1.4) |
 | `/api/vardiya-tipi/{vardiya_tipi_id}` | PUT | yonetici + yonetim | Vardiya tipi guncelleme (FR-1.3) |
