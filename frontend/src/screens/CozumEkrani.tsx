@@ -390,9 +390,14 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
           <Buton varyant="hayalet" onClick={durdur}>
             Durdur
           </Buton>
+          {/* SDD 5.4.1: karar noktası yalnızca arama sürerken doğar.
+              Kuyruktaki ya da ön kontroldeki bir işte saklanacak bir sonuç
+              olmadığı için durdurma doğrudan iptaldir; metin hangi durumda
+              ne olacağını önceden söyler. */}
           <p className="mt-2 text-sm text-ink-muted">
-            Durdur, aramayı sonlandırır; o ana kadar bulunmuş çözüm atılmaz, kararınız için
-            saklanır.
+            {isKaydi.durum === 'cozuluyor'
+              ? 'Durdur, aramayı sonlandırır; o ana kadar bulunmuş çözüm atılmaz, kararınız için saklanır.'
+              : 'Arama henüz başlamadı. Durdur, işi doğrudan iptal eder; saklanacak bir sonuç olmadığı için karar sorulmaz.'}
           </p>
         </Kart>
       )}
@@ -481,6 +486,14 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
             sonuç özeti — {DURUM_METNI[isKaydi.durum] ?? isKaydi.durum}
           </KartEtiketi>
           {isKaydi.hata_mesaji && <p className="text-sm text-signal">{isKaydi.hata_mesaji}</p>}
+          {/* İptal edilen işte karar paneli HİÇ açılmaz (SDD 5.4.1); işin ne
+              olduğu burada yazılı kalır, yoksa kullanıcı beklediği paneli
+              arar. */}
+          {isKaydi.durum === 'iptal' && (
+            <p className="text-sm text-ink-muted">
+              İş iptal edildi. Çizelge sürümü değişmedi.
+            </p>
+          )}
           {cezaGirdileri.length > 0 && <CezaDokumu girdiler={cezaGirdileri} azami={azamiCeza} />}
           {kapsamaSayisi !== null && kapsamaSayisi > 0 && (
             <p className="mt-2 text-sm text-ink-muted">

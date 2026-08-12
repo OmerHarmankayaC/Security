@@ -40,6 +40,7 @@ from app.services.cozum_servisi import (
     KararUygulanamazError,
     durdurma_karari_uygula,
 )
+from scripts.cozum_iscisi import siradaki_isi_kap
 from tests.conftest import (
     isi_calistir_ve_bekle,
     pg_yoksa_atla,
@@ -459,9 +460,12 @@ def test_aktif_uc_calisan_rolune_kapali(kurulum: dict[str, int]) -> None:
 # --- Uc noktalar --------------------------------------------------------------
 
 
-def test_durdur_ucu_isi_karar_bekler_hale_getirir(kurulum: dict[str, int]) -> None:
-    """POST /api/cozum/{id}/durdur - eski /iptal ucunun yerine. Anlami
-    degisti: iptal degil, sonlandirma (SRS FR-4.9)."""
+def test_kuyruktaki_isin_durdurulmasi_dogrudan_iptaldir(kurulum: dict[str, int]) -> None:
+    """SDD 5.4.1: karar noktasi yalnizca arama SURERKEN dogar.
+
+    Kuyruktaki bir iste henuz arama baslamamistir; saklanacak bir sonuc,
+    dolayisiyla verilecek bir karar da yoktur. Karar paneli acmak uc
+    secenekten ikisini anlamsiz kilardi."""
     oturum = OturumYerel()
     try:
         is_id = CozumServisi(oturum).baslat(kurulum["donem_id"], zaman_limiti_saniye=10).is_id
@@ -471,7 +475,65 @@ def test_durdur_ucu_isi_karar_bekler_hale_getirir(kurulum: dict[str, int]) -> No
     istemci = yetkili_istemci(Rol.YONETICI)
     yanit = istemci.post(f"/api/cozum/{is_id}/durdur", json={})
     assert yanit.status_code == 200
-    assert yanit.json()["durum"] == "durduruldu"
+    govde = yanit.json()
+    assert govde["durum"] == "iptal"
+    assert govde["kullanilabilir_sonuc_var"] is False
+
+    oturum = OturumYerel()
+    try:
+        is_kaydi = CozumIsiDeposu(oturum).getir(is_id)
+        assert is_kaydi.gecici_sonuc is None, "Karar sorulmadigi icin saklanan sonuc da yok"
+        assert is_kaydi.bitis_zamani is not None
+        # Karar akisi bu ise KAPALI: karar bekleyen durumda degil.
+        with pytest.raises(KararUygulanamazError):
+            durdurma_karari_uygula(oturum, is_id, Karar.KULLAN)
+    finally:
+        oturum.close()
+
+    # Isci boyle bir isi hic almaz: kapma sorgusu yalniz `kuyrukta` secer.
+    calisan = OturumYerel()
+    try:
+        assert siradaki_isi_kap(calisan) is None
+    finally:
+        calisan.close()
+
+
+def test_cozulurken_durdurma_karar_noktasi_dogurur(
+    kurulum: dict[str, int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ayni ucun DIGER yolu: arama basladiysa is `durduruldu` olur ve karar
+    sorulur (SRS FR-4.9)."""
+    is_id = _durdurulmus_is(kurulum["donem_id"], monkeypatch)
+
+    istemci = yetkili_istemci(Rol.YONETICI)
+    govde = istemci.get(f"/api/cozum/{is_id}").json()
+    assert govde["durum"] == "durduruldu"
+    assert govde["kullanilabilir_sonuc_var"] is True
+
+    # Ayni istek ikinci kez: is artik durdurulabilir bir durumda degil ve
+    # bunu anlasilir bir mesajla soyler.
+    yanit = istemci.post(f"/api/cozum/{is_id}/durdur", json={})
+    assert yanit.status_code == 409
+    assert "kararinizi bekliyor" in yanit.json()["detail"]
+
+
+def test_sonlanmis_isin_durdurulmasi_anlasilir_hata_verir(
+    kurulum: dict[str, int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    is_id = _durdurulmus_is(kurulum["donem_id"], monkeypatch)
+    oturum = OturumYerel()
+    try:
+        durdurma_karari_uygula(oturum, is_id, Karar.AT)
+    finally:
+        oturum.close()
+
+    yanit = yetkili_istemci(Rol.YONETICI).post(f"/api/cozum/{is_id}/durdur", json={})
+    assert yanit.status_code == 409
+    assert "iptal" in yanit.json()["detail"].lower()
+
+    assert (
+        yetkili_istemci(Rol.YONETICI).post("/api/cozum/999999/durdur", json={}).status_code == 404
+    )
 
 
 def test_karar_ucu_uc_secenegi_de_kabul_eder(

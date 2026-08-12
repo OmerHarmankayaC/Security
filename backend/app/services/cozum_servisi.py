@@ -26,6 +26,7 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
+from sqlalchemy import case, cast, literal, update
 from sqlalchemy.orm import Session
 
 from app.config import ayarlar
@@ -76,6 +77,42 @@ class Karar(enum.StrEnum):
 
 class KararUygulanamazError(RuntimeError):
     """Karar, isin bulundugu duruma ya da elindeki sonuca uymuyor."""
+
+
+class DurdurulamazError(RuntimeError):
+    """Is, durdurulabilecek bir durumda degil (SDD 5.4.1)."""
+
+
+# Durdurma istegi yalnizca bu durumlardaki isleri etkiler; digerleri zaten
+# sonlanmis ya da karar bekliyordur.
+_DURDURULABILIR_DURUMLAR = (
+    CozumIsiDurumu.KUYRUKTA,
+    CozumIsiDurumu.ON_KONTROL,
+    CozumIsiDurumu.COZULUYOR,
+)
+
+_DURUM_SUTUN_TIPI = CozumIsi.__table__.c.durum.type
+
+
+def _durum_degeri(durum: CozumIsiDurumu):  # noqa: ANN202 - SQLAlchemy ifadesi
+    """CASE dalinda kullanilabilen, ACIKCA enum'a cevrilmis durum degeri.
+
+    Cast sart: dallardaki parametreler tip bilgisi olmadan `text` baglanir
+    ve PostgreSQL bir enum sutununa text yazmayi reddeder.
+    """
+    return cast(literal(durum, _DURUM_SUTUN_TIPI), _DURUM_SUTUN_TIPI)
+
+
+# Reddedilen durdurma istegine verilecek yanit, KULLANICININ EKRANDA
+# GORDUGU seye gore degisir; tek bir "durdurulamaz" mesaji, karar bekleyen
+# bir isle coktan bitmis bir isi ayni kefeye koyardi.
+_DURDURULAMAZ_MESAJLARI = {
+    CozumIsiDurumu.DURDURULDU: "Is zaten durduruldu ve kararinizi bekliyor",
+    CozumIsiDurumu.TAMAMLANDI: "Is tamamlandi; durdurulacak bir arama yok",
+    CozumIsiDurumu.UYARILI: "Is tamamlandi; durdurulacak bir arama yok",
+    CozumIsiDurumu.BASARISIZ: "Is basarisiz olarak sonlandi",
+    CozumIsiDurumu.IPTAL: "Is zaten iptal edilmis",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -299,7 +336,12 @@ def cozum_isini_calistir(oturum: Session, is_id: int) -> None:
     )
 
     # Model kurulurken (uzun surebilir) durdurma istenmis olabilir.
-    if _durdurma_istendi_mi(oturum, is_kaydi):
+    # `kuyrukta`/`on_kontrol`teki bir ise gelen durdurma DOGRUDAN IPTALDIR
+    # (SDD 5.4.1): karar noktasi yalnizca arama sururken dogar.
+    durum = _taze_durum(oturum, is_kaydi)
+    if durum is CozumIsiDurumu.IPTAL:
+        return  # API isi zaten sonlandirdi; yazilacak hicbir sey yok
+    if durum is CozumIsiDurumu.DURDURULDU:
         _durdurulmus_olarak_kapat(oturum, is_kaydi, sonuc=None)
         return
 
@@ -390,6 +432,56 @@ def _sonucu_yaz(
         CozumIsiDurumu.UYARILI if veri.kapsama_eksikleri else CozumIsiDurumu.TAMAMLANDI,
     )
     surum.durum = CizelgeSurumuDurumu.COZULDU
+
+
+def durdurma_istegini_uygula(oturum: Session, is_id: int) -> CozumIsi:
+    """SDD 5.4.1: durdurma istegini isin BULUNDUGU DURUMA gore uygular.
+
+    Karar noktasi yalnizca arama sururken dogar:
+
+      cozuluyor            -> durduruldu, kullanici karari beklenir
+      kuyrukta/on_kontrol  -> iptal, karar sorulmaz
+
+    Ikincisinde henuz arama baslamamistir; saklanacak bir sonuc, dolayisiyla
+    verilecek bir karar da yoktur. Boyle bir iste karar paneli acmak, uc
+    secenekten ikisini anlamsiz ("kullan" - ortada sonuc yok), birini de
+    zaten var olan bir eylemin uzun yolu ("devam" - isi iptal edip yenisini
+    baslatmak) hale getirirdi.
+
+    GECIS TEK BIR KOSULLU UPDATE'TIR. Once okuyup sonra yazsaydik, tam o
+    aralikta isci isi `on_kontrol`den `cozuluyor`a gecirmis olabilirdi ve
+    karar noktasi dogmasi gereken bir is SESSIZCE iptal edilirdi. Burada
+    hangi yola girildigini veritabaninin dondurdugu satir soyler.
+    """
+    yeni_durum = oturum.execute(
+        update(CozumIsi)
+        .where(CozumIsi.is_id == is_id, CozumIsi.durum.in_(_DURDURULABILIR_DURUMLAR))
+        .values(
+            durum=case(
+                (
+                    CozumIsi.durum == CozumIsiDurumu.COZULUYOR,
+                    _durum_degeri(CozumIsiDurumu.DURDURULDU),
+                ),
+                else_=_durum_degeri(CozumIsiDurumu.IPTAL),
+            )
+        )
+        .returning(CozumIsi.durum)
+    ).scalar_one_or_none()
+
+    is_kaydi = CozumIsiDeposu(oturum).getir(is_id)
+    if yeni_durum is None:
+        if is_kaydi is None:
+            raise LookupError("Cozum isi bulunamadi")
+        raise DurdurulamazError(_DURDURULAMAZ_MESAJLARI[is_kaydi.durum])
+
+    assert is_kaydi is not None  # UPDATE satiri bulduysa kayit da vardir
+    if yeni_durum is CozumIsiDurumu.IPTAL:
+        # Isci bu isi hic almayacak (kapma sorgusu yalniz `kuyrukta`yi
+        # secer) ya da aldiysa model kurulumundan sonraki taze okumada
+        # gorup hicbir sey yazmadan cikacak. Terminal bakim burada yapilir.
+        _isi_sonlandir(is_kaydi, CozumIsiDurumu.IPTAL)
+    oturum.commit()
+    return is_kaydi
 
 
 def durdurma_karari_uygula(
@@ -506,20 +598,26 @@ def _ipucunu_al(is_kaydi: CozumIsi) -> list[AtamaKaydi] | None:
     return [AtamaKaydi(p, g, v, n) for p, g, v, n in veri.atamalar]
 
 
-def _durdurma_istendi_mi(oturum: Session, is_kaydi: CozumIsi) -> bool:
-    """Durdurma bayragini VERITABANINDAN taze okur.
+def _taze_durum(oturum: Session, is_kaydi: CozumIsi) -> CozumIsiDurumu:
+    """Isin durumunu VERITABANINDAN taze okur.
 
-    Bayrak ayri bir sutun degil, `durum` alanidir: API
-    `/api/cozum/{id}/durdur` cagrisinda durumu DURDURULDU'ya ceker (SDD
-    5.4.1). Isci ayri bir servis oldugundan (SDD 3.4.4) API o sureci
-    olduremez; tek haberlesme kanali veritabanidir.
+    Durdurma icin ayri bir bayrak sutunu yoktur; bilgiyi `durum` alani
+    zaten tasir. API `/api/cozum/{id}/durdur` cagrisinda isi - hangi
+    durumda oldugua gore - `durduruldu` ya da `iptal`e ceker (SDD 5.4.1).
+    Isci ayri bir servis oldugundan (SDD 3.4.4) API o sureci olduremez;
+    tek haberlesme kanali veritabanidir.
 
     `refresh` sart: is_kaydi bu oturumun kimlik haritasinda onbelleklidir ve
     API'nin BASKA bir baglantidan yaptigi degisiklik yeniden okunmadan
     gorulmez.
     """
     oturum.refresh(is_kaydi, ["durum"])
-    return is_kaydi.durum is CozumIsiDurumu.DURDURULDU
+    return is_kaydi.durum
+
+
+def _durdurma_istendi_mi(oturum: Session, is_kaydi: CozumIsi) -> bool:
+    """Arama SURERKEN durdurma istegi geldi mi?"""
+    return _taze_durum(oturum, is_kaydi) is CozumIsiDurumu.DURDURULDU
 
 
 def _durdurulmus_olarak_kapat(

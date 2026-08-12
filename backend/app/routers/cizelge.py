@@ -13,7 +13,6 @@ from sqlalchemy.orm import Session
 from app.db import oturum_al
 from app.guvenlik import yonetici_yetkisi
 from app.kurallar.temel import Ihlal
-from app.models.sonuc import CozumIsiDurumu
 from app.repositories.sonuc import (
     AtamaDeposu,
     CizelgeSurumuDeposu,
@@ -49,7 +48,9 @@ from app.schemas.surum import (
 )
 from app.services.cozum_servisi import (
     CozumServisi,
+    DurdurulamazError,
     KararUygulanamazError,
+    durdurma_istegini_uygula,
     durdurma_karari_uygula,
 )
 from app.services.dogrulama_servisi import (
@@ -70,13 +71,6 @@ from app.services.surum_servisi import (
 router = APIRouter(prefix="/api", tags=["cizelge"], dependencies=[Depends(yonetici_yetkisi)])
 
 Oturum = Annotated[Session, Depends(oturum_al)]
-
-_TAMAMLANMIS_DURUMLAR = (
-    CozumIsiDurumu.TAMAMLANDI,
-    CozumIsiDurumu.UYARILI,
-    CozumIsiDurumu.BASARISIZ,
-    CozumIsiDurumu.IPTAL,
-)
 
 
 @router.post("/on-kontrol", response_model=OnKontrolYaniti)
@@ -129,29 +123,28 @@ def cozum_durumu(is_id: int, oturum: Oturum) -> CozumOku:
 
 @router.post("/cozum/{is_id}/durdur", response_model=CozumOku)
 def cozum_durdur(is_id: int, oturum: Oturum) -> CozumOku:
-    """Durdurma istegini VERITABANINA yazar: isin durumunu DURDURULDU'ya ceker.
+    """Durdurma istegini VERITABANINA yazar; sonuc isin DURUMUNA baglidir.
 
-    Bu bir IPTAL DEGIL, SONLANDIRMADIR (SRS FR-4.9). Isci aramayi
-    sonlandirir, elindeki en iyi cozumu `gecici_sonuc`a yazar ve is
-    kullanicinin kararini bekler; surume hicbir sey yazilmaz.
+    Arama sururken (`cozuluyor`) bu bir IPTAL DEGIL SONLANDIRMADIR (SRS
+    FR-4.9): isci aramayi sonlandirir, elindeki en iyi cozumu
+    `gecici_sonuc`a yazar ve is kullanicinin kararini bekler; surume
+    hicbir sey yazilmaz.
+
+    Arama henuz baslamamissa (`kuyrukta`, `on_kontrol`) is DOGRUDAN IPTAL
+    olur ve karar sorulmaz - saklanacak bir sonuc yok (SDD 5.4.1).
 
     Cozum isci ayri bir SERVIS oldugundan (SDD 3.4.4) API o sureci
     olduremez; iki surec arasindaki tek kanal veritabanidir. Isci durumu
     arama surerken duzenli araliklarla taze okur ve gordugunde aramayi
     disaridan sonlandirir - olculen gecikme yarim saniye mertebesinde
     (SDD 5.4.2, SRS NFR-14).
-
-    Is zaten sonuclanmissa (tamamlandi/basarisiz/vb.) hicbir sey degismez.
-    Henuz kuyruktaki bir is DURDURULDU'ya cekilirse isci onu hic almaz:
-    kapma sorgusu yalnizca `kuyrukta` durumundakileri secer - is, elinde
-    sonuc olmadan karar bekler.
     """
-    depo = CozumIsiDeposu(oturum)
-    is_kaydi = depo.getir(is_id)
-    if is_kaydi is None:
-        raise HTTPException(status_code=404, detail="Cozum isi bulunamadi")
-    if is_kaydi.durum not in _TAMAMLANMIS_DURUMLAR:
-        is_kaydi.durum = CozumIsiDurumu.DURDURULDU
+    try:
+        is_kaydi = durdurma_istegini_uygula(oturum, is_id)
+    except LookupError as hata:
+        raise HTTPException(status_code=404, detail=str(hata)) from hata
+    except DurdurulamazError as hata:
+        raise HTTPException(status_code=409, detail=str(hata)) from hata
     return CozumOku.kayittan(is_kaydi)
 
 
