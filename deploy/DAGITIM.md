@@ -318,6 +318,23 @@ açılması gerekir (bölüm 12.4).
 scripts/cozum_iscisi.py`); çalışmazsa çözüm istekleri kuyrukta bekler.
 Sunucuda bunu `vardiya-cozucu.service` yapar.
 
+**Test veritabanı — yalnızca geliştirme makinesinde** (Ürün Backlog'u
+B-20). Test takımı `vardiya` veritabanında değil, ayrı bir `vardiya_test`
+veritabanında koşar; adresi `backend/.env` içindeki
+`TEST_VERITABANI_URL`den okunur ve adında `test` geçmezse takım çalışmayı
+reddeder. Sunucuda test koşturulmadığı için `/opt/vardiya/.env` bu satırı
+**taşımaz**; taşısaydı, orada bulunmayan bir veritabanını gösteren ölü bir
+ayar olurdu. `VERI_TEMIZLIGINE_IZIN` kilidi yerinde kalır — bu ikinci bir
+kapıdır, onun yerine geçmez.
+
+Test veritabanı geliştirme veritabanıyla **aynı göç zincirini** izler; yeni
+bir göç eklendiğinde ikisine de uygulanır:
+
+```bash
+cd backend
+VERITABANI_URL="$TEST_VERITABANI_URL" .venv/bin/alembic upgrade head
+```
+
 Günlükler:
 
 ```bash

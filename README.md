@@ -108,8 +108,8 @@ Parola argüman olarak verilemez; betik onu ekrana yazmadan iki kez sorar
 (en az 12 karakter). Sonraki hesaplar arayüzdeki Kullanıcılar ekranından
 açılır.
 
-**Uyarı:** `python -m pytest` bütün hesapları siler (bkz. aşağıdaki bölüm);
-takımı çalıştırdıktan sonra bu betiği yeniden çalıştırmanız gerekir.
+Test takımı bu hesaba dokunmaz: testler ayrı bir veritabanında koşar
+(bkz. "Testler ve Lint").
 
 Frontend:
 
@@ -119,6 +119,30 @@ npm run dev
 ```
 
 ## Testler ve Lint
+
+**Testler AYRI bir veritabanında koşar** (Ürün Backlog'u B-20). Takım,
+bağlantı adresinde bir test veritabanı görmezse çalışmayı reddeder —
+geliştirme verisini sessizce temizlemek yerine yüksek sesle durur.
+
+İlk kurulumda bir kez:
+
+```bash
+createdb vardiya_test
+cd backend
+VERITABANI_URL=postgresql+psycopg://vardiya:<PAROLA>@localhost:5432/vardiya_test \
+  .venv/bin/alembic upgrade head
+```
+
+Adresi `backend/.env` dosyasına yazın (`.env.example`'daki satır):
+
+```
+TEST_VERITABANI_URL=postgresql+psycopg://vardiya:<PAROLA>@localhost:5432/vardiya_test
+```
+
+Veritabanı adı `test` geçmelidir; kilit bunu arar. Şema göçle kurulur,
+`create_all` ile değil — test veritabanı da geliştirme veritabanıyla aynı
+göç zincirini izler, dolayısıyla göçlerin kendisi de her koşumda dolaylı
+olarak sınanır. Yeni bir göç eklendiğinde ikisine de uygulanır.
 
 ```bash
 cd backend && source .venv/bin/activate

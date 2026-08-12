@@ -68,6 +68,16 @@ class Ayarlar(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     veritabani_url: str = "postgresql+psycopg://vardiya:vardiya@localhost:5432/vardiya"
+
+    # UYGULAMA BUNU HIC OKUMAZ. Test takiminin baglandigi ayri veritabaninin
+    # adresidir (Urun Backlog'u B-20) ve yalnizca `backend/conftest.py`
+    # tarafindan okunur. Burada tanimli olmasinin nedeni `.env` dosyasinda
+    # durabilmesi: pydantic-settings tanimadigi anahtari REDDEDER
+    # (extra='forbid'), dolayisiyla tanimlanmadan `.env`e yazilamaz.
+    # Sunucudaki `/opt/vardiya/.env` bu satiri TASIMAZ; orada test
+    # kosturulmaz.
+    test_veritabani_url: str | None = None
+
     cozucu_zaman_limiti_saniye: int = 60
     cozucu_arama_iscisi_sayisi: int = 3
 

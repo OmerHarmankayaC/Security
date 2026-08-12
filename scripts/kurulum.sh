@@ -24,6 +24,22 @@ fi
 echo "== Veritabani gocleri uygulaniyor =="
 alembic upgrade head
 
+# Test takimi AYRI bir veritabaninda kosar (Urun Backlog'u B-20) ve ayni goc
+# zincirini izler. Adres .env'deki TEST_VERITABANI_URL'den okunur; yoksa
+# testler zaten anlasilir bir hatayla durur (backend/conftest.py).
+TEST_URL="$(python - <<'PY'
+from app.config import ayarlar
+print(ayarlar.test_veritabani_url or "")
+PY
+)"
+if [ -n "$TEST_URL" ]; then
+    echo "== Test veritabani gocleri uygulaniyor =="
+    VERITABANI_URL="$TEST_URL" alembic upgrade head
+else
+    echo "UYARI: TEST_VERITABANI_URL tanimli degil; testler calismayacak."
+    echo "       Kurulum icin bkz. README, 'Testler ve Lint'."
+fi
+
 echo "== Backend testleri calistiriliyor =="
 ruff check .
 ruff format --check .

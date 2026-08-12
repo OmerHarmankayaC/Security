@@ -38,7 +38,14 @@ SONUCLANMIS_DURUMLAR = (
 
 
 def pg_yoksa_atla() -> None:
-    """Yerel PostgreSQL'e baglanilamiyorsa testi atlar (bkz. README "Kurulum")."""
+    """Yerel PostgreSQL'e baglanilamiyorsa testi atlar (bkz. README "Kurulum").
+
+    ASIL KAPI ARTIK BURASI DEGIL. Depo kokundeki `conftest.py`, test
+    veritabaninin yapilandirildigini ve ona baglanilabildigini takim
+    baslamadan dogrular ve saglanmiyorsa yuksek sesle durur (B-20). Buradaki
+    kontrol o kapidan sonra hicbir zaman tetiklenmez; testin niyetini
+    imzasinda tutmak icin birakildi.
+    """
     try:
         with engine.connect():
             pass
