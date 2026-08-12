@@ -24,7 +24,7 @@ import type {
   Personel,
   Rol,
   SurumKarsilastirmasi,
-  TalepHucresi,
+  TalepAraligiYazma,
   TalepYaniti,
   TanimKullanimi,
   TanimYolu,
@@ -44,6 +44,10 @@ interface PersonelYazma {
   aktif_bitis?: string | null
   sabit_vardiya_tipi_id?: number | null
   yetkinlik_idleri?: number[]
+  // Devir bakiyesi (FR-1.1). Boş bırakılan alan 0 gönderir; sütun NOT NULL
+  // ve "bilinmiyor" diye bir hâli yok.
+  devir_fazla_calisma_saat?: number
+  kota_yili?: number | null
 }
 
 export class ApiHatasi extends Error {
@@ -180,9 +184,17 @@ export const api = {
     gonder<OzelGun>(`/api/ozel-gun/${tarih}`, { ad }, 'PUT'),
   ozelGunSil: (tarih: string) => silIste(`/api/ozel-gun/${tarih}`),
 
+  // Talep bir hücre değil bir ARALIK kaydıdır (SDD 4.2.2); ekleme, düzenleme
+  // ve silme ayrı uçlardan yapılır. Üçü de LİSTEYİ VE YÜK GÖSTERGESİNİ
+  // birlikte döner: gösterge talepten türüyor, ayrı bir istekle alınsaydı
+  // arayüz iki çağrı arasında eski sayıyı gösterebilirdi.
   talepGetir: () => istek<TalepYaniti>('/api/talep'),
-  talepHucresiGuncelle: (hucre: Omit<TalepHucresi, 'talep_id'>) =>
-    gonder<TalepYaniti>('/api/talep', hucre, 'PUT'),
+  talepAraligiEkle: (aralik: TalepAraligiYazma) =>
+    gonder<TalepYaniti>('/api/talep', aralik),
+  talepAraligiGuncelle: (talepId: number, aralik: TalepAraligiYazma) =>
+    gonder<TalepYaniti>(`/api/talep/${talepId}`, aralik, 'PUT'),
+  talepAraligiSil: (talepId: number) =>
+    istek<TalepYaniti>(`/api/talep/${talepId}`, { method: 'DELETE' }),
 
   kuralListele: () => istek<Kural[]>('/api/kural'),
   // Kuralda DELETE yoktur: H1–H8 ve S1–S8 modelin yapısını oluşturur ve

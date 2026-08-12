@@ -133,6 +133,10 @@ def baglam_olustur(
     zaman_ekseni = zaman_ekseni_olustur(donem, isitma_penceresi_gun=isitma_penceresi_gun)
     talep_satirlari = oturum.execute(select(Talep)).scalars().all()
     # Saat ekseni TEK KAYNAK (SDD 5.3); blok gorunumu ondan turetilir.
+    # TUREV TEK UZUNLUKLU VE HIZALI BIR KATALOG VARSAYAR (bkz.
+    # `blok_gorunumu_uret`): Tur 4'te 10 ve 12 saatlik bloklar girdiginde
+    # sessizce yanlis hesaplamaya baslar. Duzeltilecek yer burasi degil -
+    # S2/S3 saat eksenine tasindiginda bu satir tumuyle kalkar.
     talep_saat = talebi_saate_ac(talep_satirlari, zaman_ekseni, ozel_gunler)
     talep = blok_gorunumu_uret(talep_saat, vardiya_tipleri)
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { api } from '../api/client'
+import { ApiHatasi, api } from '../api/client'
 import type {
   Bina,
   GorevNoktasi,
@@ -7,7 +7,8 @@ import type {
   Kural,
   OzelGun,
   Personel,
-  TalepHucresi,
+  TalepAraligi,
+  TalepYaniti,
   TanimYolu,
   VardiyaTipi,
   Yetkinlik,
@@ -30,6 +31,14 @@ import {
   s1PasifUyarisi,
 } from '../lib/kuralAgirlik'
 import { degisiklikleriBul, kirliMi, yazilacaklariBul } from '../lib/kuralDuzenleme'
+import {
+  BASLANGIC_SAATLERI,
+  BITIS_SAATLERI,
+  araligiSure,
+  saatEtiketi,
+  saatiCoz,
+  saatiYaz,
+} from '../lib/talepAraligi'
 import { yetkinlikCakismaUyarisi } from '../lib/yetkinlikUyarisi'
 
 interface Props {
@@ -62,24 +71,47 @@ type Sekme = (typeof SEKMELER)[number]
 const TANIM_SEKMELERI = ['Personel', 'Yetkinlik', 'Bina', 'Görev Noktası', 'Vardiya Tipi'] as const
 type TanimSekmesi = (typeof TANIM_SEKMELERI)[number]
 
-// RESMÎ TATİL SÜTUNLARI ZORUNLU. `talep_matrisini_coz` bir gün için o gün
-// tipine karşılık gelen genel satırı arar; bulamazsa hücreyi sonuca hiç
-// koymaz. Yani tatil satırı girilememiş bir matriste Özel Gün ekranından
-// bir tarihi tatil işaretlemek (FR-1.10) o günün talebini SESSİZCE sıfırlar
-// — üstelik kapsama açığı da doğmaz (talep sıfırdır), dolayısıyla hata
-// hiçbir yerde görünmez. Sütunlar burada olmadan kullanıcının bunu
-// düzeltmesinin bir yolu da yoktu.
-const GUN_VARDIYA_SUTUNLARI: { baslik: string; gunTipi: GunTipi; vardiyaAdi: string }[] = [
-  { baslik: 'GÜNDÜZ', gunTipi: 'hafta_ici', vardiyaAdi: 'Gündüz' },
-  { baslik: 'AKŞAM', gunTipi: 'hafta_ici', vardiyaAdi: 'Akşam' },
-  { baslik: 'GECE', gunTipi: 'hafta_ici', vardiyaAdi: 'Gece' },
-  { baslik: 'H.SONU GÜNDÜZ', gunTipi: 'hafta_sonu', vardiyaAdi: 'Gündüz' },
-  { baslik: 'H.SONU AKŞAM', gunTipi: 'hafta_sonu', vardiyaAdi: 'Akşam' },
-  { baslik: 'H.SONU GECE', gunTipi: 'hafta_sonu', vardiyaAdi: 'Gece' },
-  { baslik: 'TATİL GÜNDÜZ', gunTipi: 'resmi_tatil', vardiyaAdi: 'Gündüz' },
-  { baslik: 'TATİL AKŞAM', gunTipi: 'resmi_tatil', vardiyaAdi: 'Akşam' },
-  { baslik: 'TATİL GECE', gunTipi: 'resmi_tatil', vardiyaAdi: 'Gece' },
-]
+// RESMÎ TATİL SATIRI ZORUNLU. `talebi_saate_ac` bir gün için önce tarihe
+// özgü istisnayı, sonra o gün tipine karşılık gelen genel satırı arar;
+// hiçbiri yoksa o gün hiçbir saat talep taşımaz. Yani tatil satırı
+// girilmemiş bir tanımda Özel Gün ekranından bir tarihi tatil işaretlemek
+// (FR-1.10) o günün talebini SESSİZCE sıfırlar — üstelik kapsama açığı da
+// doğmaz (talep sıfırdır), dolayısıyla hata hiçbir yerde görünmez. Liste bu
+// yüzden gün tipini ayrı bir sütunda gösterir ve üç tipin hepsi girilebilir.
+const GUN_TIPI_ETIKETI: Record<GunTipi, string> = {
+  hafta_ici: 'Hafta içi',
+  hafta_sonu: 'Hafta sonu',
+  resmi_tatil: 'Resmî tatil',
+}
+
+const GUN_TIPLERI = ['hafta_ici', 'hafta_sonu', 'resmi_tatil'] as const
+
+// Yeni aralık formunun açılış değeri: gün boyu (00.00–24.00), bir kişi.
+// `bitis` 24, `saatiYaz` onu 00:00'a çevirir.
+const YENI_TALEP_BASLANGIC = 0
+const YENI_TALEP_BITIS = 24
+
+// Başlık şeridi ile satırlar aynı şablonu paylaşır; sabit genişlikler
+// olmadan her satır kendi içeriğine göre hizalanır ve sütunlar kayar
+// (TASARIM_REFERANSI, "genişleyen bileşenlere sabit genişlik").
+const TALEP_IZGARASI = 'grid grid-cols-[1fr_120px_124px_140px_84px_92px] items-center'
+
+/**
+ * Talep formunun taşıdığı değerler. Saatler burada 0–24 arası TAM SAYIDIR,
+ * "HH:MM:SS" metni değil: gün sonunun 24.00 mü 00.00 mı yazılacağı sorusu
+ * tek yerde (lib/talepAraligi.ts) yanıtlanır, formda değil.
+ */
+interface TalepFormDegerleri {
+  /** null ise yeni kayıt. */
+  talep_id: number | null
+  nokta_id: number
+  gun_tipi: GunTipi
+  /** Boş metin = genel satır; dolu = yalnız o tarihe ait istisna. */
+  tarih: string
+  baslangic: number
+  bitis: number
+  gereken_sayi: number
+}
 
 // --- Kural satırının sütun genişlikleri -------------------------------------
 // Sabit genişlik zorunlu: alanlar içeriğine göre büyüdüğünde her kuralın
@@ -108,7 +140,7 @@ export function TanimlarEkrani({ ekranSec }: Props) {
   const [binalar, setBinalar] = useState<Bina[]>([])
   const [noktalar, setNoktalar] = useState<GorevNoktasi[]>([])
   const [vardiyaTipleri, setVardiyaTipleri] = useState<VardiyaTipi[]>([])
-  const [talepHucreleri, setTalepHucreleri] = useState<TalepHucresi[]>([])
+  const [talepAraliklari, setTalepAraliklari] = useState<TalepAraligi[]>([])
   const [yukGostergesi, setYukGostergesi] = useState<YukGostergesi | null>(null)
   const [kurallar, setKurallar] = useState<Kural[]>([])
   const [ozelGunler, setOzelGunler] = useState<OzelGun[]>([])
@@ -120,6 +152,14 @@ export function TanimlarEkrani({ ekranSec }: Props) {
     null,
   )
   const [pasifleriGoster, setPasifleriGoster] = useState(false)
+
+  // Talep sekmesi. Seçim yine `seciliId` ile PAYLAŞILMAZ (aşağıdaki özel gün
+  // notunun aynı gerekçesi): talep kayıtları ortak tanım makinesinin dışında
+  // ve o makinenin "kullanımdaysa pasifleştir" sözleşmesi talepte yok — bir
+  // talep aralığı ya vardır ya yoktur.
+  const [seciliTalepId, setSeciliTalepId] = useState<number | null>(null)
+  const [talepFormu, setTalepFormu] = useState<TalepFormDegerleri | null>(null)
+  const [talepSiliniyor, setTalepSiliniyor] = useState(false)
 
   // Özel gün sekmesi. Seçim `seciliId` ile PAYLAŞILMAZ: oradaki anahtar
   // sayısal, buradaki tarih (SDD 4.2.1). Ortak bir alana ikisini birden
@@ -156,7 +196,7 @@ export function TanimlarEkrani({ ekranSec }: Props) {
         setBinalar(b)
         setNoktalar(n)
         setVardiyaTipleri(v)
-        setTalepHucreleri(t.hucreler)
+        setTalepAraliklari(t.araliklar)
         setYukGostergesi(t.yuk_gostergesi)
         setKurallar(k)
         setOzelGunler(og)
@@ -191,34 +231,57 @@ export function TanimlarEkrani({ ekranSec }: Props) {
     () => new Map(yetkinlikler.map((y) => [y.yetkinlik_id, y])),
     [yetkinlikler],
   )
-  const vardiyaAdIdMap = useMemo(
-    () => new Map(vardiyaTipleri.map((v) => [v.ad, v.vardiya_tipi_id])),
-    [vardiyaTipleri],
+  const noktaAdlari = useMemo(
+    () => new Map(noktalar.map((n) => [n.nokta_id, n.ad])),
+    [noktalar],
+  )
+  // Pasifleştirilmiş bir nokta listeden düşer ama talep satırı durur; adı
+  // bulunamadığında kimliği göstermek, satırın "hangi nokta" olduğunu
+  // hiç söylememekten iyidir.
+  const noktaAdi = (noktaId: number) => noktaAdlari.get(noktaId) ?? `Nokta ${noktaId}`
+
+  // Sıralama ARAYÜZDE yapılır: sunucu kayıt sırasını döner ve aynı noktanın
+  // aralıkları listenin farklı yerlerine dağılırsa çakışmayı gözle görmek
+  // imkânsız olur.
+  const siraliTalepAraliklari = useMemo(
+    () =>
+      [...talepAraliklari].sort(
+        (a, b) =>
+          (noktaAdlari.get(a.nokta_id) ?? '').localeCompare(
+            noktaAdlari.get(b.nokta_id) ?? '',
+            'tr',
+          ) ||
+          GUN_TIPLERI.indexOf(a.gun_tipi) - GUN_TIPLERI.indexOf(b.gun_tipi) ||
+          (a.tarih ?? '').localeCompare(b.tarih ?? '') ||
+          saatiCoz(a.baslangic) - saatiCoz(b.baslangic),
+      ),
+    [talepAraliklari, noktaAdlari],
   )
 
-  const talepHucreBul = (noktaId: number, gunTipi: GunTipi, vardiyaTipiId: number | undefined) =>
-    talepHucreleri.find(
-      (h) => h.nokta_id === noktaId && h.gun_tipi === gunTipi && h.vardiya_tipi_id === vardiyaTipiId,
-    )
+  const seciliTalep = siraliTalepAraliklari.find((t) => t.talep_id === seciliTalepId) ?? null
 
-  const talepGuncelle = async (
-    noktaId: number,
-    gunTipi: GunTipi,
-    vardiyaTipiId: number,
-    gerekenSayi: number,
-  ) => {
+  /**
+   * Yazma sonucunu tek yerden işler. Üç uç da listeyi ve yük göstergesini
+   * birlikte döndürüyor; ayrı bir yenileme isteği atmak, iki çağrı arasında
+   * eski sayıyı gösterme riskini geri getirirdi.
+   */
+  const talepYanitiniIsle = (yanit: TalepYaniti) => {
+    setTalepAraliklari(yanit.araliklar)
+    setYukGostergesi(yanit.yuk_gostergesi)
+  }
+
+  const talepAraligiSil = async () => {
+    if (seciliTalepId === null) return
+    setTalepSiliniyor(true)
     try {
-      const yanit = await api.talepHucresiGuncelle({
-        nokta_id: noktaId,
-        vardiya_tipi_id: vardiyaTipiId,
-        gun_tipi: gunTipi,
-        tarih: null,
-        gereken_sayi: gerekenSayi,
-      })
-      setTalepHucreleri(yanit.hucreler)
-      setYukGostergesi(yanit.yuk_gostergesi)
+      talepYanitiniIsle(await api.talepAraligiSil(seciliTalepId))
+      setSeciliTalepId(null)
+      setTalepFormu(null)
+      setHata(null)
     } catch (e) {
-      setHata(e instanceof Error ? e.message : 'Talep güncellenemedi')
+      setHata(e instanceof Error ? e.message : 'Talep aralığı silinemedi')
+    } finally {
+      setTalepSiliniyor(false)
     }
   }
 
@@ -420,6 +483,59 @@ export function TanimlarEkrani({ ekranSec }: Props) {
               </Buton>
             </>
           )
+        ) : sekme === 'Talep' ? (
+          // Aynı konum, aynı sıra, aynı görünüm (SDD 6.3.1). Silme onayı
+          // YOKTUR: ortak makinedeki onay "silinsin mi pasifleştirilsin mi"
+          // sorusunu yanıtlar, talepte öyle bir soru yok — bir aralık ya
+          // vardır ya yoktur ve geri almak onu yeniden girmektir.
+          <>
+            <Buton
+              varyant="birincil"
+              disabled={noktalar.length === 0}
+              title={noktalar.length === 0 ? 'Önce bir görev noktası tanımlayın' : undefined}
+              onClick={() => {
+                setSeciliTalepId(null)
+                setTalepFormu({
+                  talep_id: null,
+                  nokta_id: noktalar[0]?.nokta_id ?? 0,
+                  gun_tipi: 'hafta_ici',
+                  tarih: '',
+                  baslangic: YENI_TALEP_BASLANGIC,
+                  bitis: YENI_TALEP_BITIS,
+                  gereken_sayi: 1,
+                })
+              }}
+            >
+              Ekle
+            </Buton>
+            <Buton
+              varyant="ikincil"
+              disabled={seciliTalep === null}
+              title={seciliTalep === null ? 'Önce listeden bir aralık seçin' : undefined}
+              onClick={() => {
+                if (seciliTalep === null) return
+                setTalepFormu({
+                  talep_id: seciliTalep.talep_id,
+                  nokta_id: seciliTalep.nokta_id,
+                  gun_tipi: seciliTalep.gun_tipi,
+                  tarih: seciliTalep.tarih ?? '',
+                  baslangic: saatiCoz(seciliTalep.baslangic),
+                  bitis: saatiCoz(seciliTalep.bitis, true),
+                  gereken_sayi: seciliTalep.gereken_sayi,
+                })
+              }}
+            >
+              Değiştir
+            </Buton>
+            <Buton
+              varyant="ikincil"
+              disabled={seciliTalep === null || talepSiliniyor}
+              title={seciliTalep === null ? 'Önce listeden bir aralık seçin' : undefined}
+              onClick={talepAraligiSil}
+            >
+              Sil
+            </Buton>
+          </>
         ) : sekme === 'Özel Gün' ? (
           // Aynı konum, aynı sıra, aynı görünüm (SDD 6.3.1) — yalnız
           // besleyen makine farklı (bkz. TANIM_SEKMELERI'nin üstündeki not).
@@ -522,6 +638,9 @@ export function TanimlarEkrani({ ekranSec }: Props) {
                 setSilinecek(null)
                 setSeciliTarih(null)
                 setOzelGunFormu(null)
+                setSeciliTalepId(null)
+                setTalepFormu(null)
+                setHata(null)
               }}
             >
               {s}
@@ -563,55 +682,92 @@ export function TanimlarEkrani({ ekranSec }: Props) {
 
       {sekme === 'Talep' && (
         <>
+          {talepFormu && (
+            <TalepFormu
+              degerler={talepFormu}
+              noktalar={noktalar}
+              onDegis={setTalepFormu}
+              onIptal={() => setTalepFormu(null)}
+              onKaydedildi={(yanit, talepId) => {
+                talepYanitiniIsle(yanit)
+                setTalepFormu(null)
+                if (talepId !== null) setSeciliTalepId(talepId)
+                setHata(null)
+              }}
+              onHata={setHata}
+            />
+          )}
           <Kart>
-            <KartEtiketi>talep matrisi · görev noktası × gün tipi/vardiya</KartEtiketi>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] border-collapse">
-                <thead>
-                  <tr className="bg-sunken">
-                    <th className="mono-caps whitespace-nowrap px-3 py-2 text-left text-ink-muted">
-                      GÖREV NOKTASI
-                    </th>
-                    {GUN_VARDIYA_SUTUNLARI.map((sutun) => (
-                      <th
-                        key={sutun.baslik}
-                        className="mono-caps whitespace-nowrap px-3 py-2 text-left text-ink-muted"
+            <KartEtiketi>
+              talep aralıkları · {siraliTalepAraliklari.length} kayıt
+            </KartEtiketi>
+            {siraliTalepAraliklari.length === 0 ? (
+              <p className="m-0 text-sm text-ink-muted">
+                Talep aralığı tanımlı değil. Aralık girilmeden çözüm hiç kimseyi
+                istemez: kapsama kısıtı (SRS 4.3 S1) talep saatleri üzerinden
+                yazılır ve boş talepte hiçbir açık doğmaz.
+              </p>
+            ) : (
+              // Tablo DEĞİL ızgara: satırın tamamı seçim düğmesi ve düğme
+              // hücrelerin içine konursa sütunlar tablo düzeninden çıkıp
+              // başlıklarla hizasını kaybediyor. Başlık şeridi ile satırlar
+              // aynı `grid-cols` şablonunu paylaşır.
+              <div className="overflow-x-auto">
+                <div className="min-w-[720px]">
+                  <div
+                    className={cn(
+                      TALEP_IZGARASI,
+                      'bg-sunken [&>span]:mono-caps [&>span]:px-3 [&>span]:py-2 [&>span]:text-ink-muted',
+                    )}
+                  >
+                    <span>GÖREV NOKTASI</span>
+                    <span>GÜN TİPİ</span>
+                    <span>TARİH</span>
+                    <span>ARALIK</span>
+                    <span>SÜRE</span>
+                    <span>GEREKEN</span>
+                  </div>
+                  {siraliTalepAraliklari.map((t) => {
+                    const secili = seciliTalepId === t.talep_id
+                    const baslangic = saatiCoz(t.baslangic)
+                    const bitis = saatiCoz(t.bitis, true)
+                    return (
+                      <button
+                        key={t.talep_id}
+                        type="button"
+                        aria-pressed={secili}
+                        onClick={() => setSeciliTalepId(secili ? null : t.talep_id)}
+                        className={cn(
+                          TALEP_IZGARASI,
+                          'w-full border-t border-rule text-left transition-colors',
+                          '[&>span]:px-3 [&>span]:py-3 [&>span]:text-sm',
+                          secili && 'bg-accent-soft',
+                        )}
                       >
-                        {sutun.baslik}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {noktalar.map((n) => (
-                    <tr key={n.nokta_id} className="border-t border-rule">
-                      <td className="px-3 py-3 text-sm font-medium text-ink">{n.ad}</td>
-                      {GUN_VARDIYA_SUTUNLARI.map((sutun) => {
-                        const vardiyaTipiId = vardiyaAdIdMap.get(sutun.vardiyaAdi)
-                        const hucre = talepHucreBul(n.nokta_id, sutun.gunTipi, vardiyaTipiId)
-                        return (
-                          <td key={sutun.baslik} className="px-3 py-2">
-                            <input
-                              type="number"
-                              min={0}
-                              className={cn(INPUT_SINIFI, 'w-16 bg-sunken text-center')}
-                              defaultValue={hucre?.gereken_sayi ?? 0}
-                              onBlur={(e) => {
-                                if (vardiyaTipiId === undefined) return
-                                const deger = Number(e.target.value)
-                                if (deger !== (hucre?.gereken_sayi ?? 0)) {
-                                  talepGuncelle(n.nokta_id, sutun.gunTipi, vardiyaTipiId, deger)
-                                }
-                              }}
-                            />
-                          </td>
-                        )
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                        <span className="font-medium text-ink">{noktaAdi(t.nokta_id)}</span>
+                        <span className="text-ink-muted">{GUN_TIPI_ETIKETI[t.gun_tipi]}</span>
+                        <span className="font-mono text-ink-muted">{t.tarih ?? '—'}</span>
+                        <span className="font-mono text-ink">
+                          {saatEtiketi(baslangic)}–{saatEtiketi(bitis)}
+                        </span>
+                        <span className="font-mono text-ink-muted">
+                          {araligiSure(baslangic, bitis)} sa
+                        </span>
+                        <span className="font-mono font-medium text-ink">{t.gereken_sayi}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+            <p className="mt-4 mb-0 text-sm text-ink-muted">
+              Aralıklar saat başında başlar ve biter; gün sonu{' '}
+              <Sayi>24.00</Sayi>'tır. Aynı nokta ve gün tipi için çakışan iki
+              aralık kabul edilmez — çakışan kayıtlar aynı saat için iki farklı
+              gereken sayı üretirdi. <span className="font-medium">Tarih</span>{' '}
+              dolu bir satır yalnız o güne aittir ve o gün genel satırların
+              yerine geçer.
+            </p>
           </Kart>
           {yukGostergesi && (
             <Kart className="bg-sunken">
@@ -1073,6 +1229,14 @@ function EkleFormu({
   const [sabitVardiya, setSabitVardiya] = useState(() =>
     personelMi ? ilkDeger('sabit_vardiya_tipi_id') : '',
   )
+  // Devir bakiyesi (FR-1.1). BU TURDA HİÇBİR KURAL OKUMAZ; alanın formda
+  // olmasının nedeni, kota hesabı yazıldığında (Tur 4) verinin hazır
+  // bulunmasıdır. Boş bırakılan devir SIFIRDIR — "bilinmiyor" diye bir hâli
+  // yok; kota yılı ise boş kalabilir ("girilmemiş").
+  const [devirSaat, setDevirSaat] = useState(() =>
+    personelMi ? ilkDeger('devir_fazla_calisma_saat') : '',
+  )
+  const [kotaYili, setKotaYili] = useState(() => (personelMi ? ilkDeger('kota_yili') : ''))
 
   // Aktiflik, DÜZENLEME kipinde görünür bir alandır (madde 3b). Pasifleştirmenin
   // tek yolu Sil'di ve geri dönüşün yolu yoktu — kapı tek yönlüydü.
@@ -1113,6 +1277,8 @@ function EkleFormu({
           // Boş bırakılmış bitiş "süresiz" demektir (SDD 4.2.1); null
           // göndermek, kapalı bir pencereyi yeniden açmanın da yoludur.
           aktif_bitis: aktifBitis || null,
+          devir_fazla_calisma_saat: Number(devirSaat) || 0,
+          kota_yili: kotaYili ? Number(kotaYili) : null,
         }
         if (id !== null) {
           await api.personelGuncelle(id, govde)
@@ -1238,6 +1404,35 @@ function EkleFormu({
                 value={aktifBitis}
                 onChange={(e) => setAktifBitis(e.target.value)}
                 className="w-40 rounded-sm border-rule font-mono"
+              />
+            </div>
+            {/* Devir bakiyesi (FR-1.1). Bu turda hiçbir kural okumaz — alan
+                veriyi toplamak için var; kota hesabı Tur 4'ün işi. */}
+            <div className="flex flex-col gap-1">
+              <label htmlFor="personel-devir" className="text-sm text-ink-muted">
+                Devir Fazla Çalışma (saat)
+              </label>
+              <Input
+                id="personel-devir"
+                type="number"
+                step="0.25"
+                value={devirSaat}
+                onChange={(e) => setDevirSaat(e.target.value)}
+                placeholder="0"
+                className="w-40 rounded-sm border-rule font-mono"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="personel-kota-yili" className="text-sm text-ink-muted">
+                Kota Yılı
+              </label>
+              <Input
+                id="personel-kota-yili"
+                type="number"
+                value={kotaYili}
+                onChange={(e) => setKotaYili(e.target.value)}
+                placeholder="—"
+                className="w-28 rounded-sm border-rule font-mono"
               />
             </div>
           </>
@@ -1402,6 +1597,191 @@ interface OzelGunFormuProps {
  * o yol zaten Ekle ile açık. Düzenlenebilir bırakmak, aynı işlemin
  * ikinci bir yolunu ve "eski tarih ne oldu" sorusunu yaratırdı.
  */
+interface TalepFormuProps {
+  degerler: TalepFormDegerleri
+  noktalar: GorevNoktasi[]
+  onDegis: (degerler: TalepFormDegerleri) => void
+  onIptal: () => void
+  onKaydedildi: (yanit: TalepYaniti, talepId: number | null) => void
+  onHata: (mesaj: string) => void
+}
+
+const TALEP_ALAN_SINIFI =
+  'h-9 rounded-sm border border-rule bg-surface px-2 text-sm text-ink outline-none focus-visible:border-accent focus-visible:ring-3 focus-visible:ring-accent/30'
+
+/**
+ * Talep aralığı ekleme/düzenleme formu (SRS FR-1.7).
+ *
+ * Saatler serbest metin değil AÇILIR LİSTEDİR: aralıklar saat başında
+ * başlamak zorunda (kapsama kısıtı saat ekseninde yazılır) ve serbest bir
+ * saat alanı 08.30'u yazdırıp sunucudan hata almayı mümkün kılardı. Bitiş
+ * listesinde 00.00 yoktur; gün sonu 24.00'tır ve ikisi aynı değeri kodlar.
+ */
+function TalepFormu({
+  degerler,
+  noktalar,
+  onDegis,
+  onIptal,
+  onKaydedildi,
+  onHata,
+}: TalepFormuProps) {
+  const [gonderiliyor, setGonderiliyor] = useState(false)
+  const talepId = degerler.talep_id
+  const yeni = talepId === null
+
+  const kaydet = async () => {
+    setGonderiliyor(true)
+    try {
+      const govde = {
+        nokta_id: degerler.nokta_id,
+        gun_tipi: degerler.gun_tipi,
+        tarih: degerler.tarih === '' ? null : degerler.tarih,
+        baslangic: saatiYaz(degerler.baslangic),
+        bitis: saatiYaz(degerler.bitis),
+        gereken_sayi: degerler.gereken_sayi,
+      }
+      const yanit =
+        talepId === null
+          ? await api.talepAraligiEkle(govde)
+          : await api.talepAraligiGuncelle(talepId, govde)
+      onKaydedildi(yanit, talepId)
+    } catch (e) {
+      // 409 çakışmadır ve sunucu hangi aralıkla çakıştığını yazar; mesajı
+      // olduğu gibi göstermek kullanıcıya düzeltmesi gerekeni söyler.
+      const cakisma = e instanceof ApiHatasi && e.status === 409
+      onHata(
+        cakisma
+          ? `Aralık çakışıyor: ${e.message}. Aynı nokta ve gün tipi için saatler örtüşemez.`
+          : e instanceof Error
+            ? e.message
+            : 'Talep aralığı kaydedilemedi',
+      )
+    } finally {
+      setGonderiliyor(false)
+    }
+  }
+
+  const sure = araligiSure(degerler.baslangic, degerler.bitis)
+
+  return (
+    <Kart vurgulu>
+      <KartEtiketi renk="accent">{yeni ? 'talep aralığı ekle' : 'talep aralığı değiştir'}</KartEtiketi>
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="flex flex-col gap-1">
+          <label htmlFor="talep-nokta" className="text-sm text-ink-muted">
+            Görev Noktası
+          </label>
+          <select
+            id="talep-nokta"
+            className={cn(TALEP_ALAN_SINIFI, 'w-56')}
+            value={degerler.nokta_id}
+            onChange={(e) => onDegis({ ...degerler, nokta_id: Number(e.target.value) })}
+          >
+            {noktalar.map((n) => (
+              <option key={n.nokta_id} value={n.nokta_id}>
+                {n.ad}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="talep-gun-tipi" className="text-sm text-ink-muted">
+            Gün Tipi
+          </label>
+          <select
+            id="talep-gun-tipi"
+            className={cn(TALEP_ALAN_SINIFI, 'w-36')}
+            value={degerler.gun_tipi}
+            onChange={(e) => onDegis({ ...degerler, gun_tipi: e.target.value as GunTipi })}
+          >
+            {GUN_TIPLERI.map((g) => (
+              <option key={g} value={g}>
+                {GUN_TIPI_ETIKETI[g]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="talep-baslangic" className="text-sm text-ink-muted">
+            Başlangıç
+          </label>
+          <select
+            id="talep-baslangic"
+            className={cn(TALEP_ALAN_SINIFI, 'w-24 font-mono')}
+            value={degerler.baslangic}
+            onChange={(e) => onDegis({ ...degerler, baslangic: Number(e.target.value) })}
+          >
+            {BASLANGIC_SAATLERI.map((s) => (
+              <option key={s} value={s}>
+                {saatEtiketi(s)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="talep-bitis" className="text-sm text-ink-muted">
+            Bitiş
+          </label>
+          <select
+            id="talep-bitis"
+            className={cn(TALEP_ALAN_SINIFI, 'w-24 font-mono')}
+            value={degerler.bitis}
+            onChange={(e) => onDegis({ ...degerler, bitis: Number(e.target.value) })}
+          >
+            {BITIS_SAATLERI.map((s) => (
+              <option key={s} value={s}>
+                {saatEtiketi(s)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="talep-gereken" className="text-sm text-ink-muted">
+            Gereken Sayı
+          </label>
+          <Input
+            id="talep-gereken"
+            type="number"
+            min={0}
+            value={degerler.gereken_sayi}
+            onChange={(e) => onDegis({ ...degerler, gereken_sayi: Number(e.target.value) })}
+            className="w-24 rounded-sm border-rule font-mono"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="talep-tarih" className="text-sm text-ink-muted">
+            Tarih (istisna)
+          </label>
+          <Input
+            id="talep-tarih"
+            type="date"
+            value={degerler.tarih}
+            onChange={(e) => onDegis({ ...degerler, tarih: e.target.value })}
+            className="w-40 rounded-sm border-rule font-mono"
+          />
+        </div>
+        <Buton
+          varyant="birincil"
+          onClick={kaydet}
+          disabled={gonderiliyor || degerler.gereken_sayi < 0}
+        >
+          Kaydet
+        </Buton>
+        <Buton varyant="hayalet" onClick={onIptal}>
+          İptal
+        </Buton>
+      </div>
+      <p className="mt-3 text-sm text-ink-muted">
+        Aralık <Sayi>{sure}</Sayi> saat sürer ve gün başına{' '}
+        <Sayi>{sure * degerler.gereken_sayi}</Sayi> kişi-saat yük getirir.
+        Tarih boş bırakılırsa satır o gün tipinin tamamı için geçerlidir;
+        doldurulursa yalnız o gün için geçerli bir istisna olur ve o gün genel
+        satırların yerine geçer.
+      </p>
+    </Kart>
+  )
+}
+
 function OzelGunFormu({
   tarih: ilkTarih,
   yeni,

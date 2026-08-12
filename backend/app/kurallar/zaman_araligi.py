@@ -108,3 +108,20 @@ def saatleri_araliklara_birlestir(
 def _saat(deger: int) -> time:
     """Saat degerini `time`a cevirir; 24 gun sonunu gosterir ve 00.00 yazilir."""
     return time(deger % 24)
+
+
+def saat_metni(an: time, *, bitis: bool = False) -> str:
+    """Saati "08.00" bicimiyle yazar. TEK TANIM.
+
+    Gun sonu depoda 00.00 durur (SDD 4.2.2) ve kullaniciya 24.00 gosterilir
+    - ama YALNIZCA BITIS olarak. Ayrimi tasimayan bir yardimci, gun basinda
+    baslayan bir araligi "24.00-08.00" diye yazar; okuyan kisi bunu gece
+    yarisini asan bir aralik sanir. Uc ayri modul bu yardimcinin kendi
+    kopyasini tasiyordu ve ucu de ayni yanlisi yapiyordu.
+    """
+    return "24.00" if bitis and an.hour == 0 else f"{an.hour:02d}.00"
+
+
+def aralik_metni(baslangic: time, bitis: time) -> str:
+    """ "08.00–24.00" — arayuze ve bulgu metinlerine giden bicim."""
+    return f"{saat_metni(baslangic)}–{saat_metni(bitis, bitis=True)}"

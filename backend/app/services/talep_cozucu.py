@@ -122,6 +122,14 @@ def blok_gorunumu_uret(
     sinirlariyla hizali oldugunda (bu turdaki uc bloklu katalog) bu deger
     blogun her saatinde ayni olur ve blok eksenli eski tablonun birebir
     aynisini verir.
+
+    VARSAYIM - TEK UZUNLUKLU, HIZALI KATALOG. "En buyuk gereken" ancak
+    boyle dogrudur. Tur 4'te 10 ve 12 saatlik bloklar girdiginde bir blok
+    farkli gerekenler tasiyan saatleri kapsayacak (orn. 06.00-18.00 blogu,
+    gece 3 ve gunduz 7 kisilik talebi birlikte orter) ve turev o blogu 7
+    kisilik sayacak: fazla kadro talep gibi gorunur, HATA VERMEDEN. Bu
+    fonksiyon o turda kalkmalidir, duzeltilmemelidir - dogru cozum S2/S3'u
+    saat eksenine tasimaktir.
     """
     gunler = {tarih for (tarih, _saat, _nokta) in talep_saat}
     noktalar = {nokta for (_tarih, _saat, nokta) in talep_saat}

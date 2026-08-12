@@ -4,6 +4,8 @@ Yonlendirici ince tutulur: istegi semayla dogrular, tek bir servis metodunu
 cagirir, sonucu JSON'a cevirir. Is mantigi burada yer almaz.
 """
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import date
 from typing import Annotated
 
@@ -47,10 +49,12 @@ from app.schemas.tanim import (
 )
 from app.services.tanim_kullanimi import kullanimi_olc
 from app.services.tanim_servisi import (
+    AyniVardiyaBlogunError,
     CakisanTalepAraligiError,
     KuralParametresiError,
     SicilKullanimdaError,
     TanimServisi,
+    VardiyaSuresiAzamiyiAsiyorError,
 )
 
 # Butun tanim uc noktalari yonetici yetkisi ister (SRS 5.10: calisan rolu
@@ -195,17 +199,35 @@ def vardiya_tipi_listele(servis: Servis) -> list[VardiyaTipiOku]:
 
 @router.post("/vardiya-tipi", response_model=VardiyaTipiOku, status_code=201)
 def vardiya_tipi_olustur(veri: VardiyaTipiOlustur, servis: Servis) -> VardiyaTipiOku:
-    return servis.vardiya_tipi_olustur(veri)  # type: ignore[return-value]
+    with _blok_kisitlari():
+        return servis.vardiya_tipi_olustur(veri)  # type: ignore[return-value]
 
 
 @router.put("/vardiya-tipi/{vardiya_tipi_id}", response_model=VardiyaTipiOku)
 def vardiya_tipi_guncelle(
     vardiya_tipi_id: int, veri: VardiyaTipiGuncelle, servis: Servis
 ) -> VardiyaTipiOku:
-    nesne = servis.vardiya_tipi_guncelle(vardiya_tipi_id, veri)
+    with _blok_kisitlari():
+        nesne = servis.vardiya_tipi_guncelle(vardiya_tipi_id, veri)
     if nesne is None:
         raise HTTPException(status_code=404, detail="Vardiya tipi bulunamadi")
     return nesne  # type: ignore[return-value]
+
+
+@contextmanager
+def _blok_kisitlari() -> Iterator[None]:
+    """Blok katalogunun iki kisitini HTTP durumlarina cevirir (SRS FR-1.3).
+
+    Ayrim korunuyor: kopya blok 409 ("istek gecerli, mevcut veriyle
+    cakisiyor" - kullanici baska bir saat secer), azami suresi asan blok
+    400 ("degerin kendisi gecersiz" - kullanici sureyi kisaltir).
+    """
+    try:
+        yield
+    except AyniVardiyaBlogunError as hata:
+        raise HTTPException(status_code=409, detail=str(hata)) from hata
+    except VardiyaSuresiAzamiyiAsiyorError as hata:
+        raise HTTPException(status_code=400, detail=str(hata)) from hata
 
 
 @router.get("/vardiya-tipi/{vardiya_tipi_id}/kullanim", response_model=KullanimOku)
@@ -309,8 +331,8 @@ def ozel_gun_sil(tarih: date, servis: Servis) -> None:
 
 @router.get("/talep", response_model=TalepYaniti)
 def talep_matrisini_getir(servis: Servis) -> TalepYaniti:
-    hucreler, yuk = servis.talep_matrisini_getir()
-    return TalepYaniti(hucreler=hucreler, yuk_gostergesi=yuk)  # type: ignore[arg-type]
+    araliklar, yuk = servis.talep_matrisini_getir()
+    return TalepYaniti(araliklar=araliklar, yuk_gostergesi=yuk)  # type: ignore[arg-type]
 
 
 @router.post("/talep", response_model=TalepYaniti, status_code=201)
@@ -352,8 +374,8 @@ def _talep_yaniti(servis: TanimServisi) -> TalepYaniti:
     Yuk gostergesi (FR-1.9) talepten turetiliyor; ayri bir istekle
     alinsaydi arayuz iki cagri arasinda eski sayiyi gosterebilirdi.
     """
-    hucreler, yuk = servis.talep_matrisini_getir()
-    return TalepYaniti(hucreler=hucreler, yuk_gostergesi=yuk)  # type: ignore[arg-type]
+    araliklar, yuk = servis.talep_matrisini_getir()
+    return TalepYaniti(araliklar=araliklar, yuk_gostergesi=yuk)  # type: ignore[arg-type]
 
 
 # --- Kural (FR-1.11, FR-1.12, FR-1.13) ------------------------------------

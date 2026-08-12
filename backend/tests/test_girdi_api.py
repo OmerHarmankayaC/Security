@@ -10,7 +10,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from tests.conftest import pg_yoksa_atla, yetkili_istemci
+from tests.conftest import (
+    bos_vardiya_blogu,
+    gecici_vardiya_tipi,
+    pg_yoksa_atla,
+    yetkili_istemci,
+)
 
 
 @pytest.fixture
@@ -141,26 +146,18 @@ def test_tercih_vardiya_tipi_tercihinde_vardiya_tipi_id_tasir(istemci: TestClien
     personel_id = _personel_olustur(istemci, on_ek)
     donem_id = _donem_olustur(istemci)
 
-    vardiya_yaniti = istemci.post(
-        "/api/vardiya-tipi",
-        json={
-            "ad": _benzersiz("Gunduz-tercih"),
-            "baslangic_saati": "08:00:00",
-            "bitis_saati": "16:00:00",
-        },
-    )
-    assert vardiya_yaniti.status_code == 201
-    vardiya_tipi_id = vardiya_yaniti.json()["vardiya_tipi_id"]
-
-    yanit = istemci.post(
-        "/api/tercih",
-        json={
-            "personel_id": personel_id,
-            "donem_id": donem_id,
-            "tarih": "2026-09-09",
-            "tip": "vardiya_tipi_tercihi",
-            "vardiya_tipi_id": vardiya_tipi_id,
-        },
-    )
-    assert yanit.status_code == 201
-    assert yanit.json()["vardiya_tipi_id"] == vardiya_tipi_id
+    istek = {"ad": _benzersiz("Gunduz-tercih"), **bos_vardiya_blogu(istemci)}
+    with gecici_vardiya_tipi(istemci, istek) as vardiya:
+        vardiya_tipi_id = vardiya["vardiya_tipi_id"]
+        yanit = istemci.post(
+            "/api/tercih",
+            json={
+                "personel_id": personel_id,
+                "donem_id": donem_id,
+                "tarih": "2026-09-09",
+                "tip": "vardiya_tipi_tercihi",
+                "vardiya_tipi_id": vardiya_tipi_id,
+            },
+        )
+        assert yanit.status_code == 201
+        assert yanit.json()["vardiya_tipi_id"] == vardiya_tipi_id

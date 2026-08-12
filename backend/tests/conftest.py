@@ -3,6 +3,8 @@ atlama ve cozum iscisinin senkron calistirilmasi."""
 
 import sys
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -210,3 +212,44 @@ def oturumlu_istemci(rol: Rol = Rol.YONETIM, *, personel_id: int | None = None) 
     yanit = istemci.post("/api/giris", json={"kullanici_adi": kullanici_adi, "parola": parola})
     assert yanit.status_code == 200, yanit.text
     return istemci
+
+
+@contextmanager
+def gecici_vardiya_tipi(istemci: TestClient, govde: dict[str, object]) -> Iterator[dict]:
+    """Bir calisma blogu acar ve test bitince katalogdan DUSURUR.
+
+    Test veritabani kosumlar arasinda sifirlanmiyor; blok katalogu ise artik
+    ayni (baslangic_saati, sure_saat) ikilisini iki kez kabul etmiyor
+    (SRS FR-1.3, Tur 3 Is 6). Biriken bloklar bu yuzden yalnizca cop degil,
+    sonraki kosumun HATASI: onceki kosumun biraktigi blok, ayni saati
+    isteyen testi 409'a dusurur. Silme "kullanimdaysa pasiflestir"
+    yoludur, pasif blok da benzersizlik sayiminda yer almaz.
+    """
+    yanit = istemci.post("/api/vardiya-tipi", json=govde)
+    assert yanit.status_code == 201, yanit.text
+    kayit = yanit.json()
+    try:
+        yield kayit
+    finally:
+        istemci.delete(f"/api/vardiya-tipi/{kayit['vardiya_tipi_id']}")
+
+
+def bos_vardiya_blogu(istemci: TestClient, *, sure_saat: int = 8) -> dict[str, str]:
+    """Katalogda henuz kullanilmayan bir calisma blogu dondurur.
+
+    Saatleri testin konusu OLMAYAN yerler icindir: test 08.00'i degil
+    "herhangi bir blogu" istiyorsa, komsularindan bagimsiz kalsin.
+    """
+    dolu = {
+        (v["baslangic_saati"], float(v["sure_saat"]))
+        for v in istemci.get("/api/vardiya-tipi").json()
+        if v["aktif"]
+    }
+    for saat in range(24):
+        baslangic = f"{saat:02d}:00:00"
+        if (baslangic, float(sure_saat)) not in dolu:
+            return {
+                "baslangic_saati": baslangic,
+                "bitis_saati": f"{(saat + sure_saat) % 24:02d}:00:00",
+            }
+    raise AssertionError(f"{sure_saat} saatlik butun baslangic saatleri katalogda dolu")

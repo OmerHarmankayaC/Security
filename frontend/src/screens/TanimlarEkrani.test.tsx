@@ -1,6 +1,14 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { Ben, OzelGun, Personel, VardiyaTipi, Yetkinlik } from '@/api/types'
+import type {
+  Ben,
+  GorevNoktasi,
+  OzelGun,
+  Personel,
+  TalepAraligi,
+  VardiyaTipi,
+  Yetkinlik,
+} from '@/api/types'
 import { AktifIsSaglayici } from '@/components/AktifIsBaglami'
 import { OturumBaglami } from '@/components/OturumBaglami'
 import { TanimlarEkrani } from './TanimlarEkrani'
@@ -52,6 +60,8 @@ const SEF: Personel = {
   aktif_baslangic: '2026-01-01',
   aktif_bitis: null,
   yetkinlik_idleri: [1, 2],
+  devir_fazla_calisma_saat: '0.00',
+  kota_yili: null,
 }
 
 // FR-1.10. Kasten SIRASIZ verilir: sıralamanın depoda (sunucuda) yapıldığı
@@ -61,7 +71,37 @@ const OZEL_GUNLER: OzelGun[] = [
   { tarih: '2026-10-29', ad: 'Cumhuriyet Bayramı' },
 ]
 
+const NOKTALAR: GorevNoktasi[] = [
+  { nokta_id: 4, ad: 'Güvenlik', bina_id: null, onkosul_yetkinlik_id: 1, aktif: true },
+  { nokta_id: 5, ad: 'Müracaat', bina_id: null, onkosul_yetkinlik_id: 3, aktif: true },
+]
+
+// Gün sonu 00:00:00'dır (SDD 4.2.2); ekranda 24.00 görünmesi gerekir.
+const TALEP_ARALIKLARI: TalepAraligi[] = [
+  {
+    talep_id: 31,
+    nokta_id: 4,
+    gun_tipi: 'hafta_ici',
+    tarih: null,
+    baslangic: '08:00:00',
+    bitis: '00:00:00',
+    gereken_sayi: 7,
+  },
+  {
+    talep_id: 32,
+    nokta_id: 4,
+    gun_tipi: 'hafta_ici',
+    tarih: null,
+    baslangic: '00:00:00',
+    bitis: '08:00:00',
+    gereken_sayi: 3,
+  },
+]
+
 let gonderilenler: { yol: string; yontem: string; govde: unknown }[] = []
+// Doluysa talep yazma istekleri bu durumla ve bu gövdeyle karşılık bulur;
+// çakışma (409) yolunu sınamanın tek yolu budur.
+let talepYazmaHatasi: { status: number; detail: string } | null = null
 
 function fetchTaklidi() {
   return vi.fn(async (yol: string, secenekler?: RequestInit) => {
@@ -73,6 +113,10 @@ function fetchTaklidi() {
         govde: secenekler?.body ? JSON.parse(String(secenekler.body)) : null,
       })
     }
+    if (yontem !== 'GET' && yol.startsWith('/api/talep') && talepYazmaHatasi) {
+      const hata = talepYazmaHatasi
+      return { ok: false, status: hata.status, json: async () => ({ detail: hata.detail }) }
+    }
     return {
       ok: true,
       status: 200,
@@ -80,10 +124,11 @@ function fetchTaklidi() {
         if (yol === '/api/personel') return yontem === 'GET' ? [SEF] : SEF
         if (yol === '/api/yetkinlik') return YETKINLIKLER
         if (yol === '/api/vardiya-tipi') return VARDIYA_TIPLERI
+        if (yol === '/api/nokta') return NOKTALAR
         if (yol === '/api/ozel-gun') return OZEL_GUNLER
-        if (yol === '/api/talep') {
+        if (yol.startsWith('/api/talep')) {
           return {
-            hucreler: [],
+            araliklar: TALEP_ARALIKLARI,
             yuk_gostergesi: {
               haftalik_kisi_vardiya: 0,
               haftalik_kisi_saat: '0',
@@ -99,6 +144,7 @@ function fetchTaklidi() {
 
 function ekraniCiz() {
   gonderilenler = []
+  talepYazmaHatasi = null
   vi.stubGlobal('fetch', fetchTaklidi())
   return render(
     <OturumBaglami.Provider value={{ ben: BEN, cikis: vi.fn(), parolaDegistir: vi.fn() }}>
@@ -291,5 +337,136 @@ describe('Özel Gün sekmesi (FR-1.10)', () => {
 
     await waitFor(() => expect(gonderilenler.some((g) => g.yontem === 'DELETE')).toBe(true))
     expect(gonderilenler.find((g) => g.yontem === 'DELETE')!.yol).toBe('/api/ozel-gun/2026-04-23')
+  })
+})
+
+describe('Talep sekmesi — aralık girişi (FR-1.7)', () => {
+  /**
+   * Ekran, talep bir zaman aralığına taşındıktan sonra bir süre ESKİ
+   * MATRİSİ çiziyordu: görev noktası × vardiya tipi hücreleri ve artık
+   * bulunmayan `PUT /api/talep` ucu. Hücrelere yazılan hiçbir sayı
+   * kaydedilemiyordu. Bu testler ekranın aralık sözleşmesini konuştuğunu
+   * kilitler.
+   */
+  async function sekmeyiAc() {
+    ekraniCiz()
+    // Talep açılıştaki sekme; yalnızca verinin gelmesini beklemek yeterli.
+    await waitFor(() => expect(screen.getByText('08.00–24.00')).toBeDefined())
+  }
+
+  it('her satırı bir aralıktır ve gün sonunu 24.00 gösterir', async () => {
+    await sekmeyiAc()
+    // Depoda 00:00 duran bitiş, ekranda 24.00. "08.00–00.00" görünseydi
+    // kullanıcı aralığı sıfır uzunlukta sanırdı.
+    expect(screen.getByText('08.00–24.00')).toBeDefined()
+    expect(screen.getByText('00.00–08.00')).toBeDefined()
+    expect(screen.getAllByText('Güvenlik').length).toBeGreaterThan(0)
+    expect(screen.getByText('16 sa')).toBeDefined()
+  })
+
+  it('eylem çubuğu diğer sekmelerle aynı üçlüyü taşır', async () => {
+    await sekmeyiAc()
+    expect(screen.getByRole('button', { name: 'Ekle' })).toBeDefined()
+    expect((screen.getByRole('button', { name: 'Değiştir' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    )
+    expect((screen.getByRole('button', { name: 'Sil' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('yeni aralık POST /api/talep ile gönderilir; 24.00 bitişi 00:00 olarak yazılır', async () => {
+    await sekmeyiAc()
+    fireEvent.click(screen.getByRole('button', { name: 'Ekle' }))
+    fireEvent.change(screen.getByLabelText('Başlangıç'), { target: { value: '16' } })
+    fireEvent.change(screen.getByLabelText('Bitiş'), { target: { value: '24' } })
+    fireEvent.change(screen.getByLabelText('Gereken Sayı'), { target: { value: '2' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Kaydet' }))
+
+    await waitFor(() => expect(gonderilenler.some((g) => g.yontem === 'POST')).toBe(true))
+    const istek = gonderilenler.find((g) => g.yontem === 'POST')!
+    expect(istek.yol).toBe('/api/talep')
+    expect(istek.govde).toMatchObject({
+      nokta_id: 4,
+      gun_tipi: 'hafta_ici',
+      tarih: null,
+      baslangic: '16:00:00',
+      bitis: '00:00:00',
+      gereken_sayi: 2,
+    })
+  })
+
+  it('seçili aralık PUT /api/talep/{id} ile güncellenir', async () => {
+    await sekmeyiAc()
+    fireEvent.click(screen.getByRole('button', { name: /08\.00–24\.00/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Değiştir' }))
+
+    // Form seçili kaydın değerleriyle açılır: 08.00 başlangıç, 24.00 bitiş.
+    expect((screen.getByLabelText('Başlangıç') as HTMLSelectElement).value).toBe('8')
+    expect((screen.getByLabelText('Bitiş') as HTMLSelectElement).value).toBe('24')
+
+    fireEvent.change(screen.getByLabelText('Gereken Sayı'), { target: { value: '9' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Kaydet' }))
+
+    await waitFor(() => expect(gonderilenler.some((g) => g.yontem === 'PUT')).toBe(true))
+    const istek = gonderilenler.find((g) => g.yontem === 'PUT')!
+    expect(istek.yol).toBe('/api/talep/31')
+    expect((istek.govde as { gereken_sayi: number }).gereken_sayi).toBe(9)
+  })
+
+  it('seçili aralık DELETE /api/talep/{id} ile silinir', async () => {
+    await sekmeyiAc()
+    fireEvent.click(screen.getByRole('button', { name: /00\.00–08\.00/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Sil' }))
+
+    await waitFor(() => expect(gonderilenler.some((g) => g.yontem === 'DELETE')).toBe(true))
+    expect(gonderilenler.find((g) => g.yontem === 'DELETE')!.yol).toBe('/api/talep/32')
+  })
+
+  it('çakışan aralıkta 409 anlaşılır bir hata olarak görünür', async () => {
+    await sekmeyiAc()
+    // Sunucu hangi aralıkla çakıştığını yazar; mesaj kaybolursa kullanıcı
+    // neyi düzelteceğini bilemez.
+    talepYazmaHatasi = { status: 409, detail: '08.00–24.00 aralığıyla çakışıyor' }
+    fireEvent.click(screen.getByRole('button', { name: 'Ekle' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Kaydet' }))
+
+    await waitFor(() =>
+      expect(screen.getByText(/08\.00–24\.00 aralığıyla çakışıyor/)).toBeDefined(),
+    )
+    expect(screen.getByText(/saatler örtüşemez/)).toBeDefined()
+  })
+})
+
+describe('Personel formu — devir bakiyesi (FR-1.1)', () => {
+  /**
+   * Alanlar bu turda HİÇBİR kural tarafından okunmuyor; formda olmalarının
+   * nedeni kota hesabı yazıldığında (Tur 4) verinin hazır bulunması.
+   * Boş bırakılan devir sıfırdır — sütun NOT NULL ve "bilinmiyor" hâli yok;
+   * kota yılı ise boş kalabilir.
+   */
+  it('boş bırakılan devir 0, boş kota yılı null gider', async () => {
+    await sefiDuzenlemeyeAc()
+    fireEvent.change(screen.getByLabelText('Devir Fazla Çalışma (saat)'), {
+      target: { value: '' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Kaydet' }))
+
+    await waitFor(() => expect(gonderilenler.some((g) => g.yontem === 'PUT')).toBe(true))
+    const govde = gonderilenler.find((g) => g.yontem === 'PUT')!.govde as Record<string, unknown>
+    expect(govde.devir_fazla_calisma_saat).toBe(0)
+    expect(govde.kota_yili).toBeNull()
+  })
+
+  it('girilen devir ve kota yılı gönderilir', async () => {
+    await sefiDuzenlemeyeAc()
+    fireEvent.change(screen.getByLabelText('Devir Fazla Çalışma (saat)'), {
+      target: { value: '12.5' },
+    })
+    fireEvent.change(screen.getByLabelText('Kota Yılı'), { target: { value: '2026' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Kaydet' }))
+
+    await waitFor(() => expect(gonderilenler.some((g) => g.yontem === 'PUT')).toBe(true))
+    const govde = gonderilenler.find((g) => g.yontem === 'PUT')!.govde as Record<string, unknown>
+    expect(govde.devir_fazla_calisma_saat).toBe(12.5)
+    expect(govde.kota_yili).toBe(2026)
   })
 })

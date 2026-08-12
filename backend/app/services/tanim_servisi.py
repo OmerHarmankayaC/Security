@@ -7,7 +7,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.kurallar import kayit_defteri
-from app.kurallar.zaman_araligi import cakisiyor_mu
+from app.kurallar.zaman_araligi import aralik_metni, cakisiyor_mu, saat_metni
 from app.models.tanim import (
     Bina,
     GorevNoktasi,
@@ -42,6 +42,14 @@ from app.services.yuk_gostergesi import yuk_gostergesi_hesapla
 _VARSAYILAN_AZAMI_HAFTALIK_SAAT = Decimal(45)
 _VARSAYILAN_HAFTALIK_ASGARI_IZIN_GUNU = 1
 
+# GECICI. Gunluk azami calisma saati, H9 kural katalogunda yazildiginda
+# oradan okunacak (bkz. `azami_gunluk_calisma_saati`); H9 Tur 4'un isi ve bu
+# turda kural kataloguna dokunulmuyor. Deger burada duruyor ki blok
+# katalogunun kisiti bir tur boyunca beklemesin. Kural yazildiginda BU
+# SABITIN SILINMESI gerekir - iki yerde duran bir sayi, birbirinden sessizce
+# ayrilir (PROGRESS_V2, "Gecici yapilandirma degeri").
+_GECICI_AZAMI_GUNLUK_CALISMA_SAATI = 11
+
 
 class KuralParametresiError(ValueError):
     """Kural parametresi katalogdaki tanima uymuyor; mesaj kullaniciya gosterilir."""
@@ -62,9 +70,12 @@ class CakisanTalepAraligiError(ValueError):
     """Ayni nokta ve gun tipi icin cakisan talep araligi (SDD 4.2.2)."""
 
 
-def _saat(an: time) -> str:
-    """Gun sonu 24.00 olarak gosterilir; veritabaninda 00.00 durur."""
-    return f"{an.hour:02d}.00" if an.hour else "24.00"
+class AyniVardiyaBlogunError(ValueError):
+    """Ayni (baslangic_saati, sure_saat) ikilisi katalogda zaten var (router 409)."""
+
+
+class VardiyaSuresiAzamiyiAsiyorError(ValueError):
+    """Blok, gunluk azami calisma saatinden uzun (router 400)."""
 
 
 class TanimServisi:
@@ -94,6 +105,11 @@ class TanimServisi:
         if veri.sicil_no is not None:
             self._sicili_dogrula(veri.sicil_no, haric_personel_id=id_)
         alanlar = veri.model_dump(exclude={"yetkinlik_idleri"}, exclude_unset=True)
+        # Devir bakiyesi sutunu NOT NULL: alani acikca `null` gonderen bir
+        # istemci satiri bozardi. Bos birakilan devir SIFIRDIR, bilinmeyen
+        # degil - `kota_yili` icin ise None anlamli ("kota yili girilmemis").
+        if alanlar.get("devir_fazla_calisma_saat") is None:
+            alanlar.pop("devir_fazla_calisma_saat", None)
         personel = self.personel.guncelle(id_, **alanlar) if alanlar else self.personel.getir(id_)
         if personel is None:
             return None
@@ -150,6 +166,7 @@ class TanimServisi:
             else gece_mi_oner(veri.baslangic_saati, veri.bitis_saati)
         )
         sure_saat = sure_saat_hesapla(veri.baslangic_saati, veri.bitis_saati)
+        self._blogu_dogrula(veri.baslangic_saati, sure_saat, haric_id=None)
         return self.vardiya_tipi.olustur(
             ad=veri.ad,
             baslangic_saati=veri.baslangic_saati,
@@ -167,7 +184,70 @@ class TanimServisi:
             baslangic = alanlar.get("baslangic_saati", mevcut.baslangic_saati)
             bitis = alanlar.get("bitis_saati", mevcut.bitis_saati)
             alanlar["sure_saat"] = sure_saat_hesapla(baslangic, bitis)
+        # Pasiflestirilmis bir blok yeniden ACILIRKEN de dogrulanir: `aktif`
+        # alani degistiginde blogun kendisi degismese bile katalogda artik
+        # ikinci bir kopya olusabilir.
+        self._blogu_dogrula(
+            alanlar.get("baslangic_saati", mevcut.baslangic_saati),
+            alanlar.get("sure_saat", mevcut.sure_saat),
+            haric_id=id_,
+            aktif=alanlar.get("aktif", mevcut.aktif),
+        )
         return self.vardiya_tipi.guncelle(id_, **alanlar)
+
+    def azami_gunluk_calisma_saati(self) -> Decimal:
+        """Bir calisma blogunun asamayacagi uzunluk.
+
+        Deger KURAL KATALOGUNDAN okunur: H9 (gunluk azami calisma) Tur 4'te
+        yazilacak ve ayni parametreyi kullanacak; katalogda kural yoksa
+        `parametre_getir` varsayilana duser. Blok kataloguyla H9'un ayri
+        sayilar tasimasi, girisi gecen bir blogun cozumde her seferinde
+        ihlal uretmesi demek olurdu.
+        """
+        return Decimal(
+            str(
+                self.kural.parametre_getir(
+                    "H9",
+                    "azami_gunluk_calisma_saati",
+                    varsayilan=_GECICI_AZAMI_GUNLUK_CALISMA_SAATI,
+                )
+            )
+        )
+
+    def _blogu_dogrula(
+        self,
+        baslangic_saati: time,
+        sure_saat: Decimal,
+        *,
+        haric_id: int | None,
+        aktif: bool = True,
+    ) -> None:
+        """Blok katalogunun iki kisiti (SRS FR-1.3): benzersizlik ve azami sure.
+
+        Ikisi de GIRISTE reddedilir. Cozum anina birakilsaydi: ayni blogun
+        iki kopyasi modele birbirinin yerine gecebilen degiskenler ekler
+        (arama bosuna yavaslar, cizelgede fark gorunmez), azami suresi asan
+        bir blok ise H9 ile her gun catisir ve dogrulama her cozumde ayni
+        ihlali yazardi.
+        """
+        azami = self.azami_gunluk_calisma_saati()
+        if sure_saat > azami:
+            raise VardiyaSuresiAzamiyiAsiyorError(
+                f"Blok {sure_saat:g} saat sürüyor; günlük azami çalışma {azami:g} saat."
+            )
+        if not aktif:
+            return
+        for komsu in self.vardiya_tipi.tumunu_getir():
+            # Pasif bloklar sayilmaz: kullanimda oldugu icin silinemeyip
+            # pasiflestirilmis bir blok, ayni saatlerde yeni bir blok
+            # tanimlamayi kalici olarak imkansiz kilardi.
+            if komsu.vardiya_tipi_id == haric_id or not komsu.aktif:
+                continue
+            if komsu.baslangic_saati == baslangic_saati and komsu.sure_saat == sure_saat:
+                raise AyniVardiyaBlogunError(
+                    f"{saat_metni(baslangic_saati)} başlangıçlı {sure_saat:g} saatlik blok "
+                    f"zaten tanımlı: {komsu.ad}."
+                )
 
     # --- Kural (FR-1.11, FR-1.12) ------------------------------------------
 
@@ -261,7 +341,7 @@ class TanimServisi:
                 continue
             if cakisiyor_mu(veri.baslangic, veri.bitis, komsu.baslangic, komsu.bitis):
                 raise CakisanTalepAraligiError(
-                    f"{_saat(komsu.baslangic)}–{_saat(komsu.bitis)} aralığıyla çakışıyor"
+                    f"{aralik_metni(komsu.baslangic, komsu.bitis)} aralığıyla çakışıyor"
                 )
 
     def _yuk_gostergesi_hesapla(self, hucreler: list[Talep]) -> YukGostergesi:

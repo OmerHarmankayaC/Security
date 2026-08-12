@@ -91,6 +91,8 @@ class Baglam:
     # `talep_saat`ten `blok_gorunumu_uret` ile TEK YERDE turetilir; ikinci
     # bir tanim degildir. S2, S3 ve S4 talebi hala vardiya biriminde okudugu
     # ve bu turda kural katalogu degismedigi icin duruyor (Tur 4'te kalkar).
+    # TUREV TEK UZUNLUKLU HIZALI KATALOG VARSAYAR: farkli uzunlukta bloklar
+    # girdiginde bu alan sessizce yanlislasir (bkz. `blok_gorunumu_uret`).
     talep: dict[tuple[date, int, int], int] = field(default_factory=dict)
     donem_baslangic: date | None = None
     donem_bitis: date | None = None

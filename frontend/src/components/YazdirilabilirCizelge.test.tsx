@@ -46,6 +46,8 @@ const PERSONEL: Personel[] = [
     aktif_baslangic: '2026-01-01',
     aktif_bitis: null,
     yetkinlik_idleri: [],
+  devir_fazla_calisma_saat: '0.00',
+  kota_yili: null,
   },
   {
     personel_id: 2,
@@ -56,6 +58,8 @@ const PERSONEL: Personel[] = [
     aktif_baslangic: '2026-01-01',
     aktif_bitis: null,
     yetkinlik_idleri: [],
+  devir_fazla_calisma_saat: '0.00',
+  kota_yili: null,
   },
 ]
 

@@ -17,14 +17,9 @@ from app.kurallar.baglam import AtamaKaydi, Baglam
 from app.kurallar.kayit_defteri import kayitli
 from app.kurallar.temel import EsnekHedef, Ihlal, KuralKapsami, XAnahtari
 from app.kurallar.yardimcilar import calisilan_gunler
+from app.kurallar.zaman_araligi import aralik_metni, saatleri_araliklara_birlestir
 from app.kurallar.zaman_araligi import aralik_sure_saat as _aralik_sure_saat
-from app.kurallar.zaman_araligi import saatleri_araliklara_birlestir
 from app.models.girdi import TercihTipi
-
-
-def _saat_metni(an: time) -> str:
-    """Saati "08.00" bicimiyle yazar; gun sonu 24.00 olarak gosterilir."""
-    return f"{an.hour:02d}.00" if an.hour else "24.00"
 
 
 @kayitli("S1")
@@ -173,7 +168,7 @@ class S1TalepKarsilama(EsnekHedef):
         veritabani kimlikleri ve kullaniciya hicbir sey anlatmiyordu.
         """
         return (
-            f"{tarih.isoformat()} · {_saat_metni(baslangic)}–{_saat_metni(bitis)} · "
+            f"{tarih.isoformat()} · {aralik_metni(baslangic, bitis)} · "
             f"{baglam.nokta_adi(nokta_id)}"
         )
 

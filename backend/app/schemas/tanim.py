@@ -150,6 +150,11 @@ class PersonelOlustur(BaseModel):
     aktif_baslangic: date
     aktif_bitis: date | None = None
     yetkinlik_idleri: list[int] = Field(default_factory=list)
+    # Devir bakiyesi (SRS FR-1.1). Bos birakildiginda SIFIR: "devri bilmiyorum"
+    # ile "devri yok" arasindaki fark, bakiyeyi okuyan bir kural yazilana
+    # kadar (Tur 4) hicbir hesaba girmiyor.
+    devir_fazla_calisma_saat: Decimal = Decimal(0)
+    kota_yili: int | None = None
 
 
 class PersonelGuncelle(BaseModel):
@@ -160,6 +165,8 @@ class PersonelGuncelle(BaseModel):
     aktif_baslangic: date | None = None
     aktif_bitis: date | None = None
     yetkinlik_idleri: list[int] | None = None
+    devir_fazla_calisma_saat: Decimal | None = None
+    kota_yili: int | None = None
 
 
 class PersonelOku(BaseModel):
@@ -173,6 +180,8 @@ class PersonelOku(BaseModel):
     aktif_baslangic: date
     aktif_bitis: date | None
     yetkinlik_idleri: list[int]
+    devir_fazla_calisma_saat: Decimal
+    kota_yili: int | None
 
     @classmethod
     def modelden_olustur(cls, personel: Personel) -> "PersonelOku":
@@ -185,6 +194,8 @@ class PersonelOku(BaseModel):
             aktif_baslangic=personel.aktif_baslangic,
             aktif_bitis=personel.aktif_bitis,
             yetkinlik_idleri=[y.yetkinlik_id for y in personel.yetkinlikler],
+            devir_fazla_calisma_saat=personel.devir_fazla_calisma_saat,
+            kota_yili=personel.kota_yili,
         )
 
 
@@ -262,5 +273,8 @@ class YukGostergesi(BaseModel):
 
 
 class TalepYaniti(BaseModel):
-    hucreler: list[TalepOku]
+    # Alan adi `hucreler` DEGIL: talep artik gorev noktasi x vardiya tipi
+    # matrisinin bir hucresi degil, bagimsiz bir zaman araligi kaydidir
+    # (SDD 4.2.2). Eski ad, ekranin da matris cizmesine yol acmisti.
+    araliklar: list[TalepOku]
     yuk_gostergesi: YukGostergesi

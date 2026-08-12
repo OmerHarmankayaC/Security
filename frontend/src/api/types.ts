@@ -96,6 +96,13 @@ export interface Personel {
   aktif_baslangic: string
   aktif_bitis: string | null
   yetkinlik_idleri: number[]
+  /**
+   * Devir bakiyesi (SRS FR-1.1). NUMERIC olduğu için metin gelir. Bu turda
+   * hiçbir kural okumaz; forma girilmesinin nedeni verinin Tur 4'te kota
+   * hesabına hazır olmasıdır.
+   */
+  devir_fazla_calisma_saat: string
+  kota_yili: number | null
 }
 
 /** Resmî tatil işareti (FR-1.10). Anahtar tarihin kendisidir (SDD 4.2.1). */
@@ -256,14 +263,27 @@ export interface Bina {
 
 export type GunTipi = 'hafta_ici' | 'hafta_sonu' | 'resmi_tatil'
 
-export interface TalepHucresi {
+/**
+ * Bir talep ARALIĞI (SDD 4.2.2). Talep bir vardiya bloğuna değil bir zaman
+ * aralığına bağlıdır; `baslangic`/`bitis` "HH:MM:SS" biçiminde gelir.
+ *
+ * Gün sonu `00:00:00` ile yazılır: `bitis <= baslangic` ise aralık gün
+ * sonuna kadar sürer ya da gece yarısını aşar. Ekranda 24.00 gösterilir
+ * (bkz. lib/talepAraligi.ts).
+ */
+export interface TalepAraligi {
   talep_id: number
   nokta_id: number
-  vardiya_tipi_id: number
   gun_tipi: GunTipi
+  /** Doluysa bu satır YALNIZCA o tarih için geçerli bir istisnadır. */
   tarih: string | null
+  baslangic: string
+  bitis: string
   gereken_sayi: number
 }
+
+/** Ekleme/düzenleme gövdesi — kimliksiz aralık. */
+export type TalepAraligiYazma = Omit<TalepAraligi, 'talep_id'>
 
 export interface YukGostergesi {
   haftalik_kisi_vardiya: number
@@ -272,7 +292,7 @@ export interface YukGostergesi {
 }
 
 export interface TalepYaniti {
-  hucreler: TalepHucresi[]
+  araliklar: TalepAraligi[]
   yuk_gostergesi: YukGostergesi
 }
 

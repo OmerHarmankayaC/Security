@@ -65,6 +65,10 @@ from app.cozucu import CozucuAdaptoru, model_kur  # noqa: E402
 from app.db import OturumYerel  # noqa: E402
 from app.kurallar.baglam import AtamaKaydi  # noqa: E402
 from app.kurallar.kayit_defteri import bul  # noqa: E402
+from app.kurallar.zaman_araligi import (  # noqa: E402
+    aralik_metni,
+    saatleri_araliklara_birlestir,
+)
 from app.models.girdi import Musaitlik, MusaitlikDilimi, MusaitlikTipi  # noqa: E402
 from app.models.kural import Kural  # noqa: E402
 from app.models.kural import KuralTipi as KuralTipiEnum
@@ -512,32 +516,52 @@ def _nokta_uygun(baglam: Any, nokta_id: int, yetkinlikler: frozenset[int]) -> bo
 
 
 def _k4(oturum: Session, celiskili_donem: Donem, olcum: CozumOlcumu) -> Kriter:
-    """Charter 5: celiskili ornekte hangi GUN, hangi VARDIYADA, KAC KISI eksik
-    kaldigi gosterilir. Uc bilginin de tasindigi dogrulanir (yalniz 'acik var'
-    demek yeterli degil)."""
-    vardiya_adlari = {
-        v.vardiya_tipi_id: v.ad for v in oturum.execute(select(VardiyaTipi)).scalars().all()
-    }
+    """Charter 5: celiskili ornekte hangi GUN, hangi SAAT ARALIGINDA, hangi
+    NOKTADA, KAC KISI eksik kaldigi gosterilir. Dort bilginin de tasindigi
+    dogrulanir (yalniz 'acik var' demek yeterli degil).
+
+    ACIK ARTIK BLOK DEGIL ARALIK (SDD 4.2.4, Tur 3). Cozucu eksikleri saat
+    ekseninde uretiyor; olcum de kullaniciya gosterilen bicimi olcmeli:
+    ardisik ve sayisi esit saatler tek araliga toplanir. Bu betik bir sure
+    eksigin ORTA ANAHTARINI vardiya tipi kimligi sanip saat numarasini
+    ("2026-06-06 / 0 / ...") yazdi ve K4 bu yuzden kaldi - olculen sey
+    bozulmamisti, olcunun kendisi eskimisti.
+    """
     nokta_adlari = {n.nokta_id: n.ad for n in oturum.execute(select(GorevNoktasi)).scalars().all()}
 
-    eksikler = sorted(olcum.kapsama_eksikleri.items())
-    toplam_eksik = sum(eksikler_sayi for _, eksikler_sayi in eksikler)
-    ornekler = [
-        f"{tarih.isoformat()} / {vardiya_adlari.get(v, v)} / "
-        f"{nokta_adlari.get(n, n)} -> {sayi} kisi eksik"
-        for (tarih, v, n), sayi in eksikler[:5]
+    # Saat eksenli eksikler noktaya gore ayrilir; birlestirme nokta ICINDE
+    # yapilir, yoksa iki farkli noktanin ardisik saatleri tek araliga
+    # dusebilirdi.
+    noktaya_gore: dict[int, dict[tuple[date, int], int]] = {}
+    for (tarih, saat, nokta_id), eksik in olcum.kapsama_eksikleri.items():
+        if eksik > 0:
+            noktaya_gore.setdefault(nokta_id, {})[(tarih, saat)] = eksik
+
+    araliklar: list[tuple[date, time, time, int, int]] = [
+        (tarih, baslangic, bitis, sayi, nokta_id)
+        for nokta_id, saatler in noktaya_gore.items()
+        for tarih, baslangic, bitis, sayi in saatleri_araliklara_birlestir(saatler)
     ]
-    # Uc bilginin de dolu olmasi (gun, vardiya, nokta) ve en az bir acik.
+    araliklar.sort()
+    toplam_eksik = sum(olcum.kapsama_eksikleri.values())
+    ornekler = [
+        f"{tarih.isoformat()} / {aralik_metni(baslangic, bitis)} / "
+        f"{nokta_adlari.get(nokta_id, nokta_id)} -> {sayi} kisi eksik"
+        for tarih, baslangic, bitis, sayi, nokta_id in araliklar[:5]
+    ]
     tam_bilgi = all(
-        isinstance(tarih, date) and v in vardiya_adlari and n in nokta_adlari
-        for (tarih, v, n), _ in eksikler
+        isinstance(tarih, date) and nokta_id in nokta_adlari and sayi > 0
+        for tarih, _bas, _bitis, sayi, nokta_id in araliklar
     )
     return Kriter(
         kimlik="K4",
-        baslik="Celiskili ornekte gun/vardiya/eksik sayisi gosterilir",
-        esik="en az 1 acik, her birinde gun+vardiya+nokta+sayi dolu",
-        olculen=f"{len(eksikler)} acik hucre, toplam {toplam_eksik} kisi eksik",
-        gecti=bool(eksikler) and tam_bilgi,
+        baslik="Celiskili ornekte gun/aralik/eksik sayisi gosterilir",
+        esik="en az 1 acik, her birinde gun+aralik+nokta+sayi dolu",
+        olculen=(
+            f"{len(araliklar)} acik aralik "
+            f"({len(olcum.kapsama_eksikleri)} saat), toplam {toplam_eksik} kisi-saat eksik"
+        ),
+        gecti=bool(araliklar) and tam_bilgi,
         ayrinti=ornekler or ["Celiskili senaryoda hic kapsama acigi uretilmedi"],
     )
 
