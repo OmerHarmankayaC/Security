@@ -300,10 +300,12 @@ def test_devam_karari_ipucuyla_yeni_is_baslatir(
     try:
         eski = CozumIsiDeposu(oturum).getir(is_id)
         assert eski.durum is CozumIsiDurumu.IPTAL
-        assert eski.gecici_sonuc is None, "Ipucu kaynak isten devralindi, orada kalmadi"
-        assert (
-            CozumIsiDeposu(oturum).getir(yeni_is_id).gecici_sonuc is not None
-        ), "Ipucu yeni isin kaydinda bekliyor olmali"
+        assert eski.gecici_sonuc is None, "Kaynak isin CIKTISI kararla bosalir"
+        yeni = CozumIsiDeposu(oturum).getir(yeni_is_id)
+        # Ipucu, ciktinin durdugu alanda degil KENDI sutununda (SDD 4.2.4):
+        # girdi ile cikti ayri alanlarda durur.
+        assert yeni.cozum_ipucu is not None, "Ipucu yeni isin girdi alaninda bekliyor olmali"
+        assert yeni.gecici_sonuc is None, "Yeni isin daha bir ciktisi yok"
     finally:
         oturum.close()
 
@@ -316,8 +318,61 @@ def test_devam_karari_ipucuyla_yeni_is_baslatir(
     try:
         yeni = CozumIsiDeposu(oturum).getir(yeni_is_id)
         assert float(yeni.en_iyi_ceza) <= ipucu_ceza, "Sonuc ipucundan kotu olmamali"
-        assert yeni.gecici_sonuc is None, "Ipucu, model kurulur kurulmaz bosaltilmali"
+        assert yeni.cozum_ipucu is None, "Ipucu IS SONLANINCA bosalir"
         assert _atama_kumesi(oturum, surum_id), "Yeni is atamalari yazmis olmali"
+    finally:
+        oturum.close()
+
+
+def test_ipucu_model_kurulduktan_sonra_yerinde_durur(
+    kurulum: dict[str, int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """SDD 4.2.4: `cozum_ipucu` model kurulunca DEGIL, IS SONLANINCA bosalir.
+
+    Model kurulumunda silinseydi, iscinin yeniden baslamasi (servis yeniden
+    baslatilir ya da is kuyruga doner) isi ipucusuz surdururdu: sonuc
+    sessizce kotulesir ve bunu gosteren hicbir iz kalmazdi. Test, model
+    kurulduktan sonraki ANI yakalamak icin aramayi o noktada durduruyor.
+    """
+    import app.services.cozum_servisi as cozum_modulu
+
+    is_id = _durdurulmus_is(kurulum["donem_id"], monkeypatch)
+
+    oturum = OturumYerel()
+    try:
+        _, yeni_is = durdurma_karari_uygula(oturum, is_id, Karar.DEVAM, zaman_limiti_saniye=20)
+        yeni_is_id = yeni_is.is_id
+    finally:
+        oturum.close()
+
+    # Arama basladiktan (yani model kurulduktan) sonraki ilk yoklamada
+    # durdurulur; is `durduruldu`da kalir - terminal degildir.
+    gercek = cozum_modulu._durdurma_istendi_mi
+
+    def sahte(oturum_, is_kaydi_):  # noqa: ANN001, ANN202 - test sahtesi
+        if is_kaydi_.durum == CozumIsiDurumu.COZULUYOR:
+            return True
+        return gercek(oturum_, is_kaydi_)
+
+    monkeypatch.setattr(cozum_modulu, "_durdurma_istendi_mi", sahte)
+    assert isi_calistir_ve_bekle(yeni_is_id) is CozumIsiDurumu.DURDURULDU
+    monkeypatch.undo()
+
+    oturum = OturumYerel()
+    try:
+        assert (
+            CozumIsiDeposu(oturum).getir(yeni_is_id).cozum_ipucu is not None
+        ), "Model kuruldu ve arama sonlandi, ama is HENUZ SONLANMADI: ipucu durmali"
+        # Karar verilince is sonlanir ve ipucu ancak o zaman bosalir.
+        durdurma_karari_uygula(oturum, yeni_is_id, Karar.AT)
+    finally:
+        oturum.close()
+
+    oturum = OturumYerel()
+    try:
+        son = CozumIsiDeposu(oturum).getir(yeni_is_id)
+        assert son.durum is CozumIsiDurumu.IPTAL
+        assert son.cozum_ipucu is None, "Is sonlaninca ipucu bosalir"
     finally:
         oturum.close()
 

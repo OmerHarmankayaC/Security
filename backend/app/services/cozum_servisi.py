@@ -216,12 +216,11 @@ class CozumServisi:
             baslangic_zamani=datetime.now(UTC),
             zaman_limiti_saniye=zaman_limiti_saniye,
             kural_anlik_goruntu={},
-            # Ipucu, YENI isin kendi `gecici_sonuc` alaninda tasinir ve
-            # model kurulur kurulmaz bosaltilir (SDD 5.4.1). Kaynak isin
-            # alani kararla birlikte bosaldigi icin ipucunu orada
-            # birakmak, "karar bir kez okuyup bosaltir" sozlesmesini
-            # bozardi.
-            gecici_sonuc=cozum_ipucu.json_olarak() if cozum_ipucu is not None else None,
+            # Ipucu KENDI sutununda tasinir (SDD 4.2.4). `gecici_sonuc`
+            # isin ciktisidir; ikisini tek alanda birlestirmek, ayni degeri
+            # bir iste "karar bekliyor", baskasinda "modele verilecek
+            # ipucu" anlamina getirirdi.
+            cozum_ipucu=cozum_ipucu.json_olarak() if cozum_ipucu is not None else None,
             devam_kaynagi_is_id=devam_kaynagi_is_id,
         )
         self.oturum.flush()
@@ -254,9 +253,8 @@ def cozum_isini_calistir(oturum: Session, is_id: int) -> None:
     # karar vermez, uyariyi is kaydina yazar ve cozume devam eder.
     engeller = engelleyenler(bulgular)
     if engeller:
-        is_kaydi.durum = CozumIsiDurumu.BASARISIZ
         is_kaydi.hata_mesaji = _bulgulari_ozetle(engeller)
-        is_kaydi.bitis_zamani = datetime.now(UTC)
+        _isi_sonlandir(is_kaydi, CozumIsiDurumu.BASARISIZ)
         oturum.commit()
         return
     if bulgular:
@@ -288,21 +286,17 @@ def cozum_isini_calistir(oturum: Session, is_id: int) -> None:
             if a.kilitli
         ]
 
-    # SDD 5.4.1 "devam et": is bir ipucuyla baslatildiysa ipucu kendi
-    # `gecici_sonuc` alanindadir. Modele islendikten HEMEN SONRA bosaltilir;
-    # boylece alan, bu isin kendi durdurma sonucundan baska bir sey tasimaz.
-    ipucu_atamalari = _ipucunu_al(is_kaydi)
-
+    # SDD 4.2.4 "devam et" ipucu: kendi sutunundan okunur ve BURADA
+    # BOSALTILMAZ. Bosaltma is sonlandiginda yapilir (`_isi_sonlandir`);
+    # burada silinseydi, isci yeniden basladiginda is ipucusuz devam eder ve
+    # sonuc sessizce kotulesirdi.
     model, x, baglam, ceza_terimleri = model_kur(
         baglam,
         zaman_ekseni,
         kurallar,
         kilitli_atamalar=kilitli_atamalar or None,
-        cozum_ipucu=ipucu_atamalari,
+        cozum_ipucu=_ipucunu_al(is_kaydi),
     )
-    if is_kaydi.gecici_sonuc is not None:
-        is_kaydi.gecici_sonuc = None
-        oturum.commit()
 
     # Model kurulurken (uzun surebilir) durdurma istenmis olabilir.
     if _durdurma_istendi_mi(oturum, is_kaydi):
@@ -330,14 +324,12 @@ def cozum_isini_calistir(oturum: Session, is_id: int) -> None:
         return
 
     if sonuc.durum == "cozum_yok":
-        is_kaydi.durum = CozumIsiDurumu.BASARISIZ
         is_kaydi.hata_mesaji = _COZUM_BULUNAMADI_MESAJI
-        is_kaydi.bitis_zamani = datetime.now(UTC)
+        _isi_sonlandir(is_kaydi, CozumIsiDurumu.BASARISIZ)
         oturum.commit()
         return
 
     _sonucu_yaz(oturum, is_kaydi, surum, CozumYazmaVerisi.cozum_sonucundan(sonuc))
-    is_kaydi.bitis_zamani = datetime.now(UTC)
     oturum.commit()
 
 
@@ -393,7 +385,10 @@ def _sonucu_yaz(
     is_kaydi.ceza_dokumu = dict(veri.ceza_dokumu)
     is_kaydi.en_iyi_ceza = _ondalik(veri.toplam_ceza) if veri.toplam_ceza is not None else None
     is_kaydi.sure_saniye = _ondalik(veri.sure_saniye) if veri.sure_saniye is not None else None
-    is_kaydi.durum = CozumIsiDurumu.UYARILI if veri.kapsama_eksikleri else CozumIsiDurumu.TAMAMLANDI
+    _isi_sonlandir(
+        is_kaydi,
+        CozumIsiDurumu.UYARILI if veri.kapsama_eksikleri else CozumIsiDurumu.TAMAMLANDI,
+    )
     surum.durum = CizelgeSurumuDurumu.COZULDU
 
 
@@ -434,7 +429,7 @@ def durdurma_karari_uygula(
         # Surum hic degismedi: sonuc atamalara yazilmamisti, dolayisiyla
         # geri alinacak bir sey de yok (SDD 4.2.4).
         is_kaydi.gecici_sonuc = None
-        is_kaydi.durum = CozumIsiDurumu.IPTAL
+        _isi_sonlandir(is_kaydi, CozumIsiDurumu.IPTAL)
         oturum.commit()
         return is_kaydi, None
 
@@ -447,7 +442,7 @@ def durdurma_karari_uygula(
     if yeni_is is None:
         raise KararUygulanamazError("Isin surumu bulunamadi")
     is_kaydi.gecici_sonuc = None
-    is_kaydi.durum = CozumIsiDurumu.IPTAL
+    _isi_sonlandir(is_kaydi, CozumIsiDurumu.IPTAL)
     oturum.commit()
     return is_kaydi, yeni_is
 
@@ -478,11 +473,36 @@ def _aramayi_sur(oturum: Session, is_kaydi: CozumIsi, kol: AramaKolu) -> None:
             durduruldu = True
 
 
+def _isi_sonlandir(is_kaydi: CozumIsi, durum: CozumIsiDurumu) -> None:
+    """Terminal duruma gecisin TEK yeri (SDD 4.2.4).
+
+    `tamamlandi`, `uyarili`, `basarisiz` ve `iptal` buradan gecer;
+    `durduruldu` GECMEZ - o terminal degildir, is orada kullanici kararini
+    bekler ve ipucunu hala tasiyor olabilir.
+
+    Iki bakim isi burada toplandi. Birincisi `cozum_ipucu`nun bosaltilmasi:
+    alan yalnizca calisan bir isin girdisidir, sonlanmis bir iste tasidigi
+    deger hicbir sey ifade etmez. Ikincisi `bitis_zamani`; DAHA ONCE
+    YAZILMISSA DOKUNULMAZ, cunku durdurulan bir iste o damga ARAMANIN
+    bittigi ani tasir ve kullanicinin karar verme suresi ona eklenmemelidir
+    (SDD 4.2.4).
+    """
+    is_kaydi.durum = durum
+    is_kaydi.cozum_ipucu = None
+    if is_kaydi.bitis_zamani is None:
+        is_kaydi.bitis_zamani = datetime.now(UTC)
+
+
 def _ipucunu_al(is_kaydi: CozumIsi) -> list[AtamaKaydi] | None:
-    """ "Devam et" karariyla acilmis isin devraldigi cozum (SDD 5.4.1)."""
-    if is_kaydi.devam_kaynagi_is_id is None or not is_kaydi.gecici_sonuc:
+    """ "Devam et" karariyla acilmis isin devraldigi cozum (SDD 4.2.4).
+
+    OKUR, BOSALTMAZ. Bosaltma is sonlandiginda yapilir (`_isi_sonlandir`):
+    burada silinseydi, isci yeniden basladiginda is ipucusuz devam eder ve
+    sonuc sessizce kotulesirdi.
+    """
+    if not is_kaydi.cozum_ipucu:
         return None
-    veri = CozumYazmaVerisi.jsondan(is_kaydi.gecici_sonuc)
+    veri = CozumYazmaVerisi.jsondan(is_kaydi.cozum_ipucu)
     return [AtamaKaydi(p, g, v, n) for p, g, v, n in veri.atamalar]
 
 
@@ -499,7 +519,7 @@ def _durdurma_istendi_mi(oturum: Session, is_kaydi: CozumIsi) -> bool:
     gorulmez.
     """
     oturum.refresh(is_kaydi, ["durum"])
-    return is_kaydi.durum == CozumIsiDurumu.DURDURULDU
+    return is_kaydi.durum is CozumIsiDurumu.DURDURULDU
 
 
 def _durdurulmus_olarak_kapat(
@@ -525,10 +545,13 @@ def _durdurulmus_olarak_kapat(
         is_kaydi.hata_mesaji = _DURDURMADA_COZUM_YOK_MESAJI
         if sonuc is not None:
             is_kaydi.sure_saniye = _ondalik(sonuc.sure_saniye)
+    # `_isi_sonlandir`den GECMEZ: `durduruldu` terminal degildir, is burada
+    # kullanici kararini bekler ve - "devam et" ile acilmis bir isse -
+    # ipucunu hala tasir.
     is_kaydi.durum = CozumIsiDurumu.DURDURULDU
     # ARAMANIN bittigi an. Karar daha sonra verilir ve bu damgayi
-    # degistirmez: alan "isin sonlandigi an"i tasir (SDD 4.2.4), kararin
-    # verildigi ani degil.
+    # degistirmez (SDD 4.2.4): olculen sure aramanin suresidir, kullanicinin
+    # dusunme suresi degil.
     is_kaydi.bitis_zamani = datetime.now(UTC)
     oturum.commit()
 
