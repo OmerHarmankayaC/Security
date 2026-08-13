@@ -7,6 +7,7 @@ import { donemAraligiBicimle } from '../lib/tarih'
 import { csvDisaAktar } from '../lib/disaAktarma'
 import { cn } from '../lib/utils'
 import { sayiBicimle, sapmaBicimle } from '../lib/sayi'
+import { adaletSatirlari, type AdaletSatiri } from '../lib/adalet'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -91,27 +92,23 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
     [personelListesi],
   )
 
-  const adalet = useMemo(() => {
-    if (!analiz) return []
-    const hsMap = new Map(analiz.kisi_basina_hafta_sonu.map((k) => [k.personel_id, k.sayi]))
-    return analiz.kisi_basina_gece
-      .map((g) => ({
-        personel_id: g.personel_id,
-        ad_soyad: g.ad_soyad,
-        gece: g.sayi,
-        hafta_sonu: hsMap.get(g.personel_id) ?? 0,
-      }))
-      .filter((k) => k.gece > 0 || k.hafta_sonu > 0)
-      .sort((a, b) => b.gece + b.hafta_sonu - (a.gece + a.hafta_sonu))
-  }, [analiz])
-
-  const azamiAdalet = adalet.reduce((m, k) => Math.max(m, k.gece + k.hafta_sonu), 0)
-  const ortalamaGece = adalet.length
-    ? adalet.reduce((t, k) => t + k.gece, 0) / adalet.length
-    : 0
-  const ortalamaHaftaSonu = adalet.length
-    ? adalet.reduce((t, k) => t + k.hafta_sonu, 0) / adalet.length
-    : 0
+  /**
+   * Adalet grafiğinin satırları — gece ve hafta sonu AYRI ölçülerdir.
+   *
+   * İki ölçü bir arada tek çubuğa yığılıyordu; artık her birinin kendi
+   * referansı var (kişiye düşen adil pay) ve iki farklı hedefe göre sapmayı
+   * tek çubuk üzerinde göstermek mümkün değil. Havuzlar da aynı değil:
+   * yalnızca hafta içi talebi bulunan bir noktada çalışan personel hafta sonu
+   * ölçüsünün dışındadır (SRS S3), gece ölçüsüne girebilir.
+   */
+  const geceSatirlari = useMemo(
+    () => adaletSatirlari(analiz?.kisi_basina_gece ?? []),
+    [analiz],
+  )
+  const haftaSonuSatirlari = useMemo(
+    () => adaletSatirlari(analiz?.kisi_basina_hafta_sonu ?? []),
+    [analiz],
+  )
 
   const saatSapmasiOlanlar = (analiz?.saat_dagilimi ?? []).filter(
     (s) => Math.abs(s.sapma) > 1e-9,
@@ -249,57 +246,35 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
             </Kart>
           </div>
 
-          <Kart>
-            <KartEtiketi>gece ve hafta sonu dağılımı · kişi başına</KartEtiketi>
-            {adalet.length === 0 ? (
-              <p className="text-sm text-ink-muted">Bu sürümde gece veya hafta sonu ataması yok.</p>
-            ) : (
-              <ul className="m-0 flex list-none flex-col gap-2 p-0">
-                {adalet.map((k) => (
-                  <li key={k.personel_id} className="flex items-center gap-3 text-sm">
-                    <span className="w-28 shrink-0 text-ink">{k.ad_soyad}</span>
-                    <span className="flex h-2.5 flex-1 overflow-hidden rounded-sm bg-sunken">
-                      <span
-                        className="block h-full bg-vardiya-gece"
-                        style={{ width: azamiAdalet > 0 ? `${(k.gece / azamiAdalet) * 100}%` : '0%' }}
-                      />
-                      <span
-                        className="block h-full bg-accent"
-                        style={{
-                          width: azamiAdalet > 0 ? `${(k.hafta_sonu / azamiAdalet) * 100}%` : '0%',
-                        }}
-                      />
-                    </span>
-                    <Sayi className="w-16 shrink-0 text-right text-ink-muted">
-                      {k.gece}g {k.hafta_sonu}h
-                    </Sayi>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div className="mt-4 flex items-center gap-4 text-xs text-ink-muted">
-              <span className="flex items-center gap-1.5">
-                <span className="size-2.5 rounded-sm bg-vardiya-gece" /> Gece
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="size-2.5 rounded-sm bg-accent" /> Hafta sonu
-              </span>
-              <span>
-                ortalama: <Sayi>{sayiBicimle(ortalamaGece, 1)}</Sayi> gece /{' '}
-                <Sayi>{sayiBicimle(ortalamaHaftaSonu, 1)}</Sayi> hafta sonu
-              </span>
-            </div>
-          </Kart>
+          <AdaletGrafigi
+            etiket="gece saati dağılımı · kişi başına"
+            satirlar={geceSatirlari}
+            cubukSinifi="bg-vardiya-gece"
+            bosMetin="Bu sürümde gece ataması yok."
+            havuzAciklamasi="Ölçü, gece talebine erişebilen personeli kapsar (SRS S2, P_gece)."
+          />
+
+          <AdaletGrafigi
+            etiket="hafta sonu saati dağılımı · kişi başına"
+            satirlar={haftaSonuSatirlari}
+            cubukSinifi="bg-accent"
+            bosMetin="Bu sürümde hafta sonu ataması yok."
+            havuzAciklamasi="Ölçü, hafta sonu talebine erişebilen personeli kapsar (SRS S3, P_hs)."
+          />
 
           <Kart>
-            <KartEtiketi>saat dengesi · personel başına</KartEtiketi>
+            <KartEtiketi>toplam saat dengesi · personel başına</KartEtiketi>
             {saatSapmasiOlanlar.length === 0 ? (
-              <p className="text-sm text-ink-muted">Herkes kişisel hedef saatini tutturdu.</p>
+              <p className="text-sm text-ink-muted">Herkes kendi adil payını tutturdu.</p>
             ) : (
               <table className="w-full min-w-[560px] border-collapse">
                 <thead>
                   <tr className="bg-sunken">
-                    {['PERSONEL', 'TOPLAM SAAT', 'HEDEF', 'SAPMA'].map((b) => (
+                    {/* Taban "HEDEF" değil ADİL PAYDIR (SRS S4): kişisel
+                        sözleşme saati ulaşılabilir bir hedef olmadığından
+                        herkes aynı yönde sapmalı görünüyor ve tablo hiçbir
+                        ayrım üretmiyordu. Sütun adı da bunu söylemeli. */}
+                    {['PERSONEL', 'TOPLAM SAAT', 'ADİL PAY', 'SAPMA'].map((b) => (
                       <th
                         key={b}
                         className="mono-caps whitespace-nowrap px-3 py-2 text-left text-ink-muted"
@@ -376,5 +351,90 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
         </>
       )}
     </AppShell>
+  )
+}
+
+/**
+ * Adalet grafiği — referans çizgisi KİŞİYE DÜŞEN ADİL PAY (SRS S2/S3).
+ *
+ * Önceki hâlinde referans havuz ortalamasıydı. S2'nin metni o ölçüyü açıkça
+ * reddediyor: erişilebilirliği kısıtlı bir havuz — yalnızca tek bir noktada
+ * çalışabilen personel gibi — ortalamaya hiçbir çizelgeyle ulaşamaz ve kalıcı
+ * olarak sapmalı görünür. Bu bir adaletsizlik değil yapısal bir sınırdır;
+ * ölçünün onu sapma olarak raporlaması, ölçüyü ayırt edici olmaktan çıkarır.
+ * Herkesin aynı yönde saptığını gösteren bir grafik hiçbir şey göstermez.
+ *
+ * Pay kişiden kişiye değiştiği için referans TEK BİR ÇİZGİ DEĞİL, satır başına
+ * bir işarettir; ölçek satırlar arasında ortaktır, yoksa çubuk uzunlukları
+ * karşılaştırılamaz.
+ */
+function AdaletGrafigi({
+  etiket,
+  satirlar,
+  cubukSinifi,
+  bosMetin,
+  havuzAciklamasi,
+}: {
+  etiket: string
+  satirlar: readonly AdaletSatiri[]
+  cubukSinifi: string
+  bosMetin: string
+  havuzAciklamasi: string
+}) {
+  const azami = satirlar.reduce((m, s) => Math.max(m, s.saat, s.pay), 0)
+  const oran = (deger: number) => (azami > 0 ? `${(deger / azami) * 100}%` : '0%')
+
+  return (
+    <Kart>
+      <KartEtiketi>{etiket}</KartEtiketi>
+      {satirlar.length === 0 ? (
+        <p className="text-sm text-ink-muted">{bosMetin}</p>
+      ) : (
+        <ul className="m-0 flex list-none flex-col gap-2 p-0">
+          {satirlar.map((s) => (
+            <li key={s.personel_id} className="flex items-center gap-3 text-sm">
+              <span className="w-32 shrink-0 truncate text-ink">{s.ad_soyad}</span>
+              <span className="relative flex h-2.5 flex-1 overflow-hidden rounded-sm bg-sunken">
+                <span className={cn('block h-full', cubukSinifi)} style={{ width: oran(s.saat) }} />
+                {/* Referans çizgisi: bu KİŞİNİN payı. */}
+                <span
+                  className="absolute inset-y-[-3px] w-px bg-ink"
+                  style={{ left: oran(s.pay) }}
+                  aria-hidden="true"
+                />
+              </span>
+              <Sayi className="w-14 shrink-0 text-right text-ink">
+                {sayiBicimle(s.saat, 0)} sa
+              </Sayi>
+              <Sayi className="w-20 shrink-0 text-right text-ink-muted">
+                pay {sayiBicimle(s.pay, 1)}
+              </Sayi>
+              {/* Sayı İŞARETSİZDİR (çözücünün formülü öyle); yönü çubuğun
+                  referansa göre konumu söyler. */}
+              <span
+                className="w-16 shrink-0 text-right"
+                title={
+                  s.sapma > 0
+                    ? `Çözücünün cezalandırdığı sapma: ${sayiBicimle(s.sapma, 0)} saat`
+                    : 'Adil payın taban/tavan bandı içinde — cezasız'
+                }
+              >
+                <Sayi
+                  className={cn('font-semibold', s.sapma > 0 ? 'text-signal' : 'text-ink-muted')}
+                >
+                  {s.sapma > 0 ? `${sayiBicimle(s.sapma, 0)} sa` : '—'}
+                </Sayi>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-muted">
+        <span className="flex items-center gap-1.5">
+          <span className="h-3 w-px bg-ink" /> kişiye düşen adil pay (referans)
+        </span>
+        <span>{havuzAciklamasi}</span>
+      </p>
+    </Kart>
   )
 }

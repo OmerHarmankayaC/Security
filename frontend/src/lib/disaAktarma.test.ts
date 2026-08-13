@@ -198,13 +198,31 @@ describe('cizelgeCsvOlustur — uzun biçim', () => {
     expect(satirlar(csv)[1]).toBe(
       // `gece_mi` bayrağı yerine GECE SAATİ (SRS TD-2): 00.00–08.00 bloğunun
       // altı saati gece penceresinde (00–06); 06 ve 07 gece değildir.
-      '2026-02-07;GG-002;Mehmet Çınar;00.00;08.00;Vardiya Şefliği;6;evet;8',
+      // Başlangıç ve bitiş TAM ISO DAMGASIDIR (Tur 6): "00.00; 08.00" yazan
+      // bir satır, bitişin hangi güne düştüğünü makineye söyleyemez.
+      '2026-02-07;GG-002;Mehmet Çınar;2026-02-07T00:00:00+03:00;2026-02-07T08:00:00+03:00;Vardiya Şefliği;6;evet;8',
     )
   })
 
   it('hafta içi gündüz atamasında iki bayrak da hayır', () => {
     const csv = cizelgeCsvOlustur(veriKur([atama(1, 1, '2026-02-02', 10, 20)]))
-    expect(satirlar(csv)[1]).toBe('2026-02-02;GG-001;Ayşe Şahin;08.00;16.00;Güvenlik;0;hayir;8')
+    expect(satirlar(csv)[1]).toBe(
+      '2026-02-02;GG-001;Ayşe Şahin;2026-02-02T08:00:00+03:00;2026-02-02T16:00:00+03:00;Güvenlik;0;hayir;8',
+    )
+  })
+
+  it('gece yarısını aşan blokta bitiş damgası ERTESİ GÜNÜ gösterir', () => {
+    // Bu satır, saat metniyle yazıldığında okunamaz olan tek durumdur:
+    // "20.00; 06.00" bitişin ertesi güne düştüğünü söylemez.
+    const gece = {
+      ...atama(1, 1, '2026-02-02', 10, 20),
+      baslangic_zamani: '2026-02-02T20:00:00+03:00',
+      bitis_zamani: '2026-02-03T06:00:00+03:00',
+      sure_saat: 10,
+    }
+    const alanlar = satirlar(cizelgeCsvOlustur(veriKur([gece])))[1]!.split(';')
+    expect(alanlar[3]).toBe('2026-02-02T20:00:00+03:00')
+    expect(alanlar[4]).toBe('2026-02-03T06:00:00+03:00')
   })
 
   it('tarihe, sonra personele göre sıralar', () => {

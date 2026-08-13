@@ -8,20 +8,24 @@ import type {
   GorevNoktasi,
   FazlaKadro,
   KapsamaAcigi,
+  Kural,
   Personel,
   Yetkinlik,
   Analiz,
 } from '../api/types'
 import { AppShell, type NavOgesi } from '../components/AppShell'
+import { GunIzgarasi } from '../components/GunIzgarasi'
+import { HaftaSeridi } from '../components/HaftaSeridi'
 import { YazdirmaOnizlemesi } from '../components/YazdirmaOnizlemesi'
 import { csvDisaAktar, type CizelgeVerisi } from '../lib/disaAktarma'
 import { Buton, Kart, KartEtiketi, Sayi } from '../components/app-ui'
 import { cn } from '../lib/utils'
-import { belirtmeHaliEki, buyukHarf, kisalt } from '../lib/metin'
+import { belirtmeHaliEki, buyukHarf } from '../lib/metin'
 import { sayiBicimle } from '../lib/sayi'
-import { blokEtiketi, blokKisaEtiketi } from '../lib/blok'
-import { BASLANGIC_SAATLERI, BITIS_SAATLERI, saatEtiketi, saatiYaz } from '../lib/talepAraligi'
-import { vardiyaHucreSinifi } from '../lib/vardiyaRenk'
+import { blokSinirlariniOku } from '../lib/kuralParametre'
+import { saatRengi } from '../lib/saatRengi'
+import { BASLANGIC_SAATLERI, BITIS_SAATLERI, saatiYaz } from '../lib/talepAraligi'
+import { saatEtiketi } from '../lib/blok'
 import {
   bugunIso,
   donemAraligiBicimle,
@@ -29,7 +33,6 @@ import {
   gunKisaltmasiVeNumarasi,
   gunlerListesi,
   haftaSonuMu,
-  tarihBicimle,
 } from '../lib/tarih'
 
 interface Props {
@@ -56,47 +59,17 @@ interface SeciliHucre {
   tarih: string
 }
 
-type Gorunum = 'personel' | 'nokta'
-
-// --- Izgara olculeri (Tasarim Referansi surum 4) -------------------------
-// Ad sutunu dokumanin degerinde: 220px. Surum 3'te 180px'ti ve tek satirda
-// yalnizca adi tasiyordu; artik ad ve sicil alt alta duruyor.
-const AD_SUTUNU = 'w-[220px] min-w-[220px] max-w-[220px]'
-// Gun sutunu ASGARI 60px, ustu serbest. Dokuman 128px diyor ve 7 gunluk
-// Figma cercevesinde 220 + 7x128 = 1116px, yani kartin tamami. Sabit 128px
-// vermek 28 gunluk donemde (kabul kriteri olcegi) tabloyu ~3800px yapardi;
-// bunun yerine tablo `w-full` ile kabi doldurur: 7 gunde sutunlar
-// kendiliginden ~128px'e acilir, 28 gunde 60px'te kalip yatay kayar. Tek
-// kural iki ucu da karsilar.
-const GUN_SUTUNU = 'min-w-[60px]'
-
-// --- Satir yukseklikleri (surum 4) ---------------------------------------
-// Ucu de dokumanin degerinde, cunku artik uc satirin da icerigi iki
-// satirlik: gun basligi (kisaltma + 28px'lik bugun dairesi), personel
-// hucresi (ad + sicil) ve gun hucresi (vardiya + nokta kisaltmasi).
-const BASLIK_SATIRI = 'h-[54px]' // 32 -> 54
-const KAPSAMA_SERIDI = 'h-[46px]' // yeni
-const HUCRE_YUKSEKLIGI = 'h-[46px]' // 28 -> 46
-
-// Kaydirilabilir alanin yuksekligi: ust cubuk (64) + icerik dolgusu (56) +
-// secim karti (~140) + kart araligi (20). Izgara kendi icinde kaydigi icin
-// yapiskan baslik satiri gorunur kalir. Surum 4'te baslik ve satirlar
-// buyudugu icin pay 280 -> 292.
-const IZGARA_YUKSEKLIGI = 'max-h-[calc(100svh-292px)]'
-
-// Renk BAŞLANGIÇ SAATİ BANDINDAN gelir; tanım lib/vardiyaRenk.ts'te tek
-// yerde durur (SDD 6.3.3). Blok kimliği diye bir şey kalmadığı için
-// (SRS TD-13) başlangıç saati zaten tek ayırt edici bilgi.
-/** Bloğun bitiş saati; gün sonu `24` yazılır (00.00 sıfır uzunluk düşündürür). */
-function bitisSaatiOku(atama: Atama): number {
-  const saat = Number(atama.bitis_zamani.slice(11, 13))
-  return saat === 0 ? 24 : saat
-}
-
-function hucreSinifi(atama: Atama | undefined): string {
-  if (!atama) return 'bg-surface'
-  return vardiyaHucreSinifi(atama.baslangic_zamani.slice(11, 19))
-}
+/**
+ * Ekranın iki görünümü (SDD 6.3.3).
+ *
+ * GÖREV NOKTASI EKSENİ KALKTI. Önceki sürümde ızgara personel ekseninden
+ * nokta eksenine çevrilebiliyordu; o anahtar, satır ekseninin nokta × vardiya
+ * TİPİ olduğu kataloglu sürümden kalmaydı ve Tur 5'te zaten yarısını
+ * kaybetmişti. SDD 6.3.3 (sürüm 1.28) ekranın iki görünümünü çözünürlük
+ * üzerinden tanımlıyor: gün ızgarası ve hafta şeridi. "Bu noktada bugün kim
+ * var" sorusu, gün ızgarasının nokta süzgeciyle yanıtlanır.
+ */
+type Gorunum = 'gun' | 'hafta'
 
 export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }: Props) {
   const [donemler, setDonemler] = useState<Donem[]>([])
@@ -105,6 +78,8 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
 
   const [personelListesi, setPersonelListesi] = useState<Personel[]>([])
   const [noktalar, setNoktalar] = useState<GorevNoktasi[]>([])
+  // Sürükleme sınırları kural kataloğundan okunur, koda gömülmez (İş 4).
+  const [kurallar, setKurallar] = useState<Kural[]>([])
 
   const [atamalar, setAtamalar] = useState<Atama[]>([])
   const [kapsamaAcigi, setKapsamaAcigi] = useState<KapsamaAcigi[]>([])
@@ -114,16 +89,17 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
 
   const [yetkinlikler, setYetkinlikler] = useState<Yetkinlik[]>([])
   const [analiz, setAnaliz] = useState<Analiz | null>(null)
-  // Süzgeçler (Tasarım Referansı v4, Çizelge ekranı). İkisi de YALNIZCA
-  // görünümü daraltır; hiçbir atamayı değiştirmez ve sunucuya gitmez —
-  // veri zaten sürümle birlikte tamamı yüklü.
+  // Süzgeçler. Üçü de YALNIZCA görünümü daraltır; hiçbir atamayı değiştirmez
+  // ve sunucuya gitmez — veri zaten sürümle birlikte tamamı yüklü.
   const [seciliYetkinlikId, setSeciliYetkinlikId] = useState<number | null>(null)
+  const [seciliSuzgecNoktaId, setSeciliSuzgecNoktaId] = useState<number | null>(null)
   const [yalnizcaAcik, setYalnizcaAcik] = useState(false)
 
-  const [gorunum, setGorunum] = useState<Gorunum>('personel')
+  const [gorunum, setGorunum] = useState<Gorunum>('gun')
+  const [seciliGun, setSeciliGun] = useState<string | null>(null)
   const [yazdirmaAcik, setYazdirmaAcik] = useState(false)
   const [seciliHucre, setSeciliHucre] = useState<SeciliHucre | null>(null)
-  // Blok artık BAŞLANGIÇ ve BİTİŞ SAATİYLE tanımlanır (SDD 6.3.3).
+  // Blok BAŞLANGIÇ ve BİTİŞ SAATİYLE tanımlanır (SDD 6.3.3).
   const [seciliBaslangic, setSeciliBaslangic] = useState<number | null>(null)
   const [seciliBitis, setSeciliBitis] = useState<number | null>(null)
   const [seciliNoktaId, setSeciliNoktaId] = useState<string>(BOSALT_DEGERI)
@@ -138,12 +114,14 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
       api.personelListele(),
       api.noktaListele(),
       api.yetkinlikListele(),
+      api.kuralListele(),
     ])
-      .then(([d, p, n, y]) => {
+      .then(([d, p, n, y, k]) => {
         setDonemler(d)
         setPersonelListesi(p)
         setNoktalar(n)
-        setYetkinlikler(y.filter((k) => k.aktif))
+        setYetkinlikler(y.filter((x) => x.aktif))
+        setKurallar(k)
         if (donemId === null && d[0]) donemIdSec(d[0].donem_id)
       })
       .catch((e) => setHata(e instanceof Error ? e.message : 'Tanımlar yüklenemedi'))
@@ -215,6 +193,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
     [personelListesi],
   )
   const noktaMap = useMemo(() => new Map(noktalar.map((n) => [n.nokta_id, n])), [noktalar])
+  const sinirlar = useMemo(() => blokSinirlariniOku(kurallar), [kurallar])
 
   const donemGunleri = useMemo(
     () => (donem ? gunlerListesi(donem.baslangic_tarihi, donem.bitis_tarihi) : []),
@@ -224,21 +203,12 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
   // isaret tanimi geregi "su anki gun"e bagli. lib/tarih.ts'ten gecer.
   const bugun = bugunIso()
 
-  // Şeridin basamakları GÖREV NOKTALARIDIR — gün başına biri, her zaman aynı
-  // sırada (TASARIM_REFERANSI.md: "Kapsama şeridinde karşılanan NOKTALAR
-  // nötr gri, yalnızca açık olanlar turuncudur").
-  //
-  // Sıranın sabit olması şeridin bütün işidir: turuncunun kaçıncı basamakta
-  // olduğu HANGİ noktanın açık verdiğini söyler. Açıkları sona toplamak
-  // şeridi bir sayaca indirger ve tek tek basamakları anlamsızlaştırır.
   const seritNoktalari = useMemo(
     () => noktalar.filter((n) => n.aktif).sort((a, b) => a.nokta_id - b.nokta_id),
     [noktalar],
   )
 
-  // Tarih → o gün açık veren nokta kimlikleri. Bir nokta o günün herhangi bir
-  // vardiyasında eksik kaldıysa basamağı turuncudur; şerit vardiya kırılımına
-  // inmez, o ayrım ızgaranın kendi hücrelerinde zaten görünür.
+  // Tarih → o gün açık veren nokta kimlikleri.
   const acikNoktalar = useMemo(() => {
     const indeks = new Map<string, Map<number, number>>()
     for (const k of kapsamaAcigi) {
@@ -257,6 +227,18 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
     [donemGunleri, yalnizcaAcik, acikNoktalar],
   )
 
+  // Seçili gün her zaman gösterilen günlerden biri olmalı: dönem değiştiğinde
+  // ya da süzgeç günü listeden düşürdüğünde ekran boş bir güne bakamaz.
+  useEffect(() => {
+    if (gunler.length === 0) {
+      setSeciliGun(null)
+      return
+    }
+    setSeciliGun((mevcut) =>
+      mevcut && gunler.includes(mevcut) ? mevcut : (gunler.find((g) => g === bugun) ?? gunler[0]!),
+    )
+  }, [gunler, bugun])
+
   // Süzgeçten ÖNCEKİ liste — alttaki "36 personelin 10'u gösteriliyor"
   // satırının paydası budur; süzgeç değiştikçe payda oynamamalı.
   const tumIzgaraPersonelleri = useMemo(() => {
@@ -267,54 +249,46 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
       .sort((a, b) => a.ad_soyad.localeCompare(b.ad_soyad, 'tr'))
   }, [atamalar, personelMap])
 
+  // Nokta süzgeci personeli DÖNEM BOYUNCA o noktada çalışanlarla sınırlar.
+  // Gün bazında daraltmak, günler arasında gezinirken satırların altından
+  // kayıp gitmesine yol açardı.
+  const noktaPersonelleri = useMemo(() => {
+    if (seciliSuzgecNoktaId === null) return null
+    return new Set(
+      atamalar.filter((a) => a.nokta_id === seciliSuzgecNoktaId).map((a) => a.personel_id),
+    )
+  }, [atamalar, seciliSuzgecNoktaId])
+
   const izgaraPersonelleri = useMemo(
     () =>
-      seciliYetkinlikId === null
-        ? tumIzgaraPersonelleri
-        : tumIzgaraPersonelleri.filter((p) => p.yetkinlik_idleri.includes(seciliYetkinlikId)),
-    [tumIzgaraPersonelleri, seciliYetkinlikId],
+      tumIzgaraPersonelleri
+        .filter(
+          (p) =>
+            seciliYetkinlikId === null || p.yetkinlik_idleri.includes(seciliYetkinlikId),
+        )
+        .filter((p) => noktaPersonelleri === null || noktaPersonelleri.has(p.personel_id)),
+    [tumIzgaraPersonelleri, seciliYetkinlikId, noktaPersonelleri],
   )
 
-  // Izgara hucre basina arama yapar; 36 personel x 28 gun = 1008 hucrenin her
-  // birinde atama listesini bastan taramak (dogrusal arama) 28 gunluk donemde
-  // gorunur gecikme yaratiyordu. Uc indeks bir kez kurulur.
+  // Izgaraya giden atamalar: nokta süzgeci seçiliyse yalnızca o noktanınkiler
+  // çizilir — aksi hâlde süzgeç satırları daraltır ama şeritler aynı kalır ve
+  // süzgeç hiçbir şey yapmamış gibi görünür.
+  const izgaraAtamalari = useMemo(
+    () =>
+      seciliSuzgecNoktaId === null
+        ? atamalar
+        : atamalar.filter((a) => a.nokta_id === seciliSuzgecNoktaId),
+    [atamalar, seciliSuzgecNoktaId],
+  )
+
   const atamaIndeksi = useMemo(() => {
     const indeks = new Map<string, Atama>()
     for (const a of atamalar) indeks.set(`${a.personel_id}|${a.tarih}`, a)
     return indeks
   }, [atamalar])
 
-  const noktaIndeksi = useMemo(() => {
-    const indeks = new Map<string, Atama[]>()
-    for (const a of atamalar) {
-      const anahtar = `${a.tarih}|${a.nokta_id}`
-      const mevcut = indeks.get(anahtar)
-      if (mevcut) mevcut.push(a)
-      else indeks.set(anahtar, [a])
-    }
-    return indeks
-  }, [atamalar])
-
-  const kapsamaIndeksi = useMemo(() => {
-    const indeks = new Map<string, KapsamaAcigi>()
-    for (const k of kapsamaAcigi) {
-      indeks.set(`${k.tarih}|${k.nokta_id}`, k)
-    }
-    return indeks
-  }, [kapsamaAcigi])
-
   const atamaBul = (personelId: number, tarih: string): Atama | undefined =>
     atamaIndeksi.get(`${personelId}|${tarih}`)
-
-  const kapsamaBul = (atama: Atama): KapsamaAcigi | undefined =>
-    kapsamaIndeksi.get(`${atama.tarih}|${atama.nokta_id}`)
-
-  // Nokta gorunumunun satirlari (SDD 6.3.3). Satir ekseni once nokta x
-  // VARDIYA TIPI ikilisiydi; blok katalogu kalktigi icin (SRS TD-13)
-  // bolunecek ikinci bir eksen yok ve satir dogrudan noktadir. Bir gunun
-  // hucresi o noktada calisan HERKESI tasir; kimin hangi saatte oldugu gun
-  // izgarasinin isidir (Tur 6).
-  const noktaSatirlari = useMemo(() => noktalar.map((nokta) => ({ nokta })), [noktalar])
 
   const hucreSec = (personelId: number, tarih: string) => {
     setSeciliHucre({ personelId, tarih })
@@ -326,15 +300,20 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
     setPanelHata(null)
   }
 
-  const istekGovdesiOlustur = () => {
+  const istekGovdesiOlustur = (
+    ustDeger?: { baslangic: number; bitis: number; noktaId: string },
+  ) => {
     if (!seciliHucre || surumId === null) return null
+    const bas = ustDeger ? ustDeger.baslangic : seciliBaslangic
+    const bit = ustDeger ? ustDeger.bitis : seciliBitis
+    const nokta = ustDeger ? ustDeger.noktaId : seciliNoktaId
     return {
       surum_id: surumId,
       personel_id: seciliHucre.personelId,
       tarih: seciliHucre.tarih,
-      baslangic_saati: seciliBaslangic === null ? null : saatiYaz(seciliBaslangic),
-      bitis_saati: seciliBitis === null ? null : saatiYaz(seciliBitis),
-      nokta_id: seciliNoktaId === BOSALT_DEGERI ? null : Number(seciliNoktaId),
+      baslangic_saati: bas === null ? null : saatiYaz(bas),
+      bitis_saati: bit === null ? null : saatiYaz(bit),
+      nokta_id: nokta === BOSALT_DEGERI ? null : Number(nokta),
     }
   }
 
@@ -345,6 +324,46 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
     setPanelHata(null)
     try {
       const sonuc = await api.atamaDogrula(govde)
+      setDogrulamaSonucu(sonuc)
+    } catch (e) {
+      setPanelHata(e instanceof Error ? e.message : 'Doğrulama başarısız')
+    } finally {
+      setPanelYukleniyor(false)
+    }
+  }
+
+  /**
+   * Sürükleme bırakıldığında (İş 4).
+   *
+   * Seçim panele yazılır ve DOĞRULAMA İSTEĞİ GÖNDERİLİR — değişiklik
+   * uygulanmaz. Sürüklemenin doğrudan yazması, kullanıcının farkında olmadan
+   * çizelgeyi değiştirmesi demek olurdu; panel "Uygula" ile arada durur.
+   * Görev noktası o günün mevcut bloğundan devralınır (SRS H1: nokta blok
+   * boyunca tektir); blok yoksa kullanıcı noktayı seçene kadar doğrulama
+   * yapılamaz, çünkü sunucu üçünün birlikte dolu olmasını şart koşar.
+   */
+  const surukleyerekTanimla = async (personelId: number, baslangic: number, bitis: number) => {
+    if (!seciliGun || surumId === null) return
+    const mevcut = atamaBul(personelId, seciliGun)
+    const noktaId = mevcut ? String(mevcut.nokta_id) : BOSALT_DEGERI
+    setSeciliHucre({ personelId, tarih: seciliGun })
+    setSeciliBaslangic(baslangic)
+    setSeciliBitis(bitis)
+    setSeciliNoktaId(noktaId)
+    setDogrulamaSonucu(null)
+    setPanelHata(null)
+    if (noktaId === BOSALT_DEGERI) return
+
+    setPanelYukleniyor(true)
+    try {
+      const sonuc = await api.atamaDogrula({
+        surum_id: surumId,
+        personel_id: personelId,
+        tarih: seciliGun,
+        baslangic_saati: saatiYaz(baslangic),
+        bitis_saati: saatiYaz(bitis),
+        nokta_id: Number(noktaId),
+      })
       setDogrulamaSonucu(sonuc)
     } catch (e) {
       setPanelHata(e instanceof Error ? e.message : 'Doğrulama başarısız')
@@ -400,15 +419,14 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
           kapsamaAcigi,
           fazlaKadro,
           personelMap,
-            noktaMap,
+          noktaMap,
         }
       : null
 
   // Yalnizca taslak ve cozuldu duzenlenebilir; yayinlanmis/arsiv surumde
-  // sunucu 409 doner (services/dogrulama_servisi.py). Arayuz bunu denemeden
-  // once soyler — aksi halde kullanici degisikligi yapip butona basiyor ve
-  // ancak o zaman reddedildigini ogreniyordu.
-  const surumDuzenlenebilir = surum !== null && (surum.durum === 'taslak' || surum.durum === 'cozuldu')
+  // sunucu 409 doner (services/dogrulama_servisi.py).
+  const surumDuzenlenebilir =
+    surum !== null && (surum.durum === 'taslak' || surum.durum === 'cozuldu')
 
   // Sunucunun kurali: vardiya ve nokta BIRLIKTE dolu ya da BIRLIKTE bos
   // (schemas/dogrulama.py). Yarim cift 422 doner, o yuzden hic gonderilmez.
@@ -427,22 +445,24 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
       ekranSec={ekranSec}
       baslik="Çizelge"
       altBaslik={
-        // `etiket/mono-caps` — durum ve sürüm numarası veri, cümle değil.
         surum ? (
           <span className="mono-caps rounded-sm bg-sunken px-2 py-1 text-ink-muted">
-            {buyukHarf(SURUM_DURUM_METNI[surum.durum] ?? surum.durum)} · SÜRÜM{' '}
-            {surum.surum_no}
+            {buyukHarf(SURUM_DURUM_METNI[surum.durum] ?? surum.durum)} · SÜRÜM {surum.surum_no}
           </span>
         ) : undefined
       }
       aksiyonlar={
         <>
-          {/* SDD 6.3.3 Görünüm Anahtarı: ızgarayı personel ekseninden görev
-              noktası eksenine çevirir ve geri alır. Sürüm 4'te tek bir
-              değiştirme butonu değil, iki durumu da gösteren bir ikili
-              anahtar — hangi eksende olunduğu butona bakmadan görünür. */}
+          {/* İki görünüm (SDD 6.3.3): aynı veriyi iki farklı ÇÖZÜNÜRLÜKTE
+              gösterirler. Gün ızgarası ana görünümdür; hafta şeridi genel
+              dağılımı verir ve bir güne tıklayınca ızgaraya geçer. */}
           <div className="flex rounded-sm bg-chrome-raised p-0.5">
-            {(['personel', 'nokta'] as const).map((secenek) => (
+            {(
+              [
+                ['gun', 'Gün'],
+                ['hafta', 'Hafta'],
+              ] as const
+            ).map(([secenek, etiket]) => (
               <button
                 key={secenek}
                 type="button"
@@ -455,14 +475,14 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                     : 'text-chrome-ink-muted hover:text-chrome-ink',
                 )}
               >
-                {secenek === 'personel' ? 'Personel' : 'Nokta'}
+                {etiket}
               </button>
             ))}
           </div>
           <Buton
             varyant="ikincil"
             disabled={disaAktarmaVerisi === null}
-            title="Uzun biçim CSV + kapsama açığı dosyası"
+            title="Uzun biçim CSV + talep sapması dosyası"
             onClick={() => disaAktarmaVerisi && csvDisaAktar(disaAktarmaVerisi)}
           >
             CSV
@@ -470,7 +490,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
           <Buton
             varyant="ikincil"
             disabled={disaAktarmaVerisi === null}
-            title="Personel × gün matrisi, yatay A4"
+            title="Personel × saat ızgarası, yatay A4"
             onClick={() => setYazdirmaAcik(true)}
           >
             Yazdır
@@ -531,18 +551,13 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
 
       {hata && <p className="text-sm text-signal">{hata}</p>}
 
-      {/* Süzgeç ve ölçüm şeridi (Tasarım Referansı v4, Çizelge ekranı).
-          Solda ızgarayı daraltan süzgeçler, sağda sürümün üç ölçüsü —
-          ikisi de aynı satırda durur çünkü "neyi görüyorum" ile "ne kadarı
-          karşılandı" aynı anda okunması gereken iki bilgidir. */}
+      {/* Süzgeç ve ölçüm şeridi. Solda ızgarayı daraltan süzgeçler, sağda
+          sürümün üç ölçüsü. */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-rule pb-4">
-        <span className="etiket-caps text-ink-muted">{buyukHarf('Yetkinlik')}</span>
+        <span className="etiket-caps text-ink-muted">{buyukHarf('Süzgeç')}</span>
         <div className="flex flex-wrap items-center gap-2">
-          <SuzgecCipi
-            secili={seciliYetkinlikId === null}
-            onSec={() => setSeciliYetkinlikId(null)}
-          >
-            Tümü
+          <SuzgecCipi secili={seciliYetkinlikId === null} onSec={() => setSeciliYetkinlikId(null)}>
+            Tüm yetkinlikler
           </SuzgecCipi>
           {yetkinlikler.map((y) => (
             <SuzgecCipi
@@ -551,6 +566,24 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
               onSec={() => setSeciliYetkinlikId(y.yetkinlik_id)}
             >
               {y.ad}
+            </SuzgecCipi>
+          ))}
+          {/* Nokta süzgeci, kalkan nokta EKSENİNİN yerini tutar: "bu noktada
+              bugün kim var" sorusu gün ızgarasında bu süzgeçle yanıtlanır. */}
+          <span className="mx-1 h-5 w-px bg-rule" />
+          <SuzgecCipi
+            secili={seciliSuzgecNoktaId === null}
+            onSec={() => setSeciliSuzgecNoktaId(null)}
+          >
+            Tüm noktalar
+          </SuzgecCipi>
+          {seritNoktalari.map((n) => (
+            <SuzgecCipi
+              key={n.nokta_id}
+              secili={seciliSuzgecNoktaId === n.nokta_id}
+              onSec={() => setSeciliSuzgecNoktaId(n.nokta_id)}
+            >
+              {n.ad}
             </SuzgecCipi>
           ))}
           <SuzgecCipi secili={yalnizcaAcik} onSec={() => setYalnizcaAcik(!yalnizcaAcik)}>
@@ -578,299 +611,116 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
           <p className="text-sm text-ink-muted">Yükleniyor…</p>
         ) : tumIzgaraPersonelleri.length === 0 ? (
           <p className="text-sm text-ink-muted">Bu sürümde henüz atama yok.</p>
-        ) : /* Süzgeçlerin ikisi de listeyi boşaltabilir. "Atama yok" demek
-              yanlış olurdu — atama var, süzgeç saklıyor; kullanıcı süzgeci
-              geri almadan bunu anlayamaz. */
-        gunler.length === 0 ? (
+        ) : gunler.length === 0 ? (
           <p className="text-sm text-ink-muted">
             Bu dönemde açık verilen gün yok. Süzgeci kaldırarak tüm günleri görebilirsiniz.
           </p>
         ) : izgaraPersonelleri.length === 0 ? (
           <p className="text-sm text-ink-muted">
-            Seçili yetkinlikte bu sürüme atanmış personel yok.
+            Seçili süzgeçlerde bu sürüme atanmış personel yok.
           </p>
-        ) : (
-          // Kaydirma kabi: yatay VE dikey. Yapiskan hucreler konumlarini bu
-          // kaba gore alir, o yuzden yukseklik sinirli olmak zorunda — sinirsiz
-          // yukseklikte kap hic dikey kaymaz ve `sticky top-0` etkisiz kalir.
-          // border-separate: border-collapse ile yapiskan hucrelerin kenarligi
-          // kaydirma sirasinda tabloda kalip hucreyle birlikte gitmiyor.
-          <div className={cn('relative overflow-auto', IZGARA_YUKSEKLIGI)}>
-            <table className="w-full min-w-max border-separate border-spacing-0">
-              <thead>
-                <tr>
-                  <th
+        ) : gorunum === 'gun' ? (
+          <>
+            {/* Gün sekmeleri (SDD 6.3.3). Yirmi sekiz günlük bir dönemde
+                yatay kayar; seçili gün her zaman görünür kalır. */}
+            <div
+              className="mb-3 flex gap-1 overflow-x-auto border-b border-rule pb-2"
+              role="tablist"
+              aria-label="Gün seçimi"
+            >
+              {gunler.map((g) => {
+                const { kisaltma, numara } = gunBasligiParcalari(g)
+                const acik = acikNoktalar.get(g)
+                return (
+                  <button
+                    key={g}
+                    type="button"
+                    role="tab"
+                    aria-selected={seciliGun === g}
+                    onClick={() => setSeciliGun(g)}
                     className={cn(
-                      'mono-caps sticky top-0 left-0 z-30 border-b border-r border-rule bg-surface px-3 text-left text-ink-muted',
-                      AD_SUTUNU,
+                      'flex shrink-0 flex-col items-center rounded-sm border px-2.5 py-1 font-mono text-mono-kucuk transition-colors',
+                      seciliGun === g
+                        ? 'border-accent bg-accent-soft font-semibold text-accent'
+                        : 'border-transparent text-ink-muted hover:text-ink',
+                      haftaSonuMu(g) && seciliGun !== g && 'bg-sunken',
                     )}
                   >
-                    {buyukHarf(gorunum === 'personel' ? 'Personel' : 'Görev Noktası')}
-                  </th>
-                  {gunler.map((gun) => {
-                    const { kisaltma, numara } = gunBasligiParcalari(gun)
-                    const bugunMu = gun === bugun
-                    return (
-                      <th
-                        key={gun}
-                        className={cn(
-                          'sticky top-0 z-20 border-b border-rule bg-surface text-center font-mono text-mono-kucuk font-medium whitespace-nowrap text-ink-muted',
-                          BASLIK_SATIRI,
-                          GUN_SUTUNU,
-                          haftaSonuMu(gun) && 'bg-sunken',
-                        )}
-                      >
-                        <span className="flex flex-col items-center justify-center gap-0.5">
-                          <span>{kisaltma}</span>
-                          {/* Bugün işareti: 28px tam yuvarlak accent daire,
-                              içinde chrome-ink metin. Takvimlerden tanıdık
-                              olduğu için açıklama gerektirmez. Yalnızca bugün
-                              bu dönem içindeyse çizilir — `gunler` zaten
-                              dönemin günleri olduğundan kıyas yeterlidir. */}
-                          <span
-                            className={cn(
-                              'flex size-7 items-center justify-center font-semibold',
-                              bugunMu
-                                ? 'rounded-full bg-accent text-chrome-ink'
-                                : 'text-ink',
-                            )}
-                          >
-                            {numara}
-                          </span>
-                        </span>
-                      </th>
-                    )
-                  })}
-                </tr>
-              </thead>
-              <tbody>
-                {/* Kapsama şeridi — başlığın hemen altında, personel
-                    satırlarının üstünde. Her basamak o günün bir (nokta ×
-                    vardiya) talebi; karşılanan nötr gri, açık olan turuncu.
-                    Nokta görünümünde çizilmez: orada açık zaten satırın
-                    kendi hücresinde görünür ve şerit onu ikinci kez söyler. */}
-                {gorunum === 'personel' && (
-                  <tr>
-                    <td
-                      className={cn(
-                        'etiket-caps sticky left-0 z-10 border-b border-r border-rule bg-surface px-3 text-ink-muted',
-                        KAPSAMA_SERIDI,
-                        AD_SUTUNU,
-                      )}
-                      // Basamak sırası sabittir ve anlam taşır; sıranın hangi
-                      // noktalara karşılık geldiği başlıktan okunur.
-                      title={`Basamak sırası: ${seritNoktalari.map((n) => n.ad).join(' · ')}`}
-                    >
-                      {buyukHarf('Kapsama')}
-                    </td>
-                    {gunler.map((gun) => {
-                      const gunAciklari = acikNoktalar.get(gun)
-                      return (
-                        <td
-                          key={gun}
-                          className={cn(
-                            'border-b border-rule px-1.5',
-                            KAPSAMA_SERIDI,
-                            GUN_SUTUNU,
-                            haftaSonuMu(gun) && 'bg-sunken',
-                          )}
-                        >
-                          <span className="flex items-center justify-center gap-1">
-                            {seritNoktalari.map((n) => {
-                              const eksik = gunAciklari?.get(n.nokta_id) ?? 0
-                              return (
-                                // Her basamak tek başına okunabilir olmalı:
-                                // şeridin tamamına değil, basamağın KENDİSİNE
-                                // başlık verilir — imleç turuncunun üstüne
-                                // geldiğinde hangi nokta olduğunu söyler.
-                                <span
-                                  key={n.nokta_id}
-                                  title={`${tarihBicimle(gun)} · ${n.ad} — ${
-                                    eksik > 0 ? `${eksik} kişi eksik` : 'karşılandı'
-                                  }`}
-                                  className={cn(
-                                    'h-1.5 flex-1 rounded-xs',
-                                    eksik > 0 ? 'bg-signal' : 'bg-rule-strong',
-                                  )}
-                                />
-                              )
-                            })}
-                          </span>
-                        </td>
-                      )
-                    })}
-                  </tr>
-                )}
-                {gorunum === 'personel'
-                  ? izgaraPersonelleri.map((p) => (
-                      <tr key={p.personel_id}>
-                        {/* Ad ve sicil alt alta, sola dayalı (Tasarım
-                            Referansı v4). Sicil ayırt edicidir: aynı adı
-                            taşıyan iki personel ızgarada yalnız adla
-                            ayrılamıyordu. */}
-                        <td
-                          className={cn(
-                            'sticky left-0 z-10 border-b border-r border-rule bg-surface px-3 text-left',
-                            AD_SUTUNU,
-                          )}
-                          title={`${p.ad_soyad} · ${p.sicil_no}`}
-                        >
-                          <span className="block truncate text-sm text-ink">{p.ad_soyad}</span>
-                          <span className="block truncate font-mono text-mono-kucuk text-ink-muted">
-                            {p.sicil_no}
-                          </span>
-                        </td>
-                        {gunler.map((gun) => {
-                          const atama = atamaBul(p.personel_id, gun)
-                          const kapsama = atama ? kapsamaBul(atama) : undefined
-                          const nokta = atama ? noktaMap.get(atama.nokta_id) : undefined
-                          const seciliMi =
-                            seciliHucre?.personelId === p.personel_id && seciliHucre?.tarih === gun
-                          return (
-                            <td
-                              key={gun}
-                              className={cn(
-                                'border-b border-rule p-0',
-                                GUN_SUTUNU,
-                                haftaSonuMu(gun) && 'bg-sunken',
-                              )}
-                            >
-                              {/* Vardiya rengi hücrenin KENDİ dolgusudur
-                                  (TASARIM_REFERANSI.md): buton hücreyi tam
-                                  doldurur, içeride küçük bir renkli kutu
-                                  durmaz. Kısaltmalar alt alta — tek satırda
-                                  "GEC GÜV" Azeret Mono 11,5px ile 52,3px
-                                  sürüyor ve 60px'lik sütuna sığmıyordu. */}
-                              <button
-                                type="button"
-                                className={cn(
-                                  'box-border flex w-full flex-col items-center justify-center leading-tight font-mono text-mono-kucuk',
-                                  HUCRE_YUKSEKLIGI,
-                                  // Bos hucre: kenarlik ve zemin yok — goz yalniz
-                                  // dolu hucreleri gorur, 28 gunluk izgarada
-                                  // bosluklar arka plana cekilir.
-                                  atama && !kapsama && hucreSinifi(atama),
-                                  kapsama && 'bg-signal-soft font-medium text-signal',
-                                  atama?.kilitli && 'outline-2 outline-offset-[-2px] outline-accent',
-                                  seciliMi && 'ring-2 ring-inset ring-ink',
-                                )}
-                                onClick={() => hucreSec(p.personel_id, gun)}
-                                title={
-                                  atama
-                                    ? `${p.ad_soyad} — ${tarihBicimle(gun)} · ${blokEtiketi(atama.baslangic_zamani, atama.bitis_zamani)} · ${nokta?.ad ?? ''}${kapsama ? ` · ${kapsama.eksik_sayi} kişi eksik` : ''}`
-                                    : `${p.ad_soyad} — ${tarihBicimle(gun)} · atama yok`
-                                }
-                              >
-                                {atama &&
-                                  (kapsama ? (
-                                    <span className="font-semibold">−{kapsama.eksik_sayi}</span>
-                                  ) : (
-                                    <>
-                                      {/* Blok adı diye bir şey yok (SRS
-                                          TD-13); tek okunabilir bilgi
-                                          sürenin kendisidir (SDD 6.3.3). */}
-                                      <span className="font-semibold">
-                                        {blokKisaEtiketi(
-                                          atama.baslangic_zamani,
-                                          atama.bitis_zamani,
-                                        )}
-                                      </span>
-                                      <span className="opacity-80">{kisalt(nokta?.ad ?? '')}</span>
-                                    </>
-                                  ))}
-                              </button>
-                            </td>
-                          )
-                        })}
-                      </tr>
-                    ))
-                  : noktaSatirlari.map(({ nokta }) => (
-                      <tr key={nokta.nokta_id}>
-                        <td
-                          className={cn(
-                            'sticky left-0 z-10 border-b border-r border-rule bg-surface px-3 text-left',
-                            AD_SUTUNU,
-                          )}
-                          title={nokta.ad}
-                        >
-                          <span className="block truncate text-sm text-ink">{nokta.ad}</span>
-                        </td>
-                        {gunler.map((gun) => {
-                          const anahtar = `${gun}|${nokta.nokta_id}`
-                          const hucreAtamalari = noktaIndeksi.get(anahtar) ?? []
-                          const kapsama = kapsamaIndeksi.get(anahtar)
-                          return (
-                            <td
-                              key={gun}
-                              className={cn(
-                                'border-b border-rule p-0.5 align-top',
-                                GUN_SUTUNU,
-                                haftaSonuMu(gun) && 'bg-sunken',
-                              )}
-                            >
-                              {/* SDD 6.3.3: nokta gorunumunde hucre, o vardiyaya
-                                  atanan personeldir. Ad yerine sicil yazilir —
-                                  yedi kisilik bir Guvenlik hucresi tam adlarla
-                                  sutuna sigmaz; sicil zaten kisa ve tekildir. */}
-                              <div
-                                className={cn(
-                                  'flex flex-col gap-px rounded-sm px-1 py-0.5 font-mono text-mono-kucuk leading-tight',
-                                  hucreAtamalari.length > 0 && hucreSinifi(hucreAtamalari[0]),
-                                  hucreAtamalari.length > 0 && 'border border-rule',
-                                  kapsama && 'border-signal',
-                                )}
-                                title={
-                                  hucreAtamalari.length === 0
-                                    ? `${nokta.ad} · ${tarihBicimle(gun)} · atama yok`
-                                    : `${nokta.ad} · ${tarihBicimle(gun)}\n${hucreAtamalari
-                                        .map(
-                                          (a) =>
-                                            `${personelMap.get(a.personel_id)?.ad_soyad ?? ''} ${blokKisaEtiketi(a.baslangic_zamani, a.bitis_zamani)}`,
-                                        )
-                                        .join('\n')}`
-                                }
-                              >
-                                {hucreAtamalari.map((a) => (
-                                  <span key={a.atama_id} className="truncate">
-                                    {personelMap.get(a.personel_id)?.sicil_no ?? '—'}
-                                  </span>
-                                ))}
-                                {kapsama && (
-                                  <span className="font-medium text-signal">
-                                    −{kapsama.eksik_sayi}
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                          )
-                        })}
-                      </tr>
-                    ))}
-              </tbody>
-            </table>
-          </div>
+                    <span>{kisaltma}</span>
+                    <span className={cn(g === bugun && 'underline underline-offset-2')}>
+                      {numara}
+                    </span>
+                    {acik && (
+                      <span className="text-[9px] leading-none font-semibold text-signal">
+                        ▲{[...acik.values()].reduce((t, s) => t + s, 0)}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+
+            {seciliGun && (
+              <GunIzgarasi
+                gun={seciliGun}
+                personeller={izgaraPersonelleri}
+                atamalar={izgaraAtamalari}
+                noktaMap={noktaMap}
+                kapsamaAcigi={
+                  seciliSuzgecNoktaId === null
+                    ? kapsamaAcigi
+                    : kapsamaAcigi.filter((k) => k.nokta_id === seciliSuzgecNoktaId)
+                }
+                seritNoktalari={
+                  seciliSuzgecNoktaId === null
+                    ? seritNoktalari
+                    : seritNoktalari.filter((n) => n.nokta_id === seciliSuzgecNoktaId)
+                }
+                sinirlar={sinirlar}
+                duzenlenebilir={surumDuzenlenebilir}
+                seciliPersonelId={seciliHucre?.personelId ?? null}
+                onSatirSec={(personelId) => hucreSec(personelId, seciliGun)}
+                onBlokTanimla={surukleyerekTanimla}
+              />
+            )}
+          </>
+        ) : (
+          <HaftaSeridi
+            gunler={gunler}
+            personeller={izgaraPersonelleri}
+            atamalar={izgaraAtamalari}
+            noktaMap={noktaMap}
+            kapsamaAcigi={
+              seciliSuzgecNoktaId === null
+                ? kapsamaAcigi
+                : kapsamaAcigi.filter((k) => k.nokta_id === seciliSuzgecNoktaId)
+            }
+            bugun={bugun}
+            onGunSec={(g) => {
+              setSeciliGun(g)
+              setGorunum('gun')
+            }}
+          />
         )}
 
-        {/* Izgara altı: solda ne kadarının gösterildiği, sağda renk
-            açıklaması. Bu satır DÜZ CÜMLEDİR ve Mono değildir — Azeret Mono
-            yalnızca sayı ve koda ayrılmıştır (TASARIM_REFERANSI.md). */}
-        {!yukleniyor && izgaraPersonelleri.length > 0 && gorunum === 'personel' && (
+        {/* Izgara altı: solda ne kadarının gösterildiği, sağda RENK BANDI.
+            Band sürekli olduğu için üç kutulu bir lejant yanlış olurdu —
+            gösterilen şey bandın kendisi ve iki ucunun saatidir. */}
+        {!yukleniyor && izgaraPersonelleri.length > 0 && (
           <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-ink-muted">
             <span>
               <Sayi>{sayiBicimle(tumIzgaraPersonelleri.length)}</Sayi> personelin{' '}
               <Sayi>{sayiBicimle(izgaraPersonelleri.length)}</Sayi>
-              {belirtmeHaliEki(izgaraPersonelleri.length)} gösteriliyor · yetkinlik süzgeci:{' '}
-              {seciliYetkinlikId === null
-                ? 'tümü'
-                : (yetkinlikler.find((y) => y.yetkinlik_id === seciliYetkinlikId)?.ad ?? 'tümü')}
-              {yalnizcaAcik && ' · yalnızca açık verilen günler'}
+              {belirtmeHaliEki(izgaraPersonelleri.length)} gösteriliyor
+              {gorunum === 'gun' && seciliGun && ` · ${gunKisaltmasiVeNumarasi(seciliGun)}`}
             </span>
             <div className="ml-auto flex flex-wrap items-center gap-4">
-              <Lejant sinif="bg-vardiya-gunduz border border-rule">Gündüz</Lejant>
-              <Lejant sinif="bg-vardiya-aksam border border-rule">Akşam</Lejant>
-              <Lejant sinif="bg-vardiya-gece">Gece</Lejant>
+              <SaatBandiLejandi />
               <Lejant sinif="border-2 border-accent bg-surface">Kilitli</Lejant>
-              <Lejant sinif="bg-signal">Açık</Lejant>
+              <span className="flex items-center gap-2 text-sm text-ink-muted">
+                <span className="font-mono text-xs font-semibold text-signal">▲</span>
+                Kapsama açığı
+              </span>
             </div>
           </div>
         )}
@@ -884,12 +734,9 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
               {seciliPersonel.ad_soyad} — {gunKisaltmasiVeNumarasi(seciliHucre.tarih)}
             </p>
             <div className="flex flex-wrap items-end gap-4">
-              {/* BLOK ARTIK SEÇİLMEZ, TANIMLANIR (SDD 6.3.3). Vardiya tipi
-                  listesi kalktı; kullanıcı başlangıç ve bitiş saatini
-                  seçiyor. Saatler açılır listeden gelir, serbest metin
-                  değil: saat ekseni yarım saatlik sınırları temsil edemez
-                  (SDD 6.3.1) ve sunucu 08.30 gibi bir değeri reddeder.
-                  Gün ızgarasında sürükleyerek tanımlama Tur 6'nın işi. */}
+              {/* BLOK SEÇİLMEZ, TANIMLANIR (SDD 6.3.3). Gün ızgarasında
+                  sürükleyerek de tanımlanır; bu iki alan aynı değeri taşır,
+                  sürükleme onları doldurur. */}
               <div className="flex flex-col gap-1">
                 <label htmlFor="baslangic-sec" className="text-sm text-ink-muted">
                   Başlangıç
@@ -898,9 +745,6 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                   id="baslangic-sec"
                   className={SECIM_SINIFI}
                   value={seciliBaslangic === null ? BOSALT_DEGERI : String(seciliBaslangic)}
-                  // "Boşalt" seçilince bitiş ve nokta da BIRLIKTE temizlenir.
-                  // Sunucu üçünün birlikte dolu ya da birlikte boş olmasını
-                  // şart koşuyor (schemas/dogrulama.py); yarım çift 422 döner.
                   onChange={(e) => {
                     if (e.target.value === BOSALT_DEGERI) {
                       setSeciliBaslangic(null)
@@ -910,9 +754,12 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                     }
                     const saat = Number(e.target.value)
                     setSeciliBaslangic(saat)
-                    // Bitiş boşsa varsayılan sekiz saatlik bir blok önerilir;
-                    // kullanıcı hemen değiştirebilir.
-                    if (seciliBitis === null) setSeciliBitis(((saat + 8 - 1) % 24) + 1)
+                    // Bitiş boşsa asgari blok süresi kadar bir blok önerilir;
+                    // değer kural kataloğundan gelir, koda gömülmez (İş 4).
+                    if (seciliBitis === null) {
+                      const varsayilan = sinirlar.asgariSaat ?? 8
+                      setSeciliBitis(((saat + varsayilan - 1) % 24) + 1)
+                    }
                   }}
                   disabled={!surumDuzenlenebilir}
                 >
@@ -989,19 +836,16 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
               )}
             </div>
 
-            {/* Engelin NEDENİ butonun yanında yazar. Önceden yarım çift
-                sunucuya gidiyor ve 422'nin ham gövdesi kullanıcıya "Doğrulama
-                başarısız" olarak dönüyordu — kuralı söylemeyen bir hata. */}
             {!surumDuzenlenebilir ? (
               <p className="text-sm text-ink-muted">
-                {SURUM_DURUM_METNI[surum?.durum ?? ''] ?? 'Bu'} durumdaki bir sürüm
-                düzenlenemez. Değişiklik için Sürümler ekranından taslak türetin.
+                {SURUM_DURUM_METNI[surum?.durum ?? ''] ?? 'Bu'} durumdaki bir sürüm düzenlenemez.
+                Değişiklik için Sürümler ekranından taslak türetin.
               </p>
             ) : (
               !secimGonderilebilir && (
                 <p className="text-sm text-signal">
-                  Vardiya ve görev noktası birlikte seçilmeli. Hücreyi boşaltmak için
-                  vardiyayı “— Boşalt —” yapın.
+                  Çalışma saatleri ve görev noktası birlikte seçilmeli. Hücreyi boşaltmak için
+                  başlangıcı “— Boşalt —” yapın.
                 </p>
               )
             )}
@@ -1015,10 +859,6 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                     ? 'Kabul edilebilir.'
                     : 'Zorunlu kısıt ihlali — reddedildi.'}{' '}
                   Ceza değişimi:{' '}
-                  {/* AĞIRLIKLI değer gösterilir. Ham toplam farklı birimleri
-                      (kişi, vardiya, saat, gün) ağırlıksız topluyordu; kapsama
-                      açığı (w1) ile vardiya deseni değişimi (w6) ekranda aynı
-                      büyüklükte görünüyordu. */}
                   <Sayi>
                     {dogrulamaSonucu.agirlikli_ceza_degisimi > 0 ? '+' : ''}
                     {sayiBicimle(dogrulamaSonucu.agirlikli_ceza_degisimi, 0)}
@@ -1035,17 +875,10 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                   </ul>
                 )}
 
-                {/* Değişikliğin NEREDE ne yaptığı. Bunlar zorunlu ihlal değil:
-                    değişiklik uygulanır, karar kullanıcıya bırakılır (SDD 5.5).
-                    Ama bir sayı olarak değil, cümle olarak görünmeleri gerekir —
-                    "+1000" kimseye Vardiya Şefliği'nin açıkta kaldığını söylemez. */}
                 {dogrulamaSonucu.uyarilar.length > 0 && (
                   <ul className="m-0 mt-2 flex list-none flex-col gap-1 p-0">
                     {dogrulamaSonucu.uyarilar.map((uyari, i) => (
-                      <li
-                        key={i}
-                        className="border-l-2 border-signal pl-3 text-sm text-signal"
-                      >
+                      <li key={i} className="border-l-2 border-signal pl-3 text-sm text-signal">
                         {uyari.aciklama}
                       </li>
                     ))}
@@ -1098,11 +931,15 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
   )
 }
 
+/** Bloğun bitiş saati; gün sonu `24` yazılır (00.00 sıfır uzunluk düşündürür). */
+function bitisSaatiOku(atama: Atama): number {
+  const saat = Number(atama.bitis_zamani.slice(11, 13))
+  return saat === 0 ? 24 : saat
+}
+
 /**
  * Süzgeç çipi — Tanımlar sekme çubuğuyla aynı dil: aktif `accent-soft`
- * zemin + `accent` metin, pasif zeminsiz + `ink-muted` (TASARIM_REFERANSI.md,
- * "Sekme çubuğu"). Ayrı bir bileşen, çünkü yetkinlik listesi veriden gelir ve
- * çip sayısı sabit değildir.
+ * zemin + `accent` metin, pasif zeminsiz + `ink-muted`.
  */
 function SuzgecCipi({
   children,
@@ -1139,6 +976,33 @@ function Olcum({
         {children}
       </Sayi>
     </div>
+  )
+}
+
+/**
+ * Renk açıklaması: bandın kendisi.
+ *
+ * Üç kutulu kategorik bir lejant artık YANLIŞ olurdu — band sürekli ve
+ * kategori yok (İş 3). Gösterilen şey yirmi dört saatlik bandın kendisi ve
+ * iki ucunun ne demek olduğudur.
+ */
+function SaatBandiLejandi() {
+  return (
+    <span className="flex items-center gap-2 text-sm text-ink-muted">
+      <span className="font-mono text-mono-kucuk">00</span>
+      <span
+        className="h-3.5 w-24 rounded-xs border border-rule"
+        style={{
+          backgroundImage: `linear-gradient(to right, ${Array.from(
+            { length: 24 },
+            (_, s) => saatRengi(s),
+          ).join(', ')})`,
+        }}
+        aria-hidden="true"
+      />
+      <span className="font-mono text-mono-kucuk">24</span>
+      <span>saat bandı</span>
+    </span>
   )
 }
 
