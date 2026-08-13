@@ -19,12 +19,16 @@ from app.services.on_kontrol import (
     kesin_bulgular,
     on_kontrol_yap,
 )
+from tests.conftest import blok_talebini_saate_ac
 
 GECE, GUNDUZ, AKSAM = 1, 2, 3
 KAPI, KONTROL_ODASI = 1, 2
 GUVENLIK_GOREVI = 1
 
-_AZAMI_HAFTALIK_SAAT = Decimal(45)
+# Kapasite hesabi artik FAZLA CALISMA ESIGINDEN gecer (SRS 3.3.6): H5'in
+# mutlak tavani (66) surdurulebilir tempo degil, asilamayan sinirdir.
+_FAZLA_CALISMA_ESIGI = Decimal(45)
+_AZAMI_GUNLUK_SAAT = Decimal(11)
 _HAFTALIK_ASGARI_IZIN_GUNU = 1
 
 
@@ -45,7 +49,7 @@ def _bos_baglam() -> Baglam:
         vardiya_tipleri=_vardiya_tipleri(),
         gorev_noktalari={KAPI: GorevNoktasiBilgisi(KAPI, onkosul_yetkinlik_id=GUVENLIK_GOREVI)},
         personel={},
-        talep={},
+        talep_saat=blok_talebini_saate_ac({}, _vardiya_tipleri()),
     )
 
 
@@ -59,12 +63,15 @@ def test_bulgu_yoksa_bos_liste_doner() -> None:
         vardiya_tipleri=_vardiya_tipleri(),
         gorev_noktalari={KAPI: GorevNoktasiBilgisi(KAPI, onkosul_yetkinlik_id=GUVENLIK_GOREVI)},
         personel=personel,
-        talep={(g, GUNDUZ, KAPI): 1 for g in gunler},
+        talep_saat=blok_talebini_saate_ac(
+            {(g, GUNDUZ, KAPI): 1 for g in gunler}, _vardiya_tipleri()
+        ),
     )
     bulgular = on_kontrol_yap(
         baglam,
         gunler,
-        azami_haftalik_saat=_AZAMI_HAFTALIK_SAAT,
+        fazla_calisma_esigi=_FAZLA_CALISMA_ESIGI,
+        azami_gunluk_saat=_AZAMI_GUNLUK_SAAT,
         haftalik_asgari_izin_gunu=_HAFTALIK_ASGARI_IZIN_GUNU,
     )
     assert bulgular == []
@@ -80,12 +87,13 @@ def test_donem_kapasitesi_yetersiz_talep_kadroyu_asinca() -> None:
         vardiya_tipleri=_vardiya_tipleri(),
         gorev_noktalari={KAPI: GorevNoktasiBilgisi(KAPI, onkosul_yetkinlik_id=GUVENLIK_GOREVI)},
         personel=personel,
-        talep=talep,
+        talep_saat=blok_talebini_saate_ac(talep, _vardiya_tipleri()),
     )
     bulgular = on_kontrol_yap(
         baglam,
         gunler,
-        azami_haftalik_saat=_AZAMI_HAFTALIK_SAAT,
+        fazla_calisma_esigi=_FAZLA_CALISMA_ESIGI,
+        azami_gunluk_saat=_AZAMI_GUNLUK_SAAT,
         haftalik_asgari_izin_gunu=_HAFTALIK_ASGARI_IZIN_GUNU,
     )
     assert any(b.tip == BulguTipi.DONEM_KAPASITESI_YETERSIZ for b in bulgular)
@@ -102,12 +110,13 @@ def test_yetkinlik_havuzu_yetersiz_havuz_kucukken() -> None:
             KONTROL_ODASI: GorevNoktasiBilgisi(KONTROL_ODASI, onkosul_yetkinlik_id=GUVENLIK_GOREVI)
         },
         personel=personel,
-        talep=talep,
+        talep_saat=blok_talebini_saate_ac(talep, _vardiya_tipleri()),
     )
     bulgular = on_kontrol_yap(
         baglam,
         gunler,
-        azami_haftalik_saat=_AZAMI_HAFTALIK_SAAT,
+        fazla_calisma_esigi=_FAZLA_CALISMA_ESIGI,
+        azami_gunluk_saat=_AZAMI_GUNLUK_SAAT,
         haftalik_asgari_izin_gunu=_HAFTALIK_ASGARI_IZIN_GUNU,
     )
     ilgili = [b for b in bulgular if b.tip == BulguTipi.YETKINLIK_HAVUZU_YETERSIZ]
@@ -133,12 +142,13 @@ def test_yetkinlik_havuzu_kontrolu_bireysel_izni_hesaba_katar() -> None:
         gorev_noktalari={KAPI: GorevNoktasiBilgisi(KAPI, onkosul_yetkinlik_id=GUVENLIK_GOREVI)},
         personel=personel,
         musaitlik=musaitlik,
-        talep=talep,
+        talep_saat=blok_talebini_saate_ac(talep, _vardiya_tipleri()),
     )
     bulgular = on_kontrol_yap(
         baglam,
         gunler,
-        azami_haftalik_saat=_AZAMI_HAFTALIK_SAAT,
+        fazla_calisma_esigi=_FAZLA_CALISMA_ESIGI,
+        azami_gunluk_saat=_AZAMI_GUNLUK_SAAT,
         haftalik_asgari_izin_gunu=_HAFTALIK_ASGARI_IZIN_GUNU,
     )
     ilgili = [b for b in bulgular if b.tip == BulguTipi.YETKINLIK_HAVUZU_YETERSIZ]
@@ -164,12 +174,13 @@ def test_gunluk_personel_yetersiz_coğu_izinliyken() -> None:
         gorev_noktalari={KAPI: GorevNoktasiBilgisi(KAPI, onkosul_yetkinlik_id=GUVENLIK_GOREVI)},
         personel=personel,
         musaitlik=musaitlik,
-        talep=talep,
+        talep_saat=blok_talebini_saate_ac(talep, _vardiya_tipleri()),
     )
     bulgular = on_kontrol_yap(
         baglam,
         gunler,
-        azami_haftalik_saat=_AZAMI_HAFTALIK_SAAT,
+        fazla_calisma_esigi=_FAZLA_CALISMA_ESIGI,
+        azami_gunluk_saat=_AZAMI_GUNLUK_SAAT,
         haftalik_asgari_izin_gunu=_HAFTALIK_ASGARI_IZIN_GUNU,
     )
     ilgili = [b for b in bulgular if b.tip == BulguTipi.GUNLUK_PERSONEL_YETERSIZ]
@@ -187,12 +198,13 @@ def test_nokta_icin_uygun_personel_yok_yetkinlik_eksikken() -> None:
         vardiya_tipleri=_vardiya_tipleri(),
         gorev_noktalari={KAPI: GorevNoktasiBilgisi(KAPI, onkosul_yetkinlik_id=GUVENLIK_GOREVI)},
         personel=personel,
-        talep=talep,
+        talep_saat=blok_talebini_saate_ac(talep, _vardiya_tipleri()),
     )
     bulgular = on_kontrol_yap(
         baglam,
         gunler,
-        azami_haftalik_saat=_AZAMI_HAFTALIK_SAAT,
+        fazla_calisma_esigi=_FAZLA_CALISMA_ESIGI,
+        azami_gunluk_saat=_AZAMI_GUNLUK_SAAT,
         haftalik_asgari_izin_gunu=_HAFTALIK_ASGARI_IZIN_GUNU,
     )
     ilgili = [b for b in bulgular if b.tip == BulguTipi.NOKTA_ICIN_UYGUN_PERSONEL_YOK]
@@ -246,7 +258,8 @@ def test_donem_gunu_yokken_de_uyari_kaybolmaz() -> None:
     bulgular = on_kontrol_yap(
         _bos_baglam(),
         [],
-        azami_haftalik_saat=Decimal(45),
+        fazla_calisma_esigi=Decimal(45),
+        azami_gunluk_saat=Decimal(11),
         haftalik_asgari_izin_gunu=1,
         aktif_kural_kimlikleri=frozenset(),
     )
@@ -259,7 +272,8 @@ def test_varsayilan_cagri_yapilandirma_uyarisi_uretmez() -> None:
     bulgular = on_kontrol_yap(
         _bos_baglam(),
         [],
-        azami_haftalik_saat=Decimal(45),
+        fazla_calisma_esigi=Decimal(45),
+        azami_gunluk_saat=Decimal(11),
         haftalik_asgari_izin_gunu=1,
     )
     assert bulgular == []

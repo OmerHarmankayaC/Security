@@ -489,26 +489,33 @@ class H10YillikFazlaCalismaKotasi(ZorunluKural):
         kota_dk = int(self.parametreler["yillik_fazla_kotasi"] * 60)
         # Dakika cinsinden calisilir: sure_saat kesirli olabilir, CP-SAT
         # tamsayi katsayi ister ve ayni donusum H5'te de kullaniliyor.
+        # W = DONEMIN DOKUNDUGU takvim haftalari (SRS 4.2 H10). Tumuyle
+        # isitma penceresinde kalan bir hafta W'ye girmez: orasi gecmistir ve
+        # `devir[p]` ile temsil edilir; iki kez sayilmasi kotayi olmadigi
+        # kadar dolu gosterirdi.
+        haftalar = {
+            hafta_basi: gunler
+            for hafta_basi, gunler in takvim_haftalari(baglam.zaman_ekseni).items()
+            if any(baglam.donem_icinde(g) for g in gunler)
+        }
         for p in baglam.personel:
             fazlalar = []
-            for hafta_basi, gunler in sorted(takvim_haftalari(baglam.zaman_ekseni).items()):
-                donem_ici = [g for g in gunler if baglam.donem_icinde(g)]
-                if not donem_ici:
-                    continue
-                # DONEM SINIRINI ASAN HAFTANIN DONEM DISI GUNLERI SABIT
-                # TERIMDIR (TD-6): isitma penceresinden okunur, yoksa sifir.
-                # Hesaba katilmamasi halinde sinirdaki hafta EKSIK olculur ve
-                # kota sessizce asilir - kuralin hic bulunmamasiyla ayni sonuc.
-                sabit_dk = baglam.sabit_calisma_dakikasi(
-                    p, [g for g in gunler if g not in donem_ici]
-                )
+            for hafta_basi, gunler in sorted(haftalar.items()):
+                # HAFTANIN DONEM DISI GUNLERI DE SAYILIR (TD-6). Onlarin y
+                # degiskenleri isitma penceresinde SABITLENMISTIR (SDD 5.3),
+                # dolayisiyla toplama sabit terim olarak girerler. Disarida
+                # birakilmalari halinde donem sinirindaki hafta EKSIK olculur
+                # ve kota sessizce asilir - kuralin hic bulunmamasiyla ayni
+                # sonucu verir. Isitma penceresinden de once kalan gunler
+                # zaman ekseninde bulunmaz ve sifir sayilir.
                 haftalik = sum(
                     baglam.sure_dakika(v) * baglam.y[(p, g, v)]
-                    for g in donem_ici
+                    for g in gunler
                     for v in baglam.vardiya_tipleri
+                    if (p, g, v) in baglam.y
                 )
                 fazla = model.new_int_var(0, 7 * 24 * 60, f"h10_fazla_p{p}_w{hafta_basi}")
-                model.add(fazla >= haftalik + sabit_dk - esik_dk)
+                model.add(fazla >= haftalik - esik_dk)
                 fazlalar.append(fazla)
             if not fazlalar:
                 continue

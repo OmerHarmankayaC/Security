@@ -286,7 +286,6 @@ export interface TalepAraligi {
 export type TalepAraligiYazma = Omit<TalepAraligi, 'talep_id'>
 
 export interface YukGostergesi {
-  haftalik_kisi_vardiya: number
   haftalik_kisi_saat: string
   asgari_kadro: number
 }

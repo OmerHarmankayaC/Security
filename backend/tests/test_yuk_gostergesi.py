@@ -97,6 +97,8 @@ def test_tekil_tarih_istisnasi_haftalik_yuke_girmez() -> None:
         azami_gunluk_saat=Decimal(11),
         haftalik_asgari_izin_gunu=1,
     )
+    # Iddia SAAT cinsinden: kisi-vardiya artik uretilmiyor (FR-1.9).
+    assert yuk.haftalik_kisi_saat == 0
 
 
 def test_resmi_tatil_haftalik_yuke_girmez() -> None:
@@ -117,6 +119,8 @@ def test_resmi_tatil_haftalik_yuke_girmez() -> None:
         azami_gunluk_saat=Decimal(11),
         haftalik_asgari_izin_gunu=1,
     )
+    # Iddia SAAT cinsinden: kisi-vardiya artik uretilmiyor (FR-1.9).
+    assert yuk.haftalik_kisi_saat == 0
 
 
 def test_resmi_tatil_satirlari_haftalik_yuku_degistirmez() -> None:

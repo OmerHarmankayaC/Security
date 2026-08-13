@@ -34,6 +34,16 @@ GECE = 1
 KAPI = 1
 
 
+def _blok_talebi(baglam: Baglam, tarih: date, blok: int, nokta: int, gereken: int) -> None:
+    """Bir blogun kapsadigi HER SAATE ayni talebi yazar.
+
+    Talep saat ekseninde tutuluyor (SDD 5.3); blok eksenli turev Tur 4'te
+    kaldirildi. Testin anlattigi sey degismedi, yalnizca anahtar cevrildi.
+    """
+    for gun, saat in baglam.blok_saatleri(tarih, blok):
+        baglam.talep_saat[(gun, saat, nokta)] = gereken
+
+
 def test_kural_kapsamlari_sdd_5_5_ile_tutarli() -> None:
     """H1-H8 ile S1,S5,S6,S6b,S7,S8 PENCERE; S2,S3,S4 DONEM_GENELI (SDD 5.5, surum 1.3)."""
     pencere_kimlikleri = [
@@ -87,7 +97,7 @@ def test_s2_pencereyle_sinirlanirsa_donem_genelindeki_yuku_yanlis_yonde_hesaplar
         donem_bitis=date(2026, 1, 31),
     )
     for i in range(10):
-        baglam.talep[(date(2026, 1, 1 + i), GECE, KAPI)] = 1
+        _blok_talebi(baglam, date(2026, 1, 1 + i), GECE, KAPI, 1)
     kural = S2GeceAdaleti(parametreler={}, agirlik=2)
 
     degisiklik_gunu = date(2026, 1, 25)
@@ -98,16 +108,21 @@ def test_s2_pencereyle_sinirlanirsa_donem_genelindeki_yuku_yanlis_yonde_hesaplar
         return sum(i.ceza or 0.0 for i in ihlaller if i.personel_id == personel_id)
 
     # Donem geneli (dogru): 10 -> 11 gece, personel zaten tavanin uzerinde -> ceza artar.
+    # ARTIS BIR DEGIL ALTI: S2'nin birimi vardiya sayisindan SAATE dondu
+    # (K12) ve 00.00-08.00 blogunun gece donemiyle (20:00-06:00) kesisimi
+    # alti saattir. Testin olctugu sey degismedi - degisikligin YONU hala
+    # pozitif - yalnizca buyuklugun birimi degisti.
     ceza_once_donem = _ceza(kural.dogrula(on_gece, baglam), 1)
     ceza_sonra_donem = _ceza(kural.dogrula([*on_gece, yeni_gece], baglam), 1)
-    assert ceza_sonra_donem - ceza_once_donem == 1
+    assert ceza_sonra_donem - ceza_once_donem == 6
 
     # Yalnizca pencere (+-7 gun, degisiklik gunu merkezli): on gecenin hicbiri
     # pencereye girmiyor, yeni gece ise giriyor -> 0 -> 1, tavanin cok altinda
     # kalindigi icin ceza AZALIYORMUS gibi gorunur (yanlis yon).
+    # Burada da birim saat: -1 degil -6 (bkz. yukaridaki not).
     ceza_once_pencere = _ceza(kural.dogrula([], baglam), 1)
     ceza_sonra_pencere = _ceza(kural.dogrula([yeni_gece], baglam), 1)
-    assert ceza_sonra_pencere - ceza_once_pencere == -1
+    assert ceza_sonra_pencere - ceza_once_pencere == -6
 
     assert (ceza_sonra_donem - ceza_once_donem) != (ceza_sonra_pencere - ceza_once_pencere)
 
@@ -424,6 +439,9 @@ def test_dogrula_ustan_uca_bir_noktayi_bosaltip_digerini_tasirsa_uyari_verir(
             ]
         )
         _kurali_garantile(oturum, "S1", KuralTipi.ESNEK, {}, 10000)
+        # FAZLA KADRO ARTIK S1f'IN BULGUSU (K4): kayit yoksa kural hic
+        # yuklenmez ve uyari da uretilmez.
+        _kurali_garantile(oturum, "S1f", KuralTipi.ESNEK, {}, 2)
 
         sef = Personel(
             ad_soyad=f"Sef-{on_ek}",
@@ -558,8 +576,6 @@ def _s1_baglami() -> Baglam:
     for saat in range(16, 24):
         baglam.talep_saat[(_S1_PZT, saat, _S1_SEFLIK)] = 1
         baglam.talep_saat[(_S1_PZT, saat, _S1_GUVENLIK)] = 2
-    baglam.talep[(_S1_PZT, _S1_AKSAM, _S1_SEFLIK)] = 1
-    baglam.talep[(_S1_PZT, _S1_AKSAM, _S1_GUVENLIK)] = 2
     return baglam
 
 
@@ -567,14 +583,20 @@ def test_s1_talepten_fazla_kadroyu_gorur() -> None:
     """Bildirilen hata: bir noktaya talepten fazla kisi yazmak sessizce
     kabul ediliyordu.
 
-    `modele_ekle` ayni kisiti cozucuye ZORUNLU olarak ekliyor
+    `modele_ekle` ayni kisiti cozucuye ZORUNLU olarak ekliyordu
     (`Σ_p x <= talep`), `dogrula` ise yalnizca alt sinira bakiyordu. Iki
     yorumlayicinin ayrismasi SDD 3.2.1'e gore yazilim hatasidir.
+
+    TUR 4: ust sinir esnedi (K4) ve fazla kadronun bulgusu S1'den S1f'e
+    tasindi - agirligi ayri oldugu icin kaydi da ayri. Iki kural birlikte
+    hala ayni iki yariyi denetliyor; degisen, hangisinin hangi yarim
+    hakkinda konustugu.
     """
-    from app.kurallar.esnek import S1TalepKarsilama
+    from app.kurallar.esnek import S1fFazlaKadro, S1TalepKarsilama
 
     baglam = _s1_baglami()
     kural = S1TalepKarsilama(parametreler={}, agirlik=10000)
+    fazla_kurali = S1fFazlaKadro(parametreler={}, agirlik=2)
 
     # Sef sefliginden guvenlige cekiliyor: Seflik 0/1, Guvenlik 3/2.
     bozuk = [
@@ -582,26 +604,28 @@ def test_s1_talepten_fazla_kadroyu_gorur() -> None:
         AtamaKaydi(2, _S1_PZT, _S1_AKSAM, _S1_GUVENLIK),
         AtamaKaydi(3, _S1_PZT, _S1_AKSAM, _S1_GUVENLIK),
     ]
-    ihlaller = kural.dogrula(bozuk, baglam)
-    metinler = [i.aciklama for i in ihlaller]
+    metinler = [i.aciklama for i in kural.dogrula(bozuk, baglam)]
+    fazla_metinleri = [i.aciklama for i in fazla_kurali.dogrula(bozuk, baglam)]
 
-    assert any("fazla" in m for m in metinler), metinler
     assert any("eksik" in m for m in metinler), metinler
+    assert any("fazla" in m for m in fazla_metinleri), fazla_metinleri
 
 
 def test_fazla_kadro_ceza_uretmez_uyari_uretir() -> None:
     """Fazla kadronun cezasi YOKTUR ve olmamalidir.
 
-    SRS 4.4'teki amac fonksiyonunda fazla kadroya karsilik gelen bir terim
-    bulunmuyor (cozucu tarafinda kisit, ceza degil). Buraya bir sayi
-    uydurmak, cozucunun hicbir zaman hesaplamayacagi bir buyuklugu ceza
-    dokumune sokar ve iki yorumlayici ayni cizelge icin farkli toplam
-    uretirdi.
+    TUR 4'TE AMAC FONKSIYONUNA `w1f` GIRDI (K4) ve cozucu artik fazla
+    kadroyu cezalandiriyor. MANUEL DUZENLEME TARAFI DEGISMEDI: vardiya
+    yoneticisi devir, egitim veya gecici takviye icin talebin uzerine
+    bilerek cikabilir ve sistem bunu bir hata gibi gostermez. Iki tarafin
+    farkli davranmasi bilinclidir ve SRS 4.3'te yazilidir - cozucu KENDI
+    urettigi fazlayi en aza indirmeye calisir, kullanicinin yazdigini
+    sorgulamaz.
     """
-    from app.kurallar.esnek import S1TalepKarsilama
+    from app.kurallar.esnek import S1fFazlaKadro
 
     baglam = _s1_baglami()
-    kural = S1TalepKarsilama(parametreler={}, agirlik=10000)
+    kural = S1fFazlaKadro(parametreler={}, agirlik=2)
 
     # Seflik tam dolu, Guvenlik'te bir fazla: TEK sapma fazla kadro.
     fazla = [

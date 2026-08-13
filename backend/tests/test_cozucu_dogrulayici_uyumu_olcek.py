@@ -31,6 +31,7 @@ from app.kurallar import (
 )
 from app.kurallar.kayit_defteri import bul
 from app.models.kural import KuralTipi
+from tests.conftest import blok_talebini_saate_ac
 
 ORNEK_SAYISI = 24  # Gun 14: "rastgele 20+ ornek"
 TOHUM = 20260814  # Sabit tohum: basarisiz bir ornek birebir yeniden uretilebilsin.
@@ -47,7 +48,7 @@ _H_PARAMETRELERI = {
     "H2": {"asgari_dinlenme_saati": 16},
     "H3": {"azami_ardisik_gece": 3},
     "H4": {"azami_ardisik_calisma_gunu": 6},
-    "H5": {"azami_haftalik_saat": 45},
+    "H5": {"haftalik_mutlak_tavan": 66},
     "H6": {"haftalik_asgari_izin_gunu": 1},
     "H7": {},
     "H8": {},
@@ -128,7 +129,7 @@ def _rastgele_ornek(rastgele: random.Random, sira: int) -> tuple[Baglam, list[da
         vardiya_tipleri=dict(_VARDIYA_TIPLERI),
         gorev_noktalari=noktalar,
         personel=personel,
-        talep=talep,
+        talep_saat=blok_talebini_saate_ac(talep, dict(_VARDIYA_TIPLERI)),
         donem_baslangic=gunler[0],
         donem_bitis=gunler[-1],
     )

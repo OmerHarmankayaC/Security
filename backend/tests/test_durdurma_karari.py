@@ -53,7 +53,7 @@ _KURALLAR: list[tuple[str, KuralTipi, dict, int | None]] = [
     ("H2", KuralTipi.ZORUNLU, {"asgari_dinlenme_saati": 16}, None),
     ("H3", KuralTipi.ZORUNLU, {"azami_ardisik_gece": 3}, None),
     ("H4", KuralTipi.ZORUNLU, {"azami_ardisik_calisma_gunu": 6}, None),
-    ("H5", KuralTipi.ZORUNLU, {"azami_haftalik_saat": 45}, None),
+    ("H5", KuralTipi.ZORUNLU, {"haftalik_mutlak_tavan": 66}, None),
     ("H6", KuralTipi.ZORUNLU, {"haftalik_asgari_izin_gunu": 1}, None),
     ("H7", KuralTipi.ZORUNLU, {}, None),
     ("H8", KuralTipi.ZORUNLU, {}, None),
