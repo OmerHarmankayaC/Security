@@ -9,6 +9,100 @@ başlar.
 
 ---
 
+## 2026-08-13 — Tur 5: Gerçek Saatlik Model — **SÜRÜYOR**
+
+Kaynak: `docs/turlar/CLAUDE_CODE_PROMPTU_TUR5.md`. Yedi iş. Çalışma
+`tur5-saatlik-model` dalında yürüyor.
+
+Doküman sürümleri turun başında doğrulandı: Charter **1.4**, SRS **1.19**,
+SDD **1.27**, Backlog **1.16** — dördü de taşıyor.
+
+### İş 1 — prototip ölçümü: **karar kuralı geçildi, devam**
+
+Karar kuralı: 40 × 28 ölçeğinde ilk uygun çözüme ulaşma süresi 30 saniyeyi
+aşarsa dur. **Aşmadı — 5,0 saniye.** Tam uygulamaya geçiliyor.
+
+Sondaj `backend/scripts/saatlik_prototip.py`. Modelde yalnızca mutlak saat
+ekseni, `bas` göstergesi, günde tek başlangıç, asgari süre, nokta sabitliği,
+günlük tavan ve S1 var; başka kural yok. Talep SRS 3.3.4'ün Müracaat'sız
+tablosudur ve kadroya göre `P/40` ile ölçeklenir — aksi hâlde on kişilik bir
+kadro kırk kişilik talebi karşılamaya çalışır ve ölçülen şey çözüm süresi
+değil kapsama açığı olurdu. Şef havuzu `max(3, 7·P/40)`: kesintisiz
+doldurulan bir nokta haftada 168 kişi-saat ister, günlük tavan on bir
+saattir, dolayısıyla üç kişinin altındaki bir havuz noktayı hiçbir çizelgeyle
+kapatamaz.
+
+Arama işçisi SDD 3.4.3 referansına sabit (3), makine macOS arm64 / 10
+çekirdek — `kabul_olcumu.py` ile aynı sözleşme.
+
+| Ölçek | Değişken | Kurma | **İlk uygun** | Optimale | Sonuç |
+|---|---|---|---|---|---|
+| 10 × 7 | 7.224 | 0,10 sn | **0,25 sn** | 0,45 sn | optimal, ceza 0 |
+| 20 × 14 | 28.224 | 0,38 sn | **1,12 sn** | 4,63 sn | optimal, ceza 0 |
+| 30 × 28 | 84.000 | 1,15 sn | **3,71 sn** | 28,63 sn | optimal, ceza 0 |
+| 40 × 28 | 112.224 | 1,69 sn | **5,02 sn** | 56,03 sn | optimal, ceza 0 |
+
+40 × 28 iki kez daha koşuldu: ilk uygun 4,93 ve 5,08 sn; optimale 44,6 ve
+45,2 sn. İlk uygun süre kararlı.
+
+**Ölçüm boşuna hızlı olmasın diye çıkan çizelge denetlendi** (`--denetle`).
+Sondaj hızlı çözüyorsa iki açıklama vardır — formülasyon ucuzdur ya da kısıt
+yanlış yazıldığı için model gerçekte kolaydır — ve ikisini ayırmanın tek yolu
+sonuca bakmaktır. Dört ölçekte de: asgari süreden kısa blok yok, günlük
+tavanı aşan blok yok, gün içinde ikinci blok yok, blok içinde nokta değişimi
+yok. 40 × 28'de **96 blok gece yarısını aşıyor** — mutlak eksenin var oluş
+nedeni tam olarak bu.
+
+### İki sapma — nedenleri önce
+
+**1. Günlük saat, duvar saatine değil bloğun başladığı güne yazılıyor.**
+SRS H1 ve H9 günlük toplamı `Σ_{s ∈ gün d} z[p,s]` diye yazar; H9'un metni
+ise aynı paragrafta "gece yarısını aşan bloğun saatleri başladığı güne
+sayılır (TD-1); ertesi günün tavanı bu saatlerle dolmaz" der. İkisi aynı şey
+değildir ve formülün duvar saati okunması **iki kuralı da bozar**:
+
+- **H9 blok uzunluğunu sınırlayamaz.** 20.00–08.00 bloğu duvar saatinde
+  4 + 8 saattir; ikisi de on bir tavanın altında kalır ve on iki saatlik blok
+  geçer.
+- **H1'in asgari süresi akşam başlangıçlarını yasaklar.** 21.00'de başlayan
+  bir blok o güne yalnızca üç saat bırakır ve `≥ 4 · bas` kısıtı düşer —
+  oysa gece kapsamasının ihtiyaç duyduğu bloklar tam olarak bunlardır.
+
+Metin normatiftir, gösterim kısaltmadır: "gün d" bloğun sayıldığı gündür.
+Gün başına saat bu yüzden devralınan saatler çıkarılıp taşan saatler
+eklenerek hesaplanıyor (`devir[p,s]` göstergesi: "bu saat çalışılıyor ve
+önceki günde başlamış bir bloğa ait"). Maliyeti ölçüme dahil — tam uygulama
+da aynı yapıyı taşıyacak. Bu, aşağıdaki doküman borcunun birinci maddesidir.
+
+**2. H9 sondaja dahil edildi.** Prompt "diğer kuralları ekleme" diyor;
+günlük tavan olmadan çözücü günde yirmi dört saat çalıştırabilir, kapsama
+bedelsiz kapanır ve ölçülen süre gerçek modelin süresi olmaz. H9 ayrıca
+SRS 3.3.1'de asgari blok süresiyle **aynı üç parametreli çerçeve** içinde
+tanımlı: alt sınır ve üst sınır birlikte bloğun çerçevesini çizer.
+
+### K1 için erken uyarı — optimale ulaşma 45–56 sn
+
+Karar kuralı ilk uygun çözümü ölçer ve rahat geçiyor. Ama **optimale ulaşma
+süresi 40 × 28'de 45–56 saniye** ve K1'in eşiği 60 saniye. Tur 4'te aynı
+kriter 1,01 saniyeydi (blok kataloğuyla). Saat modeli optimallik kanıtında
+yaklaşık **elli kat** pahalı ve tam modelde on beş kural daha eklenecek.
+
+Bu bir durdurma nedeni değil — K1 pratikte zaman limitli bir aramanın
+sonucunu ölçer ve ilk uygun çözüm beş saniyede geliyor — ama turun kabul
+ölçümünde K1'in **ne ölçtüğüne** dikkat edilecek: "60 saniyede optimal" ile
+"60 saniyede kabul edilebilir çözüm" aynı şey değil ve saat modelinde ikisi
+ilk kez ayrışıyor.
+
+### DOKÜMAN BORCU — bir yeni madde
+
+1. **SRS H1 / H9 — `Σ_{s ∈ gün d} z[p,s]` gösterimi belirsiz.** Sembol duvar
+   saatini mi bloğun sayıldığı günü mü gösterdiğini söylemiyor; H9'un metni
+   ikincisini söylüyor, formül birincisi gibi okunuyor. Uygulama metne
+   uyuyor. Gösterimin (SRS 4.1) "gün d" tanımını açıkça bloğun başlangıç
+   gününe bağlaması gerekiyor.
+
+---
+
 ## 2026-08-13 — Tur 4: Kural Kataloğu — **BİTTİ**
 
 Kaynak: `docs/turlar/CLAUDE_CODE_PROMPTU_TUR4.md`, `TUR4_DEVAM.md` ve
