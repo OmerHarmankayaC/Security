@@ -118,7 +118,7 @@ _KURAL_TANIMLARI: list[dict] = [
     {
         "kimlik": "H5",
         "tip": KuralTipi.ZORUNLU,
-        "parametreler": {"azami_haftalik_saat": 45},
+        "parametreler": {"haftalik_mutlak_tavan": 66},
         "agirlik": None,
     },
     {
@@ -129,6 +129,18 @@ _KURAL_TANIMLARI: list[dict] = [
     },
     {"kimlik": "H7", "tip": KuralTipi.ZORUNLU, "parametreler": {}, "agirlik": None},
     {"kimlik": "H8", "tip": KuralTipi.ZORUNLU, "parametreler": {}, "agirlik": None},
+    {
+        "kimlik": "H9",
+        "tip": KuralTipi.ZORUNLU,
+        "parametreler": {"azami_gunluk_saat": 11},
+        "agirlik": None,
+    },
+    {
+        "kimlik": "H10",
+        "tip": KuralTipi.ZORUNLU,
+        "parametreler": {"fazla_calisma_esigi": 45, "yillik_fazla_kotasi": 270},
+        "agirlik": None,
+    },
     # Agirlik kalibrasyonu (PROGRESS.md, Ek Gorev - agirlik kalibrasyonu turu):
     # S1 agirligi, digerlerinin agirlikli toplam katkisindan belirgin buyuk olmali
     # (SRS S1, "baskin agirlik" ilkesi) - 1000 Sikisik senaryoda S1-haric agirlikli
@@ -137,11 +149,18 @@ _KURAL_TANIMLARI: list[dict] = [
     # S4'unku SAAT (bir vardiya=8 saat); w4, vardiya-esdegeri basina S4'un
     # S2/S3 kadar onemli sayilmasi icin ~w2/8 olacak sekilde dusuruldu.
     {"kimlik": "S1", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 10000},
+    # w1f = 2 (K4 baslangic degeri). Kesin olan `w1f << w1` bagintisidir.
+    {"kimlik": "S1f", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 2},
     {"kimlik": "S2", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 10},
     {"kimlik": "S3", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 8},
     {"kimlik": "S4", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 1},
     {"kimlik": "S5", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 12},
-    {"kimlik": "S6", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 4},
+    {
+        "kimlik": "S6",
+        "tip": KuralTipi.ESNEK,
+        "parametreler": {"desen_toleransi_saat": 2},
+        "agirlik": 4,
+    },
     # S6b (bina tutarliligi) bu senaryoda pasif: nokta sadelestirmesinden beri butun
     # gorev noktalari tesis geneli (bina_id NULL), bina degisimi fiziksel olarak
     # imkansiz oldugundan S6b modelde daima 0 katki verir. Kural katalogda kalir -

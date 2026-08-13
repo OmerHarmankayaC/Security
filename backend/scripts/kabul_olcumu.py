@@ -134,10 +134,12 @@ _KURAL_PARAMETRELERI: dict[str, dict[str, Any]] = {
     "H2": {"asgari_dinlenme_saati": 16},
     "H3": {"azami_ardisik_gece": 3},
     "H4": {"azami_ardisik_calisma_gunu": 6},
-    "H5": {"azami_haftalik_saat": 45},
+    "H5": {"haftalik_mutlak_tavan": 66},
     "H6": {"haftalik_asgari_izin_gunu": 1},
     "H7": {},
     "H8": {},
+    "H9": {"azami_gunluk_saat": 11},
+    "H10": {"fazla_calisma_esigi": 45, "yillik_fazla_kotasi": 270},
 }
 
 

@@ -39,16 +39,13 @@ from app.schemas.tanim import (
 from app.services.vardiya_hesaplari import gece_mi_oner, sure_saat_hesapla
 from app.services.yuk_gostergesi import yuk_gostergesi_hesapla
 
-_VARSAYILAN_AZAMI_HAFTALIK_SAAT = Decimal(45)
 _VARSAYILAN_HAFTALIK_ASGARI_IZIN_GUNU = 1
 
-# GECICI. Gunluk azami calisma saati, H9 kural katalogunda yazildiginda
-# oradan okunacak (bkz. `azami_gunluk_calisma_saati`); H9 Tur 4'un isi ve bu
-# turda kural kataloguna dokunulmuyor. Deger burada duruyor ki blok
-# katalogunun kisiti bir tur boyunca beklemesin. Kural yazildiginda BU
-# SABITIN SILINMESI gerekir - iki yerde duran bir sayi, birbirinden sessizce
-# ayrilir (PROGRESS_V2, "Gecici yapilandirma degeri").
-_GECICI_AZAMI_GUNLUK_CALISMA_SAATI = 11
+# SRS 3.3.5 varsayilanlari. Kural kaydi bulunamadiginda kullanilir; deger
+# artik KURAL KATALOGUNDAN (H9, H10) okunuyor ve Tur 3'teki gecici sabit
+# kaldirildi.
+_VARSAYILAN_AZAMI_GUNLUK_SAAT = 11
+_VARSAYILAN_FAZLA_CALISMA_ESIGI = 45
 
 
 class KuralParametresiError(ValueError):
@@ -198,18 +195,14 @@ class TanimServisi:
     def azami_gunluk_calisma_saati(self) -> Decimal:
         """Bir calisma blogunun asamayacagi uzunluk.
 
-        Deger KURAL KATALOGUNDAN okunur: H9 (gunluk azami calisma) Tur 4'te
-        yazilacak ve ayni parametreyi kullanacak; katalogda kural yoksa
-        `parametre_getir` varsayilana duser. Blok kataloguyla H9'un ayri
-        sayilar tasimasi, girisi gecen bir blogun cozumde her seferinde
-        ihlal uretmesi demek olurdu.
+        Blok katalogu kisiti (FR-1.3) ile H9 AYNI degeri okur; iki ayri sayi
+        tanimlanmaz (SRS 4.2 H9). Ayrisirlarsa girisi gecen bir blok cozumde
+        her gun ayni ihlali uretir.
         """
         return Decimal(
             str(
                 self.kural.parametre_getir(
-                    "H9",
-                    "azami_gunluk_calisma_saati",
-                    varsayilan=_GECICI_AZAMI_GUNLUK_CALISMA_SAATI,
+                    "H9", "azami_gunluk_saat", varsayilan=_VARSAYILAN_AZAMI_GUNLUK_SAAT
                 )
             )
         )
@@ -344,19 +337,26 @@ class TanimServisi:
                     f"{aralik_metni(komsu.baslangic, komsu.bitis)} aralığıyla çakışıyor"
                 )
 
-    def _yuk_gostergesi_hesapla(self, hucreler: list[Talep]) -> YukGostergesi:
-        vardiya_tipleri = {v.vardiya_tipi_id: v for v in self.vardiya_tipi.tumunu_getir()}
-        azami_haftalik_saat = self.kural.parametre_getir(
-            "H5", "azami_haftalik_saat", varsayilan=_VARSAYILAN_AZAMI_HAFTALIK_SAAT
-        )
-        haftalik_asgari_izin_gunu = self.kural.parametre_getir(
-            "H6",
-            "haftalik_asgari_izin_gunu",
-            varsayilan=_VARSAYILAN_HAFTALIK_ASGARI_IZIN_GUNU,
-        )
+    def _yuk_gostergesi_hesapla(self, talep_satirlari: list[Talep]) -> YukGostergesi:
+        """Asgari kadro FAZLA CALISMA ESIGINDEN hesaplanir (SRS 3.3.6).
+
+        H5'in mutlak tavani (66) bu hesaba girmez: 66 saatle bolmek kadroyu,
+        hicbir zaman ulasilmamasi gereken bir calisma temposuna gore
+        boyutlandirirdi.
+        """
         return yuk_gostergesi_hesapla(
-            hucreler,
-            vardiya_tipleri,
-            azami_haftalik_saat=Decimal(azami_haftalik_saat),
-            haftalik_asgari_izin_gunu=int(haftalik_asgari_izin_gunu),
+            talep_satirlari,
+            fazla_calisma_esigi=Decimal(
+                self.kural.parametre_getir(
+                    "H10", "fazla_calisma_esigi", varsayilan=_VARSAYILAN_FAZLA_CALISMA_ESIGI
+                )
+            ),
+            azami_gunluk_saat=Decimal(self.azami_gunluk_calisma_saati()),
+            haftalik_asgari_izin_gunu=int(
+                self.kural.parametre_getir(
+                    "H6",
+                    "haftalik_asgari_izin_gunu",
+                    varsayilan=_VARSAYILAN_HAFTALIK_ASGARI_IZIN_GUNU,
+                )
+            ),
         )

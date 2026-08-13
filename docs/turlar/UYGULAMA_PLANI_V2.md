@@ -4,7 +4,7 @@ Bu doküman, projenin ikinci geliştirme aşamasını turlara böler. Her tur ba
 bir Claude Code oturumu olacak biçimde tasarlanmıştır: net bir hedefi, hangi
 doküman bölümüne dayandığı ve bittiğini nasıl anlayacağı (kabul) yazılıdır.
 
-Birinci aşamanın planı `UYGULAMA_PLANI.md`'dir (aynı klasörde) ve kapanmıştır. Bu
+Birinci aşamanın planı `docs/turlar/UYGULAMA_PLANI.md`'dir ve kapanmıştır. Bu
 doküman onun yerine geçmez, devamıdır: bölüm 0'daki genel kurallar oradan aynen
 geçerlidir ve aşağıda yalnızca **değişen veya eklenen** kurallar yazılmıştır.
 
@@ -110,7 +110,17 @@ yazılması.
 **Dayanak:** K4, K5, K6, K7, K8, K9, K12, K13; SRS 4.2, 4.3, 4.4 (güncellenmiş
 hâlleri).
 
+- **İlk iş B-22** — testler arası veri sızıntısı; bu tur çok sayıda yeni tanım
+  testi getiriyor.
+- `blok_gorunumu_uret` türevi kaldırılır (Tur 3'ün geçici köprüsü; karışık
+  katalogda sessizce yanlış hesaplar).
 - K16'daki genişletilmiş blok kataloğu (10 ve 12 saatlik bloklar) devreye girer.
+- **Gösterim verisi kadrosu talebe göre boyutlandırılır** ve dört senaryoya çıkar;
+  gerçekçi personel adları bu turda gelir. Planın önceki hâlinde bu iş Tur 7'deydi
+  — kuralların işlediğini gösteremeyen bir gösterim verisiyle turun kabulü
+  ölçülemez, bu nedenle öne alındı. Tur 5'e kalan kısım: arka arkaya iki
+  yayınlanmış dönem ve devir bakiyesi senaryosu (`GecmisSayaclar`'a bağlı).
+- Çizelge hücresi blok adı yerine saat aralığı gösterir.
 - H5 → kayan yedi günlük mutlak tavan; 45 saat H10'un eşik parametresine taşınır.
 - H9 (günlük azami saat) ve H10 (yıllık fazla çalışma kotası) yazılır. H10'un
   takvim haftası kümeleri, kayan pencerelerden **ayrı** bir yardımcıda hesaplanır
@@ -175,20 +185,21 @@ görüntüleniyor, analiz ekranında kota göstergesi doğru sayıları veriyor.
 
 ---
 
-## Tur 7 — Demo Veri
+## Tur 7 — Gösterim Verisinin Tamamlanması
 
-**Hedef:** yeni düzeni gösterebilen, bugünkünden zengin bir gösterim verisi.
+**Hedef:** Tur 4 ve Tur 5'te kurulan senaryoların üzerine, kümülatif davranışı
+gösteren tarihsel derinlik.
 
-- Gerçekçi personel adları (madde 5).
-- En az dört senaryo: rahat dönem · sıkışık dönem (mevcut kırılganlık mekanizması)
-  · **fazla çalışma senaryosu** (12 saatlik bloklarla kota tüketen) · **kota sınırı
-  senaryosu** (devir bakiyesi yüksek personel içeren).
-- Isıtma penceresi ve kümülatif adaleti gösterebilmek için arka arkaya **en az iki
-  yayınlanmış dönem**.
-- Üreteç bayrakları SRS'ten birebir alır, öneri kurallarını uygulamaz (K5).
+Gösterim verisinin büyük kısmı Tur 4'te (dört senaryo, gerçekçi adlar, kadro
+dengesi) ve Tur 5'te (devir bakiyesi senaryosu) gelir. Bu tura kalan:
 
-**Kabul:** `demo_veri_uret.py --reset` sonrası dört senaryo da arayüzden çözülüp
-farklı davranışları gösteriyor; kota göstergesi en az bir personelde sınıra yakın.
+- Arka arkaya **en az üç yayınlanmış dönem**, adalet ufkunun (90 gün) gerçekten
+  dolduğu bir geçmiş.
+- Isıtma penceresinin dönem sınırında görünür etkisini gösteren bir kurgu.
+- Tercih, izin ve manuel düzenleme izlerinin gerçekçi dağılımı.
+
+**Kabul:** Üçüncü dönem çözüldüğünde adalet sayaçları önceki iki dönemin yükünü
+görüyor ve bu Analiz ekranında okunabiliyor.
 
 ---
 

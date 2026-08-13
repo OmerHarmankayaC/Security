@@ -14,6 +14,7 @@ from itertools import product
 from typing import Any
 
 from app.kurallar.zaman_araligi import aralik_saatleri as _aralik_saatleri
+from app.kurallar.zaman_araligi import gece_saat_sayisi
 from app.models.girdi import MusaitlikDilimi, TercihTipi
 
 
@@ -46,6 +47,11 @@ class PersonelBilgisi:
     aktif_bitis: date | None = None
     yetkinlikler: frozenset[int] = frozenset()
     haftalik_hedef_saat: float = 0.0
+    # H10: kota yilinin basindan bu doneme kadar birikmis fazla calisma
+    # saati. BU TURDA personel kaydindaki alandan gelir; yayinlanmis
+    # surumlerden turetme Tur 5'in isi (`GecmisSayaclar`), o zaman ikisi
+    # TOPLANIR - alan turetilen degerin yerine gecmez (TD-6).
+    devir_fazla_calisma_saat: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,13 +93,6 @@ class Baglam:
     # araligidir; acilim `talebi_saate_ac`ta bir kez yapilir ve bes tuketici
     # ayni ciktiyi kullanir. Kapsama kisiti (S1) bu eksende yazilir.
     talep_saat: dict[tuple[date, int, int], int] = field(default_factory=dict)
-    # BLOK EKSENLI TUREV — (tarih, vardiya_tipi_id, nokta_id) -> gereken.
-    # `talep_saat`ten `blok_gorunumu_uret` ile TEK YERDE turetilir; ikinci
-    # bir tanim degildir. S2, S3 ve S4 talebi hala vardiya biriminde okudugu
-    # ve bu turda kural katalogu degismedigi icin duruyor (Tur 4'te kalkar).
-    # TUREV TEK UZUNLUKLU HIZALI KATALOG VARSAYAR: farkli uzunlukta bloklar
-    # girdiginde bu alan sessizce yanlislasir (bkz. `blok_gorunumu_uret`).
-    talep: dict[tuple[date, int, int], int] = field(default_factory=dict)
     donem_baslangic: date | None = None
     donem_bitis: date | None = None
     ozel_gunler: frozenset[date] = frozenset()
@@ -110,10 +109,16 @@ class Baglam:
     # donem, zaman_ekseni, y)").
     zaman_ekseni: list[date] = field(default_factory=list)
     y: dict[tuple[int, date, int], Any] = field(default_factory=dict)
-    # S1TalepKarsilama.modele_ekle tarafindan doldurulur: (tarih, vardiya_tipi_id,
+    # S1TalepKarsilama.modele_ekle tarafindan doldurulur: (tarih, saat,
     # nokta_id) -> eksik IntVar'i. Cozumden sonra kapsama_acigi tablosuna yazilacak
     # degerleri okumak icin (SDD 5.4: 'cozum.eksik_degiskenleri').
     kapsama_eksikleri: dict[tuple[date, int, int], Any] = field(default_factory=dict)
+    # Ayni saatlerin FAZLA kadro degiskenleri; fazla_kadro tablosuna yazilir.
+    kapsama_fazlalari: dict[tuple[date, int, int], Any] = field(default_factory=dict)
+    # S1f'in ceza terimini kurabilmesi icin: gruplanmis fazla degiskeni ->
+    # (degisken, grubun saat sayisi). S1 ile S1f AYNI gruplamayi paylasir;
+    # ikinci bir gruplama yazmak ayni hesabi iki yerde tutmak olurdu.
+    kadro_fazlalari: dict[tuple[date, int, int], tuple[Any, int]] = field(default_factory=dict)
 
     def vardiya_araligi(self, tarih: date, vardiya_tipi_id: int) -> tuple[datetime, datetime]:
         """Vardiyanin mutlak baslangic/bitis zamani (TD-1: vardiya baslangic gunune yazilir)."""
@@ -143,6 +148,22 @@ class Baglam:
 
     def sure_saat(self, vardiya_tipi_id: int) -> float:
         return self.vardiya_tipleri[vardiya_tipi_id].sure_saat
+
+    def devir_fazla_calisma_saat(self, personel_id: int) -> float:
+        """H10'un `devir[p]`i. Personel baglamda yoksa sifir."""
+        bilgi = self.personel.get(personel_id)
+        return bilgi.devir_fazla_calisma_saat if bilgi is not None else 0.0
+
+    def gece_saat(self, vardiya_tipi_id: int) -> int:
+        """Blogun gece donemiyle (20:00-06:00) kesisen saat sayisi (TD-2).
+
+        `gece_mi` BAYRAGIYLA KARISTIRILMAMALI: bayrak "bu bir gece nobeti
+        midir" sorusunun ikili yanitidir ve H3 onu kullanir; buradaki olcu
+        surekli bir buyukluktur ve S2 onu kullanir. Hesap tek yerde
+        (`zaman_araligi.gece_saat_sayisi`).
+        """
+        vt = self.vardiya_tipleri[vardiya_tipi_id]
+        return gece_saat_sayisi(vt.baslangic_saati, vt.bitis_saati)
 
     def sure_dakika(self, vardiya_tipi_id: int) -> int:
         """CP-SAT tamsayi katsayi gerektirdigi icin sure_saat'in dakika cinsinden tam sayisi."""
@@ -191,10 +212,6 @@ class Baglam:
     def vardiya_adi(self, vardiya_tipi_id: int) -> str:
         vardiya = self.vardiya_tipleri.get(vardiya_tipi_id)
         return (vardiya.ad if vardiya and vardiya.ad else "") or f"#{vardiya_tipi_id} nolu blok"
-
-    def gereken_sayi(self, tarih: date, vardiya_tipi_id: int, nokta_id: int) -> int:
-        """BLOK eksenli gereken sayi (turev gorunum; bkz. `talep` alani)."""
-        return self.talep.get((tarih, vardiya_tipi_id, nokta_id), 0)
 
     def gereken_sayi_saat(self, tarih: date, saat: int, nokta_id: int) -> int:
         """SAAT eksenli gereken sayi — kapsama kisitinin (S1) tabani."""
@@ -288,6 +305,9 @@ class Baglam:
         """SRS S2/S3'teki P_gece / P_hs: ilgili talebi bulunan EN AZ BIR gorev
         noktasinin on kosulunu (H8) karsilayan personel.
 
+        Yuklem SAAT EKSENLI talebe uygulanir: anahtar `(tarih, saat, nokta_id)`.
+        S2 icin "saat gece donemine dusuyor mu", S3 icin "tarih hafta sonu mu".
+
         Neden gerekli: yetkinligi geregi o talebin bulundugu hicbir noktada
         calisamayan personel, sayisi hicbir cizelgede sifirdan yukari
         cikamayacagi icin paydaya dahil edildiginde KALICI olarak "hedefin
@@ -302,10 +322,8 @@ class Baglam:
         """
         uygun_noktalar = {
             nokta_id
-            for (tarih, vardiya_tipi_id, nokta_id), gereken in self.talep.items()
-            if gereken > 0
-            and self.donem_icinde(tarih)
-            and talep_uygun_mu((tarih, vardiya_tipi_id, nokta_id))
+            for (tarih, saat, nokta_id), gereken in self.talep_saat.items()
+            if gereken > 0 and self.donem_icinde(tarih) and talep_uygun_mu((tarih, saat, nokta_id))
         }
         havuz: set[int] = set()
         for personel_id, bilgi in self.personel.items():

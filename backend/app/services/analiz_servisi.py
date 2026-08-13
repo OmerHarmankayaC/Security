@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.kurallar.baglam import AtamaKaydi
 from app.kurallar.esnek import S4_OLCEK, S6bBinaTutarliligi, s4_hedef_paylari_x10
+from app.kurallar.zaman_araligi import gece_saati_mi
 from app.models.girdi import TercihTipi
 from app.models.sonuc import Atama
 from app.models.tanim import Personel
@@ -136,7 +137,8 @@ class AnalizServisi:
         # olcume dahil edilmez, aksi halde kalici olarak ortalamanin altinda
         # gorunur. Havuz tanimi Baglam.uygun_havuz'da tek yerde durur;
         # cozucu, dogrulayici ve Analiz ayni tabani kullanir.
-        gece_havuzu = baglam.uygun_havuz(lambda anahtar: baglam.gece_mi(anahtar[1]))
+        # Yuklem SAAT EKSENLI talebe uygulanir (anahtar: tarih, saat, nokta).
+        gece_havuzu = baglam.uygun_havuz(lambda anahtar: gece_saati_mi(anahtar[1]))
         hs_havuzu = baglam.uygun_havuz(lambda anahtar: baglam.hafta_sonu_mu(anahtar[0]))
 
         kisi_basina_gece = [

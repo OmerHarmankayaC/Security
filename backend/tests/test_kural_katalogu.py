@@ -15,16 +15,25 @@ _BEKLENEN_ADLAR = {
     "H2": "Asgari dinlenme süresi",
     "H3": "Ardışık gece üst sınırı",
     "H4": "Ardışık çalışma günü üst sınırı",
-    "H5": "Kayan yedi günlük saat tavanı",
+    # Tur 4 (K6): kirk bes saat artik tavan degil, H10'un ESIGI. H5 dinlenme
+    # amacli mutlak siniri korur ve varsayilani 66'ya cikti.
+    "H5": "Kayan yedi günlük mutlak tavan",
     "H6": "Haftalık asgari izin günü",
     "H7": "Müsaitlik",
     "H8": "Ön koşul yetkinliği",
+    # Tur 4: K7 ve K8.
+    "H9": "Günlük azami çalışma süresi",
+    "H10": "Yıllık fazla çalışma kotası",
     "S1": "Talep karşılama",
+    # Tur 4 (K4): S1'in ust siniri esnedi; agirligi ayri oldugu icin kural
+    # kaydi da ayri (S6/S6b ile ayni bolme).
+    "S1f": "Fazla kadro",
     "S2": "Gece adaleti",
     "S3": "Hafta sonu adaleti",
     "S4": "Toplam saat dengesi",
     "S5": "Tercih karşılama",
-    "S6": "Vardiya deseni tutarlılığı",
+    # Tur 4 (K13): olcu blok kimligi degil BASLANGIC SAATI kaymasi.
+    "S6": "Çalışma deseni tutarlılığı",
     # 06.08.2026 karari: S6, S6 ve S6b olarak ikiye bolundu.
     "S6b": "Bina tutarlılığı",
     "S7": "İzole gün",
@@ -117,7 +126,7 @@ def test_sinir_disi_deger_reddedilir() -> None:
     assert "en az" in str(alt.value)
 
     with pytest.raises(KuralParametresiError) as ust:
-        _servis().kural_parametrelerini_dogrula("H5", {"azami_haftalik_saat": 200})
+        _servis().kural_parametrelerini_dogrula("H5", {"haftalik_mutlak_tavan": 200})
     assert "en fazla" in str(ust.value)
 
 

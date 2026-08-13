@@ -9,7 +9,8 @@ from app.repositories.sonuc import DonemDeposu
 from app.services.baglam_kurucu import baglam_olustur, donem_gunlerini_uret
 from app.services.on_kontrol import Bulgu, on_kontrol_yap
 
-_VARSAYILAN_AZAMI_HAFTALIK_SAAT = Decimal(45)
+_VARSAYILAN_FAZLA_CALISMA_ESIGI = Decimal(45)
+_VARSAYILAN_AZAMI_GUNLUK_SAAT = Decimal(11)
 _VARSAYILAN_HAFTALIK_ASGARI_IZIN_GUNU = 1
 
 
@@ -27,9 +28,16 @@ class OnKontrolServisi:
 
         baglam = baglam_olustur(self.oturum, donem)
         donem_gunleri = donem_gunlerini_uret(donem.baslangic_tarihi, donem.bitis_tarihi)
-        azami_haftalik_saat = Decimal(
+        # Kapasite hesabi FAZLA CALISMA ESIGINDEN gecer (SRS 3.3.6): H5'in
+        # mutlak tavani (66) surdurulebilir tempo degil, asilamayan sinirdir.
+        fazla_calisma_esigi = Decimal(
             self.kural.parametre_getir(
-                "H5", "azami_haftalik_saat", varsayilan=_VARSAYILAN_AZAMI_HAFTALIK_SAAT
+                "H10", "fazla_calisma_esigi", varsayilan=_VARSAYILAN_FAZLA_CALISMA_ESIGI
+            )
+        )
+        azami_gunluk_saat = Decimal(
+            self.kural.parametre_getir(
+                "H9", "azami_gunluk_saat", varsayilan=_VARSAYILAN_AZAMI_GUNLUK_SAAT
             )
         )
         haftalik_asgari_izin_gunu = int(
@@ -42,7 +50,8 @@ class OnKontrolServisi:
         return on_kontrol_yap(
             baglam,
             donem_gunleri,
-            azami_haftalik_saat=azami_haftalik_saat,
+            fazla_calisma_esigi=fazla_calisma_esigi,
+            azami_gunluk_saat=azami_gunluk_saat,
             haftalik_asgari_izin_gunu=haftalik_asgari_izin_gunu,
             aktif_kural_kimlikleri=frozenset(k.kimlik for k in self.kural.aktif_kurallari_getir()),
         )

@@ -265,9 +265,13 @@ class TalepOku(BaseModel):
 
 
 class YukGostergesi(BaseModel):
-    """FR-1.9: talep matrisinden hesaplanan haftalik yuk ve asgari kadro buyuklugu."""
+    """FR-1.9: talepten hesaplanan haftalik yuk ve asgari kadro buyuklugu.
 
-    haftalik_kisi_vardiya: int
+    HESAP SAAT TABANLIDIR ve kisi-vardiya karsiligi GOSTERILMEZ: karisik
+    uzunluklu bir katalogda o sayi katalogun bilesimine baglidir ve ayni
+    talep icin farkli sayilar uretir (SRS 3.3.6, FR-1.9).
+    """
+
     haftalik_kisi_saat: Decimal
     asgari_kadro: int
 

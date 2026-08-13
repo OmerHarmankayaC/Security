@@ -24,7 +24,7 @@ from app.kurallar.baglam import (
 from app.models.girdi import Musaitlik, Tercih, TercihDurumu
 from app.models.sonuc import Donem
 from app.models.tanim import GorevNoktasi, OzelGun, Personel, Talep, VardiyaTipi, Yetkinlik
-from app.services.talep_cozucu import blok_gorunumu_uret, talebi_saate_ac
+from app.services.talep_cozucu import talebi_saate_ac
 
 
 def donem_gunlerini_uret(baslangic: date, bitis: date) -> list[date]:
@@ -97,6 +97,10 @@ def baglam_olustur(
             p.aktif_bitis,
             frozenset(y.yetkinlik_id for y in p.yetkinlikler),
             haftalik_hedef_saat=float(p.haftalik_hedef_saat),
+            # H10'un `devir[p]`i (TD-6). Bu turda TEK KAYNAK personel
+            # kaydidir; yayinlanmis surumlerden turetme Tur 5'te eklenip
+            # buna EKLENECEK, yerine gecmeyecek.
+            devir_fazla_calisma_saat=float(p.devir_fazla_calisma_saat),
         )
         for p in oturum.execute(select(Personel)).scalars().all()
     }
@@ -132,13 +136,12 @@ def baglam_olustur(
 
     zaman_ekseni = zaman_ekseni_olustur(donem, isitma_penceresi_gun=isitma_penceresi_gun)
     talep_satirlari = oturum.execute(select(Talep)).scalars().all()
-    # Saat ekseni TEK KAYNAK (SDD 5.3); blok gorunumu ondan turetilir.
-    # TUREV TEK UZUNLUKLU VE HIZALI BIR KATALOG VARSAYAR (bkz.
-    # `blok_gorunumu_uret`): Tur 4'te 10 ve 12 saatlik bloklar girdiginde
-    # sessizce yanlis hesaplamaya baslar. Duzeltilecek yer burasi degil -
-    # S2/S3 saat eksenine tasindiginda bu satir tumuyle kalkar.
+    # Saat ekseni TEK KAYNAK (SDD 5.3). Blok eksenli turev (Tur 3'un gecici
+    # koprusu) KALDIRILDI: S2, S3 ve S4 artik talebi dogrudan saat uzerinden
+    # okuyor. Turev bir blogun gerekenini "kapsadigi saatlerdeki en buyuk
+    # gereken" olarak aliyordu ve bu yalnizca hizali katalogda dogruydu;
+    # karisik uzunluklu katalogda sessizce yanlis hesaplardi.
     talep_saat = talebi_saate_ac(talep_satirlari, zaman_ekseni, ozel_gunler)
-    talep = blok_gorunumu_uret(talep_saat, vardiya_tipleri)
 
     return Baglam(
         vardiya_tipleri=vardiya_tipleri,
@@ -146,7 +149,6 @@ def baglam_olustur(
         personel=personel,
         musaitlik=musaitlik,
         talep_saat=talep_saat,
-        talep=talep,
         donem_baslangic=donem.baslangic_tarihi,
         donem_bitis=donem.bitis_tarihi,
         ozel_gunler=ozel_gunler,
