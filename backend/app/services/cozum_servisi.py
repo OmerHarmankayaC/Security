@@ -371,9 +371,7 @@ def cozum_isini_calistir(oturum: Session, is_id: int) -> None:
         # sabitlenir (bkz. model_kur'un kilitli_atamalar parametresi).
         onceki_atama_satirlari = atama_depo.surume_gore_getir(surum.onceki_surum_id)
         baglam.onceki_atamalar = atama_kayitlarina_cevir(onceki_atama_satirlari)
-        kilitli_atamalar = atama_kayitlarina_cevir(
-            [a for a in onceki_atama_satirlari if a.kilitli]
-        )
+        kilitli_atamalar = atama_kayitlarina_cevir([a for a in onceki_atama_satirlari if a.kilitli])
 
     # SDD 4.2.4 "devam et" ipucu: kendi sutunundan okunur ve BURADA
     # BOSALTILMAZ. Bosaltma is sonlandiginda yapilir (`_isi_sonlandir`);
@@ -650,8 +648,7 @@ def _ipucunu_al(is_kaydi: CozumIsi) -> list[AtamaKaydi] | None:
         return None
     veri = CozumYazmaVerisi.jsondan(is_kaydi.cozum_ipucu)
     return [
-        AtamaKaydi(personel_id=p, baslangic=b, bitis=s, nokta_id=n)
-        for p, b, s, n in veri.atamalar
+        AtamaKaydi(personel_id=p, baslangic=b, bitis=s, nokta_id=n) for p, b, s, n in veri.atamalar
     ]
 
 

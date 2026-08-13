@@ -60,5 +60,3 @@ def tercih_bildir(
     if sonuc is None:
         raise HTTPException(status_code=404, detail="Personel bulunamadi")
     return sonuc
-
-

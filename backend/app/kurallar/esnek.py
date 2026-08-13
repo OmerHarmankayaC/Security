@@ -882,8 +882,7 @@ def s4_hedef_paylari(baglam: Baglam, donem_gun_sayisi: float) -> dict[int, float
     if toplam_hedef <= 0:
         return dict.fromkeys(hedef_saatler, 0.0)
     return {
-        p: hedef_saat / toplam_hedef * toplam_talep_saat
-        for p, hedef_saat in hedef_saatler.items()
+        p: hedef_saat / toplam_hedef * toplam_talep_saat for p, hedef_saat in hedef_saatler.items()
     }
 
 

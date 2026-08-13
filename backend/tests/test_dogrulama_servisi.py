@@ -15,7 +15,6 @@ from sqlalchemy import select
 
 from app.db import OturumYerel
 from app.kurallar import (
-    AtamaKaydi,
     Baglam,
     GorevNoktasiBilgisi,
     PersonelBilgisi,

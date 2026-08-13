@@ -309,9 +309,7 @@ class CalisanServisi:
             return "karsilanmadi"
         istenen = saat_kumesi(tercih_baslangic, tercih_bitis)
         karsilandi = all(
-            an.hour in istenen
-            for blok in bloklar
-            for an in atama_kaydina_cevir(blok).saatler()
+            an.hour in istenen for blok in bloklar for an in atama_kaydina_cevir(blok).saatler()
         )
         return "karsilandi" if karsilandi else "karsilanmadi"
 

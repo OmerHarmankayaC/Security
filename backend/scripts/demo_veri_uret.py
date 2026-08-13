@@ -230,9 +230,7 @@ def _her_seyi_temizle(oturum: Session) -> TemizlikSonucu:
 
 
 def _yetkinlikleri_olustur(oturum: Session) -> dict[str, Yetkinlik]:
-    yetkinlikler = {
-        ad: Yetkinlik(ad=ad) for ad in (GUVENLIK_GOREVI, VARDIYA_SEFI)
-    }
+    yetkinlikler = {ad: Yetkinlik(ad=ad) for ad in (GUVENLIK_GOREVI, VARDIYA_SEFI)}
     oturum.add_all(yetkinlikler.values())
     oturum.flush()
     return yetkinlikler

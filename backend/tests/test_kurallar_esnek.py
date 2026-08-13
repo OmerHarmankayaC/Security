@@ -407,9 +407,7 @@ def test_s1_modele_ekle_karsilanamayan_talep_icin_eksigi_zorunlu_kilar(baglam: B
     baglam.donem_baslangic = _G
     baglam.donem_bitis = _G
     _saat_talebi(baglam, _G, 8, 8, KAPI, 2)
-    degiskenler = {
-        (1, saat, KAPI): model.new_bool_var(f"x_{saat}") for saat in range(8, 16)
-    }
+    degiskenler = {(1, saat, KAPI): model.new_bool_var(f"x_{saat}") for saat in range(8, 16)}
 
     kural = S1TalepKarsilama(parametreler={})
     terim = kural.modele_ekle(model, degiskenler, baglam)

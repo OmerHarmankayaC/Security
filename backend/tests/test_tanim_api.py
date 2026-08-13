@@ -62,10 +62,6 @@ def test_bina_crud(istemci: TestClient) -> None:
     assert istemci.delete(f"/api/bina/{bina_id}").status_code == 204
 
 
-
-
-
-
 def test_personel_yetkinlik_nokta_talep_zinciri(istemci: TestClient) -> None:
     """Gun 4 kabul kriteri: personel+yetkinlik+gorev noktasi+talep zinciri API'den kurulur."""
     yetkinlik_yaniti = istemci.post(
@@ -209,8 +205,6 @@ def test_kullanim_sayimi_kayit_turu_kiriliminda(istemci: TestClient) -> None:
         "personel yetkinliği": 2,
         "görev noktası ön koşulu": 1,
     }
-
-
 
 
 def test_pasif_tanim_yeni_cozume_girmez_mevcut_surumde_gorunur() -> None:
@@ -443,14 +437,6 @@ def test_ozel_gun_liste_tarihe_gore_sirali(istemci: TestClient) -> None:
 def test_olmayan_ozel_gun_404(istemci: TestClient) -> None:
     assert istemci.delete("/api/ozel-gun/2099-01-01").status_code == 404
     assert istemci.put("/api/ozel-gun/2099-01-01", json={"ad": "x"}).status_code == 404
-
-
-
-
-
-
-
-
 
 
 def test_devir_bakiyesi_alanlari_personel_uzerinden_yazilir(istemci: TestClient) -> None:

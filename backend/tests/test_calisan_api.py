@@ -352,7 +352,6 @@ def test_ilk_yayinda_hicbir_gun_isaretlenmez() -> None:
                 surum_id=surum.surum_id,
                 personel_id=personel.personel_id,
                 baslangic_zamani=datetime.combine(BUGUN, time(8, 0)),
-
                 bitis_zamani=datetime.combine(BUGUN, time(16, 0)),
                 nokta_id=nokta.nokta_id,
                 kaynak=AtamaKaynagi.COZUCU,

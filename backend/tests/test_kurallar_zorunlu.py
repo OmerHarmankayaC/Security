@@ -132,9 +132,7 @@ def test_h2_yeterli_dinlenme_ihlal_vermez(baglam: Baglam) -> None:
 
 
 def test_h3_dort_ardisik_gece_gunu_ihlal_verir(baglam: Baglam) -> None:
-    kural = H3ArdisikGeceUstSiniri(
-        parametreler={"azami_ardisik_gece": 3, "gece_esigi_saat": 4}
-    )
+    kural = H3ArdisikGeceUstSiniri(parametreler={"azami_ardisik_gece": 3, "gece_esigi_saat": 4})
     # 00.00–08.00: sekiz saatin altisi gece penceresinde (00–06).
     atamalar = [blok(1, _BIR_GUN + timedelta(days=i), 0, 8, GUVENLIK) for i in range(4)]
     ihlaller = kural.dogrula(atamalar, baglam)
@@ -143,9 +141,7 @@ def test_h3_dort_ardisik_gece_gunu_ihlal_verir(baglam: Baglam) -> None:
 
 
 def test_h3_uc_ardisik_gece_gunu_ihlal_vermez(baglam: Baglam) -> None:
-    kural = H3ArdisikGeceUstSiniri(
-        parametreler={"azami_ardisik_gece": 3, "gece_esigi_saat": 4}
-    )
+    kural = H3ArdisikGeceUstSiniri(parametreler={"azami_ardisik_gece": 3, "gece_esigi_saat": 4})
     atamalar = [blok(1, _BIR_GUN + timedelta(days=i), 0, 8, GUVENLIK) for i in range(3)]
     assert kural.dogrula(atamalar, baglam) == []
 
@@ -158,9 +154,7 @@ def test_h3_esigin_altinda_gece_saati_gece_gunu_saymaz(baglam: Baglam) -> None:
     gun bile ihlal uretmez. Eski kural gece BAYRAGINA bakiyordu ve bayrak
     blok tanimlanirken elle isaretlendigi icin bu ayrimi yapamiyordu.
     """
-    kural = H3ArdisikGeceUstSiniri(
-        parametreler={"azami_ardisik_gece": 3, "gece_esigi_saat": 4}
-    )
+    kural = H3ArdisikGeceUstSiniri(parametreler={"azami_ardisik_gece": 3, "gece_esigi_saat": 4})
     atamalar = [blok(1, _BIR_GUN + timedelta(days=i), 4, 8, GUVENLIK) for i in range(4)]
     assert kural.dogrula(atamalar, baglam) == []
 
@@ -171,9 +165,7 @@ def test_h3_gece_saati_blogun_basladigi_gune_yazilir(baglam: Baglam) -> None:
     Duvar saatine yazilsaydi ayni blok iki ayri gunu gece gunu yapar ve iki
     ardisik gece blogu dort gece gunu gibi gorunurdu.
     """
-    kural = H3ArdisikGeceUstSiniri(
-        parametreler={"azami_ardisik_gece": 3, "gece_esigi_saat": 4}
-    )
+    kural = H3ArdisikGeceUstSiniri(parametreler={"azami_ardisik_gece": 3, "gece_esigi_saat": 4})
     atamalar = [blok(1, _BIR_GUN + timedelta(days=i), 20, 10, GUVENLIK) for i in range(3)]
     assert kural.dogrula(atamalar, baglam) == []
 
@@ -217,9 +209,7 @@ def test_h6_yedi_gun_ust_uste_calisinca_ihlal_verir(baglam: Baglam) -> None:
 
 def test_h6_haftada_bir_izin_gunuyle_ihlal_vermez(baglam: Baglam) -> None:
     kural = H6HaftalikAsgariIzinGunu(parametreler={"haftalik_asgari_izin_gunu": 1})
-    atamalar = [
-        blok(1, _BIR_GUN + timedelta(days=i), 8, 8, GUVENLIK) for i in range(7) if i != 5
-    ]
+    atamalar = [blok(1, _BIR_GUN + timedelta(days=i), 8, 8, GUVENLIK) for i in range(7) if i != 5]
     assert kural.dogrula(atamalar, baglam) == []
 
 
@@ -228,9 +218,7 @@ def test_h6_haftada_bir_izin_gunuyle_ihlal_vermez(baglam: Baglam) -> None:
 
 def test_h7_izinli_gunde_atama_ihlal_verir(baglam: Baglam) -> None:
     kural = H7Musaitlik(parametreler={})
-    baglam.musaitlik.append(
-        MusaitlikKaydi(1, _BIR_GUN, _BIR_GUN, MusaitlikDilimi.TAM_GUN)
-    )
+    baglam.musaitlik.append(MusaitlikKaydi(1, _BIR_GUN, _BIR_GUN, MusaitlikDilimi.TAM_GUN))
     ihlaller = kural.dogrula([blok(1, _BIR_GUN, 8, 8, GUVENLIK)], baglam)
     assert [i.kural_kimlik for i in ihlaller] == ["H7"]
 
@@ -243,9 +231,7 @@ def test_h7_ogleden_once_izinli_personel_aksam_calisabilir(baglam: Baglam) -> No
     once izinli bir personel 16.00'da baslayan bloga atanabilir.
     """
     kural = H7Musaitlik(parametreler={})
-    baglam.musaitlik.append(
-        MusaitlikKaydi(1, _BIR_GUN, _BIR_GUN, MusaitlikDilimi.OGLEDEN_ONCE)
-    )
+    baglam.musaitlik.append(MusaitlikKaydi(1, _BIR_GUN, _BIR_GUN, MusaitlikDilimi.OGLEDEN_ONCE))
     assert kural.dogrula([blok(1, _BIR_GUN, 16, 8, GUVENLIK)], baglam) == []
     assert kural.dogrula([blok(1, _BIR_GUN, 8, 8, GUVENLIK)], baglam) != []
 
@@ -361,9 +347,7 @@ def test_h10_kayan_pencere_degil_takvim_haftasi_kullanir(baglam: Baglam) -> None
         parametreler={"fazla_calisma_esigi": 45, "yillik_fazla_kotasi": 20}
     )
     # Her iki takvim haftasinda 3 x 12 = 36 saat; ikisi de esigin altinda.
-    atamalar = [
-        blok(1, _PZT + timedelta(days=i), 8, 12, GUVENLIK) for i in (-3, -2, -1, 0, 1, 2)
-    ]
+    atamalar = [blok(1, _PZT + timedelta(days=i), 8, 12, GUVENLIK) for i in (-3, -2, -1, 0, 1, 2)]
     assert kural.dogrula(atamalar, baglam) == []
 
 
@@ -394,9 +378,7 @@ def test_h1_modele_ekle_gunde_iki_blogu_engeller() -> None:
         donem_bitis=_BIR_GUN,
     )
     model, x, baglam, _ = _tek_gunluk_model(baglam, gunler)
-    H1GundeTekKesintisizCalisma(parametreler={"asgari_blok_saat": 4}).modele_ekle(
-        model, x, baglam
-    )
+    H1GundeTekKesintisizCalisma(parametreler={"asgari_blok_saat": 4}).modele_ekle(model, x, baglam)
 
     # Sabah dort saat, aksam dort saat: iki ayri baslangic.
     for saat in (8, 9, 10, 11, 18, 19, 20, 21):
@@ -510,9 +492,7 @@ def test_isitma_penceresi_gercekten_sabitlenir() -> None:
     baglam = Baglam(
         gorev_noktalari={GUVENLIK: GorevNoktasiBilgisi(GUVENLIK)},
         personel={1: PersonelBilgisi(1, date(2026, 1, 1), None, frozenset())},
-        talep_saat={
-            (g, saat, GUVENLIK): 1 for g in (isitma, donem) for saat in range(24)
-        },
+        talep_saat={(g, saat, GUVENLIK): 1 for g in (isitma, donem) for saat in range(24)},
         donem_baslangic=donem,
         donem_bitis=donem,
     )
@@ -529,8 +509,7 @@ def test_isitma_penceresi_gercekten_sabitlenir() -> None:
 
     cozucu = cp_model.CpSolver()
     assert cozucu.solve(model) == cp_model.INFEASIBLE, (
-        "Isitma penceresinin bos saatleri de sabittir; cozucu gecmise calisma "
-        "ekleyememeli."
+        "Isitma penceresinin bos saatleri de sabittir; cozucu gecmise calisma " "ekleyememeli."
     )
 
 

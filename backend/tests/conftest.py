@@ -249,7 +249,6 @@ def oturumlu_istemci(rol: Rol = Rol.YONETIM, *, personel_id: int | None = None) 
     return istemci
 
 
-
 # --- Saat ekseni yardimcilari (Tur 5) ---------------------------------------
 #
 # Blok katalogu kalktigi icin testler artik "su blok" diyemez; calisma bir
