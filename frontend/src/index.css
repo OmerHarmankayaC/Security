@@ -275,4 +275,13 @@ select {
   .yazdirma-tablo tr {
     break-inside: avoid;
   }
+
+  /* Her gün kendi sayfasında başlar (Tur 6 İş 5). Uzun dönemde günleri
+     art arda akıtmak, bir günün ızgarasını sayfa ortasından bölüp okuyucuyu
+     iki sayfa arasında saat sayarken bırakıyordu. Gün içindeki BÖLÜNME
+     serbesttir — otuz altı personel zaten tek sayfaya sığmaz — ve saat
+     başlığı `thead` olduğu için her sayfada yeniden basılır. */
+  .yazdirma-sayfa-basi {
+    break-before: page;
+  }
 }

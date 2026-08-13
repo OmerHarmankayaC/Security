@@ -7,7 +7,7 @@ import type {
   KapsamaAcigi,
   Personel,
 } from '@/api/types'
-import { baslangicSaati, bitisSaati, geceSaati, saatEtiketi } from './blok'
+import { geceSaati, saatEtiketi } from './blok'
 import { saatiCoz } from './talepAraligi'
 import { haftaSonuMu } from './tarih'
 
@@ -62,6 +62,13 @@ export interface CizelgeVerisi {
  * kendisi bir zaman aralığı (SRS TD-13). `gece_mi` ise bayrak olmaktan
  * çıkıp `gece_saat`e döndü — gece HESAPLANIR, işaretlenmez (TD-2) ve
  * ölçünün birimi saattir.
+ *
+ * BAŞLANGIÇ VE BİTİŞ TAM ISO DAMGASIDIR (Tur 6). Saat metni ("20.00",
+ * "06.00") insan içindir ve bu dosyanın okuyucusu makinedir: `tarih` sütunu
+ * yanında "20.00; 06.00" gören bir okuyucu, bitişin ertesi güne düştüğünü
+ * hiçbir biçimde çıkaramaz — gece yarısını aşan blok tam da bu dosyada
+ * görünmez olurdu. Damga sunucudan geldiği gibi yazılır, yeniden
+ * türetilmez; saat dilimi ofseti de böylece korunur.
  */
 const CIZELGE_BASLIKLARI = [
   'tarih',
@@ -152,8 +159,8 @@ export function cizelgeCsvOlustur(veri: CizelgeVerisi): string {
         a.tarih,
         personel?.sicil_no ?? '',
         personel?.ad_soyad ?? '',
-        saatEtiketi(baslangicSaati(a.baslangic_zamani)),
-        saatEtiketi(bitisSaati(a.bitis_zamani)),
+        a.baslangic_zamani,
+        a.bitis_zamani,
         veri.noktaMap.get(a.nokta_id)?.ad ?? '',
         geceSaati(a.baslangic_zamani, a.sure_saat),
         haftaSonuMu(a.tarih) ? 'evet' : 'hayir',

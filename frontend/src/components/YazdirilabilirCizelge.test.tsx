@@ -113,6 +113,19 @@ function ciz(atamalar: Atama[], acikSatirlari: KapsamaAcigi[] = []) {
   )
 }
 
+/**
+ * Kapsama açığı tablosu, gün ızgaralarının SONUNDA durur ve sayısı döneme
+ * göre değişir; sabit bir dizinle seçilmesi dönem uzunluğuna bağımlı bir test
+ * üretirdi. Tablo kendi başlığından bulunur.
+ */
+function acikTablosunuBul(): HTMLElement {
+  const tablo = screen
+    .getAllByRole('table')
+    .find((t) => within(t).queryByRole('columnheader', { name: 'Görev Noktası' }) !== null)
+  if (!tablo) throw new Error('Kapsama açığı tablosu bulunamadı')
+  return tablo
+}
+
 describe('YazdirilabilirCizelge — başlık', () => {
   it('dönemi, sürüm numarasını ve üretim tarihini yazar', () => {
     ciz(ATAMALAR)
@@ -132,32 +145,69 @@ describe('YazdirilabilirCizelge — başlık', () => {
   })
 })
 
-describe('YazdirilabilirCizelge — matris', () => {
-  it('dönemdeki her gün için bir sütun başlığı üretir', () => {
+describe('YazdirilabilirCizelge — gün ızgarası (Tur 6 İş 5)', () => {
+  it('dönemdeki her gün için ayrı bir ızgara basar', () => {
+    const { container } = ciz(ATAMALAR)
+    expect(container.querySelectorAll('.yazdirma-tablo')).toHaveLength(7)
+    expect(screen.getByRole('heading', { name: /02 Şubat Pazartesi/ })).toBeDefined()
+    expect(screen.getByRole('heading', { name: /08 Şubat Pazar · hafta sonu/ })).toBeDefined()
+  })
+
+  it('SAAT BAŞLIĞI taşır — gün başlığı değil', () => {
     ciz(ATAMALAR)
     const izgara = screen.getAllByRole('table')[0]!
     const basliklar = within(izgara).getAllByRole('columnheader')
-    // Personel sütunu + yedi gün.
-    expect(basliklar).toHaveLength(8)
-    expect(basliklar[1]?.textContent).toContain('PZT 2')
-    expect(basliklar[7]?.textContent).toContain('PAZ 8')
+    // Personel sütunu + yirmi dört saat.
+    expect(basliklar).toHaveLength(25)
+    expect(basliklar[1]?.textContent).toBe('00')
+    expect(basliklar[24]?.textContent).toBe('23')
+  })
+
+  it('saat başlığı her günün tablosunun THEAD ında durur', () => {
+    // Tablo sayfaya bölündüğünde tarayıcı `thead`i her sayfada yeniden
+    // basar; başlık `tbody`ye konsaydı ikinci sayfadaki şeritler hangi
+    // saate denk geldiğini kaybederdi.
+    const { container } = ciz(ATAMALAR)
+    const theadlar = container.querySelectorAll('.yazdirma-tablo thead')
+    expect(theadlar).toHaveLength(7)
   })
 
   it('yalnızca ataması olan personeli satıra alır', () => {
     ciz([ATAMALAR[0]!])
-    expect(screen.getByText('Ayşe Şahin')).toBeDefined()
-    expect(screen.queryByText('Mehmet Çınar')).toBeNull()
+    expect(screen.getAllByText(/Ayşe Şahin/).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/Mehmet Çınar/)).toBeNull()
   })
 
-  it('hücrede saat aralığını ve görev noktası kısaltmasını gösterir', () => {
+  it('şeridin üzerinde saat aralığı ve nokta kısaltması METİN olarak durur', () => {
     const { container } = ciz(ATAMALAR)
-    // Blok ADI yerine SAAT ARALIĞI (SRS TD-13): blok adı diye bir şey yok,
-    // tek okunabilir bilgi sürenin kendisi. Nokta kısaltması kalır — A4
-    // genişliğine tam adlar sığmıyor (SDD 6.3.3).
-    expect(container.textContent).toContain('08–16')
-    expect(container.textContent).toContain('00–08')
+    // Renk tek başına bilgi taşımaz; tarayıcı arka plan basmayabilir
+    // (SDD 6.3.3). Blok ADI diye bir şey yok (SRS TD-13), okunabilir tek
+    // bilgi sürenin kendisi.
+    expect(container.textContent).toContain('08.00–16.00')
+    expect(container.textContent).toContain('00.00–08.00')
     expect(container.textContent).toContain('GÜV')
     expect(container.textContent).toContain('VŞ')
+  })
+
+  it('şerit, bloğun saatlerine denk gelen yerde ve genişlikte durur', () => {
+    const { container } = ciz([ATAMALAR[0]!])
+    const serit = [...container.querySelectorAll<HTMLElement>('td div[style*="left"]')].find(
+      (d) => d.textContent?.includes('08.00–16.00'),
+    )
+    expect(serit?.style.left).toBe(`${(8 / 24) * 100}%`)
+    expect(serit?.style.width).toBe(`${(8 / 24) * 100}%`)
+  })
+
+  it('gün toplamı bloğun BAŞLADIĞI güne yazılır (SRS TD-1)', () => {
+    const { container } = ciz([ATAMALAR[0]!])
+    // Sayı ayrı bir mono <span>'da durur (düz cümle asla Mono değildir), o
+    // yüzden satırın tamamı textContent üzerinden okunur.
+    const adHucreleri = [...container.querySelectorAll('.yazdirma-tablo tbody td:first-child')]
+    const ayseninGunleri = adHucreleri
+      .map((h) => h.textContent ?? '')
+      .filter((m) => m.startsWith('Ayşe Şahin'))
+    // Yedi günün yalnız BİRİNDE toplam yazar — blok başladığı güne sayılır.
+    expect(ayseninGunleri.filter((m) => m.includes('8sa'))).toEqual(['Ayşe Şahin · 8sa'])
   })
 
   it('personeli ada göre sıralar', () => {
@@ -166,8 +216,16 @@ describe('YazdirilabilirCizelge — matris', () => {
     const adlar = within(izgara)
       .getAllByRole('row')
       .slice(1)
-      .map((satir) => satir.firstElementChild?.textContent)
+      // Ad hücresi günlük toplamı da taşır ("Ayşe Şahin · 8sa"); sıralamayı
+      // ölçen test toplamdan etkilenmemeli.
+      .map((satir) => satir.firstElementChild?.textContent?.split(' · ')[0])
     expect(adlar).toEqual(['Ayşe Şahin', 'Mehmet Çınar'])
+  })
+
+  it('ilk gün dışındaki her gün yeni sayfada başlar', () => {
+    const { container } = ciz(ATAMALAR)
+    // Yedi günden altısı + kapsama açığı bölümü.
+    expect(container.querySelectorAll('.yazdirma-sayfa-basi')).toHaveLength(7)
   })
 })
 
@@ -183,9 +241,9 @@ describe('YazdirilabilirCizelge — kapsama açıkları', () => {
       acik(1, '2026-02-02', 0, 20, 2),
       acik(2, '2026-02-05', 8, 21, 1),
     ])
-    expect(screen.getByText('2 hücrede toplam 3 kişi eksik.')).toBeDefined()
+    expect(screen.getByText('2 aralıkta toplam 3 kişi eksik.')).toBeDefined()
 
-    const acikTablosu = screen.getAllByRole('table')[1]!
+    const acikTablosu = acikTablosunuBul()
     const satirlar = within(acikTablosu).getAllByRole('row').slice(1)
     expect(satirlar).toHaveLength(2)
     expect(satirlar[0]?.textContent).toContain('2 Şubat 2026')
@@ -199,9 +257,7 @@ describe('YazdirilabilirCizelge — kapsama açıkları', () => {
       acik(1, '2026-02-06', 8, 20, 1),
       acik(2, '2026-02-02', 8, 20, 1),
     ])
-    const satirlar = within(screen.getAllByRole('table')[1]!)
-      .getAllByRole('row')
-      .slice(1)
+    const satirlar = within(acikTablosunuBul()).getAllByRole('row').slice(1)
     expect(satirlar[0]?.textContent).toContain('2 Şubat 2026')
     expect(satirlar[1]?.textContent).toContain('6 Şubat 2026')
   })
@@ -216,7 +272,7 @@ describe('YazdirilabilirCizelge — baskı kancaları', () => {
     expect(container.querySelector('.yazdirma-tablo thead')).not.toBeNull()
   })
 
-  it('boş çizelgede bile çöker değil, matris iskeleti basılır', () => {
+  it('boş çizelgede bile çöker değil, ızgara iskeleti basılır', () => {
     ciz([])
     expect(screen.getAllByRole('table')[0]).toBeDefined()
     expect(screen.getByText('Bu sürümde kapsama açığı yok.')).toBeDefined()
