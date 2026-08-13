@@ -9,6 +9,141 @@ başlar.
 
 ---
 
+## 2026-08-13 — Dağıtım: Tur 1–6 birikimi — **TAMAMLANDI**
+
+Gösterim sunucusuna (46.225.109.40) çıkıldı. Kesinti penceresi
+**19:26–19:31 (~5 dk)**; `vera-rag`, `energy-api` ve ortak PostgreSQL'e
+dokunulmadı, üçü de boyunca ayakta kaldı.
+
+### Runbook'un üç varsayımı tutmadı — sıra buna göre düzeltildi
+
+**1. Sunucu kodu git ile çekmiyor.** `/opt/vardiya` bir git deposu değil
+(hiçbir alt dizininde `.git` yok), `frontend/` dizini yok (derlenmiş arayüz
+`web/` altında) ve sunucuda **Node kurulu değil**. Yani "git fetch + merge
+--ff-only" ve "sunucuda npm run build" adımları koşamazdı. Yürürlükteki
+yordam `deploy/DAGITIM.md`'de kayıtlı ve altı dağıtımdır aynı: **yerelde
+derle, `rsync` ile gönder, sonra `chown -R vardiya:vardiya`**. Bu, "dağıtım
+sunucunun çektiği koddan yapılır" cümlesini tersine çevirir — dağıtılan şey
+yerel çalışma ağacıdır, o yüzden önce `HEAD == origin/main == 4d8b5d7` ve
+`git status` boş olduğu doğrulandı.
+
+**2. Göç durumu farklıydı.** `alembic current` = `e7b2c4915d80`, yani:
+
+| Göç | Runbook | Gerçek |
+|---|---|---|
+| `d1f83a6c40b2` (talep → aralık) | bekliyor | zaten uygulanmış (12.08) |
+| `e7b2c4915d80` (kural parametre adları) | bekliyor, kodla gitmeli | zaten uygulanmış; sunucudaki kod da o dönemin koduydu, tutarlıydı |
+| `f2a8c561d94b` (atama → blok, `vardiya_tipi` düşer) | — | **bekleyen tek göç** |
+
+Dolayısıyla "eski kod / yeni parametre" `KeyError` penceresi bu dağıtımda
+hiç oluşmadı; risk yalnızca veri dönüşümü ve tablo düşürmedeydi.
+
+**3. `pg_dump "$VERITABANI_URL"` düşerdi.** Değer `postgresql+psycopg://`
+ile başlıyor — SQLAlchemy'nin biçimi, libpq'nun değil. `DAGITIM.md` bunu
+bir kez yaşanmış tuzak olarak kaydetmiş ("pg_dump düştü, alembic devam
+etti"). Kullanılan biçim:
+`PGURL=$(printf %s "$VERITABANI_URL" | sed 's|+psycopg||')`.
+Yedek dizini de `/root` değil `/opt/vardiya/yedek/`.
+
+Ayrıca runbook'un girişi "durdur → yedek", numaralı adımları "yedek →
+durdur" diyordu; girişteki sıra izlendi (çalışan servis yedeğin ortasında
+yazabilir).
+
+### Uygulanan sıra
+
+1. Yerelde `npm run build` + **231 vitest** + **341 pytest** (10 dk 28 sn)
+2. Bitmemiş çözüm işi kontrolü (yok) → `systemctl stop vardiya-cozucu`, `vardiya-api`
+3. **Parola rotasyonu** (aşağıda) — proje yürütücüsü koştu
+4. Yedek: `/opt/vardiya/yedek/vardiya-20260813-1928-tur6oncesi.dump`,
+   **85K**, `pg_restore -l` ile denetlendi: 165 nesne, 20 tablo verisi
+5. `rsync`: `frontend/dist/` → `web/` (35 dosya), `backend/` → `backend/`
+   (66 dosya). `--delete` yalnız iki dosya sildi: Tur 5'te kaldırılan
+   `app/services/vardiya_hesaplari.py` ve testi. `.env`, `.venv`,
+   `__pycache__` hariç tutuldu. Ardından `chown -R vardiya:vardiya`.
+6. `pip install -e .` → çıkış 0
+7. `alembic upgrade head` → tek göç koştu, çıkış 0
+
+### `alembic current` — önce / sonra
+
+```
+önce : e7b2c4915d80
+sonra: f2a8c561d94b (head)
+```
+
+### Göç doğrulaması — sayarak
+
+| Ölçü | Önce | Sonra |
+|---|---|---|
+| `atama` satırı | 3.051 | **3.051** |
+| toplam kişi-saat | 24.408,00 | **24.408,00** |
+| `talep` / `tercih` / `kural` | 21 / 4 / 20 | 21 / 4 / 20 |
+| `personel` / `cizelge_surumu` | 44 / 26 | 44 / 26 |
+| `vardiya_tipi` tablosu | var (3 satır) | **düştü** |
+
+`atama` sütunları `vardiya_tipi_id, tarih` yerine artık
+`baslangic_zamani, bitis_zamani`. **1.171 blok gece yarısını aşıyor** —
+mutlak eksenin var oluş nedeni sunucudaki gerçek veride de görünüyor.
+Kural parametreleri yerinde: `H1.asgari_blok_saat=4`,
+`H3.gece_esigi_saat=4`, `H9.azami_gunluk_saat=11`.
+
+### Doğrulama
+
+- `systemctl is-active`: vardiya-api, vardiya-cozucu, vera-rag,
+  energy-api, postgresql → **beşi de active**
+- `http://127.0.0.1:8002/health` → `{"durum":"ok"}`
+- `https://vardiya.omerharmankaya.com/` → yeni paket sunuluyor
+  (`index-DdDLnrHO.js` 200); `web/assets` içinde eski paket kalmadı
+- `GET /api/ben` kimliksiz → **401** (API Caddy üzerinden erişilebilir,
+  yetkilendirme çalışıyor)
+- `journalctl` (başlatmadan beri): **0 hata satırı**
+- Kural kataloğu salt okunur sınandı: 20 kural satırı → 20 kural nesnesi
+  kuruldu, parametre okuma hatası yok
+
+**Runbook'ta yanlış olan bir kontrol:** `curl https://.../health` API'ye
+gitmiyor. Caddy yalnızca `/api/*`'i vekilliyor, `/health` SPA'ya düşüyor ve
+`index.html` dönüyor. API'nin sağlık ucu kök altında (`/health`), yani
+dışarıdan erişilebilir değil. Doğru kontrol ya yerelden `127.0.0.1:8002`
+ya da `/api/ben` → 401.
+
+### Parola rotasyonu
+
+Dağıtım sırasında `vardiya` veritabanı kullanıcısının parolası değiştirildi.
+Nedeni: bu oturumda koşulan bir şema kontrolü psycopg hatası verdi ve hata
+mesajı bağlantı dizesinin tamamını, parolayı da içerecek biçimde bastı.
+Rotasyonu proje yürütücüsü koştu (`\password`, komut satırına yazılmadı);
+`.env` güncellendi, eski parolanın kopyasını taşıyan `/opt/vardiya/.env.yedek`
+silindi. Yeni parola, göçten ÖNCE `alembic current` ve `pg_dump` ile
+doğrulandı — yedeğin başarısı aynı zamanda rotasyonun sınavı oldu.
+
+Bundan sonra sunucuya gönderilen her komutun çıktısı
+`sed -E 's#://[^@]*@#://***@#g'` süzgecinden geçirildi.
+
+### Açık kalan — `S6.desen_toleransi_saat` kural kaydında yok
+
+Kural kataloğu sınandığında tek eksik bu çıktı. **Arıza değil:** kod
+`self.parametreler.get("desen_toleransi_saat", varsayılan)` ile okuyor,
+yani çözücü varsayılanla çalışır. Etkisi yalnızca Kural ekranında: bu
+parametre okuma kipinde `—`, düzenleme kipinde boş kutu görünür. Kalıcı
+çözüm ya ekrandan bir değer kaydetmek ya da kaydı ekleyen küçük bir göç.
+Tur 5'in göçü `H1` ve `H3` için bu satırları yazmıştı, `S6` atlanmış.
+
+### `.env` — yasaklı iki değişken yok
+
+`TEST_VERITABANI_URL` ve `VERI_TEMIZLIGINE_IZIN` sunucuda tanımlı değil,
+doğrulandı. Gösterim verisi yenileme (`demo_veri_uret.py --reset`) bu
+dağıtımın parçası DEĞİLDİR ve yapılmadı — ayrı karar olarak bekliyor.
+Sunucudaki veri hâlâ eski senaryo: **44 kişilik kadro**, göçle blok
+kaydına çevrilmiş 3.051 atama. Tur 4/5'in 30 kişilik senaryoları yalnızca
+üreteçten gelir.
+
+### Geri dönüş kullanılmadı
+
+Hiçbir adımda geri alınmadı. Gerekseydi: `alembic downgrade e7b2c4915d80`
+(geri alma yazılı ve denenmiş), tutmazsa
+`pg_restore -c -d "$PGURL" /opt/vardiya/yedek/vardiya-20260813-1928-tur6oncesi.dump`.
+
+---
+
 ## 2026-08-13 — Tur 6: Saat Görünümleri ve Arayüz — **BİTTİ**
 
 Kaynak: `docs/turlar/CLAUDE_CODE_PROMPTU_TUR6.md`. Altı iş, hepsi bitti.
