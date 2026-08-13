@@ -28,6 +28,9 @@ from app.models.sonuc import (
 from app.models.tanim import GorevNoktasi, Personel
 from tests.conftest import pg_yoksa_atla, senaryo_verisini_temizle, yetkili_istemci
 
+# Blok BASLANGIC SAATLERI; sure sekiz saat (blok katalogu kalkti, SRS TD-13).
+_GUNDUZ, _GECE = 8, 0
+
 
 @pytest.fixture
 def istemci() -> TestClient:
@@ -54,21 +57,6 @@ def senaryo() -> dict[str, int]:
     try:
         senaryo_verisini_temizle(oturum)
 
-        gunduz = VardiyaTipi(
-            ad=f"Gunduz-{on_ek}",
-            baslangic_saati=time(8, 0),
-            bitis_saati=time(16, 0),
-            sure_saat=8,
-            gece_mi=False,
-        )
-        gece = VardiyaTipi(
-            ad=f"Gece-{on_ek}",
-            baslangic_saati=time(0, 0),
-            bitis_saati=time(8, 0),
-            sure_saat=8,
-            gece_mi=True,
-        )
-        oturum.add_all([gunduz, gece])
         nokta = GorevNoktasi(ad=f"Nokta-{on_ek}")
         oturum.add(nokta)
         p1 = Personel(
@@ -102,26 +90,28 @@ def senaryo() -> dict[str, int]:
         gun0, gun1 = date(2026, 5, 4), date(2026, 5, 5)
         gun2, gun3 = date(2026, 5, 6), date(2026, 5, 7)
 
-        def at(surum_id: int, personel_id: int, tarih: date, vardiya_tipi_id: int) -> Atama:
+        def at(surum_id: int, personel_id: int, tarih: date, baslangic: int) -> Atama:
+            """`baslangic` blogun BASLANGIC SAATI; sure sekiz saat."""
+            bas = datetime.combine(tarih, time(baslangic))
             return Atama(
                 surum_id=surum_id,
                 personel_id=personel_id,
-                tarih=tarih,
-                vardiya_tipi_id=vardiya_tipi_id,
+                baslangic_zamani=bas,
+                bitis_zamani=bas + timedelta(hours=8),
                 nokta_id=nokta.nokta_id,
                 kaynak=AtamaKaynagi.COZUCU,
             )
 
         oturum.add_all(
             [
-                at(s1.surum_id, p1.personel_id, gun0, gunduz.vardiya_tipi_id),
-                at(s1.surum_id, p1.personel_id, gun1, gunduz.vardiya_tipi_id),
-                at(s1.surum_id, p1.personel_id, gun2, gunduz.vardiya_tipi_id),
-                at(s1.surum_id, p2.personel_id, gun0, gece.vardiya_tipi_id),
-                at(s2.surum_id, p1.personel_id, gun0, gunduz.vardiya_tipi_id),
-                at(s2.surum_id, p1.personel_id, gun1, gece.vardiya_tipi_id),
-                at(s2.surum_id, p1.personel_id, gun3, gunduz.vardiya_tipi_id),
-                at(s2.surum_id, p2.personel_id, gun0, gece.vardiya_tipi_id),
+                at(s1.surum_id, p1.personel_id, gun0, _GUNDUZ),
+                at(s1.surum_id, p1.personel_id, gun1, _GUNDUZ),
+                at(s1.surum_id, p1.personel_id, gun2, _GUNDUZ),
+                at(s1.surum_id, p2.personel_id, gun0, _GECE),
+                at(s2.surum_id, p1.personel_id, gun0, _GUNDUZ),
+                at(s2.surum_id, p1.personel_id, gun1, _GECE),
+                at(s2.surum_id, p1.personel_id, gun3, _GUNDUZ),
+                at(s2.surum_id, p2.personel_id, gun0, _GECE),
             ]
         )
 
@@ -226,14 +216,16 @@ def test_karsilastirma_farklari_uc_ture_ayirir_ve_sayar(
     assert turler["2026-05-07"] == "eklendi"
 
     degisen = next(f for f in govde["farklar"] if f["tur"] == "degisti")
-    assert degisen["onceki_vardiya_tipi_ad"].startswith("Gunduz")
-    assert degisen["yeni_vardiya_tipi_ad"].startswith("Gece")
+    # Karsilastirma artik blok ADINI degil ZAMAN ARALIGINI gosterir
+    # (blok adi diye bir sey kalmadi, SRS TD-13).
+    assert degisen["onceki_blok"] == "08.00–16.00"
+    assert degisen["yeni_blok"] == "00.00–08.00"
     assert degisen["personel_id"] == senaryo["p1"]
 
     kaldirilan = next(f for f in govde["farklar"] if f["tur"] == "kaldirildi")
-    assert kaldirilan["yeni_vardiya_tipi_ad"] is None
+    assert kaldirilan["yeni_blok"] is None
     eklenen = next(f for f in govde["farklar"] if f["tur"] == "eklendi")
-    assert eklenen["onceki_vardiya_tipi_ad"] is None
+    assert eklenen["onceki_blok"] is None
 
 
 def test_ayni_surum_kendisiyle_karsilastirilinca_fark_cikmaz(
@@ -293,7 +285,7 @@ def _atama_kumesi(istemci: TestClient, surum_id: int) -> set[tuple[int, str, int
         (
             a["personel_id"],
             a["tarih"],
-            a["vardiya_tipi_id"],
+            a["baslangic_zamani"],
             a["nokta_id"],
             a["kilitli"],
             a["kaynak"],

@@ -161,6 +161,12 @@ class Baglam:
     z: dict[tuple[int, int], Any] = field(default_factory=dict)
     bas: dict[tuple[int, int], Any] = field(default_factory=dict)
     devir: dict[tuple[int, int], Any] = field(default_factory=dict)
+    # Gun basina TURETILMIS BUYUKLUKLER, bir kez degiskene baglanmis hali
+    # (bkz. `blok_saati`). Alti kural ayni ifadeyi okudugu icin onbellek
+    # isteğe bagli bir iyilestirme degil, model buyuklugunu belirleyen sey.
+    gun_saat: dict[tuple[int, date], Any] = field(default_factory=dict)
+    gece_saat: dict[tuple[int, date], Any] = field(default_factory=dict)
+    gun_calisti: dict[tuple[int, date], Any] = field(default_factory=dict)
     # S1TalepKarsilama.modele_ekle tarafindan doldurulur: (tarih, saat,
     # nokta_id) -> eksik degiskeni. Cozumden sonra kapsama_acigi tablosuna
     # yazilacak degerleri okumak icin.
@@ -246,11 +252,26 @@ class Baglam:
         return toplam
 
     def blok_saati(self, p: int, g: date) -> Any:
-        """g gununde baslayan blogun uzunlugu (H1'in asgarisi, H9'un tavani)."""
+        """g gununde baslayan blogun uzunlugu (H1'in asgarisi, H9'un tavani).
+
+        ONBELLEKLI. Ifadenin kendisi 48 terimlidir (gunun saatleri +
+        ertesi gune tasanlar) ve ALTI kural onu okur: H1, H5, H9, H10, S3,
+        S4. Her cagrida yeniden acildiginda ayni bilgi modele defalarca
+        kopyalanir - yirmi sekiz gunluk bir donemde yuz binlerce yinelenmis
+        terim eder ve cozucu once onlari sadelestirmek zorunda kalir.
+        `model_kur` ifadeyi bir kez bir tamsayi degiskene baglar; kurallar o
+        degiskeni okur.
+        """
+        onbellek = self.gun_saat.get((p, g))
+        if onbellek is not None:
+            return onbellek
         return self.blok_agirlikli_toplam(p, g, lambda _s: 1)
 
     def gece_blok_saati(self, p: int, g: date) -> Any:
         """g gununde baslayan blogun gece saati (TD-2; H3 ve S2 ayni tabandan)."""
+        onbellek = self.gece_saat.get((p, g))
+        if onbellek is not None:
+            return onbellek
         return self.blok_agirlikli_toplam(p, g, lambda s: 1 if self.gece_saati_mi(s) else 0)
 
     def calisti(self, p: int, g: date) -> Any:
@@ -260,6 +281,9 @@ class Baglam:
         blok basladigi gune yazilir (TD-1) ve ardisiklik, izin ve adalet
         hesaplarinin tamami ayni tabani kullanmak zorundadir.
         """
+        onbellek = self.gun_calisti.get((p, g))
+        if onbellek is not None:
+            return onbellek
         toplam: Any = 0
         for s in self.gun_saatleri(g):
             toplam = toplam + self.basv(p, s)

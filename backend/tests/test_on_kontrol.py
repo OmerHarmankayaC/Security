@@ -1,7 +1,7 @@
 """SDD 5.2 on_kontrol() testleri: dort kontrolun her biri icin elle kurulan
 ornekler. Veritabani gerektirmez."""
 
-from datetime import date, time, timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 
 from app.kurallar.baglam import (
@@ -9,7 +9,6 @@ from app.kurallar.baglam import (
     GorevNoktasiBilgisi,
     MusaitlikKaydi,
     PersonelBilgisi,
-    VardiyaTipiBilgisi,
 )
 from app.models.girdi import MusaitlikDilimi
 from app.services.on_kontrol import (
@@ -19,9 +18,10 @@ from app.services.on_kontrol import (
     kesin_bulgular,
     on_kontrol_yap,
 )
-from tests.conftest import blok_talebini_saate_ac
+from tests.conftest import saatlik_talep
 
-GECE, GUNDUZ, AKSAM = 1, 2, 3
+# Talep araliklari (blok degil, ZAMAN ARALIGI): (baslangic, bitis).
+GECE, GUNDUZ, AKSAM = (0, 8), (8, 16), (16, 24)
 KAPI, KONTROL_ODASI = 1, 2
 GUVENLIK_GOREVI = 1
 
@@ -32,24 +32,15 @@ _AZAMI_GUNLUK_SAAT = Decimal(11)
 _HAFTALIK_ASGARI_IZIN_GUNU = 1
 
 
-def _vardiya_tipleri() -> dict[int, VardiyaTipiBilgisi]:
-    return {
-        GECE: VardiyaTipiBilgisi(GECE, time(0, 0), time(8, 0), 8, True),
-        GUNDUZ: VardiyaTipiBilgisi(GUNDUZ, time(8, 0), time(16, 0), 8, False),
-        AKSAM: VardiyaTipiBilgisi(AKSAM, time(16, 0), time(0, 0), 8, False),
-    }
-
-
 def _gunler(n: int, baslangic: date = date(2026, 2, 2)) -> list[date]:
     return [baslangic + timedelta(days=i) for i in range(n)]
 
 
 def _bos_baglam() -> Baglam:
     return Baglam(
-        vardiya_tipleri=_vardiya_tipleri(),
         gorev_noktalari={KAPI: GorevNoktasiBilgisi(KAPI, onkosul_yetkinlik_id=GUVENLIK_GOREVI)},
         personel={},
-        talep_saat=blok_talebini_saate_ac({}, _vardiya_tipleri()),
+        talep_saat={},
     )
 
 
@@ -60,12 +51,9 @@ def test_bulgu_yoksa_bos_liste_doner() -> None:
         for p in range(1, 6)
     }
     baglam = Baglam(
-        vardiya_tipleri=_vardiya_tipleri(),
         gorev_noktalari={KAPI: GorevNoktasiBilgisi(KAPI, onkosul_yetkinlik_id=GUVENLIK_GOREVI)},
         personel=personel,
-        talep_saat=blok_talebini_saate_ac(
-            {(g, GUNDUZ, KAPI): 1 for g in gunler}, _vardiya_tipleri()
-        ),
+        talep_saat=saatlik_talep(gunler, [(*GUNDUZ, KAPI, 1)]),
     )
     bulgular = on_kontrol_yap(
         baglam,
@@ -82,12 +70,11 @@ def test_donem_kapasitesi_yetersiz_talep_kadroyu_asinca() -> None:
     # Tek personel, her gunun her vardiyasinda KAPI'da 1 kisi talebi: 21 vardiya/hafta
     # istiyor ama bir kisi haftada en fazla ~5 vardiya tutabiliyor.
     personel = {1: PersonelBilgisi(1, date(2026, 1, 1), None, frozenset({GUVENLIK_GOREVI}))}
-    talep = {(g, v, KAPI): 1 for g in gunler for v in (GECE, GUNDUZ, AKSAM)}
+    talep = saatlik_talep(gunler, [(0, 0, KAPI, 1)])  # gun boyu bir kisi
     baglam = Baglam(
-        vardiya_tipleri=_vardiya_tipleri(),
         gorev_noktalari={KAPI: GorevNoktasiBilgisi(KAPI, onkosul_yetkinlik_id=GUVENLIK_GOREVI)},
         personel=personel,
-        talep_saat=blok_talebini_saate_ac(talep, _vardiya_tipleri()),
+        talep_saat=talep,
     )
     bulgular = on_kontrol_yap(
         baglam,
@@ -103,14 +90,13 @@ def test_yetkinlik_havuzu_yetersiz_havuz_kucukken() -> None:
     gunler = _gunler(7)
     # Kontrol Odasi'nin onkosulu var ama hicbir personel bu yetkinlige sahip degil.
     personel = {1: PersonelBilgisi(1, date(2026, 1, 1), None, frozenset())}
-    talep = {(g, GUNDUZ, KONTROL_ODASI): 1 for g in gunler}
+    talep = saatlik_talep(gunler, [(*GUNDUZ, KONTROL_ODASI, 1)])
     baglam = Baglam(
-        vardiya_tipleri=_vardiya_tipleri(),
         gorev_noktalari={
             KONTROL_ODASI: GorevNoktasiBilgisi(KONTROL_ODASI, onkosul_yetkinlik_id=GUVENLIK_GOREVI)
         },
         personel=personel,
-        talep_saat=blok_talebini_saate_ac(talep, _vardiya_tipleri()),
+        talep_saat=talep,
     )
     bulgular = on_kontrol_yap(
         baglam,
@@ -136,13 +122,12 @@ def test_yetkinlik_havuzu_kontrolu_bireysel_izni_hesaba_katar() -> None:
     musaitlik = [MusaitlikKaydi(2, gunler[0], gunler[-1], MusaitlikDilimi.TAM_GUN)]
     # Talep, tek kisinin haftalik kapasitesinin (azami_haftalik_saat/vardiya suresi ~5) acikca
     # ustunde: her gun uc vardiyada da KAPI'da 1 kisi - haftada 21 vardiya.
-    talep = {(g, v, KAPI): 1 for g in gunler for v in (GECE, GUNDUZ, AKSAM)}
+    talep = saatlik_talep(gunler, [(0, 0, KAPI, 1)])  # gun boyu bir kisi
     baglam = Baglam(
-        vardiya_tipleri=_vardiya_tipleri(),
         gorev_noktalari={KAPI: GorevNoktasiBilgisi(KAPI, onkosul_yetkinlik_id=GUVENLIK_GOREVI)},
         personel=personel,
         musaitlik=musaitlik,
-        talep_saat=blok_talebini_saate_ac(talep, _vardiya_tipleri()),
+        talep_saat=talep,
     )
     bulgular = on_kontrol_yap(
         baglam,
@@ -168,13 +153,12 @@ def test_gunluk_personel_yetersiz_coğu_izinliyken() -> None:
         MusaitlikKaydi(1, gun, gun, MusaitlikDilimi.TAM_GUN),
         MusaitlikKaydi(2, gun, gun, MusaitlikDilimi.TAM_GUN),
     ]
-    talep = {(gun, GUNDUZ, KAPI): 3}
+    talep = saatlik_talep([gun], [(*GUNDUZ, KAPI, 3)])
     baglam = Baglam(
-        vardiya_tipleri=_vardiya_tipleri(),
         gorev_noktalari={KAPI: GorevNoktasiBilgisi(KAPI, onkosul_yetkinlik_id=GUVENLIK_GOREVI)},
         personel=personel,
         musaitlik=musaitlik,
-        talep_saat=blok_talebini_saate_ac(talep, _vardiya_tipleri()),
+        talep_saat=talep,
     )
     bulgular = on_kontrol_yap(
         baglam,
@@ -193,12 +177,11 @@ def test_nokta_icin_uygun_personel_yok_yetkinlik_eksikken() -> None:
     gunler = _gunler(1)
     gun = gunler[0]
     personel = {1: PersonelBilgisi(1, date(2026, 1, 1), None, frozenset())}  # yetkinliksiz
-    talep = {(gun, GUNDUZ, KAPI): 1}
+    talep = saatlik_talep([gun], [(*GUNDUZ, KAPI, 1)])
     baglam = Baglam(
-        vardiya_tipleri=_vardiya_tipleri(),
         gorev_noktalari={KAPI: GorevNoktasiBilgisi(KAPI, onkosul_yetkinlik_id=GUVENLIK_GOREVI)},
         personel=personel,
-        talep_saat=blok_talebini_saate_ac(talep, _vardiya_tipleri()),
+        talep_saat=talep,
     )
     bulgular = on_kontrol_yap(
         baglam,
@@ -290,7 +273,6 @@ def _kota_baglami(devir: float) -> Baglam:
     """
     gunler = _gunler(7)
     return Baglam(
-        vardiya_tipleri=_vardiya_tipleri(),
         gorev_noktalari={KAPI: GorevNoktasiBilgisi(KAPI, onkosul_yetkinlik_id=None)},
         personel={
             1: PersonelBilgisi(
@@ -302,7 +284,7 @@ def _kota_baglami(devir: float) -> Baglam:
             )
         },
         personel_adlari={1: "Ayşe Yılmaz"},
-        talep_saat=blok_talebini_saate_ac({(gunler[0], GUNDUZ, KAPI): 1}, _vardiya_tipleri()),
+        talep_saat=saatlik_talep([gunler[0]], [(*GUNDUZ, KAPI, 1)]),
         donem_baslangic=gunler[0],
         donem_bitis=gunler[-1],
     )

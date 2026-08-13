@@ -11,8 +11,6 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from tests.conftest import (
-    bos_vardiya_blogu,
-    gecici_vardiya_tipi,
     pg_yoksa_atla,
     yetkili_istemci,
 )
@@ -141,23 +139,27 @@ def test_tercih_guncellerken_bulunamazsa_404_doner(istemci: TestClient) -> None:
     assert yanit.status_code == 404
 
 
-def test_tercih_vardiya_tipi_tercihinde_vardiya_tipi_id_tasir(istemci: TestClient) -> None:
+def test_tercih_zaman_araligi_tercihinde_araligi_tasir(istemci: TestClient) -> None:
+    """SRS FR-3.2: tercih artik bir vardiya TIPI degil bir ZAMAN ARALIGI.
+
+    Eski test `vardiya_tipi_id` alaninin tasindigini olcuyordu; alan blok
+    katalogunun bir parcasiydi ve onunla birlikte kalkti (TD-13).
+    """
     on_ek = _benzersiz("tercihvt")
     personel_id = _personel_olustur(istemci, on_ek)
     donem_id = _donem_olustur(istemci)
 
-    istek = {"ad": _benzersiz("Gunduz-tercih"), **bos_vardiya_blogu(istemci)}
-    with gecici_vardiya_tipi(istemci, istek) as vardiya:
-        vardiya_tipi_id = vardiya["vardiya_tipi_id"]
-        yanit = istemci.post(
-            "/api/tercih",
-            json={
-                "personel_id": personel_id,
-                "donem_id": donem_id,
-                "tarih": "2026-09-09",
-                "tip": "vardiya_tipi_tercihi",
-                "vardiya_tipi_id": vardiya_tipi_id,
-            },
-        )
-        assert yanit.status_code == 201
-        assert yanit.json()["vardiya_tipi_id"] == vardiya_tipi_id
+    yanit = istemci.post(
+        "/api/tercih",
+        json={
+            "personel_id": personel_id,
+            "donem_id": donem_id,
+            "tarih": "2026-09-09",
+            "tip": "zaman_araligi_tercihi",
+            "tercih_baslangic": "08:00:00",
+            "tercih_bitis": "16:00:00",
+        },
+    )
+    assert yanit.status_code == 201
+    assert yanit.json()["tercih_baslangic"] == "08:00:00"
+    assert yanit.json()["tercih_bitis"] == "16:00:00"

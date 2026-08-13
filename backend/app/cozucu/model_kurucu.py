@@ -127,13 +127,56 @@ def model_kur(
             devir[(p, s)] = gosterge
     baglam.devir = devir
 
+    # --- Gun basina turetilmis buyuklukler, TEK KEZ ----------------------
+    # `blok_saati`, `gece_blok_saati` ve `calisti` 48'er terimli ifadelerdir
+    # ve toplam ALTI kural tarafindan okunur (H1, H4, H5, H6, H9, H10, S2,
+    # S3, S4, S6, S7). Her cagrida yeniden acilmalari halinde ayni bilgi
+    # modele yuz binlerce kez kopyalanir; olculdu (30 personel x 28 gun,
+    # on dokuz kural): ilk uygun cozum otuz saniyede bulunamiyordu.
+    # Ifadeler burada birer degiskene baglanir, kurallar o degiskeni okur.
+    for p in baglam.personel:
+        for g in baglam.zaman_ekseni:
+            saat_ifadesi = baglam.blok_agirlikli_toplam(p, g, lambda _s: 1)
+            if isinstance(saat_ifadesi, int):
+                continue
+            gun_saat = model.new_int_var(0, 24, f"gun_saat_p{p}_g{g}")
+            model.add(gun_saat == saat_ifadesi)
+            baglam.gun_saat[(p, g)] = gun_saat
+
+            gece_ifadesi = baglam.blok_agirlikli_toplam(
+                p, g, lambda s: 1 if baglam.gece_saati_mi(s) else 0
+            )
+            gece_saat = model.new_int_var(0, 24, f"gece_saat_p{p}_g{g}")
+            model.add(gece_saat == gece_ifadesi)
+            baglam.gece_saat[(p, g)] = gece_saat
+
+            # UST SINIR 24, 1 DEGIL. "Gunde tek baslangic" H1'in KARARIDIR
+            # ve H1 pasiflestirilebilir (SDD 3.2.1); degiskeni bool yapmak o
+            # kisiti eksene gomer ve kural kapatildiginda bile yururlukte
+            # birakirdi.
+            calisti = model.new_int_var(0, 24, f"calisti_p{p}_g{g}")
+            model.add(calisti == sum(baglam.basv(p, s) for s in baglam.gun_saatleri(g)))
+            baglam.gun_calisti[(p, g)] = calisti
+
     # --- Nokta sabitligi (SRS H1) ----------------------------------------
-    # x[p,s,n] ≥ z[p,s] + x[p,s−1,n] − 1: personel calismaya devam ettigi
+    # x[p,s+1,n] ≥ z[p,s+1] + x[p,s,n] − 1: personel calismaya devam ettigi
     # surece gorev noktasi degismez.
+    #
+    # KISIT ILERI YONLU KURULUR VE EKSIK DEGISKEN SIFIR SAYILIR. Geriye
+    # dogru kurulup `x[p,s,n]` bulunamadiginda atlanmasi bir BOSLUK
+    # birakiyordu: talebi biten bir noktanin o saatteki degiskeni elenmis
+    # oluyor (SDD 5.3), kisit hic yazilmiyor ve personel calismayi
+    # KESMEDEN nokta degistirebiliyordu. Cozucu bunu buldu — 14.00-16.00
+    # bir noktada, 16.00-24.00 baska noktada, tek kesintisiz calisma; H1'in
+    # nokta sabitligi kagit uzerinde kaliyordu. Uyum testi yakaladi.
+    #
+    # Eksik degisken sifir alindiginda kisit dogru seyi soyler: "onceki saat
+    # n'deydiysen ve n bu saatte kapaliysa, calismaya devam edemezsin".
     for p, s, n in x:
-        onceki = x.get((p, s - 1, n))
-        if onceki is not None:
-            model.add(x[(p, s, n)] >= z[(p, s)] + onceki - 1)
+        if (p, s + 1) not in z:
+            continue
+        sonraki = x.get((p, s + 1, n), 0)
+        model.add(sonraki >= z[(p, s + 1)] + x[(p, s, n)] - 1)
 
     # --- Isitma penceresi ve kilitli atamalar sabitlenir (TD-5) ----------
     sabit_kumesi: set[XAnahtari] = set()

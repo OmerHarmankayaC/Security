@@ -8,7 +8,7 @@ ceza farki / surum durumlari) dogrulayan testler.
 """
 
 import uuid
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta
 
 import pytest
 from sqlalchemy import select
@@ -19,29 +19,27 @@ from app.kurallar import (
     Baglam,
     GorevNoktasiBilgisi,
     PersonelBilgisi,
-    VardiyaTipiBilgisi,
 )
 from app.kurallar.esnek import S2GeceAdaleti
 from app.kurallar.kayit_defteri import bul
 from app.kurallar.temel import KuralKapsami
 from app.models.kural import Kural, KuralTipi
 from app.models.sonuc import Atama, AtamaKaynagi, CizelgeSurumu, CizelgeSurumuDurumu, Donem
-from app.models.tanim import GorevNoktasi, GunTipi, Personel, Talep, VardiyaTipi
+from app.models.tanim import GorevNoktasi, GunTipi, Personel, Talep
 from app.services.dogrulama_servisi import AtamaDegisikligi, DogrulamaServisi, SurumTaslakDegilError
-from tests.conftest import pg_yoksa_atla
+from tests.conftest import blok, pg_yoksa_atla
 
-GECE = 1
+GECE = 0  # 00.00 baslangicli sekiz saatlik blok
 KAPI = 1
 
 
-def _blok_talebi(baglam: Baglam, tarih: date, blok: int, nokta: int, gereken: int) -> None:
-    """Bir blogun kapsadigi HER SAATE ayni talebi yazar.
-
-    Talep saat ekseninde tutuluyor (SDD 5.3); blok eksenli turev Tur 4'te
-    kaldirildi. Testin anlattigi sey degismedi, yalnizca anahtar cevrildi.
-    """
-    for gun, saat in baglam.blok_saatleri(tarih, blok):
-        baglam.talep_saat[(gun, saat, nokta)] = gereken
+def _saat_talebi(
+    baglam: Baglam, tarih: date, baslangic: int, sure: int, nokta: int, gereken: int
+) -> None:
+    """Bir zaman araliginin HER SAATINE ayni talebi yazar (SDD 5.3)."""
+    for kayma in range(sure):
+        mutlak = baslangic + kayma
+        baglam.talep_saat[(tarih + timedelta(days=mutlak // 24), mutlak % 24, nokta)] = gereken
 
 
 def test_kural_kapsamlari_sdd_5_5_ile_tutarli() -> None:
@@ -83,26 +81,25 @@ def test_s2_pencereyle_sinirlanirsa_donem_genelindeki_yuku_yanlis_yonde_hesaplar
     S2/S3/S4'u DONEM_GENELI olarak isaretlemesinin sebebi tam olarak bu
     yanlis yon hatasidir.
     """
-    vardiya_tipleri = {GECE: VardiyaTipiBilgisi(GECE, time(0, 0), time(8, 0), 8, True)}
+
     gorev_noktalari = {KAPI: GorevNoktasiBilgisi(KAPI)}
     personel = {
         1: PersonelBilgisi(1, date(2026, 1, 1), None, frozenset(), haftalik_hedef_saat=40),
         2: PersonelBilgisi(2, date(2026, 1, 1), None, frozenset(), haftalik_hedef_saat=40),
     }
     baglam = Baglam(
-        vardiya_tipleri=vardiya_tipleri,
         gorev_noktalari=gorev_noktalari,
         personel=personel,
         donem_baslangic=date(2026, 1, 1),
         donem_bitis=date(2026, 1, 31),
     )
     for i in range(10):
-        _blok_talebi(baglam, date(2026, 1, 1 + i), GECE, KAPI, 1)
+        _saat_talebi(baglam, date(2026, 1, 1 + i), GECE, 8, KAPI, 1)
     kural = S2GeceAdaleti(parametreler={}, agirlik=2)
 
     degisiklik_gunu = date(2026, 1, 25)
-    on_gece = [AtamaKaydi(1, date(2026, 1, 1 + i), GECE, KAPI) for i in range(10)]
-    yeni_gece = AtamaKaydi(1, degisiklik_gunu, GECE, KAPI)
+    on_gece = [blok(1, date(2026, 1, 1 + i), GECE, 8, KAPI) for i in range(10)]
+    yeni_gece = blok(1, degisiklik_gunu, GECE, 8, KAPI)
 
     def _ceza(ihlaller: list, personel_id: int) -> float:
         return sum(i.ceza or 0.0 for i in ihlaller if i.personel_id == personel_id)
@@ -133,28 +130,14 @@ def istemci_kurulum() -> dict:
     on_ek = uuid.uuid4().hex[:8]
     oturum = OturumYerel()
     try:
-        vardiya_aksam = VardiyaTipi(
-            ad=f"Aksam-{on_ek}",
-            baslangic_saati=time(16, 0),
-            bitis_saati=time(0, 0),
-            sure_saat=8,
-            gece_mi=False,
-        )
-        vardiya_gunduz = VardiyaTipi(
-            ad=f"Gunduz-{on_ek}",
-            baslangic_saati=time(8, 0),
-            bitis_saati=time(16, 0),
-            sure_saat=8,
-            gece_mi=False,
-        )
         nokta = GorevNoktasi(ad=f"Nokta-{on_ek}")
-        oturum.add_all([vardiya_aksam, vardiya_gunduz, nokta])
+        oturum.add_all([nokta])
         oturum.flush()
         oturum.commit()
         return {
             "on_ek": on_ek,
-            "aksam_id": vardiya_aksam.vardiya_tipi_id,
-            "gunduz_id": vardiya_gunduz.vardiya_tipi_id,
+            "aksam": (time(16, 0), time(0, 0)),
+            "gunduz": (time(8, 0), time(16, 0)),
             "nokta_id": nokta.nokta_id,
         }
     finally:
@@ -215,11 +198,7 @@ def test_dogrula_zorunlu_kisit_ihlalini_reddeder(istemci_kurulum: dict) -> None:
     gunune gunduz vardiyasi (08-16) atamak 8 saatlik dinlenme birakir,
     varsayilan asgari 16 saatin altinda - kabul_edilebilir False olmali."""
     on_ek = istemci_kurulum["on_ek"]
-    aksam_id, gunduz_id, nokta_id = (
-        istemci_kurulum["aksam_id"],
-        istemci_kurulum["gunduz_id"],
-        istemci_kurulum["nokta_id"],
-    )
+    nokta_id = istemci_kurulum["nokta_id"]
     baslangic = date(2026, 7, 6)  # Pazartesi
     bitis = baslangic + timedelta(days=13)
     _donem_id, surum_id = _taslak_surum_olustur(on_ek, baslangic, bitis)
@@ -238,8 +217,8 @@ def test_dogrula_zorunlu_kisit_ihlalini_reddeder(istemci_kurulum: dict) -> None:
             Atama(
                 surum_id=surum_id,
                 personel_id=personel.personel_id,
-                tarih=baslangic,
-                vardiya_tipi_id=aksam_id,
+                baslangic_zamani=datetime.combine(baslangic, time(16, 0)),
+                bitis_zamani=datetime.combine(baslangic + timedelta(days=1), time(0, 0)),
                 nokta_id=nokta_id,
                 kaynak=AtamaKaynagi.COZUCU,
             )
@@ -258,7 +237,8 @@ def test_dogrula_zorunlu_kisit_ihlalini_reddeder(istemci_kurulum: dict) -> None:
             surum_id=surum_id,
             personel_id=personel_id,
             tarih=baslangic + timedelta(days=1),
-            vardiya_tipi_id=gunduz_id,
+            baslangic_saati=time(8, 0),
+            bitis_saati=time(16, 0),
             nokta_id=nokta_id,
         )
         sonuc = servis.dogrula(degisiklik)
@@ -277,7 +257,9 @@ def test_dogrula_zorunlu_kisit_ihlalini_reddeder(istemci_kurulum: dict) -> None:
         atamalar = (
             oturum.execute(
                 select(Atama).where(
-                    Atama.surum_id == surum_id, Atama.tarih == baslangic + timedelta(days=1)
+                    Atama.surum_id == surum_id,
+                    Atama.baslangic_zamani
+                    >= datetime.combine(baslangic + timedelta(days=1), time.min),
                 )
             )
             .scalars()
@@ -290,7 +272,7 @@ def test_dogrula_zorunlu_kisit_ihlalini_reddeder(istemci_kurulum: dict) -> None:
 
 def test_dogrula_yayinlanmis_surumde_409(istemci_kurulum: dict) -> None:
     on_ek = istemci_kurulum["on_ek"]
-    gunduz_id, nokta_id = istemci_kurulum["gunduz_id"], istemci_kurulum["nokta_id"]
+    nokta_id = istemci_kurulum["nokta_id"]
     baslangic = date(2026, 7, 20)
     bitis = baslangic + timedelta(days=6)
     _donem_id, surum_id = _taslak_surum_olustur(on_ek, baslangic, bitis)
@@ -320,7 +302,8 @@ def test_dogrula_yayinlanmis_surumde_409(istemci_kurulum: dict) -> None:
             surum_id=surum_id,
             personel_id=personel_id,
             tarih=baslangic,
-            vardiya_tipi_id=gunduz_id,
+            baslangic_saati=time(8, 0),
+            bitis_saati=time(16, 0),
             nokta_id=nokta_id,
         )
         with pytest.raises(SurumTaslakDegilError):
@@ -336,7 +319,7 @@ def test_dogrula_cozuldu_surumde_duzenlenebilir(istemci_kurulum: dict) -> None:
     tarayici testinde bulunan bir regresyon (ilk yazimda yalnizca 'taslak'
     izin veriliyordu, 'cozuldu' 409 donuyordu)."""
     on_ek = istemci_kurulum["on_ek"]
-    gunduz_id, nokta_id = istemci_kurulum["gunduz_id"], istemci_kurulum["nokta_id"]
+    nokta_id = istemci_kurulum["nokta_id"]
     baslangic = date(2026, 7, 27)
     bitis = baslangic + timedelta(days=6)
     _donem_id, surum_id = _taslak_surum_olustur(on_ek, baslangic, bitis)
@@ -365,7 +348,8 @@ def test_dogrula_cozuldu_surumde_duzenlenebilir(istemci_kurulum: dict) -> None:
             surum_id=surum_id,
             personel_id=personel_id,
             tarih=baslangic,
-            vardiya_tipi_id=gunduz_id,
+            baslangic_saati=time(8, 0),
+            bitis_saati=time(16, 0),
             nokta_id=nokta_id,
         )
         sonuc = servis.uygula(degisiklik)
@@ -404,7 +388,7 @@ def test_dogrula_ustan_uca_bir_noktayi_bosaltip_digerini_tasirsa_uyari_verir(
       - `ceza_dokumu`'nde S1 kalemi AGIRLIKLI farkiyla gorunur.
     """
     on_ek = istemci_kurulum["on_ek"]
-    aksam_id, nokta_id = istemci_kurulum["aksam_id"], istemci_kurulum["nokta_id"]
+    nokta_id = istemci_kurulum["nokta_id"]
     # istemci_kurulum'daki `nokta_id` Guvenlik rolunu oynar; ikinci bir
     # nokta Seflik rolunu oynar.
     baslangic = date(2026, 8, 3)  # Pazartesi
@@ -469,24 +453,24 @@ def test_dogrula_ustan_uca_bir_noktayi_bosaltip_digerini_tasirsa_uyari_verir(
                 Atama(
                     surum_id=surum_id,
                     personel_id=sef.personel_id,
-                    tarih=baslangic,
-                    vardiya_tipi_id=aksam_id,
+                    baslangic_zamani=datetime.combine(baslangic, time(16, 0)),
+                    bitis_zamani=datetime.combine(baslangic + timedelta(days=1), time(0, 0)),
                     nokta_id=seflik_id,
                     kaynak=AtamaKaynagi.COZUCU,
                 ),
                 Atama(
                     surum_id=surum_id,
                     personel_id=g1.personel_id,
-                    tarih=baslangic,
-                    vardiya_tipi_id=aksam_id,
+                    baslangic_zamani=datetime.combine(baslangic, time(16, 0)),
+                    bitis_zamani=datetime.combine(baslangic + timedelta(days=1), time(0, 0)),
                     nokta_id=nokta_id,
                     kaynak=AtamaKaynagi.COZUCU,
                 ),
                 Atama(
                     surum_id=surum_id,
                     personel_id=g2.personel_id,
-                    tarih=baslangic,
-                    vardiya_tipi_id=aksam_id,
+                    baslangic_zamani=datetime.combine(baslangic, time(16, 0)),
+                    bitis_zamani=datetime.combine(baslangic + timedelta(days=1), time(0, 0)),
                     nokta_id=nokta_id,
                     kaynak=AtamaKaynagi.COZUCU,
                 ),
@@ -504,7 +488,8 @@ def test_dogrula_ustan_uca_bir_noktayi_bosaltip_digerini_tasirsa_uyari_verir(
                 surum_id=surum_id,
                 personel_id=sef_id,
                 tarih=baslangic,
-                vardiya_tipi_id=aksam_id,
+                baslangic_saati=time(16, 0),
+                bitis_saati=time(0, 0),
                 nokta_id=nokta_id,
             )
         )
@@ -537,7 +522,8 @@ def test_dogrula_bulunamayan_surumde_none_doner() -> None:
             surum_id=999999,
             personel_id=1,
             tarih=date(2026, 1, 1),
-            vardiya_tipi_id=1,
+            baslangic_saati=time(8, 0),
+            bitis_saati=time(16, 0),
             nokta_id=1,
         )
         assert servis.dogrula(degisiklik) is None
@@ -549,7 +535,7 @@ def test_dogrula_bulunamayan_surumde_none_doner() -> None:
 
 
 _S1_PZT = date(2026, 2, 2)
-_S1_AKSAM = 3
+_S1_AKSAM = 16  # 16.00 baslangicli sekiz saatlik blok
 _S1_SEFLIK = 10
 _S1_GUVENLIK = 20
 
@@ -557,9 +543,6 @@ _S1_GUVENLIK = 20
 def _s1_baglami() -> Baglam:
     """Pazartesi aksami: Vardiya Sefligi 1 kisi, Guvenlik 2 kisi."""
     baglam = Baglam(
-        vardiya_tipleri={
-            _S1_AKSAM: VardiyaTipiBilgisi(_S1_AKSAM, time(16, 0), time(0, 0), 8, False, ad="Akşam")
-        },
         gorev_noktalari={
             _S1_SEFLIK: GorevNoktasiBilgisi(_S1_SEFLIK, ad="Vardiya Şefliği"),
             _S1_GUVENLIK: GorevNoktasiBilgisi(_S1_GUVENLIK, ad="Güvenlik"),
@@ -600,9 +583,9 @@ def test_s1_talepten_fazla_kadroyu_gorur() -> None:
 
     # Sef sefliginden guvenlige cekiliyor: Seflik 0/1, Guvenlik 3/2.
     bozuk = [
-        AtamaKaydi(1, _S1_PZT, _S1_AKSAM, _S1_GUVENLIK),
-        AtamaKaydi(2, _S1_PZT, _S1_AKSAM, _S1_GUVENLIK),
-        AtamaKaydi(3, _S1_PZT, _S1_AKSAM, _S1_GUVENLIK),
+        blok(1, _S1_PZT, _S1_AKSAM, 8, _S1_GUVENLIK),
+        blok(2, _S1_PZT, _S1_AKSAM, 8, _S1_GUVENLIK),
+        blok(3, _S1_PZT, _S1_AKSAM, 8, _S1_GUVENLIK),
     ]
     metinler = [i.aciklama for i in kural.dogrula(bozuk, baglam)]
     fazla_metinleri = [i.aciklama for i in fazla_kurali.dogrula(bozuk, baglam)]
@@ -629,10 +612,10 @@ def test_fazla_kadro_ceza_uretmez_uyari_uretir() -> None:
 
     # Seflik tam dolu, Guvenlik'te bir fazla: TEK sapma fazla kadro.
     fazla = [
-        AtamaKaydi(1, _S1_PZT, _S1_AKSAM, _S1_SEFLIK),
-        AtamaKaydi(2, _S1_PZT, _S1_AKSAM, _S1_GUVENLIK),
-        AtamaKaydi(3, _S1_PZT, _S1_AKSAM, _S1_GUVENLIK),
-        AtamaKaydi(4, _S1_PZT, _S1_AKSAM, _S1_GUVENLIK),
+        blok(1, _S1_PZT, _S1_AKSAM, 8, _S1_SEFLIK),
+        blok(2, _S1_PZT, _S1_AKSAM, 8, _S1_GUVENLIK),
+        blok(3, _S1_PZT, _S1_AKSAM, 8, _S1_GUVENLIK),
+        blok(4, _S1_PZT, _S1_AKSAM, 8, _S1_GUVENLIK),
     ]
     ihlaller = kural.dogrula(fazla, baglam)
     assert len(ihlaller) == 1

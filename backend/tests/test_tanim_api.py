@@ -6,17 +6,14 @@ uzerinden) kurulabildigini dogrular.
 """
 
 import uuid
-from datetime import date, time
+from datetime import date
 from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.db import OturumYerel
-from app.services.tanim_servisi import TanimServisi
 from tests.conftest import (
-    bos_vardiya_blogu,
-    gecici_vardiya_tipi,
     pg_yoksa_atla,
     yetkili_istemci,
 )
@@ -65,24 +62,8 @@ def test_bina_crud(istemci: TestClient) -> None:
     assert istemci.delete(f"/api/bina/{bina_id}").status_code == 204
 
 
-def test_vardiya_tipi_olustururken_gece_mi_onerilir(istemci: TestClient) -> None:
-    # Saatler burada testin KONUSU (gece onerisi 00.00-08.00'e bakar), o
-    # yuzden bos blok yardimcisi degil gecici blok kullaniliyor: kayit
-    # birakilsaydi benzersizlik kisiti bu testi bir daha gecirmezdi.
-    govde_istegi = {
-        "ad": "Test Gece FR14",
-        "baslangic_saati": "00:00:00",
-        "bitis_saati": "08:00:00",
-    }
-    with gecici_vardiya_tipi(istemci, govde_istegi) as govde:
-        assert govde["gece_mi"] is True
-        assert float(govde["sure_saat"]) == 8.0
 
 
-def test_vardiya_tipi_gece_mi_elle_belirtilebilir(istemci: TestClient) -> None:
-    istek = {"ad": "Test Aksam FR14", "gece_mi": False, **bos_vardiya_blogu(istemci)}
-    with gecici_vardiya_tipi(istemci, istek) as govde:
-        assert govde["gece_mi"] is False
 
 
 def test_personel_yetkinlik_nokta_talep_zinciri(istemci: TestClient) -> None:
@@ -230,22 +211,6 @@ def test_kullanim_sayimi_kayit_turu_kiriliminda(istemci: TestClient) -> None:
     }
 
 
-def test_pasif_vardiya_tipi_listede_ayirt_edilebilir(istemci: TestClient) -> None:
-    """Pasif tanimlar listeden dusmez; arayuz onlari isaretleyip filtreleyebilsin
-    diye `aktif` alani yanitta tasinir."""
-    istek = {"ad": _benzersiz("Pasif"), **bos_vardiya_blogu(istemci)}
-    with gecici_vardiya_tipi(istemci, istek) as kayit:
-        vardiya_tipi_id = kayit["vardiya_tipi_id"]
-        guncel = istemci.put(f"/api/vardiya-tipi/{vardiya_tipi_id}", json={"aktif": False})
-        assert guncel.status_code == 200
-        assert guncel.json()["aktif"] is False
-
-        listede = next(
-            v
-            for v in istemci.get("/api/vardiya-tipi").json()
-            if v["vardiya_tipi_id"] == vardiya_tipi_id
-        )
-        assert listede["aktif"] is False
 
 
 def test_pasif_tanim_yeni_cozume_girmez_mevcut_surumde_gorunur() -> None:
@@ -256,9 +221,8 @@ def test_pasif_tanim_yeni_cozume_girmez_mevcut_surumde_gorunur() -> None:
     dusuru); analiz/dogrulama yolu `False` ile kurar, cunku MEVCUT bir surumun
     atamalari pasiflestirmeden onceki tanimlara referans verebilir.
     """
-    from app.db import OturumYerel
     from app.models.sonuc import Donem
-    from app.models.tanim import VardiyaTipi
+    from app.models.tanim import GorevNoktasi
     from app.services.baglam_kurucu import baglam_olustur
 
     pg_yoksa_atla()
@@ -269,29 +233,25 @@ def test_pasif_tanim_yeni_cozume_girmez_mevcut_surumde_gorunur() -> None:
             bitis_tarihi=date(2026, 3, 8),
             tercih_son_tarihi=date(2026, 2, 25),
         )
-        pasif = VardiyaTipi(
-            ad=_benzersiz("Pasif Vardiya"),
-            baslangic_saati=time(8, 0),
-            bitis_saati=time(16, 0),
-            sure_saat=Decimal(8),
-            gece_mi=False,
-            aktif=False,
-        )
+        # Olcum GOREV NOKTASI uzerinden yapiliyor; vardiya tipi kalkti
+        # (SRS TD-13) ama madde 1'in kurali butun tanim varliklari icin
+        # gecerli ve nokta o kurali tasiyan en yakin ornektir.
+        pasif = GorevNoktasi(ad=_benzersiz("Pasif Nokta"), aktif=False)
         oturum.add_all([donem, pasif])
         oturum.flush()
 
         cozum_baglami = baglam_olustur(oturum, donem)
         okuma_baglami = baglam_olustur(oturum, donem, yalniz_aktif=False)
 
-        assert pasif.vardiya_tipi_id not in cozum_baglami.vardiya_tipleri
-        assert pasif.vardiya_tipi_id in okuma_baglami.vardiya_tipleri
+        assert pasif.nokta_id not in cozum_baglami.gorev_noktalari
+        assert pasif.nokta_id in okuma_baglami.gorev_noktalari
     finally:
         oturum.rollback()
         oturum.close()
 
 
 def test_kullanim_bulunamayanda_404(istemci: TestClient) -> None:
-    for yol in ("yetkinlik", "bina", "nokta", "vardiya-tipi", "personel"):
+    for yol in ("yetkinlik", "bina", "nokta", "personel"):
         assert istemci.get(f"/api/{yol}/999999/kullanim").status_code == 404, yol
 
 
@@ -306,7 +266,6 @@ def test_kural_bulunamayanda_404(istemci: TestClient) -> None:
 
 
 def test_kural_guncelle(istemci: TestClient) -> None:
-    from app.db import OturumYerel
     from app.models.kural import Kural, KuralTipi
 
     kimlik = _benzersiz("TEST-KURAL-FR11")
@@ -486,82 +445,12 @@ def test_olmayan_ozel_gun_404(istemci: TestClient) -> None:
     assert istemci.put("/api/ozel-gun/2099-01-01", json={"ad": "x"}).status_code == 404
 
 
-def test_ayni_blok_ikinci_kez_tanimlanamaz(istemci: TestClient) -> None:
-    """SRS FR-1.3: ayni (baslangic_saati, sure_saat) katalogda BIR KEZ bulunur.
-
-    Kopya blok cozumu bozmaz ama modele birbirinin yerine gecebilen
-    degiskenler ekler: arama simetriyi kirmakla ugrasir, cizelgede ise iki
-    blok arasindaki fark hicbir yerde gorunmez (Tur 3'te S1'in saat eksenine
-    tasinmasinda ayni tuzak yasandi).
-    """
-    blok = bos_vardiya_blogu(istemci)
-    with gecici_vardiya_tipi(istemci, {"ad": _benzersiz("Ozgun"), **blok}) as ilk:
-        kopya = istemci.post("/api/vardiya-tipi", json={"ad": _benzersiz("Kopya"), **blok})
-        assert kopya.status_code == 409
-        # Mesaj hangi blogun cakistigini SOYLER; kullanici katalogda arayarak
-        # bulmak zorunda kalmasin.
-        assert ilk["ad"] in kopya.json()["detail"]
-
-        # Kaydin KENDISI kopya sayilmaz: adini degistirip saatlerini aynen
-        # birakmak mumkun olmali.
-        guncel = istemci.put(
-            f"/api/vardiya-tipi/{ilk['vardiya_tipi_id']}", json={"ad": _benzersiz("Ozgun-yeni")}
-        )
-        assert guncel.status_code == 200
 
 
-def test_pasif_blok_ayni_saatte_yeni_blok_acmayi_engellemez(istemci: TestClient) -> None:
-    """Pasif blok benzersizlik sayiminda YOKTUR.
-
-    Kullanimda oldugu icin silinemeyip pasiflestirilen bir blok sayilsaydi,
-    o saatlerde yeni bir blok tanimlamak KALICI olarak imkansiz hale
-    gelirdi - kullanicinin duzeltebilecegi bir yol da olmazdi.
-    """
-    blok = bos_vardiya_blogu(istemci)
-    pasif = istemci.post("/api/vardiya-tipi", json={"ad": _benzersiz("Pasiflenecek"), **blok})
-    assert pasif.status_code == 201
-    pasif_id = pasif.json()["vardiya_tipi_id"]
-    assert istemci.put(f"/api/vardiya-tipi/{pasif_id}", json={"aktif": False}).status_code == 200
-
-    with gecici_vardiya_tipi(istemci, {"ad": _benzersiz("Yeni"), **blok}):
-        pass
-    istemci.delete(f"/api/vardiya-tipi/{pasif_id}")
 
 
-def test_gunluk_azamiyi_asan_blok_giriste_reddedilir(istemci: TestClient) -> None:
-    """SRS FR-1.3: blok suresi gunluk azami calisma saatini asamaz.
-
-    Deger kural katalogundan okunur (H9 Tur 4'te yazilacak); kural yoksa
-    gecici varsayilan 11 saattir. Girisi gecen bir blok, cozumde her gun
-    ayni ihlali uretirdi.
-    """
-    yanit = istemci.post(
-        "/api/vardiya-tipi",
-        json={
-            "ad": _benzersiz("Cok Uzun"),
-            "baslangic_saati": "06:00:00",
-            "bitis_saati": "18:00:00",  # 12 saat
-        },
-    )
-    # 400, 409 degil: istek mevcut veriyle cakismiyor, DEGERIN kendisi
-    # gecersiz - kullanici sureyi kisaltir, baska bir saat aramaz.
-    assert yanit.status_code == 400
-    assert "11" in yanit.json()["detail"]
 
 
-def test_azami_calisma_saati_kural_katalogundan_okunur(istemci: TestClient) -> None:
-    """H9 katalogda tanimlandiginda blok kisiti onun degerini kullanir.
-
-    Kisit ile kural ayri sayilar tasisaydi, girisi gecen bir blok cozumde
-    her gun ihlal uretirdi. Test bugun H9 YOKKEN de anlamli: `parametre_getir`
-    kural satirini bulamayinca gecici varsayilana duser ve kisit yine calisir.
-    """
-    oturum = OturumYerel()
-    try:
-        servis = TanimServisi(oturum)
-        assert servis.azami_gunluk_calisma_saati() == Decimal(11)
-    finally:
-        oturum.close()
 
 
 def test_devir_bakiyesi_alanlari_personel_uzerinden_yazilir(istemci: TestClient) -> None:

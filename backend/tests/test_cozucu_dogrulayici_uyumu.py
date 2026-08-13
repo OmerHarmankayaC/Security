@@ -12,47 +12,42 @@ kayit defteri) H1-H8'in tamami icin dogru sekilde "sifir ihlal" sonucu
 uretebildigini simdiden guvenceye almak.
 """
 
-from datetime import date, time, timedelta
+from datetime import date, timedelta
 
 from app.kurallar import (
     AtamaKaydi,
     Baglam,
     GorevNoktasiBilgisi,
     PersonelBilgisi,
-    VardiyaTipiBilgisi,
 )
 from app.kurallar.kayit_defteri import bul
+from tests.conftest import blok
 
-GECE, GUNDUZ, AKSAM = 1, 2, 3
+# Baslangic saatleri (blok degil): ileri yonlu gecis sirasi.
+GECE, GUNDUZ, AKSAM = 0, 8, 16
 KAPI = 1
 GUVENLIK_GOREVI = 1
 
 _H_PARAMETRELERI: dict[str, dict[str, int]] = {
-    "H1": {},
+    "H1": {"asgari_blok_saat": 4},
     "H2": {"asgari_dinlenme_saati": 16},
-    "H3": {"azami_ardisik_gece": 3},
+    "H3": {"azami_ardisik_gece": 3, "gece_esigi_saat": 4},
     "H4": {"azami_ardisik_calisma_gunu": 6},
     "H5": {"haftalik_mutlak_tavan": 66},
     "H6": {"haftalik_asgari_izin_gunu": 1},
     "H7": {},
     "H8": {},
+    "H9": {"azami_gunluk_saat": 11},
 }
 
 
 def _baglam() -> Baglam:
-    vardiya_tipleri = {
-        GECE: VardiyaTipiBilgisi(GECE, time(0, 0), time(8, 0), 8, True),
-        GUNDUZ: VardiyaTipiBilgisi(GUNDUZ, time(8, 0), time(16, 0), 8, False),
-        AKSAM: VardiyaTipiBilgisi(AKSAM, time(16, 0), time(0, 0), 8, False),
-    }
     gorev_noktalari = {KAPI: GorevNoktasiBilgisi(KAPI, onkosul_yetkinlik_id=GUVENLIK_GOREVI)}
     personel = {
         p: PersonelBilgisi(p, date(2026, 1, 1), None, frozenset({GUVENLIK_GOREVI}))
         for p in (1, 2, 3)
     }
-    return Baglam(
-        vardiya_tipleri=vardiya_tipleri, gorev_noktalari=gorev_noktalari, personel=personel
-    )
+    return Baglam(gorev_noktalari=gorev_noktalari, personel=personel)
 
 
 def _elle_kurulan_gecerli_cizelge(personel_sayisi: int, gun_sayisi: int) -> list[AtamaKaydi]:
@@ -66,17 +61,17 @@ def _elle_kurulan_gecerli_cizelge(personel_sayisi: int, gun_sayisi: int) -> list
     vardiyayla (32 saat) rahatca saglanir.
     """
     sira = [GUNDUZ, AKSAM, GECE]
-    atamalar: list[AtamaKaydi] = []
+    atamalar = []
     baslangic = date(2026, 2, 2)
     for personel_id in range(1, personel_sayisi + 1):
         for i, gun_ofseti in enumerate(range(0, gun_sayisi, 2)):
-            vardiya_tipi_id = sira[i % len(sira)]
             atamalar.append(
-                AtamaKaydi(
-                    personel_id=personel_id,
-                    tarih=baslangic + timedelta(days=gun_ofseti),
-                    vardiya_tipi_id=vardiya_tipi_id,
-                    nokta_id=KAPI,
+                blok(
+                    personel_id,
+                    baslangic + timedelta(days=gun_ofseti),
+                    sira[i % len(sira)],
+                    8,
+                    KAPI,
                 )
             )
     return atamalar
@@ -103,9 +98,7 @@ def test_kasten_bozulan_cizelge_h2_ihlali_yakalar() -> None:
     atamalar = _elle_kurulan_gecerli_cizelge(personel_sayisi=1, gun_sayisi=4)
     # Personel 1, gun 0'da GUNDUZ (08-16) calisiyor; hemen ertesi gun GECE eklemek
     # (00-08, yalnizca 8 saat sonra baslar) H2'yi (16 saat) acikca bozar.
-    atamalar.append(
-        AtamaKaydi(personel_id=1, tarih=date(2026, 2, 3), vardiya_tipi_id=GECE, nokta_id=KAPI)
-    )
+    atamalar.append(blok(1, date(2026, 2, 3), GECE, 8, KAPI))
 
     sinif = bul("H2")
     assert sinif is not None
@@ -131,14 +124,12 @@ def test_kasten_bozulan_cizelge_s1_fazla_kadroyu_yakalar() -> None:
     from app.kurallar.esnek import S1fFazlaKadro
 
     baglam = _baglam()
-    for _gun, saat in baglam.blok_saatleri(date(2026, 2, 2), GUNDUZ):
-        baglam.talep_saat[(date(2026, 2, 2), saat, KAPI)] = 1
+    gun = date(2026, 2, 2)
+    for saat in range(GUNDUZ, GUNDUZ + 8):
+        baglam.talep_saat[(gun, saat, KAPI)] = 1
 
     # Cozucunun ureteceginden FAZLASI: talep 1 iken 2 kisi atanmis.
-    fazla = [
-        AtamaKaydi(personel_id=1, tarih=date(2026, 2, 2), vardiya_tipi_id=GUNDUZ, nokta_id=KAPI),
-        AtamaKaydi(personel_id=2, tarih=date(2026, 2, 2), vardiya_tipi_id=GUNDUZ, nokta_id=KAPI),
-    ]
+    fazla = [blok(1, gun, GUNDUZ, 8, KAPI), blok(2, gun, GUNDUZ, 8, KAPI)]
     ihlaller = S1fFazlaKadro(parametreler={}, agirlik=2).dogrula(fazla, baglam)
 
     assert len(ihlaller) == 1
