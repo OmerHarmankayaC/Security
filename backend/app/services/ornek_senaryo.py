@@ -10,13 +10,10 @@ from datetime import time
 
 from app.models.tanim import GunTipi
 
+# SRS 3.3.2 — yetkinlikler ikiye indi. Muracaat Gorevlisi kalkti; o
+# personel duz guvenlik gorevlisi olarak havuza katildi.
 GUVENLIK_GOREVI = "Güvenlik Görevi"
 VARDIYA_SEFI = "Vardiya Şefi"
-MURACAAT_GOREVLISI = "Müracaat Görevlisi"
-
-GECE = "Gece"
-GUNDUZ = "Gündüz"
-AKSAM = "Akşam"
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,7 +30,6 @@ class NoktaTanimi:
 NOKTA_TANIMLARI: tuple[NoktaTanimi, ...] = (
     NoktaTanimi("Vardiya Şefliği", None, VARDIYA_SEFI),
     NoktaTanimi("Güvenlik", None, GUVENLIK_GOREVI),
-    NoktaTanimi("Müracaat", None, MURACAAT_GOREVLISI),
 )
 
 # SRS 3.3.4 — Talep, bir calisma bloguna DEGIL bir ZAMAN ARALIGINA baglidir.
@@ -50,10 +46,12 @@ _SEKIZ = time(8, 0)
 TALEP_ARALIKLARI: tuple[tuple[tuple[tuple[time, time, int], ...], int], ...] = (
     # Vardiya Şefliği: gun boyu bir kisi.
     (((_GUN_BASI, _GUN_BASI, 1),), 1),
-    # Güvenlik: gunduz+aksam saatlerinde yedi, gece uc.
-    (((_SEKIZ, _GUN_BASI, 7), (_GUN_BASI, _SEKIZ, 3)), 3),
-    # Müracaat: yalnizca hafta ici gunduz saatlerinde acik.
-    (((_SEKIZ, _GUN_BASI, 2),), 0),
+    # Güvenlik: 08.00-24.00 arasi dokuz, gece uc.
+    #
+    # YEDIDEN DOKUZA CIKTI (SRS 3.3.4): Muracaat noktasinin hafta ici gunduz
+    # ve aksam saatlerindeki iki kisilik talebi buraya EKLENDI. Haftalik
+    # toplam is yuku degismedi - 1.152 kisi-saat.
+    (((_SEKIZ, _GUN_BASI, 9), (_GUN_BASI, _SEKIZ, 3)), 3),
 )
 
 
@@ -77,14 +75,14 @@ def talep_satirlarini_olustur() -> list[TalepAraligiTanimi]:
     - cizelge o gun icin kimseyi istemez ve bu bir hata gibi gorunmez,
     cunku kapsama acigi da olusmaz (talep sifirdir).
 
-    Muracaat noktasinin hafta sonu/tatil satirlari SIFIR degerle yine de
-    yazilir: "bu noktada o gun kimse gerekmiyor" ile "bu nokta icin satir
-    girmeyi unuttuk" arasindaki farki veride gorunur kilar.
+    Bir noktanin bir gun tipinde kimseyi gerektirmemesi durumunda satir
+    SIFIR degerle yine de yazilir: "bu noktada o gun kimse gerekmiyor" ile
+    "bu nokta icin satir girmeyi unuttuk" arasindaki farki veride gorunur
+    kilar.
 
-    Haftalik yuk (FR-1.9) bu satirlardan ETKILENMEZ: resmi tatil her hafta
-    tekrarlanmadigi icin haftalik tekrar carpani sifirdir. SRS 3.3.6'nin
-    referans sayilari korunur - 1.152 kisi-saat, sekiz saatlik katalogda
-    144 kisi-vardiya ve 29 kisilik asgari kadro.
+    Haftalik yuk (FR-1.9) resmi tatil satirlarindan ETKILENMEZ: tatil her
+    hafta tekrarlanmadigi icin haftalik tekrar carpani sifirdir. SRS
+    3.3.6'nin referans sayisi korunur — 1.152 kisi-saat.
     """
     satirlar: list[TalepAraligiTanimi] = []
     for index, (hafta_ici_araliklar, azaltilmis) in enumerate(TALEP_ARALIKLARI):
@@ -97,12 +95,7 @@ def talep_satirlarini_olustur() -> list[TalepAraligiTanimi]:
 
 @dataclass(frozen=True, slots=True)
 class PersonelGrubuTanimi:
-    """SRS 3.3.6'daki yetkinlik havuzlarindan turetilen personel gruplari.
-
-    Buyuklukler, 'Izin Payiyla' toplaminin (7+6+23=36) ~44'e olceklenmesiyle
-    bulundu (44/36 ~ 1.22): Vardiya Sefi 7->9, Muracaat 6->7,
-    yalniz Guvenlik Gorevi 23->28. Toplam 44 (UYGULAMA_PLANI.md Gun 5).
-    """
+    """SRS 3.3.6'daki yetkinlik havuzlarindan turetilen personel gruplari."""
 
     yetkinlikler: tuple[str, ...]
     sayi: int
@@ -120,12 +113,12 @@ class PersonelGrubuTanimi:
 # ALTINDA; izin veya uzun blok girdiginde esik asilir ve kota tuketimi
 # gorunur hale gelir.
 #
-# Havuz oranlari SRS 3.3.6'daki izin payli degerlere (7 / 6 / 23) sadik
-# kalir; Vardiya Sefligi havuzunun kirilganligi (kesintisiz doldurulan tek
-# nokta, haftada 21 vardiya) korunur - sikisik senaryonun dayandigi
-# mekanizma budur.
+# MURACAAT HAVUZU KALKTI, KADRO KUCULMEDI: o alti kisi duz guvenlik
+# gorevlisi olarak havuza katildi (SRS 3.3.3). Sef havuzu yedi kisi olarak
+# korunur - Vardiya Sefligi noktasi kesintisiz doldurulan tek noktadir ve
+# haftada 168 kisi-saat ister; havuzun kirilganligi K4'un celiskili
+# senaryosunun dayandigi mekanizmadir (SAATLIK_MODEL_KARARLARI bolum 3).
 PERSONEL_GRUPLARI: tuple[PersonelGrubuTanimi, ...] = (
     PersonelGrubuTanimi((VARDIYA_SEFI, GUVENLIK_GOREVI), 7, "VS"),
-    PersonelGrubuTanimi((MURACAAT_GOREVLISI,), 6, "MR"),
-    PersonelGrubuTanimi((GUVENLIK_GOREVI,), 17, "GG"),
+    PersonelGrubuTanimi((GUVENLIK_GOREVI,), 23, "GG"),
 )

@@ -215,6 +215,10 @@ class DogrulamaServisi:
             degisiklik.surum_id, degisiklik.personel_id, degisiklik.tarih
         ):
             self.oturum.delete(mevcut)
+        # SILME once BOSALTILIR. SQLAlchemy'nin is birimi ayni tablo icin
+        # INSERT'leri DELETE'lerden once gonderir; ayni saatte baslayan bir
+        # blogun yerine yenisini yazmak benzersizlik kisitina takilirdi.
+        self.oturum.flush()
         blok = degisiklik.blok
         if blok is not None:
             baslangic, bitis = blok

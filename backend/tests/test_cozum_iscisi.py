@@ -10,7 +10,7 @@ Canli bir PostgreSQL gerektirir; baglanamiyorsa atlanir.
 
 import time as zaman
 import uuid
-from datetime import date, timedelta
+from datetime import date, time, timedelta
 
 import pytest
 from sqlalchemy import select
@@ -18,7 +18,7 @@ from sqlalchemy import select
 from app.db import OturumYerel
 from app.models.kural import Kural, KuralTipi
 from app.models.sonuc import Atama, CizelgeSurumu, CozumIsiDurumu, Donem, KapsamaAcigi
-from app.models.tanim import GorevNoktasi, GunTipi, Personel, Talep, VardiyaTipi
+from app.models.tanim import GorevNoktasi, GunTipi, Personel, Talep
 from app.repositories.sonuc import CozumIsiDeposu
 from app.services.cozum_servisi import CozumServisi
 from scripts.cozum_iscisi import siradaki_isi_isle, siradaki_isi_kap
@@ -60,14 +60,6 @@ def kurulum() -> dict[str, int]:
     try:
         senaryo_verisini_temizle(oturum)
 
-        vardiya = VardiyaTipi(
-            ad=f"Gunduz-{on_ek}",
-            baslangic_saati="08:00",
-            bitis_saati="16:00",
-            sure_saat=8,
-            gece_mi=False,
-        )
-        oturum.add(vardiya)
         nokta = GorevNoktasi(ad=f"Nokta-{on_ek}")
         oturum.add(nokta)
         oturum.add_all(
@@ -90,8 +82,8 @@ def kurulum() -> dict[str, int]:
             oturum.add(
                 Talep(
                     nokta_id=nokta.nokta_id,
-                    baslangic=vardiya.baslangic_saati,
-                    bitis=vardiya.bitis_saati,
+                    baslangic=time(8, 0),
+                    bitis=time(16, 0),
                     gun_tipi=GunTipi.HAFTA_ICI,
                     tarih=baslangic + timedelta(days=gun_ofset),
                     gereken_sayi=1,

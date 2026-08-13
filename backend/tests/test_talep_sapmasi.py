@@ -15,7 +15,7 @@ Iki sozlesme kilitleniyor:
 """
 
 import uuid
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta
 
 import pytest
 from sqlalchemy import select
@@ -30,10 +30,14 @@ from app.models.sonuc import (
     FazlaKadro,
     KapsamaAcigi,
 )
-from app.models.tanim import GorevNoktasi, GunTipi, Personel, Talep, VardiyaTipi
+from app.models.tanim import GorevNoktasi, GunTipi, Personel, Talep
 from app.services.dogrulama_servisi import AtamaDegisikligi, DogrulamaServisi
 from app.services.talep_sapmasi import sapmalari_yenile
 from tests.conftest import pg_yoksa_atla, senaryo_verisini_temizle
+
+# Senaryonun tek blogu: 16.00–24.00 (gun sonu 00.00 ile yazilir).
+_BAS = time(16, 0)
+_BITIS = time(0, 0)
 
 
 @pytest.fixture
@@ -57,32 +61,25 @@ def senaryo() -> dict:
             tercih_son_tarihi=gun - timedelta(days=7),
         )
         oturum.add(donem)
-        vardiya = VardiyaTipi(
-            ad=f"Aksam-{on_ek}",
-            baslangic_saati=time(16, 0),
-            bitis_saati=time(0, 0),
-            sure_saat=8,
-            gece_mi=False,
-        )
         seflik = GorevNoktasi(ad=f"Seflik-{on_ek}")
         guvenlik = GorevNoktasi(ad=f"Guvenlik-{on_ek}")
-        oturum.add_all([vardiya, seflik, guvenlik])
+        oturum.add_all([seflik, guvenlik])
         oturum.flush()
 
         oturum.add_all(
             [
                 Talep(
                     nokta_id=seflik.nokta_id,
-                    baslangic=vardiya.baslangic_saati,
-                    bitis=vardiya.bitis_saati,
+                    baslangic=_BAS,
+                    bitis=_BITIS,
                     gun_tipi=GunTipi.HAFTA_ICI,
                     tarih=None,
                     gereken_sayi=1,
                 ),
                 Talep(
                     nokta_id=guvenlik.nokta_id,
-                    baslangic=vardiya.baslangic_saati,
-                    bitis=vardiya.bitis_saati,
+                    baslangic=_BAS,
+                    bitis=_BITIS,
                     gun_tipi=GunTipi.HAFTA_ICI,
                     tarih=None,
                     gereken_sayi=2,
@@ -112,8 +109,8 @@ def senaryo() -> dict:
                 Atama(
                     surum_id=surum.surum_id,
                     personel_id=kisiler[etiket],
-                    tarih=gun,
-                    vardiya_tipi_id=vardiya.vardiya_tipi_id,
+                    baslangic_zamani=datetime.combine(gun, _BAS),
+                    bitis_zamani=datetime.combine(gun + timedelta(days=1), _BITIS),
                     nokta_id=nokta.nokta_id,
                     kaynak=AtamaKaynagi.COZUCU,
                 )
@@ -122,7 +119,6 @@ def senaryo() -> dict:
         return {
             "gun": gun,
             "surum_id": surum.surum_id,
-            "vardiya_id": vardiya.vardiya_tipi_id,
             "seflik_id": seflik.nokta_id,
             "guvenlik_id": guvenlik.nokta_id,
             **kisiler,
@@ -167,7 +163,6 @@ def test_elle_atama_kaldirmak_kapsama_acigini_tazeler(senaryo: dict) -> None:
                 surum_id=senaryo["surum_id"],
                 personel_id=senaryo["sef"],
                 tarih=senaryo["gun"],
-                vardiya_tipi_id=None,  # atamayi kaldir
                 nokta_id=None,
             )
         )
@@ -189,7 +184,8 @@ def test_elle_fazla_kadro_yazmak_kalici_iz_birakir(senaryo: dict) -> None:
                 surum_id=senaryo["surum_id"],
                 personel_id=senaryo["sef"],
                 tarih=senaryo["gun"],
-                vardiya_tipi_id=senaryo["vardiya_id"],
+                baslangic_saati=_BAS,
+                bitis_saati=_BITIS,
                 nokta_id=senaryo["guvenlik_id"],
             )
         )
@@ -213,7 +209,8 @@ def test_sapma_geri_alindiginda_satirlar_da_silinir(senaryo: dict) -> None:
                 surum_id=senaryo["surum_id"],
                 personel_id=senaryo["sef"],
                 tarih=senaryo["gun"],
-                vardiya_tipi_id=senaryo["vardiya_id"],
+                baslangic_saati=_BAS,
+                bitis_saati=_BITIS,
                 nokta_id=senaryo["guvenlik_id"],
             )
         )
@@ -225,7 +222,8 @@ def test_sapma_geri_alindiginda_satirlar_da_silinir(senaryo: dict) -> None:
                 surum_id=senaryo["surum_id"],
                 personel_id=senaryo["sef"],
                 tarih=senaryo["gun"],
-                vardiya_tipi_id=senaryo["vardiya_id"],
+                baslangic_saati=_BAS,
+                bitis_saati=_BITIS,
                 nokta_id=senaryo["seflik_id"],
             )
         )
@@ -252,7 +250,8 @@ def test_fazla_kadro_kapsama_oranini_bozmaz(senaryo: dict) -> None:
                 surum_id=senaryo["surum_id"],
                 personel_id=senaryo["sef"],
                 tarih=senaryo["gun"],
-                vardiya_tipi_id=senaryo["vardiya_id"],
+                baslangic_saati=_BAS,
+                bitis_saati=_BITIS,
                 nokta_id=senaryo["guvenlik_id"],
             )
         )

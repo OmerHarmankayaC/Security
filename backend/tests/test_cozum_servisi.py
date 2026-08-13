@@ -15,7 +15,7 @@ from app.db import OturumYerel
 from app.models.girdi import Musaitlik, MusaitlikDilimi, MusaitlikTipi
 from app.models.kural import Kural, KuralTipi
 from app.models.sonuc import Atama, CozumIsiDurumu, Donem, KapsamaAcigi
-from app.models.tanim import GorevNoktasi, GunTipi, Personel, Talep, VardiyaTipi, Yetkinlik
+from app.models.tanim import GorevNoktasi, GunTipi, Personel, Talep, Yetkinlik
 from app.repositories.sonuc import CozumIsiDeposu
 from app.services.cozum_servisi import CozumServisi
 from tests.conftest import isi_calistir_ve_bekle, pg_yoksa_atla
@@ -55,21 +55,13 @@ def temel_kurulum() -> dict:
     on_ek = uuid.uuid4().hex[:8]
     oturum = OturumYerel()
     try:
-        vardiya_tipi = VardiyaTipi(
-            ad=f"Gunduz-{on_ek}",
-            baslangic_saati=time(8, 0),
-            bitis_saati=time(16, 0),
-            sure_saat=8,
-            gece_mi=False,
-        )
         nokta = GorevNoktasi(ad=f"Nokta-{on_ek}")
-        oturum.add_all([vardiya_tipi, nokta])
+        oturum.add_all([nokta])
         _standart_kurallari_ekle(oturum)
         oturum.flush()
         oturum.commit()
         return {
             "on_ek": on_ek,
-            "vardiya_tipi_id": vardiya_tipi.vardiya_tipi_id,
             "nokta_id": nokta.nokta_id,
         }
     finally:
@@ -150,7 +142,9 @@ def test_cozum_kadro_yeterliyken_tamamlandi_doner_ve_atama_yazilir(temel_kurulum
         # katalogda yapisaldir ve S1f onu kaydeder. Testin asil olctugu
         # sey asagida: BU noktada kapsama acigi yok.
         assert len(atamalar) >= 7
-        assert {a.tarih for a in atamalar} == {baslangic + timedelta(days=i) for i in range(7)}
+        assert {a.baslangic_zamani.date() for a in atamalar} == {
+            baslangic + timedelta(days=i) for i in range(7)
+        }
         kapsama = (
             oturum.execute(
                 select(KapsamaAcigi).where(

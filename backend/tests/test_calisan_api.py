@@ -25,7 +25,7 @@ from app.main import app
 from app.models.girdi import Tercih, TercihDurumu, TercihTipi
 from app.models.kimlik import Rol
 from app.models.sonuc import Atama, AtamaKaynagi, CizelgeSurumu, CizelgeSurumuDurumu, Donem
-from app.models.tanim import GorevNoktasi, GunTipi, Personel, Talep, VardiyaTipi
+from app.models.tanim import GorevNoktasi, GunTipi, Personel, Talep
 from tests.conftest import oturumlu_istemci, pg_yoksa_atla, senaryo_verisini_temizle
 
 BUGUN = date.today()

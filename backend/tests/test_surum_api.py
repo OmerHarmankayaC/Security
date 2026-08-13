@@ -25,7 +25,7 @@ from app.models.sonuc import (
     Donem,
     KapsamaAcigi,
 )
-from app.models.tanim import GorevNoktasi, Personel, VardiyaTipi
+from app.models.tanim import GorevNoktasi, Personel
 from tests.conftest import pg_yoksa_atla, senaryo_verisini_temizle, yetkili_istemci
 
 

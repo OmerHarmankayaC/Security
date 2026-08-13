@@ -10,46 +10,45 @@ paydasi). Buradaki testler o kalibin S2/S3 ayagini kilitler.
 Veritabani gerektirmez.
 """
 
-from datetime import date, time
+from datetime import date, timedelta
 
 from app.kurallar.baglam import (
     Baglam,
     GorevNoktasiBilgisi,
     PersonelBilgisi,
-    VardiyaTipiBilgisi,
 )
 from app.kurallar.zaman_araligi import gece_saati_mi
-from tests.conftest import blok_talebini_saate_ac
 
-GECE, GUNDUZ = 1, 2
-GUVENLIK, MURACAAT = 10, 20  # nokta kimlikleri
-YET_GUVENLIK, YET_MURACAAT = 100, 200
+# Iki nokta ve iki YETKINLIK. Ikinci nokta artik Muracaat degil (o nokta
+# kapsamdan cikti, SRS 3.3.3); testin olctugu sey erisilebilirlik
+# ASIMETRISIDIR ve onu Vardiya Sefligi havuzu tasiyor.
+GUVENLIK, SEFLIK = 10, 20  # nokta kimlikleri
+YET_GUVENLIK, YET_SEF = 100, 200
+
+# Gece / gunduz araliklari (blok degil, saat).
+GECE = (0, 8)
+GUNDUZ = (8, 16)
 
 _PAZARTESI = date(2026, 2, 2)
 _CUMARTESI = date(2026, 2, 7)
 
 
-def _baglam(talep: dict[tuple[date, int, int], int]) -> Baglam:
-    """Talep BLOK eksenli verilir, baglama SAAT ekseninde girer.
-
-    `Baglam.talep` (blok eksenli turev) Tur 4'te kaldirildi; testin
-    anlattigi sey degismedi, yalnizca anahtar cevriliyor.
-    """
-    vardiya_tipleri = {
-        GECE: VardiyaTipiBilgisi(GECE, time(0, 0), time(8, 0), 8.0, True),
-        GUNDUZ: VardiyaTipiBilgisi(GUNDUZ, time(8, 0), time(16, 0), 8.0, False),
-    }
+def _baglam(talep: dict[tuple[date, tuple[int, int], int], int]) -> Baglam:
+    """Talep ZAMAN ARALIGI olarak verilir, baglama saat saat girer."""
+    talep_saat: dict[tuple[date, int, int], int] = {}
+    for (tarih, (bas, bit), nokta_id), gereken in talep.items():
+        for saat in range(bas, bit):
+            talep_saat[(tarih + timedelta(days=saat // 24), saat % 24, nokta_id)] = gereken
     return Baglam(
-        vardiya_tipleri=vardiya_tipleri,
         gorev_noktalari={
             GUVENLIK: GorevNoktasiBilgisi(GUVENLIK, onkosul_yetkinlik_id=YET_GUVENLIK),
-            MURACAAT: GorevNoktasiBilgisi(MURACAAT, onkosul_yetkinlik_id=YET_MURACAAT),
+            SEFLIK: GorevNoktasiBilgisi(SEFLIK, onkosul_yetkinlik_id=YET_SEF),
         },
         personel={
             1: PersonelBilgisi(1, date(2026, 1, 1), None, frozenset({YET_GUVENLIK})),
-            2: PersonelBilgisi(2, date(2026, 1, 1), None, frozenset({YET_MURACAAT})),
+            2: PersonelBilgisi(2, date(2026, 1, 1), None, frozenset({YET_SEF})),
         },
-        talep_saat=blok_talebini_saate_ac(talep, vardiya_tipleri),
+        talep_saat=talep_saat,
         donem_baslangic=_PAZARTESI,
         donem_bitis=date(2026, 2, 8),
     )
@@ -67,13 +66,13 @@ def _hs_havuzu(baglam: Baglam) -> set[int]:
 
 
 def test_gece_talebi_olmayan_noktanin_personeli_havuz_disindadir() -> None:
-    """Asil senaryo (Gun 14 K3 bulgusu): Muracaat gorevlisi yalniz Muracaat
-    noktasinda calisabilir (H8) ve o noktanin gece talebi yoktur; gece sayisi
-    hicbir cizelgede sifirdan yukari cikamaz, dolayisiyla paydaya girmemelidir."""
+    """Asil senaryo (Gun 14 K3 bulgusu): yalnizca tek bir noktada
+    calisabilen personel (H8) o noktanin gece talebi yoksa gece yukunu hicbir
+    cizelgede alamaz; dolayisiyla paydaya girmemelidir."""
     baglam = _baglam(
         {
             (_PAZARTESI, GECE, GUVENLIK): 1,  # gece talebi YALNIZ Guvenlik'te
-            (_PAZARTESI, GUNDUZ, MURACAAT): 2,
+            (_PAZARTESI, GUNDUZ, SEFLIK): 2,
         }
     )
     assert _gece_havuzu(baglam) == {1}
@@ -83,7 +82,7 @@ def test_gece_talebi_bulunan_noktanin_personeli_havuzdadir() -> None:
     baglam = _baglam(
         {
             (_PAZARTESI, GECE, GUVENLIK): 1,
-            (_PAZARTESI, GECE, MURACAAT): 1,  # Muracaat'ta da gece talebi var
+            (_PAZARTESI, GECE, SEFLIK): 1,  # bu noktada da gece talebi var
         }
     )
     assert _gece_havuzu(baglam) == {1, 2}
@@ -96,7 +95,7 @@ def test_sifir_gereken_talep_satiri_havuza_sokmaz() -> None:
     baglam = _baglam(
         {
             (_PAZARTESI, GECE, GUVENLIK): 1,
-            (_PAZARTESI, GECE, MURACAAT): 0,  # satir var ama gereken 0
+            (_PAZARTESI, GECE, SEFLIK): 0,  # satir var ama gereken 0
         }
     )
     assert _gece_havuzu(baglam) == {1}
@@ -110,7 +109,7 @@ def test_donem_disi_talep_havuza_sokmaz() -> None:
     baglam = _baglam(
         {
             (_PAZARTESI, GECE, GUVENLIK): 1,
-            (donem_disi, GECE, MURACAAT): 1,
+            (donem_disi, GECE, SEFLIK): 1,
         }
     )
     assert _gece_havuzu(baglam) == {1}
@@ -122,7 +121,7 @@ def test_hafta_sonu_havuzu_ayni_mantikla_belirlenir() -> None:
     baglam = _baglam(
         {
             (_CUMARTESI, GUNDUZ, GUVENLIK): 1,  # hafta sonu talebi
-            (_PAZARTESI, GUNDUZ, MURACAAT): 2,  # yalnizca hafta ici
+            (_PAZARTESI, GUNDUZ, SEFLIK): 2,  # yalnizca hafta ici
         }
     )
     assert _hs_havuzu(baglam) == {1}
