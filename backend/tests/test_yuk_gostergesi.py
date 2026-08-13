@@ -1,34 +1,22 @@
 """FR-1.9 yuk gostergesi hesabi: SRS 3.3.6'daki referans ornekle dogrulama.
 
-Veritabani gerektirmez; Talep/VardiyaTipi ORM nesneleri saf veri tasiyici
-olarak (oturuma eklenmeden) kullanilir.
+Veritabani gerektirmez; Talep ORM nesneleri saf veri tasiyici olarak
+(oturuma eklenmeden) kullanilir.
+
+REFERANS SAYI DEGISMEDI. Muracaat noktasi kapsamdan cikti ve yuku Guvenlik
+talebine eklendi (SRS 3.3.4); haftalik toplam yine 1.152 kisi-saattir. Bu
+testin bir isi de tam olarak bunu kilitlemektir - noktanin kaldirilmasi is
+yukunu sessizce dusurmemelidir.
 """
 
 from datetime import time
 from decimal import Decimal
 
-from app.models.tanim import GunTipi, Talep, VardiyaTipi
-from app.services.ornek_senaryo import AKSAM, GECE, GUNDUZ, talep_satirlarini_olustur
+from app.models.tanim import GunTipi, Talep
+from app.services.ornek_senaryo import talep_satirlarini_olustur
 from app.services.yuk_gostergesi import yuk_gostergesi_hesapla
 
-_VARDIYA_ID = {GECE: 1, GUNDUZ: 2, AKSAM: 3}
-ORNEK_NOKTA_ID = (
-    2  # NOKTA_TANIMLARI[2] (0-tabanli index) = Muracaat -- bkz. app/services/ornek_senaryo.py
-)
-
-
-def _vardiya_tipleri() -> dict[int, VardiyaTipi]:
-    return {
-        vid: VardiyaTipi(
-            vardiya_tipi_id=vid,
-            baslangic_saati=time(8 * (vid - 1) % 24),
-            bitis_saati=time(8 * vid % 24),
-            sure_saat=Decimal(8),
-            gece_mi=(vid == _VARDIYA_ID[GECE]),
-            aktif=True,
-        )
-        for vid in _VARDIYA_ID.values()
-    }
+ORNEK_NOKTA_ID = 1  # NOKTA_TANIMLARI[1] = Guvenlik (bkz. app/services/ornek_senaryo.py)
 
 
 def _guvenlik_personeli_talep_matrisi() -> list[Talep]:

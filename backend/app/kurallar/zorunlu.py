@@ -1,12 +1,15 @@
-"""H1-H8 zorunlu kisitlari (SRS Bolum 4.2, SDD Ek A ornek sablonu, SDD 5.3).
+"""H1-H10 zorunlu kisitlari (SRS Bolum 4.2, SDD Ek A ornek sablonu, SDD 5.3).
 
-Her kuralin hem dogrula (elle kurulan atama listeleri uzerinde, Sprint 1)
-hem modele_ekle (gercek CP-SAT model nesnesi uzerinde, Sprint 2 Gun 6)
-tarafi doludur; SDD 3.2.1'in "iki yorumlayici da ayni kural nesnesinden
-beslenir" ilkesiyle tutarli.
+Her kuralin hem dogrula (elle kurulan atama listeleri uzerinde) hem
+modele_ekle (gercek CP-SAT model nesnesi uzerinde) tarafi doludur; SDD
+3.2.1'in "iki yorumlayici da ayni kural nesnesinden beslenir" ilkesiyle
+tutarli.
+
+BUTUN GUN BAZLI SAYIMLAR BLOGUN BASLADIGI GUNE YAZILIR (TD-1) ve tek bir
+tabandan gecer: `Baglam.blok_saati` / `Baglam.calisti`. Duvar saatine dusen
+bir sayim gece yarisini asan blogu bir kuralda bir gun, digerinde iki gun
+gosterirdi.
 """
-
-from collections import Counter
 
 from ortools.sat.python import cp_model
 
@@ -16,7 +19,7 @@ from app.kurallar.temel import Ihlal, ParametreTanimi, XAnahtari, ZorunluKural
 from app.kurallar.yardimcilar import (
     ardisik_kosu_ihlalleri,
     calisilan_gunler,
-    gece_calisilan_gunler,
+    gece_gunleri,
     gunluk_saat,
     kayan_pencere_ihlalleri,
     kayan_pencere_kisiti_ekle,
@@ -24,53 +27,121 @@ from app.kurallar.yardimcilar import (
     takvim_haftalari,
 )
 
+# SRS 3.3.5. Kural kaydinda parametre bulunmadiginda kullanilir; katalog
+# disindan kurulan test baglamlari bu yoldan gecer.
+_VARSAYILAN_ASGARI_BLOK_SAAT = 4
+_VARSAYILAN_GECE_ESIGI_SAAT = 4
+
 
 @kayitli("H1")
-class H1GundeBirVardiya(ZorunluKural):
-    """Bir personel bir takvim gununde en fazla bir vardiyaya atanabilir. Parametresizdir."""
+class H1GundeTekKesintisizCalisma(ZorunluKural):
+    """Bir personelin bir takvim gunundeki calismasi TEK ve KESINTISIZDIR.
 
-    ad = "Günde en fazla bir vardiya"
+    ```
+    bas[p,s] ≥ z[p,s] − z[p,s−1]              blok baslangici gostergesi
+    bas[p,s] ≤ z[p,s]
+    bas[p,s] ≤ 1 − z[p,s−1]
+    ∀p, ∀d :  Σ_{s ∈ gün d} bas[p,s] ≤ 1
+    ∀p, ∀d :  blok_saat[p,d] ≥ asgari_blok_saat · Σ_{s ∈ gün d} bas[p,s]
+    ∀p, ∀s, ∀n :  x[p,s,n] ≥ z[p,s] + x[p,s−1,n] − 1      nokta sabitligi
+    ```
+
+    Kural once "gunde en fazla bir atama" idi ve blok katalogu altinda bunu
+    soylemek yeterliydi - atama zaten bir blok secimiydi. Saat ekseninde
+    ayni cumle uc ayri sey ister: gunde tek BASLANGIC, blogun asgari SURE,
+    ve blok boyunca NOKTA SABITLIGI. Gun icinde bolunmus calisma (dort saat
+    calisip ara verip bes saat daha) bu kuralla dislanir: ikinci bir aralik
+    ikinci bir baslangic gostergesi uretir ve toplam bir sinirini asar.
+
+    Gece yarisini asan bloklar kurali BOZMAZ - tasan saatler yeni bir
+    baslangic uretmez ve blok basladigi gune sayilir (TD-1, TD-13).
+
+    Gosterge degiskenleri (`bas`, `devir`) ve nokta sabitligi model kurucu
+    tarafindan olusturulur: onlar kuralin degil EKSENIN yapisidir ve
+    baglamdaki her ifade (H3, H5, H9, H10, S2, S3, S4) onlara dayanir.
+    Burada kalan, kuralin kendi kararlari: gunde tek baslangic ve asgari
+    sure.
+    """
+
+    ad = "Günde tek ve kesintisiz çalışma"
     aciklama = (
-        "Bir personel bir takvim gününde en fazla bir vardiyaya ve o vardiya içinde en fazla "
-        "bir görev noktasına atanabilir."
+        "Bir personelin bir takvim gününde en fazla bir çalışma bloğu bulunur; blok "
+        "kesintisizdir, asgari blok süresinden kısa olamaz ve blok boyunca görev noktası "
+        "değişmez."
+    )
+    parametre_tanimlari = (
+        ParametreTanimi(
+            anahtar="asgari_blok_saat",
+            etiket="Asgari blok süresi",
+            birim="saat",
+            asgari=1,
+            azami=24,
+        ),
     )
 
     def modele_ekle(
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
     ) -> None:
+        asgari = int(self.parametreler.get("asgari_blok_saat", _VARSAYILAN_ASGARI_BLOK_SAAT))
         for p in baglam.personel:
             for g in baglam.zaman_ekseni:
-                ilgili = [
-                    degiskenler[(p, g, v, n)]
-                    for v in baglam.vardiya_tipleri
-                    for n in baglam.gorev_noktalari
-                    if (p, g, v, n) in degiskenler
-                ]
-                if ilgili:
-                    model.add(sum(ilgili) <= 1)
+                baslangiclar = baglam.calisti(p, g)
+                if isinstance(baslangiclar, int):
+                    continue
+                model.add(baslangiclar <= 1)
+                # Bir gun calisma basladiysa o blogun suresi asgariye
+                # ulasmali; hic calisilmayan gunde iki taraf da sifirdir.
+                model.add(baglam.blok_saati(p, g) >= asgari * baslangiclar)
         return None
 
     def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
-        sayac = Counter((a.personel_id, a.tarih) for a in atamalar)
-        return [
-            Ihlal(
-                kural_kimlik=self.kimlik,
-                personel_id=personel_id,
-                tarih=tarih,
-                aciklama=f"{tarih} gununde {sayi} atama var; en fazla 1 olmali",
-            )
-            for (personel_id, tarih), sayi in sayac.items()
-            if sayi > 1
-        ]
+        asgari = int(self.parametreler.get("asgari_blok_saat", _VARSAYILAN_ASGARI_BLOK_SAAT))
+        ihlaller: list[Ihlal] = []
+        for personel_id, sirali in personel_bazinda_sirali(atamalar).items():
+            gunluk: dict[object, int] = {}
+            for atama in sirali:
+                gunluk[atama.tarih] = gunluk.get(atama.tarih, 0) + 1
+                if atama.sure_saat < asgari:
+                    ihlaller.append(
+                        Ihlal(
+                            kural_kimlik=self.kimlik,
+                            personel_id=personel_id,
+                            tarih=atama.tarih,
+                            aciklama=f"Blok {atama.sure_saat} saat; asgari {asgari} saat",
+                        )
+                    )
+            for tarih, sayi in sorted(gunluk.items()):
+                if sayi > 1:
+                    ihlaller.append(
+                        Ihlal(
+                            kural_kimlik=self.kimlik,
+                            personel_id=personel_id,
+                            tarih=tarih,
+                            aciklama=f"{tarih} gununde {sayi} blok var; en fazla 1 olmali",
+                        )
+                    )
+        return ihlaller
 
 
 @kayitli("H2")
 class H2AsgariDinlenme(ZorunluKural):
-    """Ardisik iki atama arasindaki bosluk asgari_dinlenme_saati degerinden az olamaz."""
+    """Ardisik iki blok arasindaki bosluk asgari_dinlenme_saati degerinden az olamaz.
+
+    ```
+    ∀p, ∀s :  d · bas[p,s] + Σ_{k=1..d} z[p,s−k] ≤ d
+    ```
+
+    Bir blogun bitisi, onu izleyen baslangictan onceki son calisilan
+    saattir; dolayisiyla "baslangictan onceki d saat bostur" demek
+    "bloklar arasinda en az d saat vardir" demektir. Kisit tek satirda
+    yazilir: `bas = 1` iken toplam sifira zorlanir, `bas = 0` iken zaten
+    saglanir. Her saat cifti icin ayri kisit yazmak ayni seyi d kat
+    pahaliya soylerdi.
+    """
 
     ad = "Asgari dinlenme süresi"
     aciklama = (
-        "Ardışık iki atama arasındaki boşluk, tanımlı asgari dinlenme süresinden az olamaz. "
+        "Ardışık iki blok arasındaki boşluk, tanımlı asgari dinlenme süresinden az olamaz. "
         "Gece vardiyasından çıkan personele ertesi sabah görev verilmesini engelleyen kuralın "
         "genel biçimidir."
     )
@@ -87,29 +158,27 @@ class H2AsgariDinlenme(ZorunluKural):
     def modele_ekle(
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
     ) -> None:
-        """SDD Ek A'daki H2 ornegiyle birebir."""
-        d = self.parametreler["asgari_dinlenme_saati"]
-        for v1, v2 in baglam.vardiya_ciftleri:
-            for g1, g2 in baglam.gun_ciftleri:
-                ara = baglam.saat_farki_ham(g1, v1, g2, v2)
-                if 0 <= ara < d:
-                    for p in baglam.personel:
-                        model.add(baglam.y[(p, g1, v1)] + baglam.y[(p, g2, v2)] <= 1)
+        d = int(self.parametreler["asgari_dinlenme_saati"])
+        for (p, s), gosterge in baglam.bas.items():
+            onceki_saatler = sum(baglam.zv(p, s - k) for k in range(1, d + 1))
+            if isinstance(onceki_saatler, int) and onceki_saatler == 0:
+                continue
+            model.add(d * gosterge + onceki_saatler <= d)
         return None
 
     def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
         d = self.parametreler["asgari_dinlenme_saati"]
         ihlaller: list[Ihlal] = []
-        for personel_id, sirali in personel_bazinda_sirali(atamalar, baglam).items():
+        for personel_id, sirali in personel_bazinda_sirali(atamalar).items():
             for onceki, sonraki in zip(sirali, sirali[1:], strict=False):
-                ara = baglam.saat_farki(onceki, sonraki)
+                ara = (sonraki.baslangic - onceki.bitis).total_seconds() / 3600
                 if ara < d:
                     ihlaller.append(
                         Ihlal(
                             kural_kimlik=self.kimlik,
                             personel_id=personel_id,
                             tarih=sonraki.tarih,
-                            aciklama=f"Onceki vardiyayla arada yalnizca {ara:.1f} saat var; "
+                            aciklama=f"Onceki blokla arada yalnizca {ara:.1f} saat var; "
                             f"en az {d} saat gerekli",
                         )
                     )
@@ -118,42 +187,88 @@ class H2AsgariDinlenme(ZorunluKural):
 
 @kayitli("H3")
 class H3ArdisikGeceUstSiniri(ZorunluKural):
-    """Bir personel ust uste azami_ardisik_gece degerinden fazla gece vardiyasi tutamaz."""
+    """Bir personel ust uste azami_ardisik_gece degerinden fazla GECE GUNU calisamaz.
+
+    ```
+    gece_saat[p,d] = blogun 20.00–06.00 ile kesisiminin uzunlugu
+    gece_gunu[p,d] = 1  eger gece_saat[p,d] ≥ gece_esigi_saat
+    ∀p, ∀d :  Σ_{i=0..N} gece_gunu[p,d+i] ≤ N
+    ```
+
+    Kural once vardiya tipi uzerindeki GECE BAYRAGINA dayaniyordu. Blok
+    katalogu kalktigi icin isaretlenecek bir nesne kalmamistir; bir gunun
+    gece gunu sayilip sayilmadigi, o gun gece saatlerinde gecirilen surenin
+    esige ulasip ulasmadigindan HESAPLANIR (TD-2). Esik ergonomik yorumu
+    tasir: iki saat gece calismak bir gece nobeti degildir.
+
+    Bayragin kalkmasi ayni zamanda bir riski yapisal olarak ortadan
+    kaldirir - bayragin otomatik hesaplanan bir oneriyle ezilmesi bir kez
+    yasanmis ve K3'un karsilanmamasinin iki nedeninden biri olmustu. Artik
+    H3 ile S2 tek bir tanimdan besleniyor.
+    """
 
     ad = "Ardışık gece üst sınırı"
-    aciklama = "Bir personel üst üste tanımlı sayıdan fazla gece vardiyası tutamaz."
+    aciklama = (
+        "Bir personel üst üste tanımlı sayıdan fazla gece günü çalışamaz. Bir gün, gece "
+        "saatlerinde geçirilen süre eşiğe ulaşıyorsa gece günü sayılır."
+    )
     parametre_tanimlari = (
         ParametreTanimi(
             anahtar="azami_ardisik_gece",
             etiket="Azami ardışık gece",
-            birim="vardiya",
+            birim="gün",
             asgari=1,
             azami=14,
         ),
+        ParametreTanimi(
+            anahtar="gece_esigi_saat",
+            etiket="Gece günü eşiği",
+            birim="saat",
+            asgari=1,
+            azami=12,
+        ),
     )
+
+    def _esik(self) -> int:
+        return int(self.parametreler.get("gece_esigi_saat", _VARSAYILAN_GECE_ESIGI_SAAT))
 
     def modele_ekle(
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
     ) -> None:
-        sinir = self.parametreler["azami_ardisik_gece"]
-        kayan_pencere_kisiti_ekle(
-            model,
-            baglam,
-            pencere_uzunlugu=sinir + 1,
-            vardiyalar=baglam.gece_vardiyalari,
-            agirlik_fn=lambda _v: 1,
-            ust_sinir=sinir,
-        )
+        sinir = int(self.parametreler["azami_ardisik_gece"])
+        esik = self._esik()
+        # Gunun gece gunu olup olmadigi ESIKLI bir karardir ve gece saati bir
+        # ifadedir; esigin gosterge degiskenine baglanmasi icin tek yonlu
+        # zorlama yeter (gosterge yalnizca bir ust sinira giriyor, cozucu onu
+        # gereksiz yere 1 tutmaz).
+        gece_gunu: dict[tuple[int, object], cp_model.IntVar] = {}
+        for p in baglam.personel:
+            for g in baglam.zaman_ekseni:
+                gece_saat = baglam.gece_blok_saati(p, g)
+                if isinstance(gece_saat, int):
+                    continue
+                gosterge = model.new_bool_var(f"h3_gece_p{p}_g{g}")
+                # gece_saat ≥ esik  =>  gosterge = 1
+                model.add(gece_saat <= (esik - 1) + 24 * gosterge)
+                gece_gunu[(p, g)] = gosterge
+
+        gunler = baglam.zaman_ekseni
+        for i in range(len(gunler) - sinir):
+            pencere = gunler[i : i + sinir + 1]
+            for p in baglam.personel:
+                terimler = [gece_gunu[(p, g)] for g in pencere if (p, g) in gece_gunu]
+                if terimler:
+                    model.add(sum(terimler) <= sinir)
         return None
 
     def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
-        sinir = self.parametreler["azami_ardisik_gece"]
-        gunler = gece_calisilan_gunler(atamalar, baglam)
+        sinir = int(self.parametreler["azami_ardisik_gece"])
+        gunler = gece_gunleri(atamalar, self._esik())
         return ardisik_kosu_ihlalleri(
             self.kimlik,
             gunler,
             sinir,
-            "{kosu} ardisik gece vardiyasi; en fazla {sinir} olmali",
+            "{kosu} ardisik gece gunu; en fazla {sinir} olmali",
         )
 
 
@@ -176,13 +291,12 @@ class H4ArdisikCalismaGunuUstSiniri(ZorunluKural):
     def modele_ekle(
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
     ) -> None:
-        sinir = self.parametreler["azami_ardisik_calisma_gunu"]
+        sinir = int(self.parametreler["azami_ardisik_calisma_gunu"])
         kayan_pencere_kisiti_ekle(
             model,
             baglam,
             pencere_uzunlugu=sinir + 1,
-            vardiyalar=baglam.vardiya_tipleri,
-            agirlik_fn=lambda _v: 1,
+            gun_ifadesi=baglam.calisti,
             ust_sinir=sinir,
         )
         return None
@@ -207,6 +321,11 @@ class H5KayanHaftalikSaatTavani(ZorunluKural):
     kirk bes saatin uzerinde calismak yasak degildir, yillik kotaya yazilir.
     H5 ise dinlenme amacli, asilamayan ust siniri korur (varsayilan 66 =
     gunluk 11 saat x alti calisma gunu; H6 yedinci gunu izin birakir).
+
+    Blogun suresi tamamiyla BASLADIGI gune yazilir (TD-7); pencerenin son
+    gununde baslayan bir blogun ertesi gune tasan saatleri de o pencereye
+    sayilir. Bilincli bir yaklasiklik - alternatifi blok suresini gunlere
+    bolmektir ve modeli gereksiz karmasiklastirir.
     """
 
     ad = "Kayan yedi günlük mutlak tavan"
@@ -227,23 +346,20 @@ class H5KayanHaftalikSaatTavani(ZorunluKural):
     def modele_ekle(
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
     ) -> None:
-        tavan_saat = self.parametreler["haftalik_mutlak_tavan"]
         kayan_pencere_kisiti_ekle(
             model,
             baglam,
             pencere_uzunlugu=7,
-            vardiyalar=baglam.vardiya_tipleri,
-            agirlik_fn=baglam.sure_dakika,
-            ust_sinir=int(tavan_saat * 60),
+            gun_ifadesi=baglam.blok_saati,
+            ust_sinir=int(self.parametreler["haftalik_mutlak_tavan"]),
         )
         return None
 
     def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
         tavan = self.parametreler["haftalik_mutlak_tavan"]
-        saatler = gunluk_saat(atamalar, baglam)
         return kayan_pencere_ihlalleri(
             self.kimlik,
-            saatler,
+            gunluk_saat(atamalar),
             tavan,
             "7 gunluk pencerede {toplam:.1f} saat; mutlak tavan {sinir} saat",
         )
@@ -271,20 +387,18 @@ class H6HaftalikAsgariIzinGunu(ZorunluKural):
     def modele_ekle(
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
     ) -> None:
-        izin_gunu = self.parametreler["haftalik_asgari_izin_gunu"]
+        izin_gunu = int(self.parametreler["haftalik_asgari_izin_gunu"])
         kayan_pencere_kisiti_ekle(
             model,
             baglam,
             pencere_uzunlugu=7,
-            vardiyalar=baglam.vardiya_tipleri,
-            agirlik_fn=lambda _v: 1,
+            gun_ifadesi=baglam.calisti,
             ust_sinir=7 - izin_gunu,
         )
         return None
 
     def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
         izin_gunu = self.parametreler["haftalik_asgari_izin_gunu"]
-        ust_sinir = 7 - izin_gunu
         gunler = calisilan_gunler(atamalar)
         calisma_gostergesi = {
             personel_id: dict.fromkeys(gunler_kumesi, 1.0)
@@ -293,22 +407,22 @@ class H6HaftalikAsgariIzinGunu(ZorunluKural):
         return kayan_pencere_ihlalleri(
             self.kimlik,
             calisma_gostergesi,
-            ust_sinir,
+            7 - izin_gunu,
             "7 gunluk pencerede {toplam:.0f} gun calisilmis; en fazla {sinir:.0f} olmali",
         )
 
 
 @kayitli("H7")
 class H7Musaitlik(ZorunluKural):
-    """Personel, musait olmadigi zaman araligiyla kesisen bir vardiyaya atanamaz (TD-4).
+    """Personel, musait olmadigi zaman araligiyla kesisen bir saatte calisamaz (TD-4).
 
-    modele_ekle bilerek bostur: model_kur, musait olmayan (p,g,v,n) icin hic
+    modele_ekle bilerek bostur: model_kur, musait olmayan (p,s) icin hic
     karar degiskeni uretmez (SDD 5.3), bu yuzden ayrica bir kisit gerekmez.
     """
 
     ad = "Müsaitlik"
     aciklama = (
-        "Personel, müsait olmadığı zaman aralığıyla kesişen bir vardiyaya atanamaz. Aktiflik "
+        "Personel, müsait olmadığı zaman aralığıyla kesişen bir saatte çalışamaz. Aktiflik "
         "tarih aralığı dışındaki günler de müsait değil sayılır."
     )
 
@@ -323,10 +437,10 @@ class H7Musaitlik(ZorunluKural):
                 kural_kimlik=self.kimlik,
                 personel_id=atama.personel_id,
                 tarih=atama.tarih,
-                aciklama="Personel bu tarihte/vardiyada musait degil",
+                aciklama="Personel blogun kapsadigi saatlerin bir kisminda musait degil",
             )
             for atama in atamalar
-            if not baglam.musait_mi(atama)
+            if any(not baglam.musait_mi(atama.personel_id, an) for an in atama.saatler())
         ]
 
 
@@ -334,7 +448,7 @@ class H7Musaitlik(ZorunluKural):
 class H8OnkosulYetkinligi(ZorunluKural):
     """Bir noktaya atanan personel, o noktanin gerektirdigi yetkinlige sahip olmalidir (TD-9).
 
-    modele_ekle bilerek bostur: model_kur, ön kosul yetkinligine sahip
+    modele_ekle bilerek bostur: model_kur, on kosul yetkinligine sahip
     olmayan personel icin ilgili noktada hic karar degiskeni uretmez
     (SDD 5.3), bu yuzden ayrica bir kisit gerekmez.
     """
@@ -362,8 +476,9 @@ class H8OnkosulYetkinligi(ZorunluKural):
                         kural_kimlik=self.kimlik,
                         personel_id=atama.personel_id,
                         tarih=atama.tarih,
-                        aciklama=f"Personel, {atama.nokta_id} nolu noktanin gerektirdigi "
-                        f"{nokta.onkosul_yetkinlik_id} nolu yetkinlige sahip degil",
+                        aciklama=f"Personel, {baglam.nokta_adi(atama.nokta_id)} noktasinin "
+                        f"gerektirdigi {baglam.yetkinlik_adi(nokta.onkosul_yetkinlik_id)} "
+                        "yetkinligine sahip degil",
                     )
                 )
         return ihlaller
@@ -374,20 +489,16 @@ class H9GunlukAzamiSaat(ZorunluKural):
     """Bir personelin bir takvim gunundeki calisma suresi gunluk tavani asamaz.
 
     ```
-    ∀p, ∀d :  Σ_b sure[b] · y[p,d,b] ≤ azami_gunluk_saat
+    ∀p, ∀d :  blok_saat[p,d] ≤ azami_gunluk_saat
     ```
 
-    H1 bir gunde en fazla bir blok verdiginden bu kural PRATIKTE "katalogdaki
-    hicbir blok gunluk tavani asamaz" demeye gelir ve ayni sinir blok
-    tanimlanirken de uygulanir (FR-1.3) - gecersiz veriyi giriste durdurmak,
-    dakikalar suren bir cozumun sonunda kesfetmekten ucuzdur. Kural yine de
-    AYRI yazilir: yasal dayanagi H1'den bagimsizdir ve H1'in gelecekte
-    gevsetilmesi halinde tek basina gecerliligini korumalidir. Gerekce
-    H6'nin H4 karsisindaki durumuyla ayni.
+    H1'in asgari sure kosuluyla birlikte blogun alt ve ust sinirini cizer:
+    bir gunluk calisma dort saatten kisa, on bir saatten uzun olamaz.
 
-    BLOK KATALOGU KISITI BU PARAMETREYI OKUR (`TanimServisi`); iki ayri deger
-    tanimlanmaz. Ayrisirlarsa girisi gecen bir blok cozumde her gun ayni
-    ihlali uretir.
+    TAVAN DUVAR SAATINE DEGIL BLOGA UYGULANIR (TD-1). Duvar saati okumasi
+    20.00–08.00 blogunu 4 + 8 saat diye gorur; ikisi de tavanin altinda
+    kalir ve on iki saatlik blok kuraldan gecerdi. H9 o zaman blok
+    uzunlugunu hic sinirlamiyor olurdu.
     """
 
     ad = "Günlük azami çalışma süresi"
@@ -405,22 +516,21 @@ class H9GunlukAzamiSaat(ZorunluKural):
     def modele_ekle(
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
     ) -> None:
-        # Tek gunluk kayan pencere = takvim gunu; ayri bir dongu yazmak
-        # ayni kisiti ikinci kez tanimlamak olurdu.
+        # Tek gunluk kayan pencere = takvim gunu; ayri bir dongu yazmak ayni
+        # kisiti ikinci kez tanimlamak olurdu.
         kayan_pencere_kisiti_ekle(
             model,
             baglam,
             pencere_uzunlugu=1,
-            vardiyalar=baglam.vardiya_tipleri,
-            agirlik_fn=baglam.sure_dakika,
-            ust_sinir=int(self.parametreler["azami_gunluk_saat"] * 60),
+            gun_ifadesi=baglam.blok_saati,
+            ust_sinir=int(self.parametreler["azami_gunluk_saat"]),
         )
         return None
 
     def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
         tavan = self.parametreler["azami_gunluk_saat"]
         ihlaller: list[Ihlal] = []
-        for personel_id, gunler in gunluk_saat(atamalar, baglam).items():
+        for personel_id, gunler in gunluk_saat(atamalar).items():
             for gun, saat in sorted(gunler.items()):
                 if saat > tavan:
                     ihlaller.append(
@@ -440,7 +550,7 @@ class H10YillikFazlaCalismaKotasi(ZorunluKural):
 
     ```
     W          : donemin dokundugu takvim haftalari (pazartesi-pazar, TD-14)
-    saat[p,w]  = Σ_{d ∈ w} Σ_b sure[b] · y[p,d,b]
+    saat[p,w]  = Σ_{d ∈ w} blok_saat[p,d]
     fazla[p,w] ≥ saat[p,w] − fazla_calisma_esigi
     fazla[p,w] ≥ 0
     ∀p :  devir[p] + Σ_{w ∈ W} fazla[p,w] ≤ yillik_fazla_kotasi
@@ -485,10 +595,8 @@ class H10YillikFazlaCalismaKotasi(ZorunluKural):
     def modele_ekle(
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
     ) -> None:
-        esik_dk = int(self.parametreler["fazla_calisma_esigi"] * 60)
-        kota_dk = int(self.parametreler["yillik_fazla_kotasi"] * 60)
-        # Dakika cinsinden calisilir: sure_saat kesirli olabilir, CP-SAT
-        # tamsayi katsayi ister ve ayni donusum H5'te de kullaniliyor.
+        esik = int(self.parametreler["fazla_calisma_esigi"])
+        kota = int(self.parametreler["yillik_fazla_kotasi"])
         # W = DONEMIN DOKUNDUGU takvim haftalari (SRS 4.2 H10). Tumuyle
         # isitma penceresinde kalan bir hafta W'ye girmez: orasi gecmistir ve
         # `devir[p]` ile temsil edilir; iki kez sayilmasi kotayi olmadigi
@@ -501,32 +609,28 @@ class H10YillikFazlaCalismaKotasi(ZorunluKural):
         for p in baglam.personel:
             fazlalar = []
             for hafta_basi, gunler in sorted(haftalar.items()):
-                # HAFTANIN DONEM DISI GUNLERI DE SAYILIR (TD-6). Onlarin y
+                # HAFTANIN DONEM DISI GUNLERI DE SAYILIR (TD-6). Onlarin
                 # degiskenleri isitma penceresinde SABITLENMISTIR (SDD 5.3),
                 # dolayisiyla toplama sabit terim olarak girerler. Disarida
                 # birakilmalari halinde donem sinirindaki hafta EKSIK olculur
                 # ve kota sessizce asilir - kuralin hic bulunmamasiyla ayni
-                # sonucu verir. Isitma penceresinden de once kalan gunler
-                # zaman ekseninde bulunmaz ve sifir sayilir.
-                haftalik = sum(
-                    baglam.sure_dakika(v) * baglam.y[(p, g, v)]
-                    for g in gunler
-                    for v in baglam.vardiya_tipleri
-                    if (p, g, v) in baglam.y
-                )
-                fazla = model.new_int_var(0, 7 * 24 * 60, f"h10_fazla_p{p}_w{hafta_basi}")
-                model.add(fazla >= haftalik - esik_dk)
+                # sonucu verir.
+                haftalik = sum(baglam.blok_saati(p, g) for g in gunler)
+                if isinstance(haftalik, int):
+                    continue
+                fazla = model.new_int_var(0, 7 * 24, f"h10_fazla_p{p}_w{hafta_basi}")
+                model.add(fazla >= haftalik - esik)
                 fazlalar.append(fazla)
             if not fazlalar:
                 continue
-            devir_dk = int(round(baglam.devir_fazla_calisma_saat(p) * 60))
-            model.add(sum(fazlalar) <= max(kota_dk - devir_dk, 0))
+            devir = int(round(baglam.devir_fazla_calisma_saat(p)))
+            model.add(sum(fazlalar) <= max(kota - devir, 0))
         return None
 
     def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
         esik = float(self.parametreler["fazla_calisma_esigi"])
         kota = float(self.parametreler["yillik_fazla_kotasi"])
-        saatler = gunluk_saat(atamalar, baglam)
+        saatler = gunluk_saat(atamalar)
         ihlaller: list[Ihlal] = []
         for personel_id in sorted(baglam.personel):
             gunluk = saatler.get(personel_id, {})
@@ -554,7 +658,7 @@ class H10YillikFazlaCalismaKotasi(ZorunluKural):
 
 
 __all__ = [
-    "H1GundeBirVardiya",
+    "H1GundeTekKesintisizCalisma",
     "H2AsgariDinlenme",
     "H3ArdisikGeceUstSiniri",
     "H4ArdisikCalismaGunuUstSiniri",

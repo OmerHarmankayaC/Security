@@ -12,10 +12,11 @@ bulgusuzluk yalnizca bilinen engellerin bulunmadigi anlamina gelir.
 import enum
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, time
 from decimal import ROUND_CEILING, Decimal
 
-from app.kurallar.baglam import AtamaKaydi, Baglam
+from app.kurallar.baglam import Baglam
+from app.kurallar.zaman_araligi import saat_metni
 from app.services.kadro_hesaplari import surdurulebilir_haftalik_saat
 
 
@@ -40,7 +41,9 @@ class Bulgu:
     eksik: int | None = None
     yetkinlik_id: int | None = None
     tarih: date | None = None
-    vardiya_tipi_id: int | None = None
+    # Blok katalogu kalktigi icin bulgu bir vardiya TIPINI degil bir SAATI
+    # gosterir (SRS TD-13): "su gun, su saatte, su noktada".
+    saat: int | None = None
     nokta_id: int | None = None
     personel_id: int | None = None
     # KESIN BULGU MU, UYARI MI? (SDD 5.2, karar notu K18)
@@ -359,42 +362,52 @@ def _gunluk_musaitlik_kontrolu(baglam: Baglam, donem_gunleri: list[date]) -> lis
 
 
 def _nokta_musaitlik_kontrolu(baglam: Baglam, donem_gunleri: list[date]) -> list[Bulgu]:
-    """4. Nokta bazli musaitlik (yetkinlik dahil)."""
+    """4. Nokta bazli musaitlik — SAAT SAAT (yetkinlik dahil).
+
+    Kontrol once blok basinaydi ve "blogun kapsadigi saatlerdeki en yuksek
+    gereken" ile karsilastiriyordu; blok katalogu kalktigi icin dogrudan
+    saatin kendisi sorulur. Karsilastirma saat basinadir cunku talep de
+    saat basinadir: bir noktada saat 14.00'te dokuz kisi gerekiyorsa, o
+    saatte musait ve yetkin dokuz kisi bulunmak zorundadir.
+
+    Bulgu SAAT BASINA DEGIL, gun ve nokta basina EN DAR saat icin uretilir;
+    yirmi dort satirlik bir liste kullaniciya hicbir sey anlatmaz (ayni
+    gerekce kapsama acigi kayitlarinda da uygulandi).
+    """
     bulgular: list[Bulgu] = []
     for g in donem_gunleri:
-        for v in baglam.vardiya_tipleri:
-            for n_id, nokta in baglam.gorev_noktalari.items():
-                # Blogun kapsadigi saatlerdeki EN YUKSEK gereken: blok o
-                # noktada calistirilacaksa en az bu kadar uygun kisi lazim.
-                talep = max(
-                    (
-                        baglam.gereken_sayi_saat(saat_gunu, saat, n_id)
-                        for saat_gunu, saat in baglam.blok_saatleri(g, v)
-                    ),
-                    default=0,
-                )
+        for n_id, nokta in baglam.gorev_noktalari.items():
+            en_dar: tuple[int, int, int] | None = None  # (eksik, saat, talep)
+            for saat in range(24):
+                talep = baglam.gereken_sayi_saat(g, saat, n_id)
                 if talep == 0:
                     continue
+                an = datetime.combine(g, time(saat))
                 uygun = sum(
                     1
                     for p in baglam.personel
-                    if baglam.musait_mi(AtamaKaydi(p, g, v, n_id))
+                    if baglam.musait_mi(p, an)
                     and (
                         nokta.onkosul_yetkinlik_id is None
                         or baglam.yetkin_mi(p, nokta.onkosul_yetkinlik_id)
                     )
                 )
-                if uygun < talep:
-                    bulgular.append(
-                        Bulgu(
-                            tip=BulguTipi.NOKTA_ICIN_UYGUN_PERSONEL_YOK,
-                            tarih=g,
-                            vardiya_tipi_id=v,
-                            nokta_id=n_id,
-                            aciklama=(
-                                f"{g} günü {baglam.vardiya_adi(v)} bloğunda "
-                                f"{baglam.nokta_adi(n_id)} için uygun personel yok"
-                            ),
-                        )
+                if uygun < talep and (en_dar is None or talep - uygun > en_dar[0]):
+                    en_dar = (talep - uygun, saat, talep)
+            if en_dar is not None:
+                eksik, saat, _talep = en_dar
+                bulgular.append(
+                    Bulgu(
+                        tip=BulguTipi.NOKTA_ICIN_UYGUN_PERSONEL_YOK,
+                        tarih=g,
+                        saat=saat,
+                        nokta_id=n_id,
+                        eksik=eksik,
+                        aciklama=(
+                            f"{g} günü {saat_metni(time(saat))} saatinde "
+                            f"{baglam.nokta_adi(n_id)} için {eksik} kişilik uygun "
+                            "personel açığı var"
+                        ),
                     )
+                )
     return bulgular

@@ -1,9 +1,9 @@
 """/api/donem, /api/surum, /api/surum/{id}/atama+kapsama-acigi semalari (SDD Ek B)."""
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 from typing import Literal, Self
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, computed_field, model_validator
 
 from app.models.sonuc import AtamaKaynagi, CizelgeSurumuDurumu
 
@@ -60,15 +60,32 @@ class CizelgeSurumuOku(BaseModel):
 
 
 class AtamaOku(BaseModel):
+    """Bir calisma blogu (SDD 4.2.1).
+
+    `tarih` alani TURETILMISTIR, saklanmaz: blok basladigi gune sayilir
+    (SRS TD-1) ve izgara satirlari o gune gore gruplanir. Ayri bir sutunda
+    tutulsaydi iki alan ayrisabilirdi.
+    """
+
     model_config = ConfigDict(from_attributes=True)
 
     atama_id: int
     personel_id: int
-    tarih: date
-    vardiya_tipi_id: int
+    baslangic_zamani: datetime
+    bitis_zamani: datetime
     nokta_id: int
     kilitli: bool
     kaynak: AtamaKaynagi
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def tarih(self) -> date:
+        return self.baslangic_zamani.date()
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def sure_saat(self) -> int:
+        return round((self.bitis_zamani - self.baslangic_zamani).total_seconds() / 3600)
 
 
 class KapsamaAcigiOku(BaseModel):
@@ -76,7 +93,8 @@ class KapsamaAcigiOku(BaseModel):
 
     acik_id: int
     tarih: date
-    vardiya_tipi_id: int
+    baslangic: time
+    bitis: time
     nokta_id: int
     eksik_sayi: int
 
@@ -92,7 +110,8 @@ class FazlaKadroOku(BaseModel):
 
     fazla_id: int
     tarih: date
-    vardiya_tipi_id: int
+    baslangic: time
+    bitis: time
     nokta_id: int
     fazla_sayi: int
 
@@ -140,9 +159,12 @@ class AtamaFarkiOku(BaseModel):
     ad_soyad: str
     tarih: date
     tur: Literal["eklendi", "kaldirildi", "degisti"]
-    onceki_vardiya_tipi_ad: str | None
+    # Blok adi diye bir sey yok; karsilastirmanin gosterdigi sey blogun
+    # SAAT ARALIGIDIR ("08.00–16.00"). Metin biciminde tasinir cunku
+    # karsilastirma ekrani onu oldugu gibi yazar.
+    onceki_blok: str | None
     onceki_nokta_ad: str | None
-    yeni_vardiya_tipi_ad: str | None
+    yeni_blok: str | None
     yeni_nokta_ad: str | None
 
 

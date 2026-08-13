@@ -439,14 +439,10 @@ function KarsilastirmaSonucu({ sonuc }: { sonuc: SurumKarsilastirmasi }) {
                   </Rozet>
                 </td>
                 <td className="px-3 py-2.5 text-sm text-ink-muted">
-                  {f.onceki_vardiya_tipi_ad
-                    ? `${f.onceki_vardiya_tipi_ad} · ${f.onceki_nokta_ad ?? '—'}`
-                    : '—'}
+                  {f.onceki_blok ? `${f.onceki_blok} · ${f.onceki_nokta_ad ?? '—'}` : '—'}
                 </td>
                 <td className="px-3 py-2.5 text-sm text-ink">
-                  {f.yeni_vardiya_tipi_ad
-                    ? `${f.yeni_vardiya_tipi_ad} · ${f.yeni_nokta_ad ?? '—'}`
-                    : '—'}
+                  {f.yeni_blok ? `${f.yeni_blok} · ${f.yeni_nokta_ad ?? '—'}` : '—'}
                 </td>
               </tr>
             ))}

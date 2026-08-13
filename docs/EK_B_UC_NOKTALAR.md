@@ -10,7 +10,7 @@
 > diğerlerinin alt kümesi DEĞİLDİR ve tersi de geçerlidir — yönetim
 > rolü çalışan panelinden geçemez.
 
-**Toplam 74 uç nokta.** SDD Ek B'nin önceki hâli 21 satır
+**Toplam 68 uç nokta.** SDD Ek B'nin önceki hâli 21 satır
 listeliyordu ve kimlik doğrulama turunu hiç içermiyordu.
 
 > Sayım ve **Gereken Rol** sütunu artık
@@ -31,6 +31,13 @@ listeliyordu ve kimlik doğrulama turunu hiç içermiyordu.
 > `PUT /api/talep/{talep_id}` ve `DELETE /api/talep/{talep_id}` geldi.
 > Üçü de listeyi ve yük göstergesini birlikte döner. Uç nokta sayısı
 > 72 → 74.
+>
+> 13.08.2026 — gerçek saatlik model turu: blok kataloğu kalktı (SRS
+> TD-13). `vardiya-tipi` uçlarının **altısı da kaldırıldı** —
+> tanımlanacak bir vardiya tipi yok, blok uzunlukları çözümün
+> çıktısıdır. Çalışan panelindeki `GET /api/calisan/vardiya-tipi` de
+> düştü; tercih formu artık bir tip değil bir zaman aralığı alıyor
+> (SRS FR-3.2). Uç nokta sayısı 74 → 68.
 
 ## Kimlik dogrulama (FR-10.1 - FR-10.3, FR-10.7)
 
@@ -79,11 +86,6 @@ listeliyordu ve kimlik doğrulama turunu hiç içermiyordu.
 | `/api/talep` | POST | yonetici + yonetim | Yeni talep araligi (FR-1.7); cakisan aralikta 409 |
 | `/api/talep/{talep_id}` | PUT | yonetici + yonetim | Talep araliginin guncellenmesi (FR-1.8); cakisan aralikta 409 |
 | `/api/talep/{talep_id}` | DELETE | yonetici + yonetim | Talep araliginin silinmesi (FR-1.8) |
-| `/api/vardiya-tipi` | GET | yonetici + yonetim | Vardiya tipi tanimlari (FR-1.3) |
-| `/api/vardiya-tipi` | POST | yonetici + yonetim | Vardiya tipi olusturma; gece_mi onerisi (FR-1.3, FR-1.4) |
-| `/api/vardiya-tipi/{vardiya_tipi_id}` | PUT | yonetici + yonetim | Vardiya tipi guncelleme (FR-1.3) |
-| `/api/vardiya-tipi/{vardiya_tipi_id}` | DELETE | yonetici + yonetim | Silme veya pasiflestirme |
-| `/api/vardiya-tipi/{vardiya_tipi_id}/kullanim` | GET | yonetici + yonetim | Silme oncesi kullanim dokumu |
 | `/api/yetkinlik` | GET | yonetici + yonetim | Yetkinlik tanimlari (FR-1.2) |
 | `/api/yetkinlik` | POST | yonetici + yonetim | Yetkinlik olusturma (FR-1.2) |
 | `/api/yetkinlik/{yetkinlik_id}` | PUT | yonetici + yonetim | Yetkinlik guncelleme (FR-1.2) |
@@ -147,7 +149,6 @@ listeliyordu ve kimlik doğrulama turunu hiç içermiyordu.
 | --- | --- | --- | --- |
 | `/api/calisan/tercih` | GET | calisan | Calisanin tercihleri ve karsilanma durumu (FR-9.6, TD-12) |
 | `/api/calisan/tercih` | POST | calisan | Calisanin tercih bildirimi (FR-3.1, FR-9.6) |
-| `/api/calisan/vardiya-tipi` | GET | calisan | Tercih formu icin vardiya tipi adlari (salt okunur) |
 | `/api/calisan/vardiyalarim` | GET | calisan | Calisanin yayinlanmis cizelgedeki atamalari (FR-9.1 - FR-9.4) |
 
 ## Servis izleme

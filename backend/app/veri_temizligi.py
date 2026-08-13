@@ -59,7 +59,6 @@ from app.models.tanim import (
     Personel,
     PersonelYetkinlik,
     Talep,
-    VardiyaTipi,
     Yetkinlik,
 )
 
@@ -99,7 +98,6 @@ TEMIZLIK_SIRASI: tuple[type[Base], ...] = (
     PersonelYetkinlik,
     Personel,
     GorevNoktasi,
-    VardiyaTipi,
     Bina,
     Yetkinlik,
     OzelGun,

@@ -15,7 +15,7 @@ Canli bir PostgreSQL gerektirir; baglanamiyorsa atlanir.
 """
 
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 
 import pytest
 from sqlalchemy import select
@@ -32,7 +32,7 @@ from app.models.sonuc import (
     Donem,
     KapsamaAcigi,
 )
-from app.models.tanim import GorevNoktasi, GunTipi, Personel, Talep, VardiyaTipi
+from app.models.tanim import GorevNoktasi, GunTipi, Personel, Talep
 from app.repositories.sonuc import CozumIsiDeposu
 from app.services.cozum_servisi import (
     CozumServisi,
@@ -81,14 +81,6 @@ def kurulum() -> dict[str, int]:
     try:
         senaryo_verisini_temizle(oturum)
 
-        vardiya = VardiyaTipi(
-            ad=f"Gunduz-{on_ek}",
-            baslangic_saati="08:00",
-            bitis_saati="16:00",
-            sure_saat=8,
-            gece_mi=False,
-        )
-        oturum.add(vardiya)
         nokta = GorevNoktasi(ad=f"Nokta-{on_ek}")
         oturum.add(nokta)
         oturum.add_all(
@@ -111,8 +103,8 @@ def kurulum() -> dict[str, int]:
             oturum.add(
                 Talep(
                     nokta_id=nokta.nokta_id,
-                    baslangic=vardiya.baslangic_saati,
-                    bitis=vardiya.bitis_saati,
+                    baslangic=time(8, 0),
+                    bitis=time(16, 0),
                     gun_tipi=GunTipi.HAFTA_ICI,
                     tarih=baslangic + timedelta(days=gun_ofset),
                     gereken_sayi=1,
@@ -159,7 +151,17 @@ def _durdurulmus_is(donem_id: int, monkeypatch: pytest.MonkeyPatch) -> int:
 
 def _atama_kumesi(oturum: OturumYerel, surum_id: int) -> set[tuple[int, date, int, int]]:
     satirlar = oturum.execute(select(Atama).where(Atama.surum_id == surum_id)).scalars().all()
-    return {(a.personel_id, a.tarih, a.vardiya_tipi_id, a.nokta_id) for a in satirlar}
+    # Zaman damgalari saat dilimi tasir; karsilastirma yerel duvar saati
+    # uzerinden yapilir (bkz. app/services/atama_donusumu.py).
+    return {
+        (
+            a.personel_id,
+            a.baslangic_zamani.replace(tzinfo=None),
+            a.bitis_zamani.replace(tzinfo=None),
+            a.nokta_id,
+        )
+        for a in satirlar
+    }
 
 
 # --- Karar: kullan -----------------------------------------------------------
@@ -176,8 +178,10 @@ def test_kullan_karari_cozumu_surume_yazar(
     try:
         is_kaydi = CozumIsiDeposu(oturum).getir(is_id)
         surum_id = is_kaydi.surum_id
+        # Gecici sonuc artik BLOK tasir: (personel, baslangic, bitis, nokta).
         beklenen = {
-            (p, date.fromisoformat(g), v, n) for p, g, v, n in is_kaydi.gecici_sonuc["atamalar"]
+            (p, datetime.fromisoformat(b), datetime.fromisoformat(s), n)
+            for p, b, s, n in is_kaydi.gecici_sonuc["atamalar"]
         }
         assert beklenen, "Durdurulan isin elinde bir cozum olmali"
         assert _atama_kumesi(oturum, surum_id) == set(), "Karar oncesi surum bos olmali"

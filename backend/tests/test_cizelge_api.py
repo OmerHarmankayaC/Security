@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 from app.db import OturumYerel
 from app.models.sonuc import Donem
-from app.models.tanim import GorevNoktasi, GunTipi, Talep, VardiyaTipi
+from app.models.tanim import GorevNoktasi, GunTipi, Talep
 from tests.conftest import pg_yoksa_atla, senaryo_verisini_temizle, yetkili_istemci
 
 
@@ -41,15 +41,8 @@ def test_on_kontrol_kadro_yeterliyken_yapisal_engel_bildirmez(istemci: TestClien
         # (kadro aritmetigi) kaybolur.
         senaryo_verisini_temizle(oturum)
 
-        vardiya_tipi = VardiyaTipi(
-            ad=f"Gunduz-{on_ek}",
-            baslangic_saati=time(8, 0),
-            bitis_saati=time(16, 0),
-            sure_saat=8,
-            gece_mi=False,
-        )
         nokta = GorevNoktasi(ad=f"Kapi-{on_ek}")
-        oturum.add_all([vardiya_tipi, nokta])
+        oturum.add_all([nokta])
         oturum.flush()
 
         baslangic = date(2026, 4, 6)
@@ -57,8 +50,8 @@ def test_on_kontrol_kadro_yeterliyken_yapisal_engel_bildirmez(istemci: TestClien
         oturum.add(
             Talep(
                 nokta_id=nokta.nokta_id,
-                baslangic=vardiya_tipi.baslangic_saati,
-                bitis=vardiya_tipi.bitis_saati,
+                baslangic=time(8, 0),
+                bitis=time(16, 0),
                 gun_tipi=GunTipi.HAFTA_ICI,
                 tarih=None,
                 gereken_sayi=0,

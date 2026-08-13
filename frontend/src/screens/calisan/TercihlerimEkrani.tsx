@@ -1,13 +1,9 @@
 import { useEffect, useState } from 'react'
 import { api } from '@/api/client'
-import type {
-  CalisanTercihListesi,
-  CalisanVardiyaTipi,
-  KarsilanmaDurumu,
-  TercihTipi,
-} from '@/api/types'
+import type { CalisanTercihListesi, KarsilanmaDurumu, TercihTipi } from '@/api/types'
 import { Buton, Kart, KartEtiketi, Rozet } from '@/components/app-ui'
 import { Input } from '@/components/ui/input'
+import { BASLANGIC_SAATLERI, BITIS_SAATLERI, araligiYaz, saatEtiketi, saatiYaz } from '@/lib/talepAraligi'
 import { bugunIso, gunFarki, gunKisaltmasiVeNumarasi } from '@/lib/tarih'
 import { buyukHarf } from '@/lib/metin'
 import { cn } from '@/lib/utils'
@@ -24,29 +20,36 @@ const KARSILANMA_METNI: Record<KarsilanmaDurumu, { renk: string; etiket: string 
   henuz_belirsiz: { renk: 'bg-ink-muted', etiket: 'Henüz Belirsiz' },
 }
 
-function tercihAciklamasi(tip: TercihTipi, vardiyaTipiAd: string | null): string {
+function tercihAciklamasi(
+  tip: TercihTipi,
+  baslangic: string | null,
+  bitis: string | null,
+): string {
   if (tip === 'calismama') return 'Çalışmak istemiyorum'
-  return vardiyaTipiAd ? `${vardiyaTipiAd} istiyorum` : 'Vardiya tipi istiyorum'
+  // Tercih artık bir vardiya TİPİ değil bir ZAMAN ARALIĞI (SRS FR-3.2).
+  return baslangic && bitis
+    ? `${araligiYaz(baslangic, bitis)} arası çalışmak istiyorum`
+    : 'Belirli saatlerde çalışmak istiyorum'
 }
 
 export function TercihlerimEkrani() {
   const [liste, setListe] = useState<CalisanTercihListesi | null>(null)
-  const [vardiyaTipleri, setVardiyaTipleri] = useState<CalisanVardiyaTipi[]>([])
   const [hata, setHata] = useState<string | null>(null)
 
   const [tip, setTip] = useState<TercihTipi>('calismama')
-  const [vardiyaTipiId, setVardiyaTipiId] = useState('')
+  const [baslangicSaati, setBaslangicSaati] = useState(8)
+  const [bitisSaati, setBitisSaati] = useState(16)
   const [tarih, setTarih] = useState('')
   const [not, setNot] = useState('')
   const [gonderiliyor, setGonderiliyor] = useState(false)
 
   const yukle = () => {
-    // `/api/vardiya-tipi` (tanımlar) çalışan rolüne kapalı (SRS 5.10);
-    // liste çalışan yüzeyinin kendi ucundan gelir.
-    Promise.all([api.calisanTercihlerim(), api.calisanVardiyaTipleri()])
-      .then(([t, v]) => {
+    // Vardiya tipi listesi KALKTI: seçilecek bir blok yok, çalışan
+    // doğrudan saat aralığını bildiriyor (SRS FR-3.2, TD-13).
+    api
+      .calisanTercihlerim()
+      .then((t) => {
         setListe(t)
-        setVardiyaTipleri(v)
         setTarih((mevcut) => mevcut || t.acik_donem?.baslangic_tarihi || '')
       })
       .catch((e) => setHata(e instanceof Error ? e.message : 'Tercihler yüklenemedi'))
@@ -62,7 +65,8 @@ export function TercihlerimEkrani() {
       await api.calisanTercihBildir({
         tarih,
         tip,
-        vardiya_tipi_id: tip === 'vardiya_tipi_tercihi' ? Number(vardiyaTipiId) || null : null,
+        tercih_baslangic: tip === 'zaman_araligi_tercihi' ? saatiYaz(baslangicSaati) : null,
+        tercih_bitis: tip === 'zaman_araligi_tercihi' ? saatiYaz(bitisSaati) : null,
         calisan_notu: not.trim() || null,
       })
       setNot('')
@@ -116,36 +120,49 @@ export function TercihlerimEkrani() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setTip('vardiya_tipi_tercihi')}
+                  onClick={() => setTip('zaman_araligi_tercihi')}
                   className={cn(
                     'rounded-sm border border-rule px-4 py-2 text-sm',
-                    tip === 'vardiya_tipi_tercihi'
+                    tip === 'zaman_araligi_tercihi'
                       ? 'border-accent bg-accent-soft font-medium text-accent'
                       : 'text-ink-muted',
                   )}
                 >
-                  Vardiya tipi
+                  Şu saatlerde çalışmak istiyorum
                 </button>
               </div>
             </div>
-            {tip === 'vardiya_tipi_tercihi' && (
-              <div className="flex flex-col gap-1">
-                <label className="etiket-caps text-ink-muted">
-                  {buyukHarf('Vardiya Tipi')}
-                </label>
-                <select
-                  className="h-8 w-40 rounded-sm border border-rule bg-surface px-2.5 font-mono text-sm text-ink outline-none"
-                  value={vardiyaTipiId}
-                  onChange={(e) => setVardiyaTipiId(e.target.value)}
-                >
-                  <option value="">—</option>
-                  {vardiyaTipleri.map((v) => (
-                    <option key={v.vardiya_tipi_id} value={v.vardiya_tipi_id}>
-                      {v.ad}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            {tip === 'zaman_araligi_tercihi' && (
+              <>
+                <div className="flex flex-col gap-1">
+                  <label className="etiket-caps text-ink-muted">{buyukHarf('Başlangıç')}</label>
+                  <select
+                    className="h-8 w-28 rounded-sm border border-rule bg-surface px-2.5 font-mono text-sm text-ink outline-none"
+                    value={baslangicSaati}
+                    onChange={(e) => setBaslangicSaati(Number(e.target.value))}
+                  >
+                    {BASLANGIC_SAATLERI.map((s) => (
+                      <option key={s} value={s}>
+                        {saatEtiketi(s)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="etiket-caps text-ink-muted">{buyukHarf('Bitiş')}</label>
+                  <select
+                    className="h-8 w-28 rounded-sm border border-rule bg-surface px-2.5 font-mono text-sm text-ink outline-none"
+                    value={bitisSaati}
+                    onChange={(e) => setBitisSaati(Number(e.target.value))}
+                  >
+                    {BITIS_SAATLERI.map((s) => (
+                      <option key={s} value={s}>
+                        {saatEtiketi(s)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
             )}
             <div className="flex flex-col gap-1">
               <label className="etiket-caps text-ink-muted">
@@ -175,7 +192,7 @@ export function TercihlerimEkrani() {
           <div>
             <Buton
               varyant="birincil"
-              disabled={gonderiliyor || !tarih || (tip === 'vardiya_tipi_tercihi' && !vardiyaTipiId)}
+              disabled={gonderiliyor || !tarih}
               onClick={gonder}
             >
               Tercihi Gönder
@@ -202,7 +219,7 @@ export function TercihlerimEkrani() {
                     <span className="w-20 shrink-0 text-sm font-semibold text-ink">
                       {gunKisaltmasiVeNumarasi(t.tarih)}
                     </span>
-                    <span className="flex-1 text-sm text-ink">{tercihAciklamasi(t.tip, t.vardiya_tipi_ad)}</span>
+                    <span className="flex-1 text-sm text-ink">{tercihAciklamasi(t.tip, t.tercih_baslangic, t.tercih_bitis)}</span>
                     {durum && (
                       <Rozet varyant={durum.varyant} genislik={104}>
                         {durum.etiket}

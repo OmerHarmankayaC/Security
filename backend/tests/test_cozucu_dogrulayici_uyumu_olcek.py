@@ -17,36 +17,30 @@ arasindaki UYUM.
 """
 
 import random
-from datetime import date, time, timedelta
+from datetime import date, timedelta
 
 import pytest
 
 from app.cozucu import CozucuAdaptoru, model_kur
+from app.cozucu.model_kurucu import atamalari_bloklara_topla
 from app.kurallar import (
-    AtamaKaydi,
     Baglam,
     GorevNoktasiBilgisi,
     PersonelBilgisi,
-    VardiyaTipiBilgisi,
 )
 from app.kurallar.kayit_defteri import bul
 from app.models.kural import KuralTipi
-from tests.conftest import blok_talebini_saate_ac
 
 ORNEK_SAYISI = 24  # Gun 14: "rastgele 20+ ornek"
 TOHUM = 20260814  # Sabit tohum: basarisiz bir ornek birebir yeniden uretilebilsin.
 
-GECE, GUNDUZ, AKSAM = 1, 2, 3
-_VARDIYA_TIPLERI = {
-    GECE: VardiyaTipiBilgisi(GECE, time(0, 0), time(8, 0), 8.0, True),
-    GUNDUZ: VardiyaTipiBilgisi(GUNDUZ, time(8, 0), time(16, 0), 8.0, False),
-    AKSAM: VardiyaTipiBilgisi(AKSAM, time(16, 0), time(0, 0), 8.0, False),
-}
+# Talep araliklari (blok degil): (baslangic_saati, bitis_saati).
+GECE, GUNDUZ, AKSAM = (0, 8), (8, 16), (16, 24)
 
 _H_PARAMETRELERI = {
-    "H1": {},
+    "H1": {"asgari_blok_saat": 4},
     "H2": {"asgari_dinlenme_saati": 16},
-    "H3": {"azami_ardisik_gece": 3},
+    "H3": {"azami_ardisik_gece": 3, "gece_esigi_saat": 4},
     "H4": {"azami_ardisik_calisma_gunu": 6},
     "H5": {"haftalik_mutlak_tavan": 66},
     "H6": {"haftalik_asgari_izin_gunu": 1},
@@ -111,25 +105,25 @@ def _rastgele_ornek(rastgele: random.Random, sira: int) -> tuple[Baglam, list[da
 
     gunler = [baslangic + timedelta(days=i) for i in range(gun_sayisi)]
     gunluk_tavan = max(1, int(personel_sayisi * 5 / 7))
-    talep: dict[tuple[date, int, int], int] = {}
+    talep_saat: dict[tuple[date, int, int], int] = {}
     for gun in gunler:
         kalan = gunluk_tavan
-        for vardiya_tipi_id in (GUNDUZ, AKSAM, GECE):
+        for baslangic, bitis in (GUNDUZ, AKSAM, GECE):
             for nokta_id in noktalar:
                 if kalan <= 0:
                     break
                 gereken = rastgele.randint(0, min(2, kalan))
                 if gereken:
-                    talep[(gun, vardiya_tipi_id, nokta_id)] = gereken
+                    for saat in range(baslangic, bitis):
+                        talep_saat[(gun, saat % 24, nokta_id)] = gereken
                     kalan -= gereken
 
     # Isitma penceresi yok (zaman_ekseni = donem gunleri): bu testin konusu
     # TD-5 degil, uyum. Boylece ornek de kucuk kalir.
     baglam = Baglam(
-        vardiya_tipleri=dict(_VARDIYA_TIPLERI),
         gorev_noktalari=noktalar,
         personel=personel,
-        talep_saat=blok_talebini_saate_ac(talep, dict(_VARDIYA_TIPLERI)),
+        talep_saat=talep_saat,
         donem_baslangic=gunler[0],
         donem_bitis=gunler[-1],
     )
@@ -145,14 +139,18 @@ def test_cozucunun_urettigi_cizelge_dogrulayicidan_temiz_gecer(sira: int) -> Non
     kurallar = _kurallari_kur()
 
     model, x, baglam, _ceza_terimleri = model_kur(baglam, gunler, kurallar)
-    sonuc = CozucuAdaptoru.coz(model, x, zaman_limiti_saniye=5.0, arama_iscisi_sayisi=3)
+    # Sure bes saniyeden yirmiye cikti: saat ekseninde ayni ornek daha genis
+    # bir arama uzayi tasiyor (Tur 5). Testin olctugu sey sure DEGIL uyumdur;
+    # sinir yalnizca "uygun bir cozum bulunabilsin" diye var.
+    sonuc = CozucuAdaptoru.coz(model, x, zaman_limiti_saniye=20.0, arama_iscisi_sayisi=3)
 
     assert sonuc.durum in ("optimal", "uygun"), (
         f"Ornek {sira} cozulemedi (tohum {TOHUM + sira}); talep kadro tavaninin "
         f"altinda tutuldugu icin uygun bir cozum beklenir."
     )
 
-    atamalar = [AtamaKaydi(p, g, v, n) for (p, g, v, n) in sonuc.atanan_anahtarlar]
+    # Cozucu SAAT duzeyinde sonuc verir; dogrulayici BLOK okur (SDD 4.2.1).
+    atamalar = atamalari_bloklara_topla(baglam, sonuc.atanan_anahtarlar)
     ihlaller = []
     for kural in kurallar:
         if kural.tip is KuralTipi.ZORUNLU:

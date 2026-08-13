@@ -7,10 +7,11 @@ Olculen bes kriter (planin Gun 14 maddesinde sayilanlar):
   K1  Kirk personel / yirmi sekiz gunluk referans ornek altmis saniyenin
       altinda cozulur.                                     (Charter 5, NFR-1)
   K2  Uretilen cizelgede zorunlu kisit ihlali bulunmaz.     (Charter 5)
-  K3  Kisi basina dusen gece sayisi hedeften en fazla bir birim sapar.
+  K3  Kisi basina dusen gece YUKU, kisiye dusen adil paydan en fazla sekiz
+      gece saati kadar sapar.
                                                             (Charter 5, NFR-9)
-  K4  Kasten celiskili kurulan ornekte sistem hangi gun, hangi vardiyada ve
-      kac kisi eksik kaldigini gosterir.                     (Charter 5)
+  K4  Kasten celiskili kurulan ornekte sistem hangi gun, hangi SAAT
+      ARALIGINDA ve kac kisi eksik kaldigini gosterir.       (Charter 5)
   K5  Manuel duzenlemede kural ihlali bir saniyenin altinda bildirilir.
                                                             (Charter 5, NFR-2)
 
@@ -62,6 +63,7 @@ from sqlalchemy.orm import Session  # noqa: E402
 
 from app.config import ayarlar  # noqa: E402
 from app.cozucu import CozucuAdaptoru, model_kur  # noqa: E402
+from app.cozucu.model_kurucu import atamalari_bloklara_topla  # noqa: E402
 from app.db import OturumYerel  # noqa: E402
 from app.kurallar.baglam import AtamaKaydi  # noqa: E402
 from app.kurallar.kayit_defteri import bul  # noqa: E402
@@ -85,22 +87,27 @@ from app.models.tanim import (  # noqa: E402
     Personel,
     PersonelYetkinlik,
     Talep,
-    VardiyaTipi,
     Yetkinlik,
 )
 from app.services.baglam_kurucu import baglam_olustur, zaman_ekseni_olustur  # noqa: E402
 from app.services.dogrulama_servisi import AtamaDegisikligi, DogrulamaServisi  # noqa: E402
-from app.services.ornek_senaryo import (  # noqa: E402
+from app.services.ornek_senaryo import (
+    GUVENLIK_GOREVI,
     NOKTA_TANIMLARI,
+    VARDIYA_SEFI,  # noqa: E402
     talep_satirlarini_olustur,
 )
-from app.services.vardiya_hesaplari import sure_saat_hesapla  # noqa: E402
 from app.veri_temizligi import (  # noqa: E402
     HesapKapsami,
     TemizlikSonucu,
     UretimKilidiError,
     veriyi_temizle,
 )
+
+# Charter 1.4: K3'un esigi SABIT sekiz gece saati. Blok katalogu kalktigi
+# icin katalogdan turetilemez; deger bir gece nobetinin uzunluguna karsilik
+# gelir.
+K3_ESIK_GECE_SAATI = 8
 
 # --- Referans ornek (Charter 5 / NFR-1: kirk personel, yirmi sekiz gun) ------
 
@@ -109,46 +116,21 @@ REFERANS_GUN_SAYISI = 28
 REFERANS_BASLANGIC = date(2026, 2, 2)  # Pazartesi
 CELISKILI_BASLANGIC = date(2026, 6, 1)  # Pazartesi
 
-# SRS 3.3.6'daki havuz asgarileri (izin payiyla): Vardiya Sefi 7, Muracaat 6,
-# Guvenlik Gorevi 23. Demo senaryosunun 44 kisilik kadrosu (9/7/28) referans
-# olcek olan 40'a, YALNIZCA Guvenlik Gorevi havuzu 28'den 24'e cekilerek
-# indirildi: kirilgan iki havuz (VS, MR) oldugu gibi korunur, Guvenlik
-# Gorevi verebilen toplam kadro 9+24=33 ile 23 asgarisinin uzerinde kalir.
+# MURACAAT HAVUZU KALKTI (SRS 3.3.3): iki yetkinlik kaldi. Referans kadro
+# yine kirk kisi; Muracaat'in yedi kisisi Guvenlik Gorevi havuzuna katildi.
+# Sef havuzu dokuz kisi olarak korunur - K4'un celiskisi o havuzun
+# kirilganligina dayaniyor (SAATLIK_MODEL_KARARLARI bolum 3).
 _REFERANS_GRUPLARI: tuple[tuple[tuple[str, ...], int, str], ...] = (
     (("Vardiya Şefi", "Güvenlik Görevi"), 9, "VS"),
-    (("Müracaat Görevlisi",), 7, "MR"),
-    (("Güvenlik Görevi",), 24, "GG"),
+    (("Güvenlik Görevi",), 31, "GG"),
 )
-
-# SRS 3.3.1'deki tablo birebir: (baslangic, bitis, gece_mi). Bayrak TANIMLI
-# bir degerdir, gece_mi_oner()'in onerisi degil (TD-2; bkz. demo_veri_uret.py).
-_VARDIYA_TANIMLARI: dict[str, tuple[time, time, bool]] = {
-    # SRS 3.3.1 birebir (K16). BAYRAK TANIMLI BIR DEGERDIR, `gece_mi_oner`in
-    # onerisi degil (TD-2): oneri yalnizca yeni blok olustururken
-    # on-doldurur ve tanimli bir degeri ASLA ezmez. Bu kural bir kez
-    # cignendi ve gece talebi uc katina cikti.
-    #
-    # Ilk uc blok mevcut isleyisteki ucluk sekiz saatlik duzendir; kalan
-    # dordu on ve on iki saatlik seceneklerdir. On iki saatlik bloklar
-    # haftalik fazla calisma esigini (45) gercekten asabildigi icin H10'un
-    # isledigini gosterebilen tek yapidir: yalnizca sekiz saatlik bloklarla
-    # haftada alti gun calisan bir personel 48 saate ulasir ve esigi ancak
-    # uc saat asar.
-    "Gece": (time(0, 0), time(8, 0), True),
-    "Gündüz": (time(8, 0), time(16, 0), False),
-    "Akşam": (time(16, 0), time(0, 0), False),
-    "Uzun gece": (time(20, 0), time(8, 0), True),
-    "Uzun gündüz": (time(8, 0), time(20, 0), False),
-    "Erken uzun": (time(6, 0), time(16, 0), False),
-    "Geç uzun": (time(14, 0), time(0, 0), False),
-}
 
 # demo_veri_uret.py ile ayni kural katalogu; kalibre edilmis agirliklar dahil
 # (bkz. PROGRESS.md, agirlik kalibrasyonu).
 _KURAL_PARAMETRELERI: dict[str, dict[str, Any]] = {
-    "H1": {},
+    "H1": {"asgari_blok_saat": 4},
     "H2": {"asgari_dinlenme_saati": 16},
-    "H3": {"azami_ardisik_gece": 3},
+    "H3": {"azami_ardisik_gece": 3, "gece_esigi_saat": 4},
     "H4": {"azami_ardisik_calisma_gunu": 6},
     "H5": {"haftalik_mutlak_tavan": 66},
     "H6": {"haftalik_asgari_izin_gunu": 1},
@@ -187,21 +169,7 @@ def _temizle(oturum: Session) -> TemizlikSonucu:
 
 
 def _tanimlari_kur(oturum: Session) -> None:
-    vardiyalar = {}
-    for ad, (baslangic, bitis, gece_mi) in _VARDIYA_TANIMLARI.items():
-        vardiya = VardiyaTipi(
-            ad=ad,
-            baslangic_saati=baslangic,
-            bitis_saati=bitis,
-            sure_saat=sure_saat_hesapla(baslangic, bitis),
-            gece_mi=gece_mi,
-        )
-        oturum.add(vardiya)
-        vardiyalar[ad] = vardiya
-
-    yetkinlikler = {
-        ad: Yetkinlik(ad=ad) for ad in ("Güvenlik Görevi", "Vardiya Şefi", "Müracaat Görevlisi")
-    }
+    yetkinlikler = {ad: Yetkinlik(ad=ad) for ad in (GUVENLIK_GOREVI, VARDIYA_SEFI)}
     oturum.add_all(yetkinlikler.values())
     oturum.flush()
 
@@ -343,7 +311,8 @@ def _coz(oturum: Session, donem: Donem, zaman_limiti: float) -> tuple[CozumOlcum
     )
     cozum_suresi = zaman.perf_counter() - cozum_baslangic
 
-    atamalar = [AtamaKaydi(p, g, v, n) for (p, g, v, n) in sonuc.atanan_anahtarlar]
+    # Cozucu SAAT duzeyinde sonuc verir; kriterler BLOK okur (SDD 4.2.1).
+    atamalar = atamalari_bloklara_topla(baglam, sonuc.atanan_anahtarlar)
     return (
         CozumOlcumu(
             durum=sonuc.durum,
@@ -369,8 +338,8 @@ def _atamalari_yaz(oturum: Session, surum_id: int, olcum: CozumOlcumu, donem: Do
             Atama(
                 surum_id=surum_id,
                 personel_id=a.personel_id,
-                tarih=a.tarih,
-                vardiya_tipi_id=a.vardiya_tipi_id,
+                baslangic_zamani=a.baslangic,
+                bitis_zamani=a.bitis,
                 nokta_id=a.nokta_id,
                 kaynak=AtamaKaynagi.COZUCU,
             )
@@ -432,20 +401,16 @@ def _k3(olcum: CozumOlcumu, baglam: Any) -> Kriter:
     """Charter 5 / NFR-9 (Charter 1.3): kisi basina gece yuku, KISIYE DUSEN
     ADIL PAYDAN en fazla BIR GECE BLOGU kadar sapar.
 
-    Iki sey Tur 4'te degisti ve ikisi de olcunun kendisini ilgilendiriyor:
+    Olcunun birimi SAATTIR (SRS TD-2) ve hedef KISIYE OZELDIR (SRS 1.17):
+    tek havuz ortalamasi kullanildiginda erisilebilirligi kisitli bir havuz
+    kalici olarak sapmali gorunuyordu ve hicbir cizelge o sapmayi
+    kapatamazdi.
 
-    - **Birim saat** (K12). S2 gece saatini olcuyor; vardiya sayan bir
-      kriter, cozucunun optimize ettiginden BASKA bir seyi olcerdi - on iki
-      saatlik bir gece blogu ile sekiz saatliki ayni sayardi.
-    - **Hedef kisiye ozel** (SRS 1.17). Tek havuz ortalamasi kullanildiginda
-      erisilebilirligi kisitli bir havuz KALICI olarak sapmali gorunuyordu:
-      olculen 34, hedef 40, ve yedi kisilik Muracaat havuzunun ulasabildigi
-      tavan 22,86 idi. Hicbir cizelge o sapmayi kapatamazdi.
-
-    ESIK KATALOGDAN TURETILIR, sabit yazilmaz: katalogdaki en uzun gece
-    blogunun suresi. Sabit bir saat degeri, katalog her degistiginde
-    kriteri elle yeniden olceklemeyi gerektirirdi; oran ise hedef
-    buyudukce gevser, kuculdukce imkansizlasir.
+    ESIK ARTIK SABIT: sekiz gece saati (Charter 1.4). Once katalogdaki en
+    uzun gece blogundan turetiliyordu; blok katalogu kalktigi icin (SRS
+    TD-13) turetilecek bir sey yok - blok uzunluklari cozumun ciktisi.
+    Sekiz saat bir gece nobetinin uzunluguna karsilik gelir: bir kisinin
+    payindan bir nobet kadar fazla ya da eksik gece almasi kabul edilebilir.
     """
     paylar = baglam.adil_paylar(lambda anahtar: gece_saati_mi(anahtar[1]))
     havuz = {p for p, pay in paylar.items() if pay > 0}
@@ -453,9 +418,9 @@ def _k3(olcum: CozumOlcumu, baglam: Any) -> Kriter:
     yukler = dict.fromkeys(havuz, 0)
     for a in olcum.atamalar:
         if a.personel_id in havuz and baglam.donem_icinde(a.tarih):
-            yukler[a.personel_id] += baglam.gece_saat(a.vardiya_tipi_id)
+            yukler[a.personel_id] += a.gece_saati
 
-    esik = _en_uzun_gece_blogu(baglam)
+    esik = K3_ESIK_GECE_SAATI
     sapmalar = {p: abs(yukler[p] - paylar[p]) for p in havuz}
     en_buyuk = max(sapmalar.values(), default=0.0)
     asanlar = [p for p, s in sapmalar.items() if s > esik + 1e-9]
@@ -470,7 +435,7 @@ def _k3(olcum: CozumOlcumu, baglam: Any) -> Kriter:
         f"donem ici gece talebi   : {gece_talebi} kisi-saat",
         f"olcume giren personel   : {len(havuz)} kisi "
         f"({havuz_disi} kisi olcum disi - gece talebi olan noktada calisamiyor)",
-        f"esik (en uzun gece blogu): {esik} saat",
+        f"esik (Charter 1.4)      : {esik} gece saati",
         f"adil pay araligi        : {min(paylar[p] for p in havuz):.1f} - "
         f"{max(paylar[p] for p in havuz):.1f} gece saati",
         f"gozlenen yuk araligi    : {min(yukler.values(), default=0)} - "
@@ -480,22 +445,12 @@ def _k3(olcum: CozumOlcumu, baglam: Any) -> Kriter:
     ayrinti.extend(_k3_ulasilabilirlik_teshisi(baglam, paylar))
     return Kriter(
         kimlik="K3",
-        baslik="Kisi basina gece yuku adil paydan en fazla bir gece blogu sapar",
-        esik=f"azami |sapma| <= {esik} saat (en uzun gece blogu)",
+        baslik="Kisi basina gece yuku adil paydan en fazla sekiz gece saati sapar",
+        esik=f"azami |sapma| <= {esik} gece saati (Charter 1.4)",
         olculen=f"{en_buyuk:.2f}",
         gecti=not asanlar,
         ayrinti=ayrinti,
     )
-
-
-def _en_uzun_gece_blogu(baglam: Any) -> int:
-    """Katalogdaki en uzun gece blogunun GECE SAATI.
-
-    Katalogda gece blogu yoksa esik bir saattir: sifir esik, kesirli
-    paylarda her yuvarlama farkini ihlal sayardi.
-    """
-    saatler = [baglam.gece_saat(v) for v in baglam.vardiya_tipleri]
-    return max([s for s in saatler if s > 0], default=1)
 
 
 def _k3_ulasilabilirlik_teshisi(baglam: Any, paylar: dict[int, float]) -> list[str]:
@@ -615,7 +570,10 @@ def _k5(oturum: Session, surum_id: int, donem: Donem) -> Kriter:
     servis = DogrulamaServisi(oturum)
     mevcut = (
         oturum.execute(
-            select(Atama).where(Atama.surum_id == surum_id).order_by(Atama.tarih).limit(1)
+            select(Atama)
+            .where(Atama.surum_id == surum_id)
+            .order_by(Atama.baslangic_zamani)
+            .limit(1)
         )
         .scalars()
         .first()
@@ -630,12 +588,13 @@ def _k5(oturum: Session, surum_id: int, donem: Donem) -> Kriter:
             ayrinti=["Referans surumde atama bulunamadi"],
         )
 
-    vardiya_tipleri = [
-        v.vardiya_tipi_id for v in oturum.execute(select(VardiyaTipi)).scalars().all()
-    ]
-    hedef_vardiya = next(
-        (v for v in vardiya_tipleri if v != mevcut.vardiya_tipi_id), mevcut.vardiya_tipi_id
-    )
+    # Blogu KAYDIRARAK degistirir: ayni gun, iki saat sonra baslayan ayni
+    # uzunlukta bir blok. Vardiya tipi secmek yerine saat vermek, degisikligin
+    # kendisinin de saat ekseninde tanimli olmasindan geliyor (SDD 6.3.3).
+    mevcut_baslangic = mevcut.baslangic_zamani.replace(tzinfo=None)
+    mevcut_bitis = mevcut.bitis_zamani.replace(tzinfo=None)
+    sure = round((mevcut_bitis - mevcut_baslangic).total_seconds() / 3600)
+    yeni_baslangic = (mevcut_baslangic.hour + 2) % 24
 
     sureler: list[float] = []
     for _ in range(5):
@@ -644,8 +603,9 @@ def _k5(oturum: Session, surum_id: int, donem: Donem) -> Kriter:
             AtamaDegisikligi(
                 surum_id=surum_id,
                 personel_id=mevcut.personel_id,
-                tarih=mevcut.tarih,
-                vardiya_tipi_id=hedef_vardiya,
+                tarih=mevcut_baslangic.date(),
+                baslangic_saati=time(yeni_baslangic),
+                bitis_saati=time((yeni_baslangic + sure) % 24),
                 nokta_id=mevcut.nokta_id,
             )
         )
@@ -671,12 +631,23 @@ def _k5(oturum: Session, surum_id: int, donem: Donem) -> Kriter:
 
 
 def _celiskili_izinleri_kur(oturum: Session, donem: Donem) -> None:
-    """SRS 3.3.6'daki kirilganlik mekanizmasi: Vardiya Sefi havuzunun (9 kisi)
-    bes kisisi donem boyunca izinli; kalan dort kisi, haftada 21 vardiya
-    gerektiren tek noktayi H5/H6 tavanini asmadan dolduramaz -> kapatilamayan
-    kapsama acigi (demo_veri_uret.py'deki 'sikisik' senaryonun ayni gerekcesi,
-    burada donemin TAMAMINI kapsayacak sekilde, cunku bu kriterin olctugu sey
-    on kontrolun degil cozucunun acigi RAPORLAMASI)."""
+    """Vardiya Sefi havuzunun kirilganligi: dokuz kisiden YEDISI donem boyunca
+    izinli, kalan IKISI Vardiya Sefligi noktasini dolduramaz.
+
+    SAYI YEDIYE CIKTI VE NEDENI OLCULDU. Bes kisi izinliyken kalan dort
+    kisi acik uretmiyor artik: blok uzunlugu cozumun ciktisi (SRS TD-13) ve
+    cozucu gunluk tavana kadar uzatarak noktayi kapatabiliyor. Katalog
+    doneminde ayni izin acik veriyordu cunku bloklar sekiz saate sabitti.
+    Olcum bunu sifir acikla yakaladi.
+
+    Yeni sayi ARITMETIKTEN gelir ve blok uzunlugundan bagimsizdir: nokta
+    kesintisiz doludur, haftada 168 kisi-saat ister; bir kisi H5'in mutlak
+    tavani (66 saat) ve H6'nin izin gunu altinda haftada en fazla 66 saat
+    verebilir. Iki kisi 132 kisi-saat eder ve 168'i KARSILAYAMAZ - hicbir
+    cizelge, hicbir blok bilesimi bu acigi kapatamaz.
+
+    Donemin TAMAMINI kapsar, cunku bu kriterin olctugu sey on kontrolun
+    degil COZUCUNUN acigi raporlamasidir."""
     sefler = (
         oturum.execute(
             select(Personel).where(Personel.sicil_no.like("VS-%")).order_by(Personel.sicil_no)
@@ -684,7 +655,7 @@ def _celiskili_izinleri_kur(oturum: Session, donem: Donem) -> None:
         .scalars()
         .all()
     )
-    for personel in sefler[:5]:
+    for personel in sefler[:7]:
         oturum.add(
             Musaitlik(
                 personel_id=personel.personel_id,

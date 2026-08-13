@@ -15,7 +15,7 @@ from sqlalchemy import select
 from app.db import OturumYerel
 from app.models.kural import Kural, KuralTipi
 from app.models.sonuc import Atama, CizelgeSurumu, CizelgeSurumuDurumu, CozumIsiDurumu, Donem
-from app.models.tanim import GorevNoktasi, GunTipi, Personel, Talep, VardiyaTipi
+from app.models.tanim import GorevNoktasi, GunTipi, Personel, Talep
 from app.repositories.sonuc import CizelgeSurumuDeposu, CozumIsiDeposu
 from app.schemas.cozum import CozumBaslatIstek
 from app.services.cozum_servisi import CozumServisi
@@ -54,15 +54,8 @@ def kurulum() -> dict:
     on_ek = uuid.uuid4().hex[:8]
     oturum = OturumYerel()
     try:
-        vardiya_tipi = VardiyaTipi(
-            ad=f"Gunduz-{on_ek}",
-            baslangic_saati=time(8, 0),
-            bitis_saati=time(16, 0),
-            sure_saat=8,
-            gece_mi=False,
-        )
         nokta = GorevNoktasi(ad=f"Nokta-{on_ek}")
-        oturum.add_all([vardiya_tipi, nokta])
+        oturum.add_all([nokta])
         _standart_kurallari_ekle(oturum)
         oturum.flush()
 
@@ -82,8 +75,8 @@ def kurulum() -> dict:
             oturum.add(
                 Talep(
                     nokta_id=nokta.nokta_id,
-                    baslangic=vardiya_tipi.baslangic_saati,
-                    bitis=vardiya_tipi.bitis_saati,
+                    baslangic=time(8, 0),
+                    bitis=time(16, 0),
                     gun_tipi=GunTipi.HAFTA_ICI if gun_ofset < 5 else GunTipi.HAFTA_SONU,
                     tarih=baslangic + timedelta(days=gun_ofset),
                     gereken_sayi=1,
@@ -98,7 +91,6 @@ def kurulum() -> dict:
         oturum.commit()
         return {
             "on_ek": on_ek,
-            "vardiya_tipi_id": vardiya_tipi.vardiya_tipi_id,
             "nokta_id": nokta.nokta_id,
             "donem_id": donem.donem_id,
             "personel_idleri": [p.personel_id for p in personel_satirlari],
@@ -142,8 +134,8 @@ def test_yeniden_coz_taslagi_onceki_surume_baglar_ve_kilitli_atamayi_korur(
         kilitlenecek.kilitli = True
         kilitli_anahtar = (
             kilitlenecek.personel_id,
-            kilitlenecek.tarih,
-            kilitlenecek.vardiya_tipi_id,
+            kilitlenecek.baslangic_zamani,
+            kilitlenecek.bitis_zamani,
             kilitlenecek.nokta_id,
         )
         oturum.commit()
@@ -188,14 +180,14 @@ def test_yeniden_coz_taslagi_onceki_surume_baglar_ve_kilitli_atamayi_korur(
             select(Atama).where(
                 Atama.surum_id == yeni_surum_id,
                 Atama.personel_id == kilitli_anahtar[0],
-                Atama.tarih == kilitli_anahtar[1],
+                Atama.baslangic_zamani == kilitli_anahtar[1],
             )
         ).scalar_one_or_none()
         assert yeni_atama is not None
         assert (
             yeni_atama.personel_id,
-            yeni_atama.tarih,
-            yeni_atama.vardiya_tipi_id,
+            yeni_atama.baslangic_zamani,
+            yeni_atama.bitis_zamani,
             yeni_atama.nokta_id,
         ) == kilitli_anahtar
     finally:

@@ -21,7 +21,7 @@ from app.models.sonuc import (
     Donem,
     KapsamaAcigi,
 )
-from app.models.tanim import GorevNoktasi, GunTipi, Personel, Talep, VardiyaTipi
+from app.models.tanim import GorevNoktasi, GunTipi, Personel, Talep
 from tests.conftest import pg_yoksa_atla, senaryo_verisini_temizle, yetkili_istemci
 
 
@@ -53,21 +53,6 @@ def test_analiz_metrikleri_dogru_hesaplanir(istemci: TestClient) -> None:
         # bkz. tests/test_agirlik_kalibrasyonu.py).
         senaryo_verisini_temizle(oturum)
 
-        gunduz = VardiyaTipi(
-            ad=f"Gunduz-{on_ek}",
-            baslangic_saati=time(8, 0),
-            bitis_saati=time(16, 0),
-            sure_saat=8,
-            gece_mi=False,
-        )
-        gece = VardiyaTipi(
-            ad=f"Gece-{on_ek}",
-            baslangic_saati=time(0, 0),
-            bitis_saati=time(8, 0),
-            sure_saat=8,
-            gece_mi=True,
-        )
-        oturum.add_all([gunduz, gece])
         nokta = GorevNoktasi(ad=f"Nokta-{on_ek}")
         oturum.add(nokta)
         p1 = Personel(
@@ -96,8 +81,8 @@ def test_analiz_metrikleri_dogru_hesaplanir(istemci: TestClient) -> None:
         oturum.add(
             Talep(
                 nokta_id=nokta.nokta_id,
-                baslangic=gunduz.baslangic_saati,
-                bitis=gunduz.bitis_saati,
+                baslangic=time(8, 0),
+                bitis=time(16, 0),
                 gun_tipi=GunTipi.HAFTA_ICI,
                 tarih=None,
                 gereken_sayi=1,
@@ -106,8 +91,8 @@ def test_analiz_metrikleri_dogru_hesaplanir(istemci: TestClient) -> None:
         oturum.add(
             Talep(
                 nokta_id=nokta.nokta_id,
-                baslangic=gece.baslangic_saati,
-                bitis=gece.bitis_saati,
+                baslangic=time(0, 0),
+                bitis=time(8, 0),
                 gun_tipi=GunTipi.HAFTA_SONU,
                 tarih=None,
                 gereken_sayi=1,
@@ -126,8 +111,12 @@ def test_analiz_metrikleri_dogru_hesaplanir(istemci: TestClient) -> None:
                 Atama(
                     surum_id=surum.surum_id,
                     personel_id=p1.personel_id,
-                    tarih=date(2026, 9, 7) + timedelta(days=i),
-                    vardiya_tipi_id=gunduz.vardiya_tipi_id,
+                    baslangic_zamani=datetime.combine(
+                        date(2026, 9, 7) + timedelta(days=i), time(8, 0)
+                    ),
+                    bitis_zamani=datetime.combine(
+                        date(2026, 9, 7) + timedelta(days=i), time(16, 0)
+                    ),
                     nokta_id=nokta.nokta_id,
                     kaynak=AtamaKaynagi.COZUCU,
                 )
@@ -138,8 +127,8 @@ def test_analiz_metrikleri_dogru_hesaplanir(istemci: TestClient) -> None:
             Atama(
                 surum_id=surum.surum_id,
                 personel_id=p2.personel_id,
-                tarih=date(2026, 9, 12),
-                vardiya_tipi_id=gece.vardiya_tipi_id,
+                baslangic_zamani=datetime.combine(date(2026, 9, 12), time(0, 0)),
+                bitis_zamani=datetime.combine(date(2026, 9, 12), time(8, 0)),
                 nokta_id=nokta.nokta_id,
                 kaynak=AtamaKaynagi.COZUCU,
             )
@@ -148,8 +137,8 @@ def test_analiz_metrikleri_dogru_hesaplanir(istemci: TestClient) -> None:
             KapsamaAcigi(
                 surum_id=surum.surum_id,
                 tarih=date(2026, 9, 13),
-                baslangic=gece.baslangic_saati,
-                bitis=gece.bitis_saati,
+                baslangic=time(0, 0),
+                bitis=time(8, 0),
                 nokta_id=nokta.nokta_id,
                 eksik_sayi=1,
             )
@@ -196,13 +185,19 @@ def test_analiz_metrikleri_dogru_hesaplanir(istemci: TestClient) -> None:
     # Toplam talep: 5 hafta ici gunduz + 2 hafta sonu gece = 7; 1 eksik -> 6/7.
     assert govde["kapsama_orani"] == pytest.approx(6 / 7)
 
+    # BIRIM ARTIK SAAT, VARDIYA SAYISI DEGIL (SDD 6.3.4, SRS S2/S3). Blok
+    # sureleri cozumun ciktisi oldugundan sayima dayali bir olcu tanimsizdir.
+    # P2'nin 00.00–08.00 blogunun ALTI saati gece penceresine (20.00–06.00)
+    # duser - 06 ve 07 gece degildir; onceki beklenti 1'di ve birimi vardiya
+    # sayisiydi.
     gece_map = {g["personel_id"]: g["sayi"] for g in govde["kisi_basina_gece"]}
     assert gece_map[p1_id] == 0
-    assert gece_map[p2_id] == 1
+    assert gece_map[p2_id] == 6
 
+    # Hafta sonu olcusu blogun TAM suresidir: sekiz saat.
     hs_map = {g["personel_id"]: g["sayi"] for g in govde["kisi_basina_hafta_sonu"]}
     assert hs_map[p1_id] == 0
-    assert hs_map[p2_id] == 1
+    assert hs_map[p2_id] == 8
 
     # Saat dagiliminin tabani SDD 5.7 (surum 1.7) ile SOZLESME saatinden
     # ADIL PAYA (SRS S4'teki pay[p]) cevrildi. Bu senaryoda donem ici toplam

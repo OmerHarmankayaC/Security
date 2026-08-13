@@ -1,11 +1,14 @@
 // Vardiya kodlaması (TASARIM_REFERANSI.md, yalnızca vardiya bağlamındaki
 // ızgara/kartlarda kullanılır).
 //
-// RENK BAŞLANGIÇ SAATİ BANDINDAN HESAPLANIR, blok kimliğinden değil. Sabit
-// üç renk (gündüz/akşam/gece) yalnızca üç bloklu katalogda anlamlıydı;
-// katalog yedi bloğa çıktığında (SRS 3.3.1) "Gündüz" adını taşıyan sekiz ve
-// on iki saatlik bloklar aynı kutuya düşerdi. Bant, bloğun ne zaman
-// başladığını söyler ve katalog büyüdükçe kendiliğinden çalışır.
+// RENK BAŞLANGIÇ SAATİ BANDINDAN HESAPLANIR. Sabit üç renk
+// (gündüz/akşam/gece) yalnızca üç bloklu katalogda anlamlıydı; blok
+// kataloğu tümüyle kalktığı için (SRS TD-13) renk bağlanabileceği tek şey
+// zaten saatin kendisidir. Bant, bloğun ne zaman başladığını söyler.
+//
+// SDD 6.3.3 sürekli bir renk bandı istiyor (gece koyu, gündüz açık, geçiş
+// sürekli); buradaki dört basamak onun ilk yaklaşımıdır ve sürekli banda
+// geçiş Tur 6'nın işidir.
 
 /** Başlangıç saatinin düştüğü bant. Sınırlar SDD 6.3.3'ten. */
 export function baslangicBandi(baslangicSaati: string): 'gece' | 'sabah' | 'gunduz' | 'aksam' {
@@ -25,7 +28,7 @@ const _BANT_SINIFI: Record<ReturnType<typeof baslangicBandi>, string> = {
   aksam: 'bg-vardiya-aksam text-ink',
 }
 
-export function vardiyaHucreSinifi(_geceMi: boolean, baslangicSaati: string): string {
+export function vardiyaHucreSinifi(baslangicSaati: string): string {
   return _BANT_SINIFI[baslangicBandi(baslangicSaati)]
 }
 

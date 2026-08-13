@@ -3,9 +3,7 @@ atlama ve cozum iscisinin senkron calistirilmasi."""
 
 import sys
 import uuid
-from collections.abc import Iterator
-from contextlib import contextmanager
-from datetime import date
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
 import pytest
@@ -16,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.config import ayarlar
 from app.db import OturumYerel, engine
 from app.guvenlik import oturum_baglami
-from app.kurallar.baglam import VardiyaTipiBilgisi
+from app.kurallar.baglam import AtamaKaydi
 from app.kurallar.zaman_araligi import aralik_saatleri
 from app.main import app
 from app.models.kimlik import Kullanici, Rol
@@ -251,68 +249,49 @@ def oturumlu_istemci(rol: Rol = Rol.YONETIM, *, personel_id: int | None = None) 
     return istemci
 
 
-@contextmanager
-def gecici_vardiya_tipi(istemci: TestClient, govde: dict[str, object]) -> Iterator[dict]:
-    """Bir calisma blogu acar ve test bitince katalogdan DUSURUR.
+# --- Saat ekseni yardimcilari (Tur 5) ---------------------------------------
+#
+# Blok katalogu kalktigi icin testler artik "su blok" diyemez; calisma bir
+# ZAMAN ARALIGIDIR. Asagidaki iki yardimci testlerin ANLATTIGI seyi
+# degistirmeden yeni ekseni kurar.
 
-    Test veritabani kosumlar arasinda sifirlanmiyor; blok katalogu ise artik
-    ayni (baslangic_saati, sure_saat) ikilisini iki kez kabul etmiyor
-    (SRS FR-1.3, Tur 3 Is 6). Biriken bloklar bu yuzden yalnizca cop degil,
-    sonraki kosumun HATASI: onceki kosumun biraktigi blok, ayni saati
-    isteyen testi 409'a dusurur. Silme "kullanimdaysa pasiflestir"
-    yoludur, pasif blok da benzersizlik sayiminda yer almaz.
+
+def blok(
+    personel_id: int,
+    tarih: date,
+    baslangic_saati: int,
+    sure_saat: int,
+    nokta_id: int,
+) -> AtamaKaydi:
+    """Bir calisma blogu (SDD 4.2.1).
+
+    Gece yarisini asan blok ertesi gune tasar ve TEK kayit olarak durur;
+    blogun sayildigi gun `tarih`tir (SRS TD-1).
     """
-    yanit = istemci.post("/api/vardiya-tipi", json=govde)
-    assert yanit.status_code == 201, yanit.text
-    kayit = yanit.json()
-    try:
-        yield kayit
-    finally:
-        istemci.delete(f"/api/vardiya-tipi/{kayit['vardiya_tipi_id']}")
+    baslangic = datetime.combine(tarih, time(baslangic_saati))
+    return AtamaKaydi(
+        personel_id=personel_id,
+        baslangic=baslangic,
+        bitis=baslangic + timedelta(hours=sure_saat),
+        nokta_id=nokta_id,
+    )
 
 
-def bos_vardiya_blogu(istemci: TestClient, *, sure_saat: int = 8) -> dict[str, str]:
-    """Katalogda henuz kullanilmayan bir calisma blogu dondurur.
-
-    Saatleri testin konusu OLMAYAN yerler icindir: test 08.00'i degil
-    "herhangi bir blogu" istiyorsa, komsularindan bagimsiz kalsin.
-    """
-    dolu = {
-        (v["baslangic_saati"], float(v["sure_saat"]))
-        for v in istemci.get("/api/vardiya-tipi").json()
-        if v["aktif"]
-    }
-    for saat in range(24):
-        baslangic = f"{saat:02d}:00:00"
-        if (baslangic, float(sure_saat)) not in dolu:
-            return {
-                "baslangic_saati": baslangic,
-                "bitis_saati": f"{(saat + sure_saat) % 24:02d}:00:00",
-            }
-    raise AssertionError(f"{sure_saat} saatlik butun baslangic saatleri katalogda dolu")
-
-
-def blok_talebini_saate_ac(
-    talep: dict[tuple[date, int, int], int],
-    vardiya_tipleri: dict[int, VardiyaTipiBilgisi],
+def saatlik_talep(
+    gunler: list[date],
+    araliklar: list[tuple[int, int, int, int]],
 ) -> dict[tuple[date, int, int], int]:
-    """BLOK eksenli test talebini SAAT eksenine acar.
+    """`(gun, saat, nokta) -> gereken` — uretimdeki `talebi_saate_ac` ile ayni sozlesme.
 
-    Testlerin cogu talebi tarihsel olarak `(gun, blok, nokta) -> gereken`
-    biciminde kuruyordu; `Baglam.talep` (blok eksenli turev) Tur 4'te
-    kaldirildi ve tek kaynak `talep_saat` oldu. Bu yardimci, testin
-    ANLATTIGI seyi degistirmeden anahtari cevirir: "bu blokta su kadar kisi"
-    ifadesi "blogun kapsadigi her saatte su kadar kisi"ye acilir - uretimdeki
-    `talebi_saate_ac` ile ayni sozlesme (SDD 5.3).
-
-    Ayni saati birden fazla blok kapsiyorsa EN BUYUK gereken alinir; hizali
-    kataloglarda bloklar cakismadigi icin bu durum ancak kasitli kurulan
-    ornekte olusur.
+    `araliklar` ogeleri `(baslangic_saati, bitis_saati, nokta_id, gereken)`.
+    Sinirlar baslangicta kapali, bitiste aciktir; `bitis <= baslangic` gun
+    sonuna kadar surer ve gece yarisini asan aralik ertesi gunun saatlerine
+    tasar.
     """
-    saat_talebi: dict[tuple[date, int], int] = {}
-    for (tarih, vardiya_tipi_id, nokta_id), gereken in talep.items():
-        vt = vardiya_tipleri[vardiya_tipi_id]
-        for gun, saat in aralik_saatleri(tarih, vt.baslangic_saati, vt.bitis_saati):
-            anahtar = (gun, saat, nokta_id)
-            saat_talebi[anahtar] = max(saat_talebi.get(anahtar, 0), gereken)
-    return saat_talebi
+    talep: dict[tuple[date, int, int], int] = {}
+    for gun in gunler:
+        for bas, bit, nokta_id, gereken in araliklar:
+            for saat_gunu, saat in aralik_saatleri(gun, time(bas), time(bit % 24)):
+                anahtar = (saat_gunu, saat, nokta_id)
+                talep[anahtar] = max(talep.get(anahtar, 0), gereken)
+    return talep

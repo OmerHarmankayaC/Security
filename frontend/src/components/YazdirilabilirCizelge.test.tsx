@@ -7,7 +7,6 @@ import type {
   GorevNoktasi,
   KapsamaAcigi,
   Personel,
-  VardiyaTipi,
 } from '@/api/types'
 import type { CizelgeVerisi } from '@/lib/disaAktarma'
 import { YazdirilabilirCizelge } from './YazdirilabilirCizelge'
@@ -42,7 +41,6 @@ const PERSONEL: Personel[] = [
     ad_soyad: 'Ayşe Şahin',
     sicil_no: 'GG-001',
     haftalik_hedef_saat: 40,
-    sabit_vardiya_tipi_id: null,
     aktif_baslangic: '2026-01-01',
     aktif_bitis: null,
     yetkinlik_idleri: [],
@@ -54,33 +52,11 @@ const PERSONEL: Personel[] = [
     ad_soyad: 'Mehmet Çınar',
     sicil_no: 'GG-002',
     haftalik_hedef_saat: 40,
-    sabit_vardiya_tipi_id: null,
     aktif_baslangic: '2026-01-01',
     aktif_bitis: null,
     yetkinlik_idleri: [],
   devir_fazla_calisma_saat: '0.00',
   kota_yili: null,
-  },
-]
-
-const VARDIYALAR: VardiyaTipi[] = [
-  {
-    vardiya_tipi_id: 10,
-    ad: 'Gündüz',
-    baslangic_saati: '08:00:00',
-    bitis_saati: '16:00:00',
-    sure_saat: '8.00',
-    gece_mi: false,
-    aktif: true,
-  },
-  {
-    vardiya_tipi_id: 11,
-    ad: 'Gece',
-    baslangic_saati: '00:00:00',
-    bitis_saati: '08:00:00',
-    sure_saat: '8.00',
-    gece_mi: true,
-    aktif: true,
   },
 ]
 
@@ -97,31 +73,39 @@ function veriKur(atamalar: Atama[], kapsamaAcigi: KapsamaAcigi[] = []): CizelgeV
     kapsamaAcigi,
     fazlaKadro: [],
     personelMap: new Map(PERSONEL.map((p) => [p.personel_id, p])),
-    vardiyaMap: new Map(VARDIYALAR.map((v) => [v.vardiya_tipi_id, v])),
     noktaMap: new Map(NOKTALAR.map((n) => [n.nokta_id, n])),
   }
 }
 
+function atama(id: number, personelId: number, tarih: string, bas: number, nokta: number): Atama {
+  return {
+    atama_id: id,
+    personel_id: personelId,
+    baslangic_zamani: `${tarih}T${String(bas).padStart(2, '0')}:00:00+03:00`,
+    bitis_zamani: `${tarih}T${String((bas + 8) % 24).padStart(2, '0')}:00:00+03:00`,
+    tarih,
+    sure_saat: 8,
+    nokta_id: nokta,
+    kilitli: false,
+    kaynak: 'cozucu',
+  }
+}
+
 const ATAMALAR: Atama[] = [
-  {
-    atama_id: 1,
-    personel_id: 1,
-    tarih: '2026-02-02',
-    vardiya_tipi_id: 10,
-    nokta_id: 20,
-    kilitli: false,
-    kaynak: 'cozucu',
-  },
-  {
-    atama_id: 2,
-    personel_id: 2,
-    tarih: '2026-02-03',
-    vardiya_tipi_id: 11,
-    nokta_id: 21,
-    kilitli: false,
-    kaynak: 'cozucu',
-  },
+  atama(1, 1, '2026-02-02', 8, 20),
+  atama(2, 2, '2026-02-03', 0, 21),
 ]
+
+function acik(id: number, tarih: string, bas: number, nokta: number, eksik: number): KapsamaAcigi {
+  return {
+    acik_id: id,
+    tarih,
+    baslangic: `${String(bas).padStart(2, '0')}:00:00`,
+    bitis: `${String((bas + 8) % 24).padStart(2, '0')}:00:00`,
+    nokta_id: nokta,
+    eksik_sayi: eksik,
+  }
+}
 
 function ciz(atamalar: Atama[], acikSatirlari: KapsamaAcigi[] = []) {
   return render(
@@ -165,10 +149,13 @@ describe('YazdirilabilirCizelge — matris', () => {
     expect(screen.queryByText('Mehmet Çınar')).toBeNull()
   })
 
-  it('hücrede vardiya ve görev noktası kısaltmasını gösterir', () => {
+  it('hücrede saat aralığını ve görev noktası kısaltmasını gösterir', () => {
     const { container } = ciz(ATAMALAR)
-    // A4 genişliğine tam adlar sığmıyor; SDD 6.3.3 zaten kısaltma diyor.
-    expect(container.textContent).toContain('GÜN')
+    // Blok ADI yerine SAAT ARALIĞI (SRS TD-13): blok adı diye bir şey yok,
+    // tek okunabilir bilgi sürenin kendisi. Nokta kısaltması kalır — A4
+    // genişliğine tam adlar sığmıyor (SDD 6.3.3).
+    expect(container.textContent).toContain('08–16')
+    expect(container.textContent).toContain('00–08')
     expect(container.textContent).toContain('GÜV')
     expect(container.textContent).toContain('VŞ')
   })
@@ -193,8 +180,8 @@ describe('YazdirilabilirCizelge — kapsama açıkları', () => {
 
   it('açıkları tabloda listeler ve toplamı yazar', () => {
     ciz(ATAMALAR, [
-      { acik_id: 1, tarih: '2026-02-02', vardiya_tipi_id: 11, nokta_id: 20, eksik_sayi: 2 },
-      { acik_id: 2, tarih: '2026-02-05', vardiya_tipi_id: 10, nokta_id: 21, eksik_sayi: 1 },
+      acik(1, '2026-02-02', 0, 20, 2),
+      acik(2, '2026-02-05', 8, 21, 1),
     ])
     expect(screen.getByText('2 hücrede toplam 3 kişi eksik.')).toBeDefined()
 
@@ -202,14 +189,15 @@ describe('YazdirilabilirCizelge — kapsama açıkları', () => {
     const satirlar = within(acikTablosu).getAllByRole('row').slice(1)
     expect(satirlar).toHaveLength(2)
     expect(satirlar[0]?.textContent).toContain('2 Şubat 2026')
-    expect(satirlar[0]?.textContent).toContain('Gece')
+    // Blok adı yok; açık satırı SAAT ARALIĞINI yazar (SRS TD-13).
+    expect(satirlar[0]?.textContent).toContain('00.00–08.00')
     expect(satirlar[0]?.textContent).toContain('Güvenlik')
   })
 
   it('açıkları tarihe göre sıralar', () => {
     ciz(ATAMALAR, [
-      { acik_id: 1, tarih: '2026-02-06', vardiya_tipi_id: 10, nokta_id: 20, eksik_sayi: 1 },
-      { acik_id: 2, tarih: '2026-02-02', vardiya_tipi_id: 10, nokta_id: 20, eksik_sayi: 1 },
+      acik(1, '2026-02-06', 8, 20, 1),
+      acik(2, '2026-02-02', 8, 20, 1),
     ])
     const satirlar = within(screen.getAllByRole('table')[1]!)
       .getAllByRole('row')

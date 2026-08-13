@@ -33,9 +33,6 @@ class Personel(Base, ZamanDamgasiKarisimi):
     # kullanilacak, simdilik yalnizca veri girilebilir hale geliyor.
     devir_fazla_calisma_saat: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=Decimal(0))
     kota_yili: Mapped[int | None]
-    sabit_vardiya_tipi_id: Mapped[int | None] = mapped_column(
-        ForeignKey("vardiya_tipi.vardiya_tipi_id")
-    )
     aktif_baslangic: Mapped[date] = mapped_column(Date)
     aktif_bitis: Mapped[date | None] = mapped_column(Date)
 
@@ -51,7 +48,7 @@ class Yetkinlik(Base, ZamanDamgasiKarisimi):
     # Kullanimda olan bir tanim SILINMEZ, pasiflestirilir: gecmis cizelgeler
     # tanim satirlarina referansla durur (SDD 4.1) ve satir gidince atamalar
     # okunamaz hale gelir. gorev_noktasi'nda hali hazirda bulunan bu bayrak
-    # (SDD 4.2.1) yetkinlik, bina ve vardiya_tipi'ne de eklendi.
+    # (SDD 4.2.1) yetkinlik ve binaya da eklendi.
     aktif: Mapped[bool] = mapped_column(default=True)
 
 
@@ -84,35 +81,22 @@ class GorevNoktasi(Base, ZamanDamgasiKarisimi):
     aktif: Mapped[bool] = mapped_column(default=True)
 
 
-class VardiyaTipi(Base, ZamanDamgasiKarisimi):
-    __tablename__ = "vardiya_tipi"
-
-    vardiya_tipi_id: Mapped[int] = mapped_column(primary_key=True)
-    ad: Mapped[str]
-    baslangic_saati: Mapped[time] = mapped_column(Time)
-    bitis_saati: Mapped[time] = mapped_column(Time)
-    sure_saat: Mapped[Decimal] = mapped_column(Numeric(4, 2))
-    gece_mi: Mapped[bool]
-    aktif: Mapped[bool] = mapped_column(default=True)
-
-
 class Talep(Base, ZamanDamgasiKarisimi):
     """Talep bir calisma bloguna degil bir ZAMAN ARALIGINA baglanir (SRS 3.3.4,
     TD-13; SDD 4.2.2).
 
-    Blok katalogu genisledikce blok eksenli talep hem anlamini hem
-    kullanilabilirligini kaybeder: "06.00-14.00 blogunda yedi kisi" kullanicinin
-    soylemek istedigi sey degildir, "sabah sekizden aksam on ikiye kadar yedi
-    kisi bulunsun"dur. Hangi bloklarin bu araligi hangi bilesimle kapatacagi
-    cozucunun kararidir.
+    Talep bir bloga baglanamaz cunku blok diye bir tanim kalmadi: baslangic
+    saati ve sure cozumun ciktisidir. Kullanicinin soylemek istedigi sey
+    zaten "sabah sekizden aksam on ikiye kadar dokuz kisi bulunsun"dur;
+    hangi bloklarin bu araligi hangi bilesimle kapatacagi cozucunun
+    kararidir.
 
     GUN SONU `00.00` ILE GOSTERILIR. SDD 4.2.2 bunun icin `24.00` yaziyor;
     PostgreSQL o degeri saklayabiliyor fakat surucu (psycopg) `datetime.time`
-    24:00 tasiyamadigi icin geri OKUYAMIYOR. Bunun yerine `vardiya_tipi`
-    tablosunda ZATEN kullanilan sozlesme uygulanir: `bitis <= baslangic` ise
-    aralik gun sonuna kadar surer ve gece yarisini asiyorsa ertesi gune tasar
-    (bkz. Baglam.vardiya_araligi). Yeni bir kavram girmez; acilim tek yerde
-    (`talebi_saate_ac`) bu kurali uygular.
+    24:00 tasiyamadigi icin geri OKUYAMIYOR. Uygulanan sozlesme tektir:
+    `bitis <= baslangic` ise aralik gun sonuna kadar surer ve gece yarisini
+    asiyorsa ertesi gune tasar; acilim tek yerde (`talebi_saate_ac`) bu
+    kurali uygular.
     """
 
     __tablename__ = "talep"
@@ -141,6 +125,5 @@ __all__ = [
     "Personel",
     "PersonelYetkinlik",
     "Talep",
-    "VardiyaTipi",
     "Yetkinlik",
 ]

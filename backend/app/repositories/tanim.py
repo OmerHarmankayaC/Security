@@ -16,7 +16,6 @@ from app.models.tanim import (
     OzelGun,
     Personel,
     Talep,
-    VardiyaTipi,
     Yetkinlik,
 )
 from app.repositories.taban import TabanDepo
@@ -66,11 +65,6 @@ class YetkinlikDeposu(TanimDeposu[Yetkinlik]):
 class BinaDeposu(TanimDeposu[Bina]):
     def __init__(self, oturum: Session) -> None:
         super().__init__(oturum, Bina)
-
-
-class VardiyaTipiDeposu(TanimDeposu[VardiyaTipi]):
-    def __init__(self, oturum: Session) -> None:
-        super().__init__(oturum, VardiyaTipi)
 
 
 class GorevNoktasiDeposu(TanimDeposu[GorevNoktasi]):

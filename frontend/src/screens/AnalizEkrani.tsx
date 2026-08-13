@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api/client'
-import type { Analiz, CizelgeSurumu, Donem, Personel, VardiyaTipi } from '../api/types'
+import type { Analiz, CizelgeSurumu, Donem, Personel } from '../api/types'
 import { AppShell, type NavOgesi } from '../components/AppShell'
 import { Buton, Kart, KartEtiketi, Sayi } from '../components/app-ui'
 import { donemAraligiBicimle } from '../lib/tarih'
@@ -39,17 +39,15 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
   const [surumler, setSurumler] = useState<CizelgeSurumu[]>([])
   const [surumId, setSurumId] = useState<number | null>(null)
   const [personelListesi, setPersonelListesi] = useState<Personel[]>([])
-  const [vardiyaTipleri, setVardiyaTipleri] = useState<VardiyaTipi[]>([])
   const [analiz, setAnaliz] = useState<Analiz | null>(null)
   const [yukleniyor, setYukleniyor] = useState(false)
   const [hata, setHata] = useState<string | null>(null)
 
   useEffect(() => {
-    Promise.all([api.donemler(), api.personelListele(), api.vardiyaTipiListele()])
-      .then(([d, p, v]) => {
+    Promise.all([api.donemler(), api.personelListele()])
+      .then(([d, p]) => {
         setDonemler(d)
         setPersonelListesi(p)
-        setVardiyaTipleri(v)
         if (donemId === null && d[0]) donemIdSec(d[0].donem_id)
       })
       .catch((e) => setHata(e instanceof Error ? e.message : 'Tanımlar yüklenemedi'))
@@ -91,10 +89,6 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
   const personelMap = useMemo(
     () => new Map(personelListesi.map((p) => [p.personel_id, p])),
     [personelListesi],
-  )
-  const vardiyaMap = useMemo(
-    () => new Map(vardiyaTipleri.map((v) => [v.vardiya_tipi_id, v])),
-    [vardiyaTipleri],
   )
 
   const adalet = useMemo(() => {
@@ -147,7 +141,6 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
         kapsamaAcigi,
         fazlaKadro,
         personelMap,
-        vardiyaMap,
         noktaMap: new Map(noktalar.map((n) => [n.nokta_id, n])),
       })
     } catch (e) {

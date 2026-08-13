@@ -19,11 +19,10 @@ from app.kurallar.baglam import (
     MusaitlikKaydi,
     PersonelBilgisi,
     TercihKaydi,
-    VardiyaTipiBilgisi,
 )
 from app.models.girdi import Musaitlik, Tercih, TercihDurumu
 from app.models.sonuc import Donem
-from app.models.tanim import GorevNoktasi, OzelGun, Personel, Talep, VardiyaTipi, Yetkinlik
+from app.models.tanim import GorevNoktasi, OzelGun, Personel, Talep, Yetkinlik
 from app.services.talep_cozucu import talebi_saate_ac
 
 
@@ -63,29 +62,11 @@ def baglam_olustur(
     analiz ve dogrulama yollari False verir, cunku o surumun atamalari
     pasiflestirmeden onceki tanimlara referans verebilir ve tanim
     kumeden dusurulurse atama sessizce sayilmaz hale gelir.
-
-    Pasif bir vardiya tipi icin karar degiskeni uretilmez; isitma
-    penceresindeki veya kilitli atamalar arasinda o tipe ait bir kayit
-    varsa model_kur onu zaten sessizce atlar (talebin sifira dusmesi
-    durumuyla ayni yol).
     """
-    vardiya_sorgusu = select(VardiyaTipi)
     nokta_sorgusu = select(GorevNoktasi)
     if yalniz_aktif:
-        vardiya_sorgusu = vardiya_sorgusu.where(VardiyaTipi.aktif.is_(True))
         nokta_sorgusu = nokta_sorgusu.where(GorevNoktasi.aktif.is_(True))
 
-    vardiya_tipleri = {
-        v.vardiya_tipi_id: VardiyaTipiBilgisi(
-            v.vardiya_tipi_id,
-            v.baslangic_saati,
-            v.bitis_saati,
-            float(v.sure_saat),
-            v.gece_mi,
-            ad=v.ad,
-        )
-        for v in oturum.execute(vardiya_sorgusu).scalars().all()
-    }
     gorev_noktalari = {
         n.nokta_id: GorevNoktasiBilgisi(n.nokta_id, n.onkosul_yetkinlik_id, n.bina_id, ad=n.ad)
         for n in oturum.execute(nokta_sorgusu).scalars().all()
@@ -114,7 +95,7 @@ def baglam_olustur(
         for m in oturum.execute(select(Musaitlik)).scalars().all()
     ]
     tercihler = [
-        TercihKaydi(t.personel_id, t.tarih, t.tip, t.vardiya_tipi_id)
+        TercihKaydi(t.personel_id, t.tarih, t.tip, t.tercih_baslangic, t.tercih_bitis)
         for t in oturum.execute(
             select(Tercih).where(
                 Tercih.durum == TercihDurumu.ONAYLANDI,
@@ -137,16 +118,17 @@ def baglam_olustur(
 
     zaman_ekseni = zaman_ekseni_olustur(donem, isitma_penceresi_gun=isitma_penceresi_gun)
     talep_satirlari = oturum.execute(select(Talep)).scalars().all()
-    # Saat ekseni TEK KAYNAK (SDD 5.3). Blok eksenli turev (Tur 3'un gecici
-    # koprusu) KALDIRILDI: S2, S3 ve S4 artik talebi dogrudan saat uzerinden
-    # okuyor. Turev bir blogun gerekenini "kapsadigi saatlerdeki en buyuk
-    # gereken" olarak aliyordu ve bu yalnizca hizali katalogda dogruydu;
-    # karisik uzunluklu katalogda sessizce yanlis hesaplardi.
+    # Saat ekseni TEK KAYNAK (SDD 5.3): talep, kapsama kisiti, adil pay ve
+    # analiz ayni acilimdan besleniyor.
     talep_saat = talebi_saate_ac(talep_satirlari, zaman_ekseni, ozel_gunler)
 
     return Baglam(
-        vardiya_tipleri=vardiya_tipleri,
         gorev_noktalari=gorev_noktalari,
+        # Eksen BURADA da doldurulur, yalniz model_kur'da degil: dogrula
+        # yolundaki kurallar (S8) mutlak saat indeksini baglamdan okur ve
+        # eksen bos oldugunda `saat_indeksi` sessizce None dondururdu -
+        # bulgular hic uretilmeden kaybolurdu.
+        zaman_ekseni=zaman_ekseni,
         personel=personel,
         musaitlik=musaitlik,
         talep_saat=talep_saat,

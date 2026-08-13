@@ -9,8 +9,9 @@ bu semalar uzerinden client'a hic dogru gitmez (SDD 6.1 kabul kriteri:
 from datetime import date, datetime, time
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
+from app.kurallar.zaman_araligi import tam_saat_mi
 from app.models.girdi import TercihDurumu, TercihTipi
 
 # FR-9.4'un uc degisim turunden ikisi; ucuncusu ("kaldirildi") bir vardiya
@@ -20,12 +21,18 @@ KarsilanmaDurumu = Literal["karsilandi", "karsilanmadi", "henuz_belirsiz"]
 
 
 class VardiyamOku(BaseModel):
+    """Calisanin bir gunluk calisma BLOGU.
+
+    Blok adi diye bir sey yok (SRS TD-13); calisanin gormesi gereken bilgi
+    saatin kendisidir. `gece_saati` HESAPLANIR (TD-2), isaretlenmez: gece
+    bayragi vardiya tipi uzerinde duruyordu ve o tablo kalkti.
+    """
+
     tarih: date
-    vardiya_tipi_id: int
-    vardiya_tipi_ad: str
-    baslangic_saati: time
-    bitis_saati: time
-    gece_mi: bool
+    baslangic_zamani: datetime
+    bitis_zamani: datetime
+    sure_saat: int
+    gece_saati: int
     nokta_id: int
     nokta_ad: str
     # FR-9.4: karsilastirma tabani (en son arsivlenen surum) yoksa hicbir
@@ -46,10 +53,8 @@ class KaldirilanGunOku(BaseModel):
     """
 
     tarih: date
-    onceki_vardiya_tipi_ad: str
-    onceki_baslangic_saati: time
-    onceki_bitis_saati: time
-    onceki_gece_mi: bool
+    onceki_baslangic_zamani: datetime
+    onceki_bitis_zamani: datetime
     onceki_nokta_ad: str
 
 
@@ -65,10 +70,12 @@ class DonemOzetiOku(BaseModel):
     havuz disindaki calisana o karsilastirmayi hic gostermez.
     """
 
-    gece_sayisi: int
+    # Birim SAAT (SRS S2, S3): blok sureleri cozumun ciktisi oldugundan
+    # sayima dayali bir olcu tanimsizdir.
+    gece_saati: float
     ekip_ortalama_gece: float
     gece_havuzunda: bool
-    hafta_sonu_sayisi: int
+    hafta_sonu_saati: float
     ekip_ortalama_hafta_sonu: float
     hafta_sonu_havuzunda: bool
     toplam_saat: float
@@ -104,8 +111,9 @@ class CalisanTercihOku(BaseModel):
     tercih_id: int
     tarih: date
     tip: TercihTipi
-    vardiya_tipi_id: int | None
-    vardiya_tipi_ad: str | None
+    # Zaman araligi tercihinde istenen aralik; calismama tercihinde bos.
+    tercih_baslangic: time | None
+    tercih_bitis: time | None
     calisan_notu: str | None
     durum: TercihDurumu
     ret_gerekcesi: str | None
@@ -123,24 +131,26 @@ class CalisanTercihListesiOku(BaseModel):
 
 
 class CalisanTercihOlustur(BaseModel):
-    tarih: date
-    tip: TercihTipi
-    vardiya_tipi_id: int | None = None
-    calisan_notu: str | None = None
+    """Tercih bildirimi (SRS FR-3.2).
 
-
-class CalisanVardiyaTipiOku(BaseModel):
-    """Tercih formunun vardiya tipi listesi (SDD 6.1).
-
-    Tanim yonlendiricisinin `VardiyaTipiOku`sundan AYRI bir sema: orasi
-    tanim yonetiminin alanlarini (sure, aktiflik bayragi) tasir ve calisan
-    yuzeyinin ihtiyaci olan sey yalnizca secim yapilabilecek kadar bilgidir.
-    Ayni semayi paylassalardi, tanim tarafina eklenen her alan calisana da
-    acilirdi.
+    Tercih artik bir vardiya TIPI degil bir ZAMAN ARALIGI gosterir: form,
+    calisanin "su saatler arasinda calismak isterim" demesine izin verir.
+    Calismama tercihinde aralik bos birakilir.
     """
 
-    vardiya_tipi_id: int
-    ad: str
-    baslangic_saati: time
-    bitis_saati: time
-    gece_mi: bool
+    tarih: date
+    tip: TercihTipi
+    tercih_baslangic: time | None = None
+    tercih_bitis: time | None = None
+    calisan_notu: str | None = None
+
+    @model_validator(mode="after")
+    def _araligi_dogrula(self) -> "CalisanTercihOlustur":
+        if self.tip == TercihTipi.CALISMAMA:
+            return self
+        if self.tercih_baslangic is None or self.tercih_bitis is None:
+            raise ValueError("Zaman aralığı tercihinde başlangıç ve bitiş saati zorunludur.")
+        for saat in (self.tercih_baslangic, self.tercih_bitis):
+            if not tam_saat_mi(saat):
+                raise ValueError("Tercih saatleri saat başında olmalı (örnek: 08.00).")
+        return self

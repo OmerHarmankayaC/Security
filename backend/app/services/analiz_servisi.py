@@ -13,11 +13,10 @@ from collections.abc import Sequence
 
 from sqlalchemy.orm import Session
 
-from app.kurallar.baglam import AtamaKaydi
-from app.kurallar.esnek import S4_OLCEK, S6bBinaTutarliligi, s4_hedef_paylari_x10
-from app.kurallar.zaman_araligi import gece_saati_mi
+from app.kurallar.baglam import AtamaKaydi, TercihKaydi
+from app.kurallar.esnek import S6bBinaTutarliligi, s4_hedef_paylari
+from app.kurallar.zaman_araligi import gece_saati_mi, saat_kumesi
 from app.models.girdi import TercihTipi
-from app.models.sonuc import Atama
 from app.models.tanim import Personel
 from app.repositories.sonuc import (
     AtamaDeposu,
@@ -29,7 +28,21 @@ from app.repositories.sonuc import (
 )
 from app.repositories.tanim import PersonelDeposu
 from app.schemas.analiz import AnalizOku, FazlaKadroKalemi, KisiSayisiOku, SaatDengesiOku
+from app.services.atama_donusumu import atama_kayitlarina_cevir
 from app.services.baglam_kurucu import baglam_olustur
+
+
+def _tercih_karsilandi(atama: AtamaKaydi, tercih: TercihKaydi) -> bool:
+    """TD-12: zaman araligi tercihi, blogun TAMAMI araligin icinde kalirsa
+    karsilanmis sayilir; bir kismi disariya tasiyorsa karsilanmamistir.
+
+    S5'in `dogrula`si ile ayni olcut - iki yuzey ayni tercih icin farkli
+    yanit verirse calisan panelindeki durum ile cezanin isareti celisir.
+    """
+    if tercih.tercih_baslangic is None or tercih.tercih_bitis is None:
+        return False
+    istenen = saat_kumesi(tercih.tercih_baslangic, tercih.tercih_bitis)
+    return all(an.hour in istenen for an in atama.saatler())
 
 
 def _ad(bilgi: object) -> str:
@@ -63,12 +76,10 @@ class AnalizServisi:
         baglam = baglam_olustur(self.oturum, donem, yalniz_aktif=False)
         donem_gun_sayisi = (donem.bitis_tarihi - donem.baslangic_tarihi).days + 1
 
-        atama_satirlari: Sequence[Atama] = [
-            a for a in self.atama.surume_gore_getir(surum_id) if baglam.donem_icinde(a.tarih)
-        ]
         atamalar = [
-            AtamaKaydi(a.personel_id, a.tarih, a.vardiya_tipi_id, a.nokta_id)
-            for a in atama_satirlari
+            a
+            for a in atama_kayitlarina_cevir(self.atama.surume_gore_getir(surum_id))
+            if baglam.donem_icinde(a.tarih)
         ]
 
         personel_satirlari: Sequence[Personel] = self.personel.tumunu_getir()
@@ -120,16 +131,21 @@ class AnalizServisi:
         ]
         toplam_fazla = sum(f.fazla_sayi for f in fazla_satirlari)
 
-        # --- Kisi basina gece / hafta sonu sayisi (FR-8.2), saat dagilimi
-        gece_sayac: dict[int, int] = defaultdict(int)
-        hs_sayac: dict[int, int] = defaultdict(int)
+        # --- Kisi basina gece / hafta sonu SAATI (FR-8.2), saat dagilimi.
+        #
+        # BIRIM SAAT, VARDIYA SAYISI DEGIL. Blok sureleri artik cozumun
+        # ciktisi oldugundan sayima dayali bir olcu tanimsizdir: on iki saat
+        # gece calisan personel ile alti saat calisan ayni sayilamaz
+        # (SRS S2). Analiz, S2/S3 ile ayni tabani okumak zorundadir - iki
+        # yerde farkli birim, ayni cizelge icin farkli rapor demektir.
+        gece_saat: dict[int, float] = defaultdict(float)
+        hs_saat: dict[int, float] = defaultdict(float)
         saat_toplam: dict[int, float] = defaultdict(float)
         for a in atamalar:
-            if baglam.gece_mi(a.vardiya_tipi_id):
-                gece_sayac[a.personel_id] += 1
+            gece_saat[a.personel_id] += a.gece_saati
             if baglam.hafta_sonu_mu(a.tarih):
-                hs_sayac[a.personel_id] += 1
-            saat_toplam[a.personel_id] += baglam.sure_saat(a.vardiya_tipi_id)
+                hs_saat[a.personel_id] += a.sure_saat
+            saat_toplam[a.personel_id] += a.sure_saat
 
         # SDD 5.7 (surum 1.7): gece ve hafta sonu metrikleri UYGUN HAVUZ
         # (SRS S2/S3'teki P_gece, P_hs) uzerinden raporlanir - yetkinligi
@@ -145,14 +161,14 @@ class AnalizServisi:
             KisiSayisiOku(
                 personel_id=p.personel_id,
                 ad_soyad=p.ad_soyad,
-                sayi=gece_sayac.get(p.personel_id, 0),
+                sayi=gece_saat.get(p.personel_id, 0.0),
             )
             for p in personel_satirlari
             if p.personel_id in gece_havuzu
         ]
         kisi_basina_hafta_sonu = [
             KisiSayisiOku(
-                personel_id=p.personel_id, ad_soyad=p.ad_soyad, sayi=hs_sayac.get(p.personel_id, 0)
+                personel_id=p.personel_id, ad_soyad=p.ad_soyad, sayi=hs_saat.get(p.personel_id, 0.0)
             )
             for p in personel_satirlari
             if p.personel_id in hs_havuzu
@@ -166,10 +182,10 @@ class AnalizServisi:
         # Hesap S4'un kendi fonksiyonundan gelir - kural iki ayri yerde
         # kodlanmaz (SDD 2.4); S4_OLCEK onda bir saat oldugundan dogal birime
         # geri cevrilir (SDD Ek A, "Kesirli hedeflerin tamsayiya olceklenmesi").
-        paylar_x10 = s4_hedef_paylari_x10(baglam, donem_gun_sayisi)
+        paylar = s4_hedef_paylari(baglam, donem_gun_sayisi)
         saat_dagilimi: list[SaatDengesiOku] = []
         for p in personel_satirlari:
-            hedef = paylar_x10.get(p.personel_id, 0) / S4_OLCEK
+            hedef = paylar.get(p.personel_id, 0.0)
             toplam = saat_toplam.get(p.personel_id, 0.0)
             saat_dagilimi.append(
                 SaatDengesiOku(
@@ -209,7 +225,7 @@ class AnalizServisi:
             if tercih.tip == TercihTipi.CALISMAMA:
                 if atama is None:
                     karsilanan += 1
-            elif atama is not None and atama.vardiya_tipi_id == tercih.vardiya_tipi_id:
+            elif atama is not None and _tercih_karsilandi(atama, tercih):
                 karsilanan += 1
         tercih_orani = karsilanan / len(baglam.tercihler) if baglam.tercihler else None
 

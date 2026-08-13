@@ -61,55 +61,23 @@ from app.models.tanim import (
     OzelGun,
     Personel,
     Talep,
-    VardiyaTipi,
     Yetkinlik,
 )
 from app.repositories.sonuc import CizelgeSurumuDeposu
 from app.services.cozum_servisi import CozumServisi, cozum_isini_calistir
 from app.services.ornek_senaryo import (
+    GUVENLIK_GOREVI,
     NOKTA_TANIMLARI,
     PERSONEL_GRUPLARI,
+    VARDIYA_SEFI,
     talep_satirlarini_olustur,
 )
-from app.services.vardiya_hesaplari import sure_saat_hesapla
 from app.veri_temizligi import (
     HesapKapsami,
     TemizlikSonucu,
     UretimKilidiError,
     veriyi_temizle,
 )
-
-# SRS 3.3.1'deki vardiya tipi tablosu BIREBIR: (baslangic, bitis, gece_mi).
-#
-# gece_mi degeri buradan gelir, gece_mi_oner()'den DEGIL. TD-2: bayrak
-# "hesaplanan degil TANIMLANAN bir alandir"; oneri kurali (20:00-06:00 ile
-# kesisim >= 4 saat) yalnizca kullanici YENI bir vardiya tipi tanimlarken
-# alani on-doldurmak icindir ve tanimli bir degeri ezemez. Aksam vardiyasi
-# (16:00-24:00) oneri esigini SINIRDA karsiladigi icin (tam 4 saat) otomatik
-# uygulandiginda gece isaretleniyor ve SRS 3.3.1'in acik "Hayir" degerini
-# eziyordu; sonucta uc vardiyanin ikisi gece sayilip donem ici gece talebi
-# toplamin %60'ina cikiyor, S2'nin hedefi bozuluyordu (bkz. PROGRESS.md,
-# Gun 14 K3 bulgusu).
-_VARDIYA_TANIMLARI: dict[str, tuple[time, time, bool]] = {
-    # SRS 3.3.1 birebir (K16). BAYRAK TANIMLI BIR DEGERDIR, `gece_mi_oner`in
-    # onerisi degil (TD-2): oneri yalnizca yeni blok olustururken
-    # on-doldurur ve tanimli bir degeri ASLA ezmez. Bu kural bir kez
-    # cignendi ve gece talebi uc katina cikti.
-    #
-    # Ilk uc blok mevcut isleyisteki ucluk sekiz saatlik duzendir; kalan
-    # dordu on ve on iki saatlik seceneklerdir. On iki saatlik bloklar
-    # haftalik fazla calisma esigini (45) gercekten asabildigi icin H10'un
-    # isledigini gosterebilen tek yapidir: yalnizca sekiz saatlik bloklarla
-    # haftada alti gun calisan bir personel 48 saate ulasir ve esigi ancak
-    # uc saat asar.
-    "Gece": (time(0, 0), time(8, 0), True),
-    "Gündüz": (time(8, 0), time(16, 0), False),
-    "Akşam": (time(16, 0), time(0, 0), False),
-    "Uzun gece": (time(20, 0), time(8, 0), True),
-    "Uzun gündüz": (time(8, 0), time(20, 0), False),
-    "Erken uzun": (time(6, 0), time(16, 0), False),
-    "Geç uzun": (time(14, 0), time(0, 0), False),
-}
 
 _KURAL_TANIMLARI: list[dict] = [
     {"kimlik": "H1", "tip": KuralTipi.ZORUNLU, "parametreler": {}, "agirlik": None},
@@ -261,26 +229,8 @@ def _her_seyi_temizle(oturum: Session) -> TemizlikSonucu:
     return veriyi_temizle(oturum, hesaplar=HesapKapsami.PERSONELE_BAGLI)
 
 
-def _vardiya_tiplerini_olustur(oturum: Session) -> dict[str, VardiyaTipi]:
-    vardiyalar: dict[str, VardiyaTipi] = {}
-    for ad, (baslangic, bitis, gece_mi) in _VARDIYA_TANIMLARI.items():
-        vardiya = VardiyaTipi(
-            ad=ad,
-            baslangic_saati=baslangic,
-            bitis_saati=bitis,
-            sure_saat=sure_saat_hesapla(baslangic, bitis),
-            gece_mi=gece_mi,
-        )
-        oturum.add(vardiya)
-        vardiyalar[ad] = vardiya
-    oturum.flush()
-    return vardiyalar
-
-
 def _yetkinlikleri_olustur(oturum: Session) -> dict[str, Yetkinlik]:
-    yetkinlikler = {
-        ad: Yetkinlik(ad=ad) for ad in ("Güvenlik Görevi", "Vardiya Şefi", "Müracaat Görevlisi")
-    }
+    yetkinlikler = {ad: Yetkinlik(ad=ad) for ad in (GUVENLIK_GOREVI, VARDIYA_SEFI)}
     oturum.add_all(yetkinlikler.values())
     oturum.flush()
     return yetkinlikler
@@ -302,9 +252,7 @@ def _noktalari_olustur(oturum: Session, yetkinlikler: dict[str, Yetkinlik]) -> l
     return noktalar
 
 
-def _talebi_olustur(
-    oturum: Session, noktalar: list[GorevNoktasi], vardiyalar: dict[str, VardiyaTipi]
-) -> None:
+def _talebi_olustur(oturum: Session, noktalar: list[GorevNoktasi]) -> None:
     for tanim in talep_satirlarini_olustur():
         oturum.add(
             Talep(
@@ -323,22 +271,6 @@ def _kurallari_olustur(oturum: Session) -> None:
     oturum.add_all(Kural(**tanim) for tanim in _KURAL_TANIMLARI)
     oturum.flush()
 
-
-# Sabit vardiyali personel (SDD 4.2.1 sabit_vardiya_tipi_id; Backlog
-# 05.08.2026: "gercek kullanimda cogu personelin dondugu, bir bolumunun
-# sabit vardiyada calistigi karma duzen yaygindir"). Alan bastan beri
-# vardi ama gosterim verisinde HIC KULLANILMIYORDU; sonucta rotasyona
-# dahil olmayan personel diye bir sey demoda gorunmuyordu.
-#
-# Sayilar kasitli olarak kucuk. Sabit vardiyali bir kisi yalnizca o
-# vardiyaya atanabilir, yani esnek havuzdan cikar; Guvenlik Gorevi
-# havuzunun (28 kisi) uctunu sabitlemek talebi zorlamaz, ama daha
-# fazlasi sikisik senaryonun dengesini degistirirdi.
-_SABIT_VARDIYALI = {
-    "GG-004": "Gündüz",
-    "GG-005": "Gündüz",
-    "GG-006": "Gece",
-}
 
 # Pasiflestirilmis personel: aktiflik penceresi GECMISTE kapanmis bir kayit
 # (SDD 4.2.1). Tanimlar ekranindaki "Pasifleri goster" filtresini ve H7'nin
@@ -387,15 +319,13 @@ _ADLAR: dict[str, tuple[str, ...]] = {
         "Emine Doğan",
         "Hüseyin Çetin",
     ),
-    "MR": (
+    "GG": (
         "Fatma Kaya",
         "Ayşe Demir",
         "Elif Yılmaz",
         "Merve Öztürk",
         "Sevgi Aksoy",
         "Nurten Polat",
-    ),
-    "GG": (
         "Ahmet Yılmaz",
         "Osman Kurt",
         "İbrahim Yalçın",
@@ -429,21 +359,19 @@ def _ad_soyad(sicil_on_eki: str, sira: int) -> str:
 
 
 def _personeli_olustur(
-    oturum: Session, yetkinlikler: dict[str, Yetkinlik], vardiyalar: dict[str, VardiyaTipi]
+    oturum: Session, yetkinlikler: dict[str, Yetkinlik]
 ) -> dict[str, list[Personel]]:
     gruplar: dict[str, list[Personel]] = {}
     for grup in PERSONEL_GRUPLARI:
         kisiler: list[Personel] = []
         for i in range(1, grup.sayi + 1):
             sicil_no = f"{grup.sicil_on_eki}-{i:03d}"
-            sabit_ad = _SABIT_VARDIYALI.get(sicil_no)
             personel = Personel(
                 ad_soyad=_ad_soyad(grup.sicil_on_eki, i),
                 sicil_no=sicil_no,
                 haftalik_hedef_saat=40,
                 aktif_baslangic=date(2026, 1, 1),
                 aktif_bitis=_PASIF_PERSONEL.get(sicil_no),
-                sabit_vardiya_tipi_id=(vardiyalar[sabit_ad].vardiya_tipi_id if sabit_ad else None),
                 devir_fazla_calisma_saat=Decimal(str(_DEVIR_BAKIYELERI.get(sicil_no, 0.0))),
                 kota_yili=date.today().year,
             )
@@ -542,17 +470,19 @@ def _donemleri_ve_izinleri_olustur(
     oturum.add_all([gecen, bu_hafta, sikisik, tatilli])
     oturum.flush()
 
-    # SIKISIK SENARYONUN CELISKISI ERISILEBILIRLIK UZERINDEN KURULUR, kadro
-    # buyuklugu uzerinden degil. On iki saatlik bloklar girdikten sonra ayni
-    # kadro daha cok saat kapatabiliyor ve "kadroyu kucult" mekanizmasi
-    # calismaz oldu (kabul olcumu K4 bunu sifir acikla yakaladi).
+    # SIKISIK SENARYONUN CELISKISI SEF HAVUZU UZERINDEN KURULUR, kadro
+    # buyuklugu uzerinden degil.
     #
-    # Erisilebilirlik tabanli celiski blok uzunlugundan BAGIMSIZDIR: vardiya
-    # sefligi noktasina yalnizca Vardiya Sefi yetkinligi olanlar girebilir
-    # (H8) ve o nokta kesintisiz doludur - haftada 21 vardiya. Yedi kisilik
-    # havuzun besini izne cikarmak, kalan ikisinin H6 (haftada en az bir
-    # izin gunu) altinda kapatamayacagi bir bosluk dogurur; hicbir blok
-    # uzunlugu bunu degistiremez, cunku eksik olan SAAT degil KISIDIR.
+    # Blok uzunlugu artik cozumun CIKTISIDIR (SRS TD-13); "kadroyu kucult"
+    # mekanizmasi bu yuzden calismaz - cozucu ayni kadroyla daha uzun
+    # bloklar uretip acigi kapatir. Sef havuzu ise blok uzunlugundan
+    # BAGIMSIZ bir sinir tasir: Vardiya Sefligi noktasina yalnizca Vardiya
+    # Sefi yetkinligi olanlar girebilir (H8) ve o nokta kesintisiz doludur -
+    # haftada 168 kisi-saat. Yedi kisilik havuzun besini izne cikarmak,
+    # kalan ikisinin gunluk tavan (11 saat) ve haftalik izin gunu (H6)
+    # altinda kapatamayacagi bir bosluk dogurur: iki kisi haftada en cok
+    # 2 x 6 x 11 = 132 kisi-saat verir, gereken 168'dir. Eksik olan SAAT
+    # degil KISIDIR ve hicbir blok uzunlugu bunu degistiremez.
     #
     # Izin suresi bilerek donemin (28 gun) TAMAMINDAN KISA tutulur ki acik
     # donem geneli toplamlarda seyrelsin.
@@ -587,10 +517,13 @@ def _donemleri_ve_izinleri_olustur(
 
     # FAZLA CALISMA SENARYOSU. Kadro 30 kisiyle kisi basina haftalik 38,4
     # saat tasiyor - esigin (45) altinda. Guvenlik havuzunun ucte biri izne
-    # cikarildiginda kalanlarin haftalik yuku esigin uzerine ciker ve
-    # cozucu on iki saatlik bloklara yonelir; kota tuketimi ancak boyle
-    # GORUNUR olur. On iki saatlik bloklar olmasa ayni izin yalnizca
-    # kapsama acigi uretirdi.
+    # cikarildiginda kalanlarin haftalik yuku esigin uzerine ciker; kota
+    # tuketimi ancak boyle GORUNUR olur.
+    #
+    # Saat modelinde bu senaryo DAHA GUCLU calisir: cozucu blok uzunlugunu
+    # kendisi secer ve kadro daralinca gunluk tavana (11 saat) kadar
+    # uzatir. Katalog doneminde ayni etkiyi gormek icin katalogda on iki
+    # saatlik bir blok BULUNMASI gerekiyordu.
     guvenlik = personel_gruplari["GG"]
     for personel in guvenlik[: len(guvenlik) // 3]:
         oturum.add(
@@ -639,7 +572,6 @@ def _tatilli_donem_girdileri(
     # gostermek.
     guvenlik = personel_gruplari["GG"]
     sefler = personel_gruplari["VS"]
-    muracaat = personel_gruplari["MR"]
     gun = donem.baslangic_tarihi
 
     oturum.add_all(
@@ -711,13 +643,17 @@ def _tatilli_donem_girdileri(
                 calisan_notu="Bayram tatili",
                 ret_gerekcesi="Aynı gün için üç talep geldi; kıdem sırası gözetildi",
             ),
+            # ZAMAN ARALIGI TERCIHI (SRS FR-3.2, TD-12): calisan artik bir
+            # vardiya tipi degil, calismak istedigi saatleri bildirir.
             Tercih(
-                personel_id=muracaat[0].personel_id,
+                personel_id=guvenlik[3].personel_id,
                 donem_id=donem.donem_id,
                 tarih=gun + timedelta(days=2),
-                tip=TercihTipi.CALISMAMA,
-                durum=TercihDurumu.BEKLEMEDE,
-                calisan_notu=None,
+                tip=TercihTipi.ZAMAN_ARALIGI_TERCIHI,
+                tercih_baslangic=time(8, 0),
+                tercih_bitis=time(16, 0),
+                durum=TercihDurumu.ONAYLANDI,
+                calisan_notu="Çocuğumu okuldan almam gerekiyor, gündüz çalışmak isterim",
             ),
         ]
     )
@@ -815,13 +751,12 @@ def uret(*, sifirla: bool, coz: bool = True) -> None:
             # veri kumesinin karistigi bir durum cikiyordu.
             temizlik = _her_seyi_temizle(oturum)
 
-        vardiyalar = _vardiya_tiplerini_olustur(oturum)
         yetkinlikler = _yetkinlikleri_olustur(oturum)
         noktalar = _noktalari_olustur(oturum, yetkinlikler)
-        _talebi_olustur(oturum, noktalar, vardiyalar)
+        _talebi_olustur(oturum, noktalar)
         _kurallari_olustur(oturum)
         _ozel_gunleri_olustur(oturum, bugun)
-        personel_gruplari = _personeli_olustur(oturum, yetkinlikler, vardiyalar)
+        personel_gruplari = _personeli_olustur(oturum, yetkinlikler)
         donemler = _donemleri_ve_izinleri_olustur(oturum, personel_gruplari, bugun)
 
         oturum.commit()
@@ -838,7 +773,7 @@ def uret(*, sifirla: bool, coz: bool = True) -> None:
     toplam_personel = sum(grup.sayi for grup in PERSONEL_GRUPLARI)
     print(
         f"Demo verisi uretildi: {toplam_personel} personel "
-        f"({len(_SABIT_VARDIYALI)} sabit vardiyali, {len(_PASIF_PERSONEL)} pasif), "
+        f"({len(_PASIF_PERSONEL)} pasif), "
         f"{len(NOKTA_TANIMLARI)} gorev noktasi, {len(_KURAL_TANIMLARI)} kural, "
         f"{len(_bayram_takvimi(bugun))} resmi tatil, 6 donem "
         f"(Gecen, Bu Hafta, Sikisik, Tatilli, Fazla Calisma, Kota Siniri)."

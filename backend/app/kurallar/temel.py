@@ -13,8 +13,10 @@ from app.models.kural import KuralTipi
 # CP-SAT ifadesi (ceza terimi); model_kur bunu kural.agirlik ile carpip toplar (SDD 5.3).
 CezaTerimi = Any
 
-# x[p, g, v, n]: personel_id, tarih, vardiya_tipi_id, nokta_id -> CP-SAT BoolVar.
-XAnahtari = tuple[int, date, int, int]
+# x[p, s, n]: personel_id, MUTLAK SAAT INDEKSI, nokta_id -> CP-SAT BoolVar
+# (SRS TD-13). Eksen gun basina sifirlanmaz; gun kavrami yalnizca sayim
+# icin kullanilir ve `Baglam.saat_gunu` uzerinden turetilir.
+XAnahtari = tuple[int, int, int]
 
 
 class KuralKapsami(StrEnum):

@@ -9,6 +9,310 @@ başlar.
 
 ---
 
+## 2026-08-13 — Tur 5: Gerçek Saatlik Model — **BİTTİ**
+
+Kaynak: `docs/turlar/CLAUDE_CODE_PROMPTU_TUR5.md` ve devamı
+`docs/turlar/TUR5_DEVAM.md`. Yedi iş. Çalışma `tur5-saatlik-model` dalında
+yürüdü, sonunda `main`e alındı.
+
+Tur ortasında bir kez **durdu**: İş 1'in sondajı yanıltıcı çıkmıştı ve karar
+istendi. Devam belgesi üç seçenekten ikisini onayladı, ölçüm yeniden koşuldu
+ve tur tamamlandı. Aşağıda önce turun ilk yarısı, sonra "Durma noktası ve
+sonrası" başlığı altında devamı yazılı.
+
+Doküman sürümleri turun başında doğrulandı: Charter **1.4**, SRS **1.19**,
+SDD **1.27**, Backlog **1.16** — dördü de taşıyor.
+
+### İş 1 — prototip ölçümü: **karar kuralı geçildi, devam**
+
+Karar kuralı: 40 × 28 ölçeğinde ilk uygun çözüme ulaşma süresi 30 saniyeyi
+aşarsa dur. **Aşmadı — 5,0 saniye.** Tam uygulamaya geçiliyor.
+
+Sondaj `backend/scripts/saatlik_prototip.py`. Modelde yalnızca mutlak saat
+ekseni, `bas` göstergesi, günde tek başlangıç, asgari süre, nokta sabitliği,
+günlük tavan ve S1 var; başka kural yok. Talep SRS 3.3.4'ün Müracaat'sız
+tablosudur ve kadroya göre `P/40` ile ölçeklenir — aksi hâlde on kişilik bir
+kadro kırk kişilik talebi karşılamaya çalışır ve ölçülen şey çözüm süresi
+değil kapsama açığı olurdu. Şef havuzu `max(3, 7·P/40)`: kesintisiz
+doldurulan bir nokta haftada 168 kişi-saat ister, günlük tavan on bir
+saattir, dolayısıyla üç kişinin altındaki bir havuz noktayı hiçbir çizelgeyle
+kapatamaz.
+
+Arama işçisi SDD 3.4.3 referansına sabit (3), makine macOS arm64 / 10
+çekirdek — `kabul_olcumu.py` ile aynı sözleşme.
+
+| Ölçek | Değişken | Kurma | **İlk uygun** | Optimale | Sonuç |
+|---|---|---|---|---|---|
+| 10 × 7 | 7.224 | 0,10 sn | **0,25 sn** | 0,45 sn | optimal, ceza 0 |
+| 20 × 14 | 28.224 | 0,38 sn | **1,12 sn** | 4,63 sn | optimal, ceza 0 |
+| 30 × 28 | 84.000 | 1,15 sn | **3,71 sn** | 28,63 sn | optimal, ceza 0 |
+| 40 × 28 | 112.224 | 1,69 sn | **5,02 sn** | 56,03 sn | optimal, ceza 0 |
+
+40 × 28 iki kez daha koşuldu: ilk uygun 4,93 ve 5,08 sn; optimale 44,6 ve
+45,2 sn. İlk uygun süre kararlı.
+
+**Ölçüm boşuna hızlı olmasın diye çıkan çizelge denetlendi** (`--denetle`).
+Sondaj hızlı çözüyorsa iki açıklama vardır — formülasyon ucuzdur ya da kısıt
+yanlış yazıldığı için model gerçekte kolaydır — ve ikisini ayırmanın tek yolu
+sonuca bakmaktır. Dört ölçekte de: asgari süreden kısa blok yok, günlük
+tavanı aşan blok yok, gün içinde ikinci blok yok, blok içinde nokta değişimi
+yok. 40 × 28'de **96 blok gece yarısını aşıyor** — mutlak eksenin var oluş
+nedeni tam olarak bu.
+
+### İki sapma — nedenleri önce
+
+**1. Günlük saat, duvar saatine değil bloğun başladığı güne yazılıyor.**
+SRS H1 ve H9 günlük toplamı `Σ_{s ∈ gün d} z[p,s]` diye yazar; H9'un metni
+ise aynı paragrafta "gece yarısını aşan bloğun saatleri başladığı güne
+sayılır (TD-1); ertesi günün tavanı bu saatlerle dolmaz" der. İkisi aynı şey
+değildir ve formülün duvar saati okunması **iki kuralı da bozar**:
+
+- **H9 blok uzunluğunu sınırlayamaz.** 20.00–08.00 bloğu duvar saatinde
+  4 + 8 saattir; ikisi de on bir tavanın altında kalır ve on iki saatlik blok
+  geçer.
+- **H1'in asgari süresi akşam başlangıçlarını yasaklar.** 21.00'de başlayan
+  bir blok o güne yalnızca üç saat bırakır ve `≥ 4 · bas` kısıtı düşer —
+  oysa gece kapsamasının ihtiyaç duyduğu bloklar tam olarak bunlardır.
+
+Metin normatiftir, gösterim kısaltmadır: "gün d" bloğun sayıldığı gündür.
+Gün başına saat bu yüzden devralınan saatler çıkarılıp taşan saatler
+eklenerek hesaplanıyor (`devir[p,s]` göstergesi: "bu saat çalışılıyor ve
+önceki günde başlamış bir bloğa ait"). Maliyeti ölçüme dahil — tam uygulama
+da aynı yapıyı taşıyacak. Bu, aşağıdaki doküman borcunun birinci maddesidir.
+
+**2. H9 sondaja dahil edildi.** Prompt "diğer kuralları ekleme" diyor;
+günlük tavan olmadan çözücü günde yirmi dört saat çalıştırabilir, kapsama
+bedelsiz kapanır ve ölçülen süre gerçek modelin süresi olmaz. H9 ayrıca
+SRS 3.3.1'de asgari blok süresiyle **aynı üç parametreli çerçeve** içinde
+tanımlı: alt sınır ve üst sınır birlikte bloğun çerçevesini çizer.
+
+### K1 için erken uyarı — optimale ulaşma 45–56 sn
+
+Karar kuralı ilk uygun çözümü ölçer ve rahat geçiyor. Ama **optimale ulaşma
+süresi 40 × 28'de 45–56 saniye** ve K1'in eşiği 60 saniye. Tur 4'te aynı
+kriter 1,01 saniyeydi (blok kataloğuyla). Saat modeli optimallik kanıtında
+yaklaşık **elli kat** pahalı ve tam modelde on beş kural daha eklenecek.
+
+Bu bir durdurma nedeni değil — K1 pratikte zaman limitli bir aramanın
+sonucunu ölçer ve ilk uygun çözüm beş saniyede geliyor — ama turun kabul
+ölçümünde K1'in **ne ölçtüğüne** dikkat edilecek: "60 saniyede optimal" ile
+"60 saniyede kabul edilebilir çözüm" aynı şey değil ve saat modelinde ikisi
+ilk kez ayrışıyor.
+
+### İş 2 — göç: blok kavramı kalktı
+
+Tek göç (`f2a8c561d94b`). `atama` blok kaydına geçti
+(`baslangic_zamani`/`bitis_zamani`), `vardiya_tipi` tablosu ve
+`personel.sabit_vardiya_tipi_id` düştü, tercih zaman aralığına çevrildi,
+`asgari_blok_saat` = 4 ve `gece_esigi_saat` = 4 kural kayıtlarına eklendi.
+
+**Dönüşüm sayılarak doğrulandı** ve göç eşitliği bozulursa hata verip
+duruyor. Geliştirme veritabanında: önce 604 satır / 5.032 kişi-saat, sonra
+604 satır / 5.032 kişi-saat. Geri alma yazıldı ve **denendi**: katalog
+veriden yeniden türetiliyor (atamalarda fiilen geçen aralıklar), aynı 604
+satır ve 5.032 kişi-saat geri geliyor. Sıfırdan da koşuyor (`downgrade base`
+→ `upgrade head` temiz).
+
+**H1'in güvencesi değişti ve bu bir testle kilitlendi.** Yeni benzersizlik
+anahtarı `(surum_id, personel_id, baslangic_zamani)`; aynı günde farklı
+saatte başlayan ikinci bir bloğu veritabanı **yakalamıyor**.
+`test_ayni_gunde_farkli_saatte_ikinci_blogu_veritabani_yakalamaz` kaybı
+ölçüyor; manuel düzenleme yolu o günün bloklarını silip tek blok yazarak
+kuralı yapısal olarak taşıyor.
+
+### İş 3, 4, 5, 6 — model, toplama, kurallar, gösterim verisi
+
+Model `z[p,s]` / `x[p,s,n]` üzerine kuruldu; `bas` başlangıç göstergesi ve
+`devir` devralma göstergesi eksenin parçası. Çözücü çıktısı yazma anında
+bloklara toplanıyor ve toplama **kapsama açığı kayıtlarının kullandığı aynı
+yardımcıdan** geçiyor (`ardisik_saatleri_grupla`); tek fark
+`gun_sinirinda_kes` parametresi — gece yarısını aşan blok tek kayıtta duruyor.
+
+Müracaat kalktı: iki nokta, iki yetkinlik, Güvenlik hafta içi 08.00–24.00
+talebi 9. Haftalık toplam 1.152 kişi-saat **değişmedi** ve bunu
+`test_yuk_gostergesi` kilitliyor.
+
+**Çözücü–doğrulayıcı uyum testi 24/24 temiz** ve yol üstünde iki gerçek hata
+yakaladı:
+
+1. **Değişken eleme H1'in nokta sabitliğini deliyordu.** Kısıt geriye dönük
+   yazılıyor ve `x[p,s,n]` bulunamadığında atlanıyordu; talebi biten bir
+   noktanın değişkeni elendiği için kısıt hiç kurulmuyor ve personel
+   **çalışmayı kesmeden** nokta değiştirebiliyordu. Çözücü bunu buldu:
+   14.00–16.00 bir noktada, 16.00–24.00 başka noktada, tek kesintisiz
+   çalışma. Kısıt ileri yönlü kuruldu ve eksik değişken sıfır sayılıyor.
+2. **Isıtma penceresi tümüyle sabit değildi.** Atanmış saatler 1'e
+   çekiliyordu ama boş saatler **serbest** kalıyordu; çözücü geçmiş bir
+   haftada olmayan çalışma uydurabiliyor ve o uydurma H2/H3/H4
+   pencerelerini dönemin ilk günlerinde yanlış besliyordu. TD-5 açık: o
+   atamalar karar değişkeni değildir.
+
+### Durma noktası — İş 1'in sondajı yanıltıcı çıktı
+
+**Turun asıl bulgusu bu ve karar burada istendi.**
+
+İş 1'in sondajı üç kuralla (H1, H9, S1) ölçtü ve 40 × 28'de ilk uygun çözümü
+**5,0 saniyede** buldu. Tam model **on dokuz kural** taşıyor ve ölçüm
+tamamen başka:
+
+| Ölçek | Değişken | Kısıt | İlk uygun | 300 sn'de |
+|---|---|---|---|---|
+| 30 × 28 (sıkışık senaryo) | 106.603 | 229.138 | **45,6 sn** | optimal değil |
+
+Ara ölçümler, iyileştirmelerin sırasıyla ne kazandırdığını gösteriyor:
+
+| Durum | İlk uygun (30 × 28) |
+|---|---|
+| İlk hâl | 60 sn'de **bulunamadı** |
+| Gün başına türev tek değişkene bağlandıktan sonra | 128 sn |
+| Isıtma penceresi tümüyle sabitlendikten sonra | **45,6 sn** |
+
+Kural bazında sondaj (taban = H1+H9+S1, 30 × 28): hiçbir kural tek başına
+patlatmıyor, **S4** en pahalısı (3,8 sn → 19,6 sn), gerisi 4–7 sn arası.
+Yük **birikimli**.
+
+**İki iyileştirme yapıldı ve ikisi de tesadüfi değil, yapısal:**
+
+1. **Gün başına türetilmiş büyüklükler tek değişkene bağlandı.**
+   `blok_saati` 48 terimli bir ifade ve **altı kural** onu okuyor; her
+   çağrıda yeniden açıldığında aynı bilgi modele yüz binlerce kez
+   kopyalanıyordu.
+2. **Isıtma penceresi sabitlendi** (yukarıdaki 2 numaralı hata). Arama
+   uzayının beşte biri.
+
+Bu noktada 40 × 28 ölçeğinde K1 ölçümü **koşulmamıştı**; 30 × 28'de ilk uygun
+çözüm 45,6 saniye olduğuna göre 40 × 28'in 60 saniyenin altında kalması
+muhtemel görünmüyordu. **Karar istendi.** Formülasyonda gevşetilebilecek üç
+yer sıralandı, maliyeti artan sırayla:
+
+- **`devir` göstergesinin penceresi.** Bugün her saat için üretiliyor
+  (22.680 ikili değişken). Bir blok günlük tavanı (11 saat) aşamadığına
+  göre ertesi güne en fazla on saat taşabilir; gösterge yalnızca günün ilk
+  on bir saati için gerekli. Kazanç ~%55 daha az `devir` değişkeni.
+  **Bedeli:** eksen H9'un parametresine bağlanır.
+- **S4'ün bölme kısıtı.** `add_division_equality` ceza dökümünü doğal
+  birimde raporlamak için var; S2/S3'ün taban/tavan yöntemine geçirilirse
+  bölme kalkar. **Bedeli:** S4'ün cezası kesirli payların arasında sıfıra
+  düşer — SRS'in S4 tanımını değiştirir.
+- **Nokta sürekliliği** (M3'ün ve SAATLIK_MODEL_KARARLARI'nın "ilk
+  gevşetilecek yer" dediği kısıt). Kaldırılırsa blok içinde nokta
+  değişebilir; sahada anlamsız ama model belirgin biçimde ucuzlar.
+
+Ölçmeden hangisinin ne kazandıracağı söylenemezdi ve ikisi tanımı
+değiştiriyordu; bu yüzden denenmeden karar istendi.
+
+---
+
+### Devam kararı ve uygulanan iki seçenek
+
+`docs/turlar/TUR5_DEVAM.md`: **1 ve 2 uygulanacak, 3'e dokunulmayacak.**
+
+**Seçenek 1 — `devir` göstergesinin penceresi daraltıldı.** Gösterge artık
+günün yalnızca ilk `azami_gunluk_saat` saati için üretiliyor. Bu bir tanım
+değişikliği değil: bir blok H9'un tavanını aşamadığına göre ertesi güne o
+tavandan fazla taşamaz, dolayısıyla eksik bırakılan göstergeler zaten her
+çözümde sıfırdır — **çözüm kümesi aynı**. Eşik kuralın kendi parametresinden
+okunuyor (`_azami_gunluk_saat`), sabit yazılmadı; H9 kapalıysa 24'e düşüyor,
+yani gevşetme kuralın varlığına bağlı. SDD 5.3'e işlendi.
+
+**Seçenek 2 — S4 taban/tavan yöntemine geçti.** `add_division_equality` ve
+`S4_OLCEK` kalktı; sapma artık `sapma ≥ toplam − ⌊pay⌋` ve
+`sapma ≥ ⌈pay⌉ − toplam` ile kuruluyor, S2/S3 ile **aynı yöntem**. Onay
+başarım gerekçesiyle değil **tutarlılık** gerekçesiyle verildi: kesirli
+payların arasında ceza sıfıra düşer, bu S4'ün tanımını değiştirir ve
+değişiklik SRS 1.20'ye yazıldı. `s4_hedef_paylari_x10` → `s4_hedef_paylari`
+(doğal saat birimi).
+
+**Seçenek 3 — nokta sürekliliği: dokunulmadı.** Ürün kararı. Devam belgesi
+ayrıca kısıtın *gerçekten uygulandığının* doğrulanmasını istedi — değişken
+eleme onu bir kez sessizce iptal etmişti (yukarıdaki 1 numaralı hata). İki
+test bunu kilitliyor: biri talebi dönem ortasında biten bir nokta kurup
+değişkenin elendiği yerde kısıtın hâlâ kurulduğunu, diğeri ısıtma
+penceresinin boş saatlerinin sıfıra sabitlendiğini ölçüyor.
+
+### Ölçüm — devam belgesinin istediği üç ölçek
+
+Arama işçisi 3 (SDD 3.4.3), macOS arm64, 180 sn limit:
+
+| Ölçek | Değişken | Kısıt | **İlk uygun** | Not |
+|---|---|---|---|---|
+| **30 × 7** | 39.622 | 84.130 | **1,0 sn** | Gerçek kullanım — dönem varsayılanı bir hafta (Charter 2.5) |
+| **30 × 28** | 94.284 | 192.278 | **5,0 sn** | Karşılaştırma noktası — durma anında 45,6 sn |
+| **40 × 28** | 126.674 | 260.808 | **16,3 sn** | K1'in stres ölçeği |
+
+Durdurma eşiği 60 saniyeydi; **aşılmadı**, tur devam etti. Asıl kullanım
+ölçeğinde (30 × 7) çözüm bir saniyede geliyor.
+
+### Kabul ölçümü — `scripts/kabul_olcumu.py` saat modelinde
+
+Betik yeniden yazıldı. K3'ün eşiği artık katalogdan türetilmiyor,
+**Charter 1.4'ün sekiz gece saati** doğrudan yazılı; referans havuzlar
+Müracaat'sız kadroya göre 9 şef + 31 güvenlik.
+
+| Çözücü limiti | K1 | K2 | K3 | K4 | K5 | Sonuç |
+|---|---|---|---|---|---|---|
+| 60 sn | 8,68 sn ✔ | 0 ✔ | **30,00** ✘ | 167 açık ✔ | 0,099 sn ✔ | 4/5 |
+| 300 sn | 8,33 sn ✔ | 0 ✔ | **12,00** ✘ | 49 açık ✔ | 0,064 sn ✔ | 4/5 |
+| **900 sn** | 8,72 sn ✔ | 0 ✔ | **7,00** ✔ | 47 açık ✔ | 0,070 sn ✔ | **5/5** |
+
+**K1 limitten bağımsız geçiyor** — kendi ölçtüğü şey ilk uygun çözüme ulaşma
+süresi ve o üç koşuda da 8–9 saniye. Limit yalnızca çözümün **kalitesini**
+etkiliyor, ki K3 tam olarak kalite ölçüyor.
+
+**K3 yakınsama sınırlı, yapısal değil.** 30 → 12 → 7: sapma çözücü süresiyle
+tekdüze düşüyor ve 900 saniyede eşiğin altına iniyor. Betiğin ulaşılabilirlik
+teşhisi de bunu söylüyor — her havuz hedefine erişebiliyor (31 kişilik havuz
+kişi başı 42,6 gece saatine kadar, 9 kişilik havuz 177,8'e kadar), yani engel
+kadro değil arama. Bu, **Tur 9'un ağırlık kalibrasyonuna** giden bir gözlem:
+S3'ün ağırlığı gece dengesini daha erken sıkıştırırsa 60 saniyede de inebilir.
+Ağırlıklara bu turda dokunulmadı (devam belgesinin açık talimatı).
+
+**K4 senaryosu düzeltildi.** Saat modelinde beş şefin izinli olması açık
+üretmiyordu — çözücü blokları uzatarak kapatıyordu. Senaryo dokuz şefin
+**yedisini** izne çıkarıyor ve aritmetiği docstring'e yazılı: nokta haftada
+168 kişi-saat istiyor, kalan iki kişi H5/H6 altında en çok 132 saat verebiliyor,
+yani açık **kaçınılmaz**.
+
+### İş 7 — arayüz
+
+`frontend/src/lib/blok.ts` tek okuma yeri: blok ISO damgasından okunuyor,
+`new Date` kullanılmıyor — tarayıcının saat dilimi ızgarayı kaydıramaz.
+Çizelge ızgarası `baslangic_zamani`/`bitis_zamani` okuyor, düzenleme formunda
+vardiya tipi seçicisi yerine **başlangıç ve bitiş saati** seçicileri var,
+nokta görünümünde vardiya tipi ekseni kalktı. Tanımlar ekranından Vardiya
+Tipi sekmesi ve Sabit Vardiya alanı silindi.
+
+`EK_B_UC_NOKTALAR.md` yeniden üretildi: altı `vardiya-tipi` ucu düştü,
+**74 → 68**; `uc_noktalari_listele.py --denetle` 68 = 68 diyor.
+
+### Turun kapanış durumu
+
+- Backend **341 test geçiyor** (316 + 24 örnekli uyum testi + ağırlık
+  kalibrasyonu). `test_agirlik_kalibrasyonu`'nun çözücü limitleri geçici
+  olarak 90/180'e çıkarılmıştı, **60/90'a geri alındı** ve o hâliyle geçiyor.
+- Frontend `tsc -b` temiz, **162/162** vitest, oxlint'te yalnızca önceden
+  var olan uyarılar.
+- Uyum testi (SDD 3.2.1) `optimal` yerine `optimal | uygun` kabul ediyor:
+  test **mutabakat** ölçüyor, optimallik değil, ve saat modelinde optimallik
+  kanıtı belirgin biçimde pahalı.
+- Kanonik belgeler `BOTAS_Vardiya_Cizelgeleme_*` → **`VARDIS_*`** olarak
+  `git mv` ile yeniden adlandırıldı, atıflar güncellendi.
+- Sunucuya dağıtım **yok**; `push`/`remote` **çalıştırılmadı**.
+
+### DOKÜMAN BORCU — iki madde
+
+1. **SRS H1 / H9 — `Σ_{s ∈ gün d} z[p,s]` gösterimi belirsiz.** Sembol duvar
+   saatini mi bloğun sayıldığı günü mü gösterdiğini söylemiyor; H9'un metni
+   ikincisini söylüyor, formül birincisi gibi okunuyor. Uygulama metne
+   uyuyor. Gösterimin (SRS 4.1) "gün d" tanımını açıkça bloğun başlangıç
+   gününe bağlaması gerekiyor.
+2. **SRS 3.3.6 — kadro tablosu Müracaat satırını taşıyor.** Yetkinlik
+   havuzları tablosunda "Müracaat Görevlisi" hâlâ duruyor; 3.3.2 ve 3.3.3
+   noktayı kaldırdı. Toplam satırı da (144 kişi-vardiya / 29 kişi) blok
+   sayısına dayanıyor ve blok kavramı kalktı.
+
+---
+
 ## 2026-08-13 — Tur 4: Kural Kataloğu — **BİTTİ**
 
 Kaynak: `docs/turlar/CLAUDE_CODE_PROMPTU_TUR4.md`, `TUR4_DEVAM.md` ve

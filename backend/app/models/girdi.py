@@ -1,7 +1,7 @@
 import enum
-from datetime import date
+from datetime import date, time
 
-from sqlalchemy import Date, ForeignKey
+from sqlalchemy import Date, ForeignKey, Time
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -23,7 +23,9 @@ class MusaitlikTipi(enum.StrEnum):
 
 class TercihTipi(enum.StrEnum):
     CALISMAMA = "calismama"
-    VARDIYA_TIPI_TERCIHI = "vardiya_tipi_tercihi"
+    # Blok katalogu kalktigi icin tercih artik bir vardiya TIPINI degil bir
+    # ZAMAN ARALIGINI gosterir (SRS FR-3.2, TD-12).
+    ZAMAN_ARALIGI_TERCIHI = "zaman_araligi_tercihi"
 
 
 class TercihDurumu(enum.StrEnum):
@@ -52,7 +54,10 @@ class Tercih(Base, ZamanDamgasiKarisimi):
     donem_id: Mapped[int] = mapped_column(ForeignKey("donem.donem_id"))
     tarih: Mapped[date] = mapped_column(Date)
     tip: Mapped[TercihTipi]
-    vardiya_tipi_id: Mapped[int | None] = mapped_column(ForeignKey("vardiya_tipi.vardiya_tipi_id"))
+    # Zaman araligi tercihlerinde istenen aralik; calismama tercihinde bos.
+    # Gun sonu `00.00` ile yazilir (zaman_araligi modulundeki sozlesme).
+    tercih_baslangic: Mapped[time | None] = mapped_column(Time)
+    tercih_bitis: Mapped[time | None] = mapped_column(Time)
     durum: Mapped[TercihDurumu] = mapped_column(default=TercihDurumu.BEKLEMEDE)
     calisan_notu: Mapped[str | None] = mapped_column(default=None)
     ret_gerekcesi: Mapped[str | None] = mapped_column(default=None)

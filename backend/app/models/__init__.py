@@ -27,7 +27,6 @@ from app.models.tanim import (
     Personel,
     PersonelYetkinlik,
     Talep,
-    VardiyaTipi,
     Yetkinlik,
 )
 
@@ -59,6 +58,5 @@ __all__ = [
     "Tercih",
     "TercihDurumu",
     "TercihTipi",
-    "VardiyaTipi",
     "Yetkinlik",
 ]

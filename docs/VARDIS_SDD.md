@@ -2,7 +2,7 @@
 
 **CMPE 399 — Yaz Stajı**
 
-BOTAŞ Boru Hatları ile Petrol Taşıma A.Ş.
+kurum Boru Hatları ile Petrol Taşıma A.Ş.
 
 **VARDİYA ÇİZELGELEME KARAR DESTEK ARACI**
 
@@ -48,6 +48,8 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 12.08.2026 | Ön kontrol bulgularının çözüm işini düşürmesi kaldırıldı (5.2) — davranış SRS FR-5.2'yi ihlal ediyordu; kapsama oranının kaynağı kapsama açığı tablosundan atama kayıtlarına çevrildi (5.7) | 1.23 |
 | Ömer HARMANKAYA | 12.08.2026 | Tur 3 uygulamasının doğurduğu borçlar kapatıldı: gün sonunun kodlanışı (24.00 yerine bitiş ≤ başlangıç sözleşmesi) 4.2.2'ye, `cozum_isi.on_kontrol_bulgulari` 4.2.4'e, aynı kısıtı üreten saatlerin tek değişkende toplanması 5.3'e, talep uç noktalarının kayıt tabanlı hâli Ek B'ye yazıldı | 1.24 |
 | Ömer HARMANKAYA | 12.08.2026 | Gün sonunun arayüzde 24.00 olarak gösterilmesi ve saatlerin saat başında sınırlanması 6.3.1'e yazıldı | 1.25 |
+| Ömer HARMANKAYA | 13.08.2026 | Gerçek saatlik modele geçiş tasarlandı: `vardiya_tipi` tablosu kaldırıldı, `atama` blok kaydına çevrildi (başlangıç ve bitiş zamanı), model kurma mutlak saat ekseni üzerine yeniden yazıldı (5.3), Tanımlar'dan Vardiya Tipi sekmesi kaldırıldı ve Çizelge ekranı gün ızgarası ile hafta şeridine ayrıldı (6.3.1, 6.3.3) | 1.27 |
+| Ömer HARMANKAYA | 13.08.2026 | Ölçüm sonrası üç madde 5.3'e yazıldı: taşma göstergelerinin günlük tavanla sınırlanması, değişken elemenin kural kısıtlarını sessizce iptal edebilmesi ve ısıtma penceresinin gerçekten sabitlenmesinin doğrulanması | 1.28 |
 | Ömer HARMANKAYA | 13.08.2026 | Kural kataloğunun saatlik düzene taşınması tasarlandı: takvim haftası kümelerinin kayan pencereden ayrı hesaplanması ve blok görünümü türevinin kaldırılması 5.3'e, kota ve devir bakiyesi bulguları 5.2'ye, çizelge ızgarasının blok gösterimi 6.3.3'e yazıldı; kural parametreleri 4.2.3'e eklendi | 1.26 |
 
 
@@ -320,7 +322,6 @@ Aşağıdaki tablolar veritabanı şemasını alan düzeyinde tanımlar. Bütün
 | haftalik_hedef_saat | INT | S4 saat dengesi hedefinde kullanılan kişisel hedef |
 | devir_fazla_calisma_saat | NUMERIC | İçinde bulunulan kota yılında, sistemin bildiği dönemlerden önce birikmiş fazla çalışma saati |
 | kota_yili | INT | Devir bakiyesinin ait olduğu takvim yılı |
-| sabit_vardiya_tipi_id | INT (FK → vardiya_tipi), NULL | Doldurulduğunda personel yalnızca bu vardiya tipine atanır; boş ise rotasyona dahildir |
 | aktif_baslangic | DATE | Personelin çizelgeye dahil edildiği ilk tarih |
 | aktif_bitis | DATE, NULL | Personelin çizelgeden çıkarıldığı tarih; boş ise süresizdir. Pasifleştirme işlemi bu alana bir önceki günü yazar: bugünün tarihi yazıldığında personel bugünü kapsayan çözümlerde hâlâ müsait sayılır ve pasifleştirme aynı gün için etkisiz kalır |
 
@@ -391,24 +392,6 @@ Birincil anahtar iki alanın birleşimidir. İlişki seviyesizdir (SRS TD-9); bi
 | bina_id | INT (FK → bina), NULL | Noktanın bulunduğu bina; boş ise nokta tesis genelidir |
 | onkosul_yetkinlik_id | INT (FK → yetkinlik), NULL | Noktaya atanabilmek için gereken yetkinlik; boş ise kısıt yoktur |
 | aktif | BOOLEAN | Pasifleştirilen noktalar yeni çizelgelere dahil edilmez |
-
-
-
-#### vardiya_tipi
-
-| Alan | Tip | Açıklama |
-| --- | --- | --- |
-| vardiya_tipi_id | INT (PK) | Vardiya tipinin benzersiz kimliği |
-| ad | VARCHAR | Vardiya adı (Gece, Gündüz, Akşam) |
-| baslangic_saati | TIME | Vardiyanın başlangıç saati |
-| bitis_saati | TIME | Vardiyanın bitiş saati; başlangıçtan küçükse vardiya gece yarısını aşar |
-| sure_saat | NUMERIC | Başlangıç ve bitişten hesaplanan süre |
-| gece_mi | BOOLEAN | SRS TD-2 uyarınca tanımlanan gece bayrağı |
-| aktif | BOOLEAN | Pasifleştirilen bloklar yeni çizelgelerde kullanılmaz |
-
-Bu tablo SRS TD-13'teki **çalışma bloğu** kavramının karşılığıdır; alan adlarındaki `vardiya_tipi` ifadesi geriye dönük uyumluluk için korunmuştur. Kataloğun sabit üç satırla sınırlı olmaması dışında yapı değişmemiştir.
-
-İki kısıt uygulama katmanında uygulanır: aynı `(baslangic_saati, sure_saat)` ikilisi iki kez tanımlanamaz ve `sure_saat`, kural kataloğundaki günlük azami çalışma saati parametresini aşamaz. İkisi de girişte reddedilir, çözüm anına bırakılmaz — geçersiz veriyi girişte durdurmak, dakikalar süren bir çözümün sonunda keşfetmekten ucuzdur.
 
 
 
@@ -531,13 +514,17 @@ Parametrelerin belge alanında tutulmasının nedeni, her kural tipinin farklı 
 | atama_id | INT (PK) | Atamanın benzersiz kimliği |
 | surum_id | INT (FK → cizelge_surumu) | Atamanın ait olduğu çizelge sürümü |
 | personel_id | INT (FK → personel) | Atanan personel |
-| tarih | DATE | Vardiyanın başladığı gün (SRS TD-1) |
-| vardiya_tipi_id | INT (FK → vardiya_tipi) | Atanan vardiya tipi |
+| baslangic_zamani | TIMESTAMPTZ | Çalışma bloğunun başladığı an |
+| bitis_zamani | TIMESTAMPTZ | Çalışma bloğunun bittiği an; gece yarısını aşan bloklarda ertesi güne düşer |
 | nokta_id | INT (FK → gorev_noktasi) | Atanan görev noktası |
 | kilitli | BOOLEAN | Kilitli atamalar yeniden çözümde değiştirilmez |
 | kaynak | ENUM | cozucu \| manuel |
 
-(surum_id, personel_id, tarih) üçlüsü üzerinde benzersizlik kısıtı tanımlanır. Bu, H1 kuralının veritabanı düzeyinde de güvence altına alınmasını sağlar; manuel düzenleme yoluyla dahi bir personele aynı güne iki atama yazılamaz.
+**Kayıt saat başına değil blok başına tutulur.** Çözücünün çıktısı saat düzeyindedir (SRS TD-13); ardışık çalışma saatleri yazma anında tek bir bloğa toplanır. Saat başına satır tutulması hâlinde otuz personelin yedi günlük bir dönemi yaklaşık bin altı yüz satır eder ve her okuma yüzeyi — çizelge ızgarası, manuel düzenleme, sürüm karşılaştırması, dışa aktarma — satırları yeniden bloklara toplamak zorunda kalır. Toplama, kapsama açığı kayıtlarında uygulanan birleştirmeyle aynı yardımcıdan geçer.
+
+Tarih alanı yerine başlangıç zamanının tutulması, gece yarısını aşan bloğun tek kayıtta durmasını sağlar. Bloğun hangi güne sayıldığı (SRS TD-1) başlangıç zamanından türetilir; ayrı bir alanda saklanmaz, çünkü iki alan ayrışabilir.
+
+Benzersizlik kısıtı `(surum_id, personel_id, baslangic_zamani)` üçlüsü üzerindedir. Aynı personele aynı gün ikinci bir blok yazılmasını engelleyen kural ise H1'dir ve uygulama katmanında uygulanır: veritabanı kısıtı ancak birebir aynı başlangıç anını yakalar, aynı günde farklı saatte başlayan ikinci bir bloğu yakalayamaz.
 
 #### cozum_isi
 
@@ -748,22 +735,33 @@ FONKSİYON model_kur(donem, tanimlar, kurallar, isitma_penceresi):
     talep_saat ← talebi_saate_ac(tanimlar.talepler, zaman_ekseni)
     # talep_saat[g, t, n] : g gününde t saatinde n noktası için gereken sayı
 
-    # Karar değişkenleri
-    x ← {}
-    HER (p, g, v, n) İÇİN personel × zaman_ekseni × bloklar × noktalar:
-        EĞER v bloğunun kapsadığı hiçbir saatte talep_saat[g, ·, n] > 0 DEĞİL: ATLA
-        EĞER n.onkosul YOK DEĞİL VE p.yetkinlikleri İÇERMEZ n.onkosul: ATLA
-        EĞER p, g gününde v vardiyası için müsait DEĞİL: ATLA
-        x[p, g, v, n] ← model.YeniBoolDegisken()
+    # Karar değişkenleri — mutlak saat ekseni (SRS TD-13)
+    z ← {}   # z[p,s] : p personeli s saatinde çalışıyor
+    x ← {}   # x[p,s,n] : … ve n noktasında
+    HER (p, s) İÇİN personel × saat_ekseni:
+        EĞER p, s saatinde müsait DEĞİL: ATLA
+        z[p, s] ← model.YeniBoolDegisken()
+        HER n İÇİN noktalar:
+            EĞER n.onkosul YOK DEĞİL VE p.yetkinlikleri İÇERMEZ n.onkosul: ATLA
+            EĞER talep_saat[gun(s), saat(s), n] = 0: ATLA
+            x[p, s, n] ← model.YeniBoolDegisken()
+        model.EKLE( TOPLA(x[p, s, ·]) = z[p, s] )
+
+    # Blok başlangıcı göstergesi ve kesintisizlik (SRS H1)
+    bas ← {}
+    HER (p, s) İÇİN z.anahtarlari:
+        bas[p, s] ← model.YeniBoolDegisken()
+        model.EKLE( bas[p,s] ≥ z[p,s] − z[p,s−1] )
+        model.EKLE( bas[p,s] ≤ z[p,s] )
+        model.EKLE( bas[p,s] ≤ 1 − z[p,s−1] )
+    HER (p, g) İÇİN personel × zaman_ekseni:
+        model.EKLE( TOPLA(bas[p, s] : s ∈ g) ≤ 1 )
 
     # Isıtma penceresindeki atamalar sabitlenir
-    HER (p, g, v, n) İÇİN isitma_penceresi.atamalari:
-        model.SABİTLE(x[p, g, v, n] = 1)
+    HER (p, s, n) İÇİN isitma_penceresi.saatleri:
+        model.SABİTLE(x[p, s, n] = 1)
 
-    # Yardımcı değişken: y[p,g,v] = Σ_n x[p,g,v,n]
-    y ← model.TOPLAMA_DEGISKENLERI_OLUSTUR(x)
-
-    baglam ← Baglam(tanimlar, donem, zaman_ekseni, y)
+    baglam ← Baglam(tanimlar, donem, zaman_ekseni, saat_ekseni, z, bas)
     ceza_terimleri ← []
     HER kural İÇİN kurallar:
         terim ← kural.modele_ekle(model, x, baglam)
@@ -778,6 +776,49 @@ FONKSİYON model_kur(donem, tanimlar, kurallar, isitma_penceresi):
 
 Değişken oluşturmadaki üç atlama koşulu bir ön eleme uygular. Talebi sıfır olan noktalar, ön koşul yetkinliğini taşımayan personel ve müsait olmayan günler için değişken hiç üretilmez. Bu, H7 ve H8 kısıtlarının modele ayrıca eklenmesine gerek bırakmaz ve arama uzayını belirgin biçimde daraltır. Sözü geçen iki kural, kural kataloğunda yine tanımlıdır; oradaki tanımları doğrulayıcı yorumlayıcı tarafından manuel düzenlemede kullanılır.
 
+**Gün sınırını aşan blok göstergeleri günlük tavanla sınırlanır.** Bir bloğun
+ertesi güne taşabileceği süre `azami_gunluk_saat` ile sınırlıdır (H9); bir blok
+günlük tavandan uzun olamayacağı için taşma da o kadar olabilir. Taşma
+göstergeleri bu nedenle günün tamamı için değil yalnızca ilk `azami_gunluk_saat`
+saati için oluşturulur. Model aynı çözüm kümesini üretir; gösterge değişkeni sayısı
+belirgin biçimde azalır.
+
+Bunun bedeli, zaman ekseninin kurulumunun bir kural parametresine bağlanmasıdır.
+Bağ dokümana yazılıdır ve model her çözümde yeniden kurulduğu için parametre
+değişikliği kendiliğinden yansır; yine de `azami_gunluk_saat` değiştirildiğinde
+eksen kurulumunun da değiştiği akılda tutulmalıdır.
+
+**Karar değişkeni mutlak saat eksenindedir.** Eksen dönemin başından itibaren
+saat sayar ve gün başına sıfırlanmaz; gün kavramı yalnızca sayım için kullanılır
+(SRS TD-13). Eksenin gün × saat biçiminde kurulması hâlinde gece yarısını aşan bir
+çalışma günün sonunda kesilir ve kesintisizlik kısıtı onu iki ayrı blok sayar —
+kural, izin verilmesi gereken çalışmayı yasaklamış olur.
+
+**Değişken eleme, arama uzayını belirleyen asıl yerdir.** Bir personel bir saatte
+müsait değilse o saat için hiç değişken oluşturulmaz; bir noktanın ön koşulunu
+taşımayan personel için o noktanın değişkeni oluşturulmaz; talebin sıfır olduğu
+saat-nokta çiftleri atlanır. Değişkeni oluşturup sonra sıfıra sabitlemek aynı
+sonucu verir fakat modeli gereksiz büyütür.
+
+**Eleme, kural kısıtlarını sessizce iptal edebilir.** Bir kısıt, elenmiş bir
+değişkene atıfta bulunduğunda o kısıt hiç kurulmaz — hata vermez, yalnızca
+uygulanmaz. Bu bir kez yaşanmıştır: talebin sıfır olduğu saat-nokta çiftleri
+elenince H1'in nokta sabitliği kısıtı zincirin ortasında kopmuş ve blok içinde
+nokta değişimi serbest kalmıştır. Kural sınıfları, dayandıkları değişkenlerin
+varlığını varsaymak yerine kontrol etmeli; eksikse kısıtı atlamak ile modeli
+yanlış kurmak arasındaki farkı kural sınıfı bilmelidir. Çözücü–doğrulayıcı uyum
+testi bu sınıfı hatanın yakalandığı yerdir.
+
+**Isıtma penceresinin sabitlendiği doğrulanmalıdır.** Pencere içindeki saatler
+karar değişkeni değil sabit girdidir (TD-5). Sabitleme atlandığında çözücü geçmişe
+ait çalışma "icat eder" ve bu uydurma geçmiş H2, H3 ve H4'ü besler: dönem başındaki
+dinlenme ve ardışıklık kuralları fiilen devre dışı kalır. Belirti sessizdir —
+model çözülür, çizelge üretilir, kurallar sağlanmış görünür. Sabitlemenin gerçekten
+uygulandığını ölçen bir test bulunmalıdır.
+
+**Nokta sabitliği** H1'in parçasıdır ve kural sınıfı tarafından eklenir; model
+kurucu yalnızca `x` ile `z` arasındaki toplam bağını kurar.
+
 **Talebin saate açılımı.** Talep kayıtları zaman aralığıdır (4.2.2); kapsama
 kısıtı ise saat ekseninde yazılır (SRS 4.3, S1). Açılım `talebi_saate_ac`
 fonksiyonunda **bir kez** yapılır ve beş tüketici aynı çıktıyı kullanır: model
@@ -791,14 +832,6 @@ Aralık sınırları başlangıçta kapalı, bitişte açıktır: 08.00–16.00 
 aralıkları çakışmadan bitişir. Gün sonu `00.00` ile gösterilir (4.2.2); gece
 yarısını aşan bloklar ertesi günün saatlerine taşar ve taşan kısım TD-1 uyarınca
 yine başlangıç gününe ait sayılır.
-
-**Blok görünümü türevi kaldırılır.** Tur 3'te S2, S3 ve S4 talebi hâlâ vardiya
-biriminde okuduğu için talep, saat ekseninden blok eksenine geri türetiliyordu
-(`blok_gorunumu_uret`). Türev, bir bloğun gereken sayısını kapsadığı saatlerdeki
-en büyük gereken sayı olarak alır; bu yalnızca blok sınırlarının talep
-sınırlarıyla hizalandığı bir katalogda doğrudur. Karışık uzunluklu katalogda
-sessizce yanlış hesaplar. S2 ve S3'ün saat birimine geçmesiyle türevin tek
-tüketicisi kalmaz ve kaldırılır.
 
 **Takvim haftası kümeleri kayan pencerelerden ayrı hesaplanır.** H4, H5 ve H6
 kayan yedi günlük pencereleri, H10 ise ayrık takvim haftalarını (pazartesi–pazar)
@@ -1139,13 +1172,11 @@ Silme eylemi, tanımın başka kayıtlarda kullanılıp kullanılmadığına gö
 
 - Yetkinlik Atama Alanı: Personel formunda çoklu seçim bileşeni. Seçilen yetkinlikler personel_yetkinlik kayıtlarını günceller.
 
-- Sabit Vardiya Alanı: Personel formunda isteğe bağlı açılır liste. Boş bırakıldığında personel rotasyona dahil edilir.
-
 - Görev Noktası Formu: Ad, bina (boş bırakılabilir) ve ön koşul yetkinliği alanlarını içerir. Bina boş bırakıldığında noktanın tesis geneli olarak değerlendirileceği alan altında belirtilir.
 
-- Talep Matrisi: Satırlarda görev noktaları, sütunlarda gün tipi ve vardiya tipi birleşimleri yer alan düzenlenebilir tablo. Gün tipi ekseni üç değerlidir — hafta içi, hafta sonu ve resmî tatil — dolayısıyla üç vardiya tipiyle birlikte dokuz sütun oluşur. Resmî tatil sütunlarının bulunması zorunludur: özel gün tanımıyla tatil işaretlenen bir tarih için karşılık gelen talep satırı yoksa o günün talebi sıfıra düşer ve bu, kapsama açığı üretmediği için hiçbir raporda görünmez (SRS 3.3.4). Hücreye tıklandığında sayı doğrudan değiştirilir; negatif değer girildiğinde satır içi doğrulama hatası gösterilir.
+- Talep Listesi: Her satırı bir zaman aralığı olan düzenlenebilir liste (6.3.1'deki talep sekmesi kuralları geçerlidir). Gün tipi ekseni üç değerlidir — hafta içi, hafta sonu ve resmî tatil. Resmî tatil satırlarının bulunması zorunludur: özel gün tanımıyla tatil işaretlenen bir tarih için karşılık gelen talep satırı yoksa o günün talebi sıfıra düşer ve bu, kapsama açığı üretmediği için hiçbir raporda görünmez (SRS 3.3.4).
 
-- Yük Göstergesi: Talep matrisinin altında yer alan salt okunur alan. Tanımlı matristen haftalık toplam kişi-vardiya yükünü ve kural parametreleri altındaki asgari kadro büyüklüğünü hesaplayarak gösterir; matris değiştikçe güncellenir (FR-1.9).
+- Yük Göstergesi: Talep listesinin altında yer alan salt okunur alan. Tanımlı taleplerden haftalık toplam kişi-saat yükünü ve kural parametreleri altındaki asgari kadro büyüklüğünü hesaplayarak gösterir; liste değiştikçe güncellenir (FR-1.9).
 
 - Kural Parametreleri Paneli: Her kural için kimlik, açıklama, parametre alanları, ağırlık (esnek hedeflerde) ve aktiflik anahtarı. Değişiklik kaydedildiğinde yalnızca kural tablosundaki satır güncellenir.
 
@@ -1191,31 +1222,33 @@ düzendedir. İki sunum kuralı vardır:
 
 ### 6.3.3 Çizelge Ekranı
 
-- Çizelge Izgarası: Satırlarda personel, sütunlarda günler yer alır. Her hücre, o gün atanan çalışma bloğunu **saat aralığı olarak** ve görev noktasını kısaltmayla gösterir (`08–16 · GÜV`). Boş hücreler izin veya atanmamış günü ifade eder.
+Çalışma zamanı saat düzeyinde belirlendiği için (SRS TD-13) ekran iki görünüm taşır. Aynı veriyi iki farklı çözünürlükte gösterirler; ikisi de aynı kaynaktan beslenir.
 
-  Blok adının kısaltması yeterli değildir. Katalog karışık uzunluklu olduğunda "Gündüz" adını taşıyan sekiz saatlik blok ile on iki saatlik blok aynı kısaltmaya sıkışır ve ızgara iki farklı çizelgeyi aynı gösterir. Saat aralığı hem ayırt edicidir hem de sürenin kendisini okunur kılar; blok adı ayrıntı görünümünde kalır.
+- Gün Izgarası (ana görünüm): Satırlarda personel, sütunlarda seçili günün yirmi dört saati yer alır. Bir personelin o günkü çalışma bloğu, kapsadığı saat hücrelerinin kesintisiz bir şerit olarak boyanmasıyla gösterilir; şeridin üzerinde görev noktası kısaltması bulunur. Gün seçimi üstteki gün sekmeleriyle yapılır.
 
-  Hücre rengi başlangıç saati bandından hesaplanır, blok kimliğinden değil. Sabit üç renk (gündüz, akşam, gece) yalnızca üç bloklu katalogda anlamlıydı.
+  Kullanıcının istediği çözünürlük budur: çalışmanın hangi saatte başlayıp hangi saatte bittiği doğrudan okunur. Blok adı diye bir şey bulunmadığından, sürenin kendisi tek okunabilir bilgidir.
 
-- Görünüm Anahtarı: Izgarayı personel ekseninden görev noktası eksenine çevirir. Nokta görünümünde satırlar görev noktaları, hücreler o vardiyaya atanan personeldir.
+- Hafta Şeridi (ikincil görünüm): Satırlarda personel, sütunlarda günler yer alır; her gün hücresi yirmi dört dilimlik bir mini şerittir ve dolu saatler boyanır. Yedi gün aynı anda görünür, saat okunurluğu düşüktür. Bir gün hücresine tıklandığında o günün ızgarasına geçilir.
 
-- Hücre Düzenleme: Hücreye tıklandığında o gün ve vardiya için uygun personel ile görev noktası seçenekleri açılır. Seçim yapıldığında doğrulama isteği gönderilir.
+  Yedi gün × yirmi dört saat yüz altmış sekiz sütun eder ve tek ekrana sığmaz; iki görünüm bu nedenle vardır. Genel dağılımı görmek ile bir günü ayrıntılı okumak farklı işlerdir.
 
-- İhlal Bildirimi: Doğrulama sonucu zorunlu kısıt ihlali içeriyorsa değişiklik uygulanmaz; hangi kuralın hangi gerekçeyle bozulduğu hücrenin yanında gösterilir. Esnek hedef ihlalinde değişiklik uygulanır ve ceza değişimi bilgilendirme olarak gösterilir.
+- Hücre Rengi: Renk, saatin kendisinden hesaplanır — gece saatleri koyu, gündüz açık, aradaki geçiş süreklidir. Sabit üç kategori (gündüz, akşam, gece) çalışma zamanının kataloglu olduğu sürümlere aitti; blok kalmadığı için kategorik renk de kalkmıştır.
 
-- Kilitleme Anahtarı: Bir atamayı kilitler. Kilitli atamalar yeniden çözümde sabit girdi olarak korunur ve ızgarada ayırt edici biçimde işaretlenir.
+- Hücre Düzenleme: Bir personelin gün satırında sürükleyerek veya başlangıç ve bitiş saati seçilerek blok tanımlanır. Görev noktası blok boyunca tektir (SRS H1). Seçim yapıldığında doğrulama isteği gönderilir.
 
-- Kapsama Açığı İşareti: Talebin karşılanamadığı gün, vardiya ve nokta hücreleri belirgin biçimde işaretlenir; üzerine gelindiğinde eksik personel sayısı gösterilir.
+- İhlal Bildirimi: Doğrulama sonucu zorunlu kısıt ihlali içeriyorsa değişiklik uygulanmaz; hangi kuralın hangi gerekçeyle bozulduğu bloğun yanında gösterilir. Esnek hedef ihlalinde değişiklik uygulanır ve ceza değişimi bilgilendirme olarak gösterilir.
 
-- Yeniden Çöz Butonu: Mevcut sürümden yeni bir taslak türeterek değişim odaklı yeniden çözmeyi başlatır.
+- Kilitleme Anahtarı: Bir bloğu kilitler. Kilitli bloklar yeniden çözümde sabit girdi olarak korunur ve ızgarada ayırt edici biçimde işaretlenir.
+
+- Kapsama Açığı İşareti: Talebin karşılanamadığı saat-nokta hücreleri belirgin biçimde işaretlenir; üzerine gelindiğinde eksik personel sayısı gösterilir. Gün ızgarasında işaret saat düzeyindedir, hafta şeridinde gün başlığında toplanır.
 
 ### 6.3.4 Analiz Ekranı
 
-- Kapsama Kartı: Dönem geneli kapsama oranı ile açık verilen gün, vardiya ve nokta listesi.
+- Kapsama Kartı: Dönem geneli kapsama oranı ile açık verilen gün, saat aralığı ve nokta listesi.
 
-- Adalet Grafiği: Kişi başına gece ve hafta sonu sayılarının dağılımı; ekip ortalaması referans çizgisi olarak gösterilir.
+- Adalet Grafiği: Kişi başına gece ve hafta sonu **saatlerinin** dağılımı; kişiye düşen adil pay referans çizgisi olarak gösterilir.
 
-- Saat Dengesi Tablosu: Personel başına toplam saat, kişisel hedef ve sapma.
+- Saat Dengesi Tablosu: Personel başına toplam saat, kişiye düşen adil pay ve sapma (SRS S4).
 
 - Ceza Dökümü: Toplam cezanın hedefler arasındaki dağılımı. Her hedefin adı, ağırlığı ve katkısı listelenir.
 
@@ -1387,7 +1420,6 @@ Aşağıdaki tablo başlıca uç noktaların işlevsel bir özetidir. Uç noktal
 | /api/yetkinlik | GET, POST, PUT, DELETE | Yetkinlik tanımları |
 | /api/bina | GET, POST, PUT, DELETE | Bina tanımları |
 | /api/nokta | GET, POST, PUT, DELETE | Görev noktası tanımları |
-| /api/vardiya-tipi | GET, POST, PUT, DELETE | Vardiya tipi tanımları |
 | /api/talep | GET, POST | Talep kayıtlarının okunması ve yeni aralık oluşturulması; çakışan aralık reddedilir |
 | /api/talep/{id} | PUT, DELETE | Talep aralığının güncellenmesi ve silinmesi |
 | /api/kural | GET, PUT | Kural parametrelerinin ve ağırlıkların yönetimi |

@@ -9,7 +9,6 @@ from app.kurallar.baglam import (
     MusaitlikKaydi,
     PersonelBilgisi,
     TercihKaydi,
-    VardiyaTipiBilgisi,
 )
 from app.kurallar.kayit_defteri import bul, kayitli, kurallari_yukle, tum_kimlikler
 from app.kurallar.temel import EsnekHedef, Ihlal, Kural, ZorunluKural
@@ -24,7 +23,6 @@ __all__ = [
     "MusaitlikKaydi",
     "PersonelBilgisi",
     "TercihKaydi",
-    "VardiyaTipiBilgisi",
     "ZorunluKural",
     "bul",
     "esnek",

@@ -12,17 +12,21 @@ ARALIK SINIRLARI baslangicta KAPALI, bitiste ACIKTIR: `08.00-16.00` araligi
 
 GUN SONU `00.00` ILE YAZILIR. SDD `24.00` diyor; PostgreSQL o degeri
 saklayabiliyor fakat surucu `datetime.time` olarak geri okuyamiyor - 24:00
-Python'da yok (denendi: `DataError: hour must be in 0..23`). Bunun yerine
-`vardiya_tipi` tablosunun ZATEN kullandigi sozlesme uygulanir:
-`bitis <= baslangic` ise aralik gun sonuna kadar surer ve gece yarisini
-asiyorsa ertesi gunun saatlerine tasar.
+Python'da yok (denendi: `DataError: hour must be in 0..23`). Uygulanan
+sozlesme tektir: `bitis <= baslangic` ise aralik gun sonuna kadar surer ve
+gece yarisini asiyorsa ertesi gunun saatlerine tasar.
 
 Modul ORM'den ve veritabanindan bagimsizdir; kural birim testleri onu elle
 kurulan orneklerle cagirabilir.
 """
 
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from datetime import date, time, timedelta
+from typing import TypeVar
+
+# Bir saatin "hangi kosuya ait oldugunu" belirleyen deger: kapsama aciginda
+# eksik sayisi, blok toplamada gorev noktasi.
+Etiket = TypeVar("Etiket")
 
 
 def aralik_sure_saat(baslangic: time, bitis: time) -> int:
@@ -71,6 +75,50 @@ def tam_saat_mi(an: time) -> bool:
     return an.minute == 0 and an.second == 0 and an.microsecond == 0
 
 
+def ardisik_saatleri_grupla(
+    etiketli_saatler: Iterable[tuple[int, Etiket]], *, gun_sinirinda_kes: bool
+) -> list[tuple[int, int, Etiket]]:
+    """Ardisik ve ETIKETI AYNI saatleri tek kosuya toplar — TEK TANIM.
+
+    `(mutlak_saat, etiket)` cifti alir, `(ilk_saat, son_saat, etiket)`
+    listesi dondurur. Mutlak saat, gun sinirini asan kosularin dogal
+    ifadesidir: `tarih.toordinal() * 24 + saat`.
+
+    IKI TUKETICI, TEK BIRLESTIRME. Kapsama acigi kayitlari ardisik ve
+    EKSIK SAYISI esit saatleri araliga toplar (SDD 4.2.4); cozucu ciktisi
+    ardisik ve NOKTASI ayni saatleri bloga toplar (SDD 4.2.1). Ikisi de
+    ayni sorunun ayni yaniti - "ardisik ve ayni olanlar tek kayit" - ve
+    ikinci bir kopya yazilsaydi biri gun sinirinda kesip digeri kesmedigi
+    icin ayrisirlardi.
+
+    `gun_sinirinda_kes` ikisini ayiran TEK parametredir:
+
+    - **Kapsama acigi True verir.** Gun sinirini asan bir aralik
+      (22.00-02.00) `bitis <= baslangic` sozlesmesiyle gosterilebilirdi,
+      ama okuyan tarafin "bu kayit hangi gune ait" sorusunu ikinci kez
+      sormasi gerekirdi; gun basina ayri kayit belirsizlik birakmaz.
+    - **Blok toplama False verir.** Gece yarisini asan calisma TEK KAYITTA
+      durmak zorundadir (SDD 4.2.1); kesilmesi halinde 20.00-06.00 blogu
+      iki atama satiri olur ve H1 ile TD-1 kayitta gorunmez hale gelir.
+    """
+    kosular: list[tuple[int, int, Etiket]] = []
+    for saat, etiket in sorted(etiketli_saatler, key=lambda oge: oge[0]):
+        if kosular:
+            ilk, son, onceki_etiket = kosular[-1]
+            bitisik = son + 1 == saat and onceki_etiket == etiket
+            gun_degisti = gun_sinirinda_kes and saat % 24 == 0
+            if bitisik and not gun_degisti:
+                kosular[-1] = (ilk, saat, etiket)
+                continue
+        kosular.append((saat, saat, etiket))
+    return kosular
+
+
+def mutlak_saat(tarih: date, saat: int) -> int:
+    """`(tarih, saat)` ciftinin gun sinirindan bagimsiz sirali karsiligi."""
+    return tarih.toordinal() * 24 + saat
+
+
 def saatleri_araliklara_birlestir(
     saat_sayilari: Mapping[tuple[date, int], int],
 ) -> list[tuple[date, time, time, int]]:
@@ -81,28 +129,17 @@ def saatleri_araliklara_birlestir(
     `00.00-08.00 / 1` kaydi cikar, sekiz satir degil: yirmi dort satirlik
     bir liste kullaniciya hicbir sey anlatmaz.
 
-    Birlestirme GUN ICINDE kalir. Gun sinirini asan bir birlestirme
-    (22.00-02.00) `bitis <= baslangic` sozlesmesiyle gosterilebilirdi, ama
-    okuyan tarafin "bu kayit hangi gune ait" sorusunu ikinci kez sormasi
-    gerekirdi; gun basina ayri kayit belirsizlik birakmaz.
-
     Sayisi sifir olan saatler kayit uretmez.
     """
-    araliklar: list[tuple[date, time, time, int]] = []
-    for tarih, saat in sorted(saat_sayilari):
-        sayi = saat_sayilari[(tarih, saat)]
-        if sayi <= 0:
-            continue
-        if araliklar:
-            onceki_tarih, onceki_bas, onceki_bitis, onceki_sayi = araliklar[-1]
-            bitisik = onceki_tarih == tarih and onceki_bitis.hour == saat
-            # Gun sonuna dayanmis bir aralik (bitis 00.00) artik uzatilamaz.
-            gun_sonuna_dayandi = onceki_bitis.hour == 0 and onceki_bas.hour != 0
-            if bitisik and onceki_sayi == sayi and not gun_sonuna_dayandi:
-                araliklar[-1] = (onceki_tarih, onceki_bas, _saat(saat + 1), sayi)
-                continue
-        araliklar.append((tarih, _saat(saat), _saat(saat + 1), sayi))
-    return araliklar
+    etiketli = [
+        (mutlak_saat(tarih, saat), sayi)
+        for (tarih, saat), sayi in saat_sayilari.items()
+        if sayi > 0
+    ]
+    return [
+        (date.fromordinal(ilk // 24), _saat(ilk % 24), _saat(son % 24 + 1), sayi)
+        for ilk, son, sayi in ardisik_saatleri_grupla(etiketli, gun_sinirinda_kes=True)
+    ]
 
 
 def _saat(deger: int) -> time:
@@ -143,19 +180,18 @@ def gece_saati_mi(saat: int) -> bool:
 
 
 def gece_saat_sayisi(baslangic: time, bitis: time) -> int:
-    """`gece_saat[b] = |b ∩ [20:00, 06:00]|` — TEK TANIM (SRS TD-2, K5).
+    """`|aralik ∩ [20:00, 06:00]|` — TEK TANIM (SRS TD-2).
 
-    TD-2 iki ayri soruyu ayirir ve sistem ikisini ayri yanitlar:
+    GECE HESAPLANIR, ISARETLENMEZ. Onceki surumlerde calisma zamani bir
+    katalogdan secildigi icin gece bilgisi vardiya tipi uzerinde `gece_mi`
+    BAYRAGI olarak duruyordu ve bayragin otomatik hesaplanan bir oneriyle
+    ezilmesi bir kez yasanip K3'un karsilanmamasinin iki nedeninden biri
+    olmustu. Blok katalogu kalktigi icin isaretlenecek bir nesne de
+    kalmamistir; risk artik YAPISAL OLARAK yoktur, cunku tek tanim vardir.
 
-    - "Bu blok bir gece nobeti midir?" — IKILI soru, yaniti `gece_mi`
-      BAYRAGIDIR ve bayrak TANIMLANAN bir alandir (H3 onu kullanir).
-    - "Bu kisi ne kadar gece saati tasidi?" — SUREKLI olcu, yaniti burasi
-      (S2 bunu kullanir).
-
-    Ikisi celismez, farkli sorulara yanit verirler. Bayragin hesaplanan
-    degere donusturulmesi DENENMEMELIDIR: oneri kuralinin tanimli degeri
-    ezmesi bir kez yasandi ve K3 kabul kriterinin kalmasinin iki nedeninden
-    biri oldu.
+    Iki tuketici ayni tabandan beslenir: H3 bir gunun gece gunu sayilip
+    sayilmadigini (esige ulasiyor mu), S2 kisinin tasidigi gece yukunu
+    okur.
 
     Olcu saat olmak zorunda: on iki saatlik bir gece blogu ile sekiz
     saatlik bir gece blogunu adalet hesabinda ayni saymak, uzun blogu alan

@@ -6,8 +6,9 @@ import type {
   GorevNoktasi,
   KapsamaAcigi,
   Personel,
-  VardiyaTipi,
 } from '@/api/types'
+import { baslangicSaati, bitisSaati, geceSaati, saatEtiketi } from './blok'
+import { saatiCoz } from './talepAraligi'
 import { haftaSonuMu } from './tarih'
 
 /**
@@ -45,7 +46,6 @@ export interface CizelgeVerisi {
   kapsamaAcigi: KapsamaAcigi[]
   fazlaKadro: FazlaKadro[]
   personelMap: Map<number, Personel>
-  vardiyaMap: Map<number, VardiyaTipi>
   noktaMap: Map<number, GorevNoktasi>
 }
 
@@ -53,18 +53,24 @@ export interface CizelgeVerisi {
  * Uzun biçim başlıkları.
  *
  * SRS 7.2 şu sütunları şart koşar: sicil, ad, tarih, vardiya_tipi, gece_mi,
- * hafta_sonu_mu, sure_saat. Hepsi korunur; üzerine `gorev_noktasi` eklenir —
- * atama görev noktası kırılımında tutulduğundan (SDD 4.2.4) noktasız bir
- * satır atamanın yarısını taşır. Sıra, satırın doğal okunuşuna göre tarihle
- * başlar.
+ * hafta_sonu_mu, sure_saat. Üzerine `gorev_noktasi` eklenir — atama görev
+ * noktası kırılımında tutulduğundan (SDD 4.2.4) noktasız bir satır atamanın
+ * yarısını taşır.
+ *
+ * İKİ SÜTUN DEĞİŞTİ (Tur 5). `vardiya_tipi` yerine `baslangic`/`bitis`
+ * geldi: blok kataloğu kalktığı için taşınacak bir tip adı yok, bloğun
+ * kendisi bir zaman aralığı (SRS TD-13). `gece_mi` ise bayrak olmaktan
+ * çıkıp `gece_saat`e döndü — gece HESAPLANIR, işaretlenmez (TD-2) ve
+ * ölçünün birimi saattir.
  */
 const CIZELGE_BASLIKLARI = [
   'tarih',
   'sicil',
   'ad',
-  'vardiya_tipi',
+  'baslangic',
+  'bitis',
   'gorev_noktasi',
-  'gece_mi',
+  'gece_saat',
   'hafta_sonu_mu',
   'sure_saat',
 ] as const
@@ -73,7 +79,9 @@ const CIZELGE_BASLIKLARI = [
  * Talep sapması başlıkları.
  *
  * SRS 7.2 dört sütun tanımlıyordu: tarih, vardiya_tipi, gorev_noktasi,
- * eksik_sayi. İkisi değişti ve nedeni şu: dosya artık talepten sapmanın
+ * eksik_sayi. `vardiya_tipi` yerine sapmanın ZAMAN ARALIĞI geliyor (blok
+ * kataloğu kalktı, SRS TD-13). Kalan ikisi şu nedenle değişti: dosya artık
+ * talepten sapmanın
  * İKİ yönünü birden taşıyor — eksik (kapsama açığı) ve fazla (S1 üst
  * sınırının aşılması). `tur` sütunu ayrımı yapar, `kisi_sayisi` her iki
  * yönde de pozitif kalır ("eksik_sayi = 2, tur = fazla" okunmaz bir
@@ -88,7 +96,8 @@ const CIZELGE_BASLIKLARI = [
  */
 const SAPMA_BASLIKLARI = [
   'tarih',
-  'vardiya_tipi',
+  'baslangic',
+  'bitis',
   'gorev_noktasi',
   'tur',
   'kisi_sayisi',
@@ -139,16 +148,16 @@ export function cizelgeCsvOlustur(veri: CizelgeVerisi): string {
     .sort((a, b) => a.tarih.localeCompare(b.tarih) || a.personel_id - b.personel_id)
     .map((a) => {
       const personel = veri.personelMap.get(a.personel_id)
-      const vardiya = veri.vardiyaMap.get(a.vardiya_tipi_id)
       return satir([
         a.tarih,
         personel?.sicil_no ?? '',
         personel?.ad_soyad ?? '',
-        vardiya?.ad ?? '',
+        saatEtiketi(baslangicSaati(a.baslangic_zamani)),
+        saatEtiketi(bitisSaati(a.bitis_zamani)),
         veri.noktaMap.get(a.nokta_id)?.ad ?? '',
-        vardiya?.gece_mi ? 'evet' : 'hayir',
+        geceSaati(a.baslangic_zamani, a.sure_saat),
         haftaSonuMu(a.tarih) ? 'evet' : 'hayir',
-        vardiya?.sure_saat ?? '',
+        a.sure_saat,
       ])
     })
   return csvBirlestir([satir(CIZELGE_BASLIKLARI), ...satirlar])
@@ -171,7 +180,8 @@ export function cizelgeCsvOlustur(veri: CizelgeVerisi): string {
 export function kapsamaAcigiCsvOlustur(veri: CizelgeVerisi): string {
   type SapmaSatiri = {
     tarih: string
-    vardiya_tipi_id: number
+    baslangic: string
+    bitis: string
     nokta_id: number
     tur: 'eksik' | 'fazla'
     kisi_sayisi: number
@@ -180,14 +190,16 @@ export function kapsamaAcigiCsvOlustur(veri: CizelgeVerisi): string {
   const sapmalar: SapmaSatiri[] = [
     ...veri.kapsamaAcigi.map((k) => ({
       tarih: k.tarih,
-      vardiya_tipi_id: k.vardiya_tipi_id,
+      baslangic: k.baslangic,
+      bitis: k.bitis,
       nokta_id: k.nokta_id,
       tur: 'eksik' as const,
       kisi_sayisi: k.eksik_sayi,
     })),
     ...veri.fazlaKadro.map((f) => ({
       tarih: f.tarih,
-      vardiya_tipi_id: f.vardiya_tipi_id,
+      baslangic: f.baslangic,
+      bitis: f.bitis,
       nokta_id: f.nokta_id,
       tur: 'fazla' as const,
       kisi_sayisi: f.fazla_sayi,
@@ -198,14 +210,15 @@ export function kapsamaAcigiCsvOlustur(veri: CizelgeVerisi): string {
     .sort(
       (a, b) =>
         a.tarih.localeCompare(b.tarih) ||
-        a.vardiya_tipi_id - b.vardiya_tipi_id ||
+        a.baslangic.localeCompare(b.baslangic) ||
         a.nokta_id - b.nokta_id ||
         a.tur.localeCompare(b.tur),
     )
     .map((s) =>
       satir([
         s.tarih,
-        veri.vardiyaMap.get(s.vardiya_tipi_id)?.ad ?? '',
+        saatEtiketi(saatiCoz(s.baslangic)),
+        saatEtiketi(saatiCoz(s.bitis, true)),
         veri.noktaMap.get(s.nokta_id)?.ad ?? '',
         s.tur,
         s.kisi_sayisi,

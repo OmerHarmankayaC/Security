@@ -9,7 +9,6 @@ import type {
   FazlaKadro,
   KapsamaAcigi,
   Personel,
-  VardiyaTipi,
   Yetkinlik,
   Analiz,
 } from '../api/types'
@@ -20,7 +19,9 @@ import { Buton, Kart, KartEtiketi, Sayi } from '../components/app-ui'
 import { cn } from '../lib/utils'
 import { belirtmeHaliEki, buyukHarf, kisalt } from '../lib/metin'
 import { sayiBicimle } from '../lib/sayi'
-import { saatAraligiEtiketi, vardiyaHucreSinifi } from '../lib/vardiyaRenk'
+import { blokEtiketi, blokKisaEtiketi } from '../lib/blok'
+import { BASLANGIC_SAATLERI, BITIS_SAATLERI, saatEtiketi, saatiYaz } from '../lib/talepAraligi'
+import { vardiyaHucreSinifi } from '../lib/vardiyaRenk'
 import {
   bugunIso,
   donemAraligiBicimle,
@@ -83,11 +84,18 @@ const HUCRE_YUKSEKLIGI = 'h-[46px]' // 28 -> 46
 // buyudugu icin pay 280 -> 292.
 const IZGARA_YUKSEKLIGI = 'max-h-[calc(100svh-292px)]'
 
-// Renk BAŞLANGIÇ SAATİ BANDINDAN gelir, blok kimliğinden değil; tanım
-// lib/vardiyaRenk.ts'te tek yerde durur (SDD 6.3.3).
-function hucreSinifi(vardiya: VardiyaTipi | undefined): string {
-  if (!vardiya) return 'bg-surface'
-  return vardiyaHucreSinifi(vardiya.gece_mi, vardiya.baslangic_saati)
+// Renk BAŞLANGIÇ SAATİ BANDINDAN gelir; tanım lib/vardiyaRenk.ts'te tek
+// yerde durur (SDD 6.3.3). Blok kimliği diye bir şey kalmadığı için
+// (SRS TD-13) başlangıç saati zaten tek ayırt edici bilgi.
+/** Bloğun bitiş saati; gün sonu `24` yazılır (00.00 sıfır uzunluk düşündürür). */
+function bitisSaatiOku(atama: Atama): number {
+  const saat = Number(atama.bitis_zamani.slice(11, 13))
+  return saat === 0 ? 24 : saat
+}
+
+function hucreSinifi(atama: Atama | undefined): string {
+  if (!atama) return 'bg-surface'
+  return vardiyaHucreSinifi(atama.baslangic_zamani.slice(11, 19))
 }
 
 export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }: Props) {
@@ -96,7 +104,6 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
   const [surumId, setSurumId] = useState<number | null>(null)
 
   const [personelListesi, setPersonelListesi] = useState<Personel[]>([])
-  const [vardiyaTipleri, setVardiyaTipleri] = useState<VardiyaTipi[]>([])
   const [noktalar, setNoktalar] = useState<GorevNoktasi[]>([])
 
   const [atamalar, setAtamalar] = useState<Atama[]>([])
@@ -116,7 +123,9 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
   const [gorunum, setGorunum] = useState<Gorunum>('personel')
   const [yazdirmaAcik, setYazdirmaAcik] = useState(false)
   const [seciliHucre, setSeciliHucre] = useState<SeciliHucre | null>(null)
-  const [seciliVardiyaTipiId, setSeciliVardiyaTipiId] = useState<string>(BOSALT_DEGERI)
+  // Blok artık BAŞLANGIÇ ve BİTİŞ SAATİYLE tanımlanır (SDD 6.3.3).
+  const [seciliBaslangic, setSeciliBaslangic] = useState<number | null>(null)
+  const [seciliBitis, setSeciliBitis] = useState<number | null>(null)
   const [seciliNoktaId, setSeciliNoktaId] = useState<string>(BOSALT_DEGERI)
   const [dogrulamaSonucu, setDogrulamaSonucu] = useState<DogrulamaSonucu | null>(null)
   const [panelYukleniyor, setPanelYukleniyor] = useState(false)
@@ -127,14 +136,12 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
     Promise.all([
       api.donemler(),
       api.personelListele(),
-      api.vardiyaTipiListele(),
       api.noktaListele(),
       api.yetkinlikListele(),
     ])
-      .then(([d, p, v, n, y]) => {
+      .then(([d, p, n, y]) => {
         setDonemler(d)
         setPersonelListesi(p)
-        setVardiyaTipleri(v)
         setNoktalar(n)
         setYetkinlikler(y.filter((k) => k.aktif))
         if (donemId === null && d[0]) donemIdSec(d[0].donem_id)
@@ -206,10 +213,6 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
   const personelMap = useMemo(
     () => new Map(personelListesi.map((p) => [p.personel_id, p])),
     [personelListesi],
-  )
-  const vardiyaMap = useMemo(
-    () => new Map(vardiyaTipleri.map((v) => [v.vardiya_tipi_id, v])),
-    [vardiyaTipleri],
   )
   const noktaMap = useMemo(() => new Map(noktalar.map((n) => [n.nokta_id, n])), [noktalar])
 
@@ -284,7 +287,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
   const noktaIndeksi = useMemo(() => {
     const indeks = new Map<string, Atama[]>()
     for (const a of atamalar) {
-      const anahtar = `${a.tarih}|${a.vardiya_tipi_id}|${a.nokta_id}`
+      const anahtar = `${a.tarih}|${a.nokta_id}`
       const mevcut = indeks.get(anahtar)
       if (mevcut) mevcut.push(a)
       else indeks.set(anahtar, [a])
@@ -295,7 +298,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
   const kapsamaIndeksi = useMemo(() => {
     const indeks = new Map<string, KapsamaAcigi>()
     for (const k of kapsamaAcigi) {
-      indeks.set(`${k.tarih}|${k.vardiya_tipi_id}|${k.nokta_id}`, k)
+      indeks.set(`${k.tarih}|${k.nokta_id}`, k)
     }
     return indeks
   }, [kapsamaAcigi])
@@ -304,23 +307,20 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
     atamaIndeksi.get(`${personelId}|${tarih}`)
 
   const kapsamaBul = (atama: Atama): KapsamaAcigi | undefined =>
-    kapsamaIndeksi.get(`${atama.tarih}|${atama.vardiya_tipi_id}|${atama.nokta_id}`)
+    kapsamaIndeksi.get(`${atama.tarih}|${atama.nokta_id}`)
 
-  // Nokta gorunumunun satirlari (SDD 6.3.3). Talep nokta VE vardiya kiriliminda
-  // tanimli oldugundan (SDD 4.2.1 talep) satir ekseni de bu ikilidir; yalniz
-  // nokta satiri, uc vardiyayi tek hucrede toplamak zorunda kalirdi.
-  const noktaSatirlari = useMemo(
-    () =>
-      noktalar.flatMap((n) =>
-        vardiyaTipleri.map((v) => ({ nokta: n, vardiya: v })),
-      ),
-    [noktalar, vardiyaTipleri],
-  )
+  // Nokta gorunumunun satirlari (SDD 6.3.3). Satir ekseni once nokta x
+  // VARDIYA TIPI ikilisiydi; blok katalogu kalktigi icin (SRS TD-13)
+  // bolunecek ikinci bir eksen yok ve satir dogrudan noktadir. Bir gunun
+  // hucresi o noktada calisan HERKESI tasir; kimin hangi saatte oldugu gun
+  // izgarasinin isidir (Tur 6).
+  const noktaSatirlari = useMemo(() => noktalar.map((nokta) => ({ nokta })), [noktalar])
 
   const hucreSec = (personelId: number, tarih: string) => {
     setSeciliHucre({ personelId, tarih })
     const mevcut = atamaBul(personelId, tarih)
-    setSeciliVardiyaTipiId(mevcut ? String(mevcut.vardiya_tipi_id) : BOSALT_DEGERI)
+    setSeciliBaslangic(mevcut ? Number(mevcut.baslangic_zamani.slice(11, 13)) : null)
+    setSeciliBitis(mevcut ? bitisSaatiOku(mevcut) : null)
     setSeciliNoktaId(mevcut ? String(mevcut.nokta_id) : BOSALT_DEGERI)
     setDogrulamaSonucu(null)
     setPanelHata(null)
@@ -332,7 +332,8 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
       surum_id: surumId,
       personel_id: seciliHucre.personelId,
       tarih: seciliHucre.tarih,
-      vardiya_tipi_id: seciliVardiyaTipiId === BOSALT_DEGERI ? null : Number(seciliVardiyaTipiId),
+      baslangic_saati: seciliBaslangic === null ? null : saatiYaz(seciliBaslangic),
+      bitis_saati: seciliBitis === null ? null : saatiYaz(seciliBitis),
       nokta_id: seciliNoktaId === BOSALT_DEGERI ? null : Number(seciliNoktaId),
     }
   }
@@ -399,8 +400,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
           kapsamaAcigi,
           fazlaKadro,
           personelMap,
-          vardiyaMap,
-          noktaMap,
+            noktaMap,
         }
       : null
 
@@ -414,7 +414,8 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
   // (schemas/dogrulama.py). Yarim cift 422 doner, o yuzden hic gonderilmez.
   const secimGonderilebilir =
     surumDuzenlenebilir &&
-    (seciliVardiyaTipiId === BOSALT_DEGERI) === (seciliNoktaId === BOSALT_DEGERI)
+    (seciliBaslangic === null) === (seciliNoktaId === BOSALT_DEGERI) &&
+    (seciliBaslangic === null) === (seciliBitis === null)
 
   const seciliPersonel = seciliHucre ? personelMap.get(seciliHucre.personelId) : null
   const seciliMevcutAtama = seciliHucre ? atamaBul(seciliHucre.personelId, seciliHucre.tarih) : null
@@ -722,7 +723,6 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                         {gunler.map((gun) => {
                           const atama = atamaBul(p.personel_id, gun)
                           const kapsama = atama ? kapsamaBul(atama) : undefined
-                          const vardiya = atama ? vardiyaMap.get(atama.vardiya_tipi_id) : undefined
                           const nokta = atama ? noktaMap.get(atama.nokta_id) : undefined
                           const seciliMi =
                             seciliHucre?.personelId === p.personel_id && seciliHucre?.tarih === gun
@@ -749,7 +749,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                                   // Bos hucre: kenarlik ve zemin yok — goz yalniz
                                   // dolu hucreleri gorur, 28 gunluk izgarada
                                   // bosluklar arka plana cekilir.
-                                  atama && !kapsama && hucreSinifi(vardiya),
+                                  atama && !kapsama && hucreSinifi(atama),
                                   kapsama && 'bg-signal-soft font-medium text-signal',
                                   atama?.kilitli && 'outline-2 outline-offset-[-2px] outline-accent',
                                   seciliMi && 'ring-2 ring-inset ring-ink',
@@ -757,7 +757,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                                 onClick={() => hucreSec(p.personel_id, gun)}
                                 title={
                                   atama
-                                    ? `${p.ad_soyad} — ${tarihBicimle(gun)} · ${vardiya?.ad ?? ''} · ${nokta?.ad ?? ''}${kapsama ? ` · ${kapsama.eksik_sayi} kişi eksik` : ''}`
+                                    ? `${p.ad_soyad} — ${tarihBicimle(gun)} · ${blokEtiketi(atama.baslangic_zamani, atama.bitis_zamani)} · ${nokta?.ad ?? ''}${kapsama ? ` · ${kapsama.eksik_sayi} kişi eksik` : ''}`
                                     : `${p.ad_soyad} — ${tarihBicimle(gun)} · atama yok`
                                 }
                               >
@@ -766,16 +766,14 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                                     <span className="font-semibold">−{kapsama.eksik_sayi}</span>
                                   ) : (
                                     <>
-                                      {/* Blok ADI değil SAAT ARALIĞI: karışık
-                                          uzunluklu katalogda iki farklı blok
-                                          aynı kısaltmaya sıkışır (SDD 6.3.3). */}
+                                      {/* Blok adı diye bir şey yok (SRS
+                                          TD-13); tek okunabilir bilgi
+                                          sürenin kendisidir (SDD 6.3.3). */}
                                       <span className="font-semibold">
-                                        {vardiya
-                                          ? saatAraligiEtiketi(
-                                              vardiya.baslangic_saati,
-                                              vardiya.bitis_saati,
-                                            )
-                                          : ''}
+                                        {blokKisaEtiketi(
+                                          atama.baslangic_zamani,
+                                          atama.bitis_zamani,
+                                        )}
                                       </span>
                                       <span className="opacity-80">{kisalt(nokta?.ad ?? '')}</span>
                                     </>
@@ -786,22 +784,19 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                         })}
                       </tr>
                     ))
-                  : noktaSatirlari.map(({ nokta, vardiya }) => (
-                      <tr key={`${nokta.nokta_id}-${vardiya.vardiya_tipi_id}`}>
+                  : noktaSatirlari.map(({ nokta }) => (
+                      <tr key={nokta.nokta_id}>
                         <td
                           className={cn(
                             'sticky left-0 z-10 border-b border-r border-rule bg-surface px-3 text-left',
                             AD_SUTUNU,
                           )}
-                          title={`${nokta.ad} — ${vardiya.ad}`}
+                          title={nokta.ad}
                         >
                           <span className="block truncate text-sm text-ink">{nokta.ad}</span>
-                          <span className="block truncate font-mono text-mono-kucuk text-ink-muted">
-                            {kisalt(vardiya.ad)}
-                          </span>
                         </td>
                         {gunler.map((gun) => {
-                          const anahtar = `${gun}|${vardiya.vardiya_tipi_id}|${nokta.nokta_id}`
+                          const anahtar = `${gun}|${nokta.nokta_id}`
                           const hucreAtamalari = noktaIndeksi.get(anahtar) ?? []
                           const kapsama = kapsamaIndeksi.get(anahtar)
                           return (
@@ -820,15 +815,18 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                               <div
                                 className={cn(
                                   'flex flex-col gap-px rounded-sm px-1 py-0.5 font-mono text-mono-kucuk leading-tight',
-                                  hucreAtamalari.length > 0 && hucreSinifi(vardiya),
+                                  hucreAtamalari.length > 0 && hucreSinifi(hucreAtamalari[0]),
                                   hucreAtamalari.length > 0 && 'border border-rule',
                                   kapsama && 'border-signal',
                                 )}
                                 title={
                                   hucreAtamalari.length === 0
-                                    ? `${nokta.ad} — ${vardiya.ad} · ${tarihBicimle(gun)} · atama yok`
-                                    : `${nokta.ad} — ${vardiya.ad} · ${tarihBicimle(gun)}\n${hucreAtamalari
-                                        .map((a) => personelMap.get(a.personel_id)?.ad_soyad ?? '')
+                                    ? `${nokta.ad} · ${tarihBicimle(gun)} · atama yok`
+                                    : `${nokta.ad} · ${tarihBicimle(gun)}\n${hucreAtamalari
+                                        .map(
+                                          (a) =>
+                                            `${personelMap.get(a.personel_id)?.ad_soyad ?? ''} ${blokKisaEtiketi(a.baslangic_zamani, a.bitis_zamani)}`,
+                                        )
                                         .join('\n')}`
                                 }
                               >
@@ -886,29 +884,63 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
               {seciliPersonel.ad_soyad} — {gunKisaltmasiVeNumarasi(seciliHucre.tarih)}
             </p>
             <div className="flex flex-wrap items-end gap-4">
+              {/* BLOK ARTIK SEÇİLMEZ, TANIMLANIR (SDD 6.3.3). Vardiya tipi
+                  listesi kalktı; kullanıcı başlangıç ve bitiş saatini
+                  seçiyor. Saatler açılır listeden gelir, serbest metin
+                  değil: saat ekseni yarım saatlik sınırları temsil edemez
+                  (SDD 6.3.1) ve sunucu 08.30 gibi bir değeri reddeder.
+                  Gün ızgarasında sürükleyerek tanımlama Tur 6'nın işi. */}
               <div className="flex flex-col gap-1">
-                <label htmlFor="vardiya-sec" className="text-sm text-ink-muted">
-                  Vardiya
+                <label htmlFor="baslangic-sec" className="text-sm text-ink-muted">
+                  Başlangıç
                 </label>
                 <select
-                  id="vardiya-sec"
+                  id="baslangic-sec"
                   className={SECIM_SINIFI}
-                  value={seciliVardiyaTipiId}
-                  // "Boşalt" seçilince nokta da BIRLIKTE temizlenir. Nokta
-                  // alanı yalnızca pasifleşiyordu, değeri duruyordu; sunucu
-                  // ise ikisinin birlikte dolu ya da birlikte boş olmasını
-                  // şart koşuyor (schemas/dogrulama.py) ve yarım çift 422
-                  // dönüyordu.
+                  value={seciliBaslangic === null ? BOSALT_DEGERI : String(seciliBaslangic)}
+                  // "Boşalt" seçilince bitiş ve nokta da BIRLIKTE temizlenir.
+                  // Sunucu üçünün birlikte dolu ya da birlikte boş olmasını
+                  // şart koşuyor (schemas/dogrulama.py); yarım çift 422 döner.
                   onChange={(e) => {
-                    setSeciliVardiyaTipiId(e.target.value)
-                    if (e.target.value === BOSALT_DEGERI) setSeciliNoktaId(BOSALT_DEGERI)
+                    if (e.target.value === BOSALT_DEGERI) {
+                      setSeciliBaslangic(null)
+                      setSeciliBitis(null)
+                      setSeciliNoktaId(BOSALT_DEGERI)
+                      return
+                    }
+                    const saat = Number(e.target.value)
+                    setSeciliBaslangic(saat)
+                    // Bitiş boşsa varsayılan sekiz saatlik bir blok önerilir;
+                    // kullanıcı hemen değiştirebilir.
+                    if (seciliBitis === null) setSeciliBitis(((saat + 8 - 1) % 24) + 1)
                   }}
                   disabled={!surumDuzenlenebilir}
                 >
                   <option value={BOSALT_DEGERI}>— Boşalt —</option>
-                  {vardiyaTipleri.map((v) => (
-                    <option key={v.vardiya_tipi_id} value={v.vardiya_tipi_id}>
-                      {v.ad}
+                  {BASLANGIC_SAATLERI.map((s) => (
+                    <option key={s} value={s}>
+                      {saatEtiketi(s)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label htmlFor="bitis-sec" className="text-sm text-ink-muted">
+                  Bitiş
+                </label>
+                <select
+                  id="bitis-sec"
+                  className={SECIM_SINIFI}
+                  value={seciliBitis === null ? BOSALT_DEGERI : String(seciliBitis)}
+                  onChange={(e) =>
+                    setSeciliBitis(e.target.value === BOSALT_DEGERI ? null : Number(e.target.value))
+                  }
+                  disabled={!surumDuzenlenebilir || seciliBaslangic === null}
+                >
+                  <option value={BOSALT_DEGERI}>—</option>
+                  {BITIS_SAATLERI.map((s) => (
+                    <option key={s} value={s}>
+                      {saatEtiketi(s)}
                     </option>
                   ))}
                 </select>
@@ -922,7 +954,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                   className={SECIM_SINIFI}
                   value={seciliNoktaId}
                   onChange={(e) => setSeciliNoktaId(e.target.value)}
-                  disabled={!surumDuzenlenebilir || seciliVardiyaTipiId === BOSALT_DEGERI}
+                  disabled={!surumDuzenlenebilir || seciliBaslangic === null}
                 >
                   <option value={BOSALT_DEGERI}>—</option>
                   {noktalar.map((n) => (

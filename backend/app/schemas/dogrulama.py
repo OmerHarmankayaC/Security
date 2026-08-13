@@ -1,30 +1,47 @@
 """/api/atama/dogrula ve /api/atama semalari (SDD 5.5, SRS FR-6.x)."""
 
-from datetime import date
+from datetime import date, time
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.kurallar.zaman_araligi import tam_saat_mi
+
 
 class AtamaDegisikligiIstek(BaseModel):
-    """Cizelge izgarasindaki tek bir (personel, tarih) hucresine yapilan degisiklik.
+    """Cizelge izgarasindaki bir (personel, gun) satirina yazilan BLOK (SDD 6.3.3).
 
-    vardiya_tipi_id/nokta_id ikisi de None ise hucre bosaltilir (atama kaldirilir);
-    ikisi de doluysa hucreye bu vardiya/nokta atanir (var olan atamanin yerine gecer).
+    Blok katalogu kalktigi icin istek bir vardiya tipi secmez; baslangic ve
+    bitis SAATINI verir (SRS TD-13). Ucu de bos ise o gunun blogu
+    kaldirilir; ucu de doluysa gunun blogu bu olur ve var olanin yerine
+    gecer.
+
+    Saatler SAAT BASINDA olmak zorundadir. Saat ekseni yarim saatlik
+    sinirlari temsil edemez (SDD 6.3.1); serbest birakilsaydi 08.30 gibi bir
+    deger sessizce yuvarlanir ya da modele hic girmezdi.
+
+    Bitis baslangictan kucuk ya da esitse blok gece yarisini asar ve ertesi
+    gune tasar - `zaman_araligi` modulundeki sozlesmenin aynisi.
     """
 
     surum_id: int
     personel_id: int
     tarih: date
-    vardiya_tipi_id: int | None = None
+    baslangic_saati: time | None = None
+    bitis_saati: time | None = None
     nokta_id: int | None = None
 
     @model_validator(mode="after")
-    def _ikisi_birlikte_doluysa_ya_da_bossa(self) -> "AtamaDegisikligiIstek":
-        if (self.vardiya_tipi_id is None) != (self.nokta_id is None):
+    def _ucu_birlikte_doluysa_ya_da_bossa(self) -> "AtamaDegisikligiIstek":
+        alanlar = (self.baslangic_saati, self.bitis_saati, self.nokta_id)
+        dolu = [a for a in alanlar if a is not None]
+        if dolu and len(dolu) != len(alanlar):
             raise ValueError(
-                "vardiya_tipi_id ve nokta_id birlikte doldurulmali ya da ikisi de bos "
-                "birakilmali (hucreyi bosaltmak icin)"
+                "baslangic_saati, bitis_saati ve nokta_id birlikte doldurulmali ya da "
+                "ucu de bos birakilmali (hucreyi bosaltmak icin)"
             )
+        for saat in (self.baslangic_saati, self.bitis_saati):
+            if saat is not None and not tam_saat_mi(saat):
+                raise ValueError("Blok saatleri saat başında olmalı (örnek: 08.00).")
         return self
 
 

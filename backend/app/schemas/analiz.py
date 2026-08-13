@@ -7,9 +7,17 @@ from pydantic import BaseModel, Field
 
 
 class KisiSayisiOku(BaseModel):
+    """Kisi basina bir metrigin degeri.
+
+    `sayi`nin BIRIMI OLCUYE GORE DEGISIR ve cagrildigi yerde yazilidir: gece
+    ve hafta sonu dagilimlarinda SAAT (SRS S2/S3; blok sureleri cozumun
+    ciktisi oldugundan sayima dayali bir olcu tanimsizdir), bina degisim
+    sayacinda ADET.
+    """
+
     personel_id: int
     ad_soyad: str
-    sayi: int
+    sayi: float
 
 
 class SaatDengesiOku(BaseModel):
@@ -47,6 +55,7 @@ class AnalizOku(BaseModel):
     # sorusunu yanitlar, fazla kadro o soruya bir sey eklemez.
     fazla_kadro: list[FazlaKadroKalemi] = Field(default_factory=list)
     toplam_fazla_kadro: int = 0
+    # Birim SAAT (SRS S2, S3).
     kisi_basina_gece: list[KisiSayisiOku]
     kisi_basina_hafta_sonu: list[KisiSayisiOku]
     saat_dagilimi: list[SaatDengesiOku]

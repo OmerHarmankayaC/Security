@@ -25,10 +25,13 @@ from app.main import app
 from app.models.girdi import Tercih, TercihDurumu, TercihTipi
 from app.models.kimlik import Rol
 from app.models.sonuc import Atama, AtamaKaynagi, CizelgeSurumu, CizelgeSurumuDurumu, Donem
-from app.models.tanim import GorevNoktasi, GunTipi, Personel, Talep, VardiyaTipi
+from app.models.tanim import GorevNoktasi, GunTipi, Personel, Talep
 from tests.conftest import oturumlu_istemci, pg_yoksa_atla, senaryo_verisini_temizle
 
 BUGUN = date.today()
+
+# Blok BASLANGIC SAATLERI; sure sekiz saat (blok katalogu kalkti, SRS TD-13).
+_GUNDUZ, _GECE = 8, 0
 
 
 def _benzersiz(on_ek: str) -> str:
@@ -163,21 +166,6 @@ def senaryo() -> dict[str, int]:
     try:
         _temizle(oturum)
 
-        gunduz = VardiyaTipi(
-            ad=f"Gunduz-{on_ek}",
-            baslangic_saati=time(8, 0),
-            bitis_saati=time(16, 0),
-            sure_saat=8,
-            gece_mi=False,
-        )
-        gece = VardiyaTipi(
-            ad=f"Gece-{on_ek}",
-            baslangic_saati=time(0, 0),
-            bitis_saati=time(8, 0),
-            sure_saat=8,
-            gece_mi=True,
-        )
-        oturum.add_all([gunduz, gece])
         nokta = GorevNoktasi(ad=f"Nokta-{on_ek}")
         oturum.add(nokta)
         personel = Personel(
@@ -197,24 +185,24 @@ def senaryo() -> dict[str, int]:
             [
                 Talep(
                     nokta_id=nokta.nokta_id,
-                    baslangic=gunduz.baslangic_saati,
-                    bitis=gunduz.bitis_saati,
+                    baslangic=time(8, 0),
+                    bitis=time(16, 0),
                     gun_tipi=GunTipi.HAFTA_ICI,
                     tarih=None,
                     gereken_sayi=1,
                 ),
                 Talep(
                     nokta_id=nokta.nokta_id,
-                    baslangic=gece.baslangic_saati,
-                    bitis=gece.bitis_saati,
+                    baslangic=time(0, 0),
+                    bitis=time(8, 0),
                     gun_tipi=GunTipi.HAFTA_ICI,
                     tarih=None,
                     gereken_sayi=1,
                 ),
                 Talep(
                     nokta_id=nokta.nokta_id,
-                    baslangic=gece.baslangic_saati,
-                    bitis=gece.bitis_saati,
+                    baslangic=time(0, 0),
+                    bitis=time(8, 0),
                     gun_tipi=GunTipi.HAFTA_SONU,
                     tarih=None,
                     gereken_sayi=1,
@@ -250,12 +238,14 @@ def senaryo() -> dict[str, int]:
         gun2 = BUGUN
         gun3 = BUGUN + timedelta(days=1)
 
-        def _atama(surum_id: int, tarih: date, vardiya_tipi_id: int) -> Atama:
+        def _atama(surum_id: int, tarih: date, baslangic: int) -> Atama:
+            """`baslangic` blogun BASLANGIC SAATI; sure sekiz saat."""
+            bas = datetime.combine(tarih, time(baslangic))
             return Atama(
                 surum_id=surum_id,
                 personel_id=personel.personel_id,
-                tarih=tarih,
-                vardiya_tipi_id=vardiya_tipi_id,
+                baslangic_zamani=bas,
+                bitis_zamani=bas + timedelta(hours=8),
                 nokta_id=nokta.nokta_id,
                 kaynak=AtamaKaynagi.COZUCU,
             )
@@ -263,18 +253,18 @@ def senaryo() -> dict[str, int]:
         # Arsiv: gun0 + gun1 + gun2 (hepsi gunduz).
         oturum.add_all(
             [
-                _atama(arsiv.surum_id, gun0, gunduz.vardiya_tipi_id),
-                _atama(arsiv.surum_id, gun1, gunduz.vardiya_tipi_id),
-                _atama(arsiv.surum_id, gun2, gunduz.vardiya_tipi_id),
+                _atama(arsiv.surum_id, gun0, _GUNDUZ),
+                _atama(arsiv.surum_id, gun1, _GUNDUZ),
+                _atama(arsiv.surum_id, gun2, _GUNDUZ),
             ]
         )
         # Yayinlanan: gun0 YOK (kaldirildi), gun1 ayni, gun2 gece'ye degisti,
         # gun3 yeni (eklendi).
         oturum.add_all(
             [
-                _atama(yayinlanan.surum_id, gun1, gunduz.vardiya_tipi_id),
-                _atama(yayinlanan.surum_id, gun2, gece.vardiya_tipi_id),
-                _atama(yayinlanan.surum_id, gun3, gunduz.vardiya_tipi_id),
+                _atama(yayinlanan.surum_id, gun1, _GUNDUZ),
+                _atama(yayinlanan.surum_id, gun2, _GECE),
+                _atama(yayinlanan.surum_id, gun3, _GUNDUZ),
             ]
         )
         oturum.commit()
@@ -312,16 +302,17 @@ def test_vardiyalarim_degisen_gunleri_uc_ture_ayirir(senaryo: dict[str, int]) ->
     assert gun0 not in degisim_map
     assert [k["tarih"] for k in govde["kaldirilan_gunler"]] == [gun0]
     kaldirilan = govde["kaldirilan_gunler"][0]
-    assert kaldirilan["onceki_baslangic_saati"] == "08:00:00"
-    assert kaldirilan["onceki_gece_mi"] is False
+    assert kaldirilan["onceki_baslangic_zamani"].endswith("T08:00:00")
 
     # Siradaki, kaldirilan gunu SECMEZ; bugunden itibaren ilk gercek vardiya.
     assert govde["siradaki"]["tarih"] == gun2
 
     # Donem ozeti (FR-9.5) yalniz yayinlanmis surumden hesaplanir - kaldirilan
     # gun sayilara girmez. Tek personel oldugu icin kendi degeri = ekip ort.
-    assert govde["ozet"]["gece_sayisi"] == 1
-    assert govde["ozet"]["ekip_ortalama_gece"] == pytest.approx(1.0)
+    # BIRIM SAAT (SRS S2): 00.00-08.00 blogunun ALTI saati gece penceresine
+    # (20.00-06.00) duser. Onceki beklenti 1'di ve birimi vardiya sayisiydi.
+    assert govde["ozet"]["gece_saati"] == pytest.approx(6.0)
+    assert govde["ozet"]["ekip_ortalama_gece"] == pytest.approx(6.0)
     assert govde["ozet"]["toplam_saat"] == pytest.approx(24.0)
 
 
@@ -332,14 +323,6 @@ def test_ilk_yayinda_hicbir_gun_isaretlenmez() -> None:
     oturum = OturumYerel()
     try:
         _temizle(oturum)
-        gunduz = VardiyaTipi(
-            ad=f"Gunduz-{on_ek}",
-            baslangic_saati=time(8, 0),
-            bitis_saati=time(16, 0),
-            sure_saat=8,
-            gece_mi=False,
-        )
-        oturum.add(gunduz)
         nokta = GorevNoktasi(ad=f"Nokta-{on_ek}")
         oturum.add(nokta)
         personel = Personel(
@@ -368,8 +351,8 @@ def test_ilk_yayinda_hicbir_gun_isaretlenmez() -> None:
             Atama(
                 surum_id=surum.surum_id,
                 personel_id=personel.personel_id,
-                tarih=BUGUN,
-                vardiya_tipi_id=gunduz.vardiya_tipi_id,
+                baslangic_zamani=datetime.combine(BUGUN, time(8, 0)),
+                bitis_zamani=datetime.combine(BUGUN, time(16, 0)),
                 nokta_id=nokta.nokta_id,
                 kaynak=AtamaKaynagi.COZUCU,
             )
@@ -431,14 +414,6 @@ def test_tercihlerim_karsilanma_uc_degerli_ve_yalniz_onaylanmislarda() -> None:
     on_ek = _benzersiz("caltercih")
     oturum = OturumYerel()
     try:
-        gunduz = VardiyaTipi(
-            ad=f"Gunduz-{on_ek}",
-            baslangic_saati=time(8, 0),
-            bitis_saati=time(16, 0),
-            sure_saat=8,
-            gece_mi=False,
-        )
-        oturum.add(gunduz)
         nokta = GorevNoktasi(ad=f"Nokta-{on_ek}")
         oturum.add(nokta)
         personel = Personel(
@@ -479,8 +454,8 @@ def test_tercihlerim_karsilanma_uc_degerli_ve_yalniz_onaylanmislarda() -> None:
             Atama(
                 surum_id=surum_b.surum_id,
                 personel_id=personel.personel_id,
-                tarih=date(2026, 6, 10),
-                vardiya_tipi_id=gunduz.vardiya_tipi_id,
+                baslangic_zamani=datetime(2026, 6, 10, 8, 0),
+                bitis_zamani=datetime(2026, 6, 10, 16, 0),
                 nokta_id=nokta.nokta_id,
                 kaynak=AtamaKaynagi.COZUCU,
             )
@@ -532,8 +507,8 @@ def test_tercihlerim_karsilanma_uc_degerli_ve_yalniz_onaylanmislarda() -> None:
             Atama(
                 surum_id=surum_b.surum_id,
                 personel_id=personel.personel_id,
-                tarih=date(2026, 6, 9),
-                vardiya_tipi_id=gunduz.vardiya_tipi_id,
+                baslangic_zamani=datetime(2026, 6, 9, 8, 0),
+                bitis_zamani=datetime(2026, 6, 9, 16, 0),
                 nokta_id=nokta.nokta_id,
                 kaynak=AtamaKaynagi.COZUCU,
             )
