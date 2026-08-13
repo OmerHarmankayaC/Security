@@ -16,6 +16,8 @@
  * düşmez ve talep sessizce kaybolurdu; sunucu da bunu reddeder.
  */
 
+import { saatEtiketi } from './blok'
+
 /** "08:00:00" → 8. Bitiş alanında `00:00:00` gün sonudur, yani 24. */
 export function saatiCoz(iso: string, bitisMi = false): number {
   const saat = Number(iso.slice(0, 2))
@@ -27,10 +29,16 @@ export function saatiYaz(saat: number): string {
   return `${String(saat % 24).padStart(2, '0')}:00:00`
 }
 
-/** 8 → "08.00", 24 → "24.00". Ondalık ayraç NOKTA (Tasarım Referansı). */
-export function saatEtiketi(saat: number): string {
-  return `${String(saat).padStart(2, '0')}.00`
-}
+/**
+ * Saat metninin biçimi TEK YERDE, `blok.ts`te durur; burası yalnızca yeniden
+ * dışa verir.
+ *
+ * Aynı biçimleyicinin üç kopyası (blok, talep aralığı, vardiya rengi) bir kez
+ * hataya yol açtı: gün sonu bir kopyada 24, ötekinde 00 yazılıyordu ve aynı
+ * çizelge iki ekranda farklı okunuyordu. Çağıranların içe aktarma yolu
+ * değişmesin diye yeniden dışa verilir; tanım çoğalmaz.
+ */
+export { saatEtiketi }
 
 /** Bir aralığın ekrandaki hâli: "08.00–24.00". */
 export function araligiYaz(baslangic: string, bitis: string): string {

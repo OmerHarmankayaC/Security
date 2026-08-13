@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import type { KaldirilanGun, Vardiyalarim, Vardiyam } from '@/api/types'
 import { Kart, KartEtiketi, Rozet, Sayi } from '@/components/app-ui'
 import { buyukHarf } from '@/lib/metin'
+import { sayiBicimle } from '@/lib/sayi'
 import {
   bugunIso,
   gunEtiketi,
@@ -11,8 +12,8 @@ import {
   tarihUzunBicim,
   zamanBicimle,
 } from '@/lib/tarih'
-import { vardiyaHucreSinifi } from '@/lib/vardiyaRenk'
-import { blokEtiketi } from '@/lib/blok'
+import { aralikGradyani } from '@/lib/saatRengi'
+import { baslangicSaati, blokEtiketi, blokSuresi } from '@/lib/blok'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -23,10 +24,18 @@ function saatAraligi(v: Vardiyam): string {
   return blokEtiketi(v.baslangic_zamani, v.bitis_zamani)
 }
 
-// Gece HESAPLANIR, işaretlenmez (SRS TD-2): blok üzerinde bir bayrak yok.
-// Kart, gece saati taşıyan bir bloğu koyu gösterir.
-function geceli(v: Vardiyam): boolean {
-  return v.gece_saati > 0
+/**
+ * Bloğun saat bandı — yönetici ızgarasıyla AYNI band (Tur 6 İş 3).
+ *
+ * Çalışan paneli önceki sürümde vardiyayı üç kategoriye ("Gündüz", "Akşam",
+ * "Gece") vurup hücreyi o kategorinin rengiyle boyuyordu. Kategoriler blok
+ * kataloğuyla birlikte kalktı (SRS TD-13); çalışanın gördüğü renk ile
+ * yöneticinin gördüğü renk aynı fonksiyondan gelmek zorunda, aksi hâlde aynı
+ * vardiya iki panelde farklı okunur.
+ */
+function bantZemini(baslangicZamani: string, bitisZamani: string): string {
+  const bas = baslangicSaati(baslangicZamani)
+  return aralikGradyani(bas, bas + blokSuresi(baslangicZamani, bitisZamani))
 }
 
 // Takvim ızgarası pazartesi ile başlar (TD-3'teki hafta sonu tanımı cumartesi/
@@ -95,39 +104,31 @@ export function VardiyalarimEkrani({ veri }: Props) {
   return (
     <>
       {veri.siradaki && (
-        <Kart
-          className={cn(
-            'border-none',
-            vardiyaHucreSinifi(veri.siradaki.baslangic_zamani.slice(11, 19)),
-          )}
-        >
-          <p
-            className={cn(
-              'mb-4 etiket-caps',
-              geceli(veri.siradaki) ? 'text-vardiya-gece-ink-muted' : 'text-ink-muted',
-            )}
-          >
-            {buyukHarf('Sıradaki Vardiyan')}
-          </p>
-          <p className={cn('m-0 text-baslik-bolum font-semibold', geceli(veri.siradaki) ? 'text-vardiya-gece-ink' : 'text-ink')}>
+        <Kart>
+          <p className="mb-4 etiket-caps text-ink-muted">{buyukHarf('Sıradaki Vardiyan')}</p>
+          <p className="m-0 text-baslik-bolum font-semibold text-ink">
             {gunEtiketi(veri.siradaki.tarih, bugun)} · {tarihUzunBicim(veri.siradaki.tarih)}
           </p>
-          <div className="mt-2 flex items-center gap-2">
-            <Sayi
-              className={cn(
-                'text-sayi-buyuk font-semibold',
-                geceli(veri.siradaki) ? 'text-vardiya-gece-ink' : 'text-ink',
-              )}
-            >
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <Sayi className="text-sayi-buyuk font-semibold text-ink">
               {saatAraligi(veri.siradaki)}
             </Sayi>
-            <BeyazEtiket genislik={88}>
-              {geceli(veri.siradaki)
-                ? 'Gece'
-                : Number(veri.siradaki.baslangic_zamani.slice(11, 13)) >= 14
-                  ? 'Akşam'
-                  : 'Gündüz'}
-            </BeyazEtiket>
+            {/* Kart artık kategorinin rengiyle boyanmıyor: kategori yok.
+                Bloğun kendi saat bandı, çalışmanın gecenin neresine düştüğünü
+                kategoriden daha doğru söyler. */}
+            <span
+              className="h-4 w-28 rounded-xs border border-rule-strong"
+              style={{
+                backgroundImage: bantZemini(
+                  veri.siradaki.baslangic_zamani,
+                  veri.siradaki.bitis_zamani,
+                ),
+              }}
+              aria-hidden="true"
+            />
+            {veri.siradaki.gece_saati > 0 && (
+              <BeyazEtiket genislik={104}>{`${sayiBicimle(veri.siradaki.gece_saati, 0)} sa gece`}</BeyazEtiket>
+            )}
             <BeyazEtiket genislik={110}>{veri.siradaki.nokta_ad}</BeyazEtiket>
           </div>
         </Kart>
@@ -171,17 +172,30 @@ export function VardiyalarimEkrani({ veri }: Props) {
                 key={g}
                 className={cn(
                   'relative flex flex-col items-center gap-0.5 py-3 text-sm',
-                  v
-                    ? vardiyaHucreSinifi(v.baslangic_zamani.slice(11, 19))
-                    : 'bg-surface text-ink-muted',
+                  v ? 'bg-surface text-ink' : 'bg-surface text-ink-muted',
                   bugunMu && 'ring-2 ring-inset ring-accent',
                 )}
-                title={degisimBasligi}
+                title={
+                  v ? `${saatAraligi(v)} · ${v.nokta_ad}` : (degisimBasligi ?? undefined)
+                }
               >
                 <Sayi className="text-sayi-orta font-semibold">{g.slice(-2)}</Sayi>
                 <span className="etiket-caps">
                   {v ? buyukHarf(v.nokta_ad.slice(0, 3)) : '–'}
                 </span>
+                {/* Hücrenin TAMAMINI boyamak yerine bloğun kendi bandı ince
+                    bir şerit olarak altta durur: gün numarası ve nokta
+                    kısaltması her hücrede aynı kontrastta okunur, band ise
+                    çalışmanın hangi saatlere düştüğünü gösterir. */}
+                {v && (
+                  <span
+                    className="mt-1 h-1.5 w-8 rounded-xs"
+                    style={{
+                      backgroundImage: bantZemini(v.baslangic_zamani, v.bitis_zamani),
+                    }}
+                    aria-hidden="true"
+                  />
+                )}
                 {degisimBasligi && (
                   <span className="absolute inset-x-0 bottom-0 h-[3px] bg-accent" />
                 )}
@@ -194,9 +208,19 @@ export function VardiyalarimEkrani({ veri }: Props) {
           )}
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-ink-muted">
-          <LegendOgesi renk="bg-vardiya-gunduz border border-rule" etiket="Gündüz" />
-          <LegendOgesi renk="bg-vardiya-aksam" etiket="Akşam" />
-          <LegendOgesi renk="bg-vardiya-gece" etiket="Gece" />
+          {/* Kategorik lejant kalktı: üç kutu, üç sabit vardiya tipi
+              olduğunda anlamlıydı. Band sürekli olduğundan gösterilecek şey
+              bandın kendisidir. */}
+          <span className="flex items-center gap-2">
+            <span className="font-mono">00</span>
+            <span
+              className="h-3 w-20 rounded-xs border border-rule"
+              style={{ backgroundImage: aralikGradyani(0, 24) }}
+              aria-hidden="true"
+            />
+            <span className="font-mono">24</span>
+            <span>saat bandı</span>
+          </span>
           <LegendOgesi renk="bg-accent" etiket="Değişen gün" />
         </div>
       </Kart>
@@ -214,8 +238,8 @@ export function VardiyalarimEkrani({ veri }: Props) {
                   tarih={satir.v.tarih}
                   bugun={bugun}
                   saatler={saatAraligi(satir.v)}
-                  geceli={geceli(satir.v)}
-                  baslangicSaati={satir.v.baslangic_zamani.slice(11, 19)}
+                  bant={bantZemini(satir.v.baslangic_zamani, satir.v.bitis_zamani)}
+                  geceSaati={satir.v.gece_saati}
                   noktaAd={satir.v.nokta_ad}
                   isaretli={satir.v.degisim_tipi !== null}
                   rozet={
@@ -238,10 +262,13 @@ export function VardiyalarimEkrani({ veri }: Props) {
                     satir.k.onceki_baslangic_zamani,
                     satir.k.onceki_bitis_zamani,
                   )}
-                  // Kaldırılan gün için gece saati taşınmıyor; bant
-                  // başlangıç saatinden okunur (SRS TD-2 ile tutarlı).
-                  geceli={false}
-                  baslangicSaati={satir.k.onceki_baslangic_zamani.slice(11, 19)}
+                  bant={bantZemini(
+                    satir.k.onceki_baslangic_zamani,
+                    satir.k.onceki_bitis_zamani,
+                  )}
+                  // Kaldırılan gün kaydı gece saatini taşımıyor; sayı yerine
+                  // uydurulmuş bir değer göstermek yerine hiç gösterilmez.
+                  geceSaati={null}
                   noktaAd={satir.k.onceki_nokta_ad}
                   isaretli
                   rozet="Kaldırıldı"
@@ -272,8 +299,8 @@ function ListeSatiri({
   tarih,
   bugun,
   saatler,
-  geceli,
-  baslangicSaati,
+  bant,
+  geceSaati,
   noktaAd,
   isaretli,
   rozet,
@@ -282,16 +309,15 @@ function ListeSatiri({
   tarih: string
   bugun: string
   saatler: string
-  geceli: boolean
-  baslangicSaati: string
+  /** Bloğun saat bandı (CSS gradient) — kategori adı değil. */
+  bant: string
+  /** Gece saati; kayıt taşımıyorsa `null` ve hiç gösterilmez. */
+  geceSaati: number | null
   noktaAd: string
   isaretli: boolean
   rozet: string | null
   kaldirildi?: boolean
 }) {
-  const vardiyaEtiketi = buyukHarf(
-    geceli ? 'Gece' : Number(baslangicSaati.slice(0, 2)) >= 14 ? 'Akşam' : 'Gündüz',
-  )
   const soluk = kaldirildi ? 'text-ink-muted' : 'text-ink'
   return (
     <li
@@ -321,8 +347,20 @@ function ListeSatiri({
         <Sayi className={cn('shrink-0 text-sm sm:w-28', soluk, kaldirildi && 'line-through')}>
           {saatler}
         </Sayi>
-        <span className="shrink-0 etiket-caps text-ink-muted">
-          {vardiyaEtiketi}
+        <span className="flex shrink-0 items-center gap-2 sm:w-28">
+          <span
+            className={cn(
+              'h-3 w-16 rounded-xs border border-rule-strong',
+              kaldirildi && 'opacity-40',
+            )}
+            style={{ backgroundImage: bant }}
+            aria-hidden="true"
+          />
+          {geceSaati !== null && geceSaati > 0 && (
+            <span className="etiket-caps whitespace-nowrap text-ink-muted">
+              {sayiBicimle(geceSaati, 0)} SA GECE
+            </span>
+          )}
         </span>
         <span className={cn('flex-1 truncate text-sm', soluk, kaldirildi && 'line-through')}>
           {noktaAd}
