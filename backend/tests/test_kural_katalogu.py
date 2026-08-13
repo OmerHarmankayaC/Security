@@ -11,7 +11,10 @@ from app.services.tanim_servisi import KuralParametresiError, TanimServisi
 
 # SRS bolum 4'teki kural katalogu. Arayuzde "H1" yerine bu adlar gosterilir.
 _BEKLENEN_ADLAR = {
-    "H1": "Günde en fazla bir vardiya",
+    # H1 yeniden tanimlandi (SRS 4.2, Tur 5): kural artik yalnizca "gunde
+    # tek atama" demiyor - blok kesintisizdir, asgari sureden kisa olamaz
+    # ve blok boyunca nokta degismez.
+    "H1": "Günde tek ve kesintisiz çalışma",
     "H2": "Asgari dinlenme süresi",
     "H3": "Ardışık gece üst sınırı",
     "H4": "Ardışık çalışma günü üst sınırı",

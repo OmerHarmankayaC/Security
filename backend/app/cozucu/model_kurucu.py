@@ -191,6 +191,28 @@ def model_kur(
         # Anahtar x'te yoksa (ör. talep artik sifir) sabitlenecek bir karar
         # degiskeni yok demektir; sessizce atlanir.
 
+    # ISITMA PENCERESI TUMUYLE SABITTIR, YALNIZ DOLU SAATLERI DEGIL (TD-5).
+    #
+    # Yukaridaki dongu atanmis saatleri 1'e cekiyor ama BOS saatleri serbest
+    # birakiyordu; cozucu gecmis bir haftada olmayan calisma UYDURABILIYOR ve
+    # o uydurma, dinlenme (H2) ile ardisiklik (H3, H4) pencerelerini donemin
+    # ilk gunlerinde yanlis besliyordu. TD-5 acik: "bu atamalar karar
+    # degiskeni degildir ve degistirilemez".
+    #
+    # Sabitleme ayrica ARAMA UZAYININ BESTE BIRINI kaldirir: yedi gunluk
+    # pencere, yirmi sekiz gunluk bir donemin saatlerinin yirmi yuzdesidir.
+    isitma_gunleri = {
+        g
+        for g in baglam.zaman_ekseni
+        if baglam.donem_baslangic is not None and g < baglam.donem_baslangic
+    }
+    for (p, s), z_degiskeni in z.items():
+        if baglam.saat_gunu(s) not in isitma_gunleri:
+            continue
+        calisiyor = any((p, s, n) in sabit_kumesi for n in baglam.gorev_noktalari)
+        if not calisiyor:
+            model.add(z_degiskeni == 0)
+
     # SDD 5.4.1 "devam et": durdurulan isin bulundugu cozum, yeni aramanin
     # BASLANGIC IPUCUDUR. Kisit degil ipucudur - cozucu onu tutmak zorunda
     # degil, ama oradan basladigi icin sonuc ipucundan kotu olmaz.
