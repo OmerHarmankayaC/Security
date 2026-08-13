@@ -81,13 +81,21 @@ senaryosu). Dönemler **üretildiği güne göre** yerleşir ve çizelgeler
 | Dönem | Yeri | Durum | Ne gösterir |
 |---|---|---|---|
 | Geçen | önceki hafta | yayınlandı | Geçmiş çizelge; bir sonrakinin ısıtma penceresi (TD-5) |
-| Bu Hafta | **bugünü içerir** | arşiv + yayınlandı | Çalışan panelinin "Vardiyalarım" ve "sıradaki vardiya"sı; iki sürüm olduğu için "değişen günler" işareti de çalışır (FR-9.4) |
-| Sıkışık | gelecek 4 hafta | çözüldü | Kapanamayan kapsama açığı (Backlog B-14) |
+| Bu Hafta | **bugünü içerir** | arşiv + yayınlandı | Dengeli dönem. Çalışan panelinin "Vardiyalarım" ve "sıradaki vardiya"sı; iki sürüm olduğu için "değişen günler" işareti de çalışır (FR-9.4) |
+| Sıkışık | gelecek 4 hafta | çözüldü | Kapanamayan kapsama açığı (Backlog B-14). Çelişki **erişilebilirlik** üzerinden kurulur: vardiya şefliği havuzunun beşi izinde ve o noktaya başka kimse giremez (H8) — blok uzunluğundan bağımsız |
 | Tatilli | ilk ulusal bayram haftası | sürüm yok | Resmî tatil azaltılmış kadroya düşer (FR-1.10, TD-3); **tercih penceresi açık** olan tek dönem |
+| Fazla Çalışma | tatilliden bir hafta sonra | çözüldü | Güvenlik havuzunun üçte biri izinde; kalanların haftalık yükü eşiği (45 sa) aşar ve **kota tüketimi görünür** olur (H10) |
+| Kota Sınırı | onu izleyen hafta | çözüldü | Devir bakiyesi yüksek personel. Kotası dolmuş kişi eşiğe kadar çalışmaya **devam eder**, üstüne çıkamaz; ön kontrol bunu uyarı olarak bildirir |
 
-Ayrıca 44 personel (3 sabit vardiyalı, 1 pasifleştirilmiş), iki yıllık
+Ayrıca 30 personel (3 sabit vardiyalı, 1 pasifleştirilmiş), iki yıllık
 resmî tatil takvimi, dört müsaitlik tipinin tamamı, yarım gün dilimler
 (TD-4) ve tercihin üç durumu.
+
+**Kadro talebe göre boyutlandırılmıştır** (SRS 3.3.6): 30 kişide kişi
+başına haftalık yük 38,4 saat — fazla çalışma eşiğine yakın ama altında.
+Önceki 44 kişilik kadroda yük 26 saate düşüyor, kimse eşiğe yaklaşmıyor ve
+H10 hiçbir zaman tetiklenmiyordu; kuralların işlediğini gösteremeyen bir
+gösterim verisi, kuralların yazılmamış olmasıyla aynı kapıya çıkar.
 
 ```bash
 cd backend && source .venv/bin/activate

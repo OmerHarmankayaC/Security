@@ -42,9 +42,12 @@ def test_s1_agirligi_diger_hedeflerin_agirlikli_toplamindan_buyuk() -> None:
         uret(sifirla=False, coz=False)
         oturum.commit()
         donemler = oturum.execute(select(Donem).order_by(Donem.donem_id)).scalars().all()
-        assert (
-            len(donemler) == 4
-        ), "demo_veri_uret dort donem uretmeli (Gecen, Bu Hafta, Sikisik, Tatilli)"
+        assert len(donemler) == 6, (
+            "demo_veri_uret alti donem uretmeli (Gecen, Bu Hafta, Sikisik, Tatilli, "
+            "Fazla Calisma, Kota Siniri). Tur 4'te iki senaryo eklendi: kurallarin "
+            "islediginin gorulebilmesi icin fazla calisma ve kota tuketimi gosteren "
+            "donemler gerekiyordu."
+        )
         # Kalibrasyon iki donem olcer: agirlik dengesi "kadro yeterken acik
         # birakilmamali" (rahat bir hafta) ve "kadro yetmezken acik gorunmeli"
         # (Sikisik) uzerinden tanimli. Donemler tarih sirasinda: Gecen,

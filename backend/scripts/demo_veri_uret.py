@@ -40,6 +40,7 @@ import argparse
 import sys
 from dataclasses import dataclass
 from datetime import date, time, timedelta
+from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -343,7 +344,88 @@ _SABIT_VARDIYALI = {
 # (SDD 4.2.1). Tanimlar ekranindaki "Pasifleri goster" filtresini ve H7'nin
 # aktiflik araligi kontrolunu gorunur kilar - demoda hicbir pasif kayit
 # olmadigi icin ikisi de bos calisiyordu.
-_PASIF_PERSONEL = {"GG-028": date(2026, 1, 31)}
+_PASIF_PERSONEL = {"GG-017": date(2026, 1, 31)}
+
+# DEVIR BAKIYESI (H10, FR-1.1). Kota senaryosunun tamami bu uc satirda:
+# yillik kota 270 saat, esik 45 saat/hafta.
+#
+#   - GG-001: 265 saat -> kalan 5. Bir haftalik fazla calismaya bile
+#     yetmez; on kontrol "kotasi dolmus" uyarisi verir ve H10 bu kisiyi
+#     esigin UZERINE cikaramaz. KURAL COZULEMEZLIK URETMEZ: kisi esige
+#     kadar calismaya devam eder (SRS 4.2 H10).
+#   - GG-002: 240 saat -> kalan 30. Bir haftalik fazla calismayi (azami 21
+#     saat) kaldirir ama ikisini kaldirmaz; kotanin BAGLAYICI oldugu ama
+#     tuketilmedigi ara durum.
+#   - VS-001: 120 saat -> kalan 150. Kirilgan havuzda kota bol; sikisik
+#     senaryonun acigi kotadan DEGIL kisi sayisindan dogar, ikisi
+#     karismasin diye.
+#
+# Kota yili demo uretildigi yildir; sabit yazilsaydi yil donunce butun
+# bakiyeler "gecen yilin" gorunurdu.
+_DEVIR_BAKIYELERI: dict[str, float] = {
+    "GG-001": 265.0,
+    "GG-002": 240.0,
+    "VS-001": 120.0,
+}
+
+
+# GERCEKCI ADLAR (Tur 4). Onceki "Demo Personel GG-001" bicimi ekranlarda
+# okunmuyordu: cizelge izgarasinda, analiz tablosunda ve calisan panelinde
+# satirlar birbirinden ayirt edilemiyordu. Adlar kurgudur; sicil numaralari
+# havuzu gosterdigi icin (VS/MR/GG) korundu.
+#
+# Liste havuz basina AYRI tutulur ki bir havuzun buyuklugu degistiginde
+# digerlerinin adlari kaymasin - kaysaydi iki demo uretimi arasinda ayni
+# sicil farkli bir ada duserdi ve ekran goruntuleri karsilastirilamazdi.
+_ADLAR: dict[str, tuple[str, ...]] = {
+    "VS": (
+        "Mehmet Aydın",
+        "Hatice Şahin",
+        "Ali Rıza Koç",
+        "Zeynep Arslan",
+        "Mustafa Yıldırım",
+        "Emine Doğan",
+        "Hüseyin Çetin",
+    ),
+    "MR": (
+        "Fatma Kaya",
+        "Ayşe Demir",
+        "Elif Yılmaz",
+        "Merve Öztürk",
+        "Sevgi Aksoy",
+        "Nurten Polat",
+    ),
+    "GG": (
+        "Ahmet Yılmaz",
+        "Osman Kurt",
+        "İbrahim Yalçın",
+        "Ramazan Erdoğan",
+        "Süleyman Aslan",
+        "Kadir Bulut",
+        "Murat Şimşek",
+        "Yusuf Kılıç",
+        "Halil Özdemir",
+        "Bekir Sarı",
+        "Cemal Turan",
+        "Serkan Avcı",
+        "Volkan Kaplan",
+        "Erhan Güneş",
+        "Tolga Ayhan",
+        "Kemal Uçar",
+        "Sinan Ekinci",
+    ),
+}
+
+
+def _ad_soyad(sicil_on_eki: str, sira: int) -> str:
+    """Sicil sirasina karsilik gelen ad; liste yetmezse sicile duser.
+
+    Duserek devam etmesi bilincli: havuz buyudugunde uretec CALISMAYA
+    DEVAM eder, yalnizca son kisiler sicilleriyle gorunur. Hata vermek,
+    kadro buyuklugunu denemek isteyen kullaniciyi durdururdu.
+    """
+    adlar = _ADLAR.get(sicil_on_eki, ())
+    return adlar[sira - 1] if sira <= len(adlar) else f"{sicil_on_eki}-{sira:03d}"
 
 
 def _personeli_olustur(
@@ -356,12 +438,14 @@ def _personeli_olustur(
             sicil_no = f"{grup.sicil_on_eki}-{i:03d}"
             sabit_ad = _SABIT_VARDIYALI.get(sicil_no)
             personel = Personel(
-                ad_soyad=f"Demo Personel {sicil_no}",
+                ad_soyad=_ad_soyad(grup.sicil_on_eki, i),
                 sicil_no=sicil_no,
                 haftalik_hedef_saat=40,
                 aktif_baslangic=date(2026, 1, 1),
                 aktif_bitis=_PASIF_PERSONEL.get(sicil_no),
                 sabit_vardiya_tipi_id=(vardiyalar[sabit_ad].vardiya_tipi_id if sabit_ad else None),
+                devir_fazla_calisma_saat=Decimal(str(_DEVIR_BAKIYELERI.get(sicil_no, 0.0))),
+                kota_yili=date.today().year,
             )
             personel.yetkinlikler = [yetkinlikler[ad] for ad in grup.yetkinlikler]
             oturum.add(personel)
@@ -389,6 +473,9 @@ class DemoDonemleri:
     bu_hafta: Donem
     sikisik: Donem
     tatilli: Donem
+    # Tur 4: kurallarin islediginin GORULEBILDIGI iki senaryo.
+    fazla_calisma: Donem
+    kota_siniri: Donem
 
 
 def _donemleri_ve_izinleri_olustur(
@@ -455,14 +542,20 @@ def _donemleri_ve_izinleri_olustur(
     oturum.add_all([gecen, bu_hafta, sikisik, tatilli])
     oturum.flush()
 
-    # SRS 3.3.6: vardiya sefligi havuzunun teorik asgarisi 5 kisidir ("Izin
-    # Payiyla" 9'a olceklenmesinin nedeni tam bu payi karsilamak, bkz.
-    # PersonelGrubuTanimi docstring'i); 9 kisilik demo havuzunun 5'ini
-    # (kalan 4 < teorik asgari 5) iki haftaligina izne cikarmak, H5/H6
-    # tavaniyla sinirli azami HAFTALIK kapasiteyi (4x5=20) haftalik
-    # gerekenin (21) altinda birakarak kapanamayan bir kapsama acigi
-    # dogurur - izin suresi bilerek donemin (28 gun) TAMAMINDAN KISA
-    # tutulur ki acik donem geneli toplamlarda seyrelsin.
+    # SIKISIK SENARYONUN CELISKISI ERISILEBILIRLIK UZERINDEN KURULUR, kadro
+    # buyuklugu uzerinden degil. On iki saatlik bloklar girdikten sonra ayni
+    # kadro daha cok saat kapatabiliyor ve "kadroyu kucult" mekanizmasi
+    # calismaz oldu (kabul olcumu K4 bunu sifir acikla yakaladi).
+    #
+    # Erisilebilirlik tabanli celiski blok uzunlugundan BAGIMSIZDIR: vardiya
+    # sefligi noktasina yalnizca Vardiya Sefi yetkinligi olanlar girebilir
+    # (H8) ve o nokta kesintisiz doludur - haftada 21 vardiya. Yedi kisilik
+    # havuzun besini izne cikarmak, kalan ikisinin H6 (haftada en az bir
+    # izin gunu) altinda kapatamayacagi bir bosluk dogurur; hicbir blok
+    # uzunlugu bunu degistiremez, cunku eksik olan SAAT degil KISIDIR.
+    #
+    # Izin suresi bilerek donemin (28 gun) TAMAMINDAN KISA tutulur ki acik
+    # donem geneli toplamlarda seyrelsin.
     vardiya_sefleri = personel_gruplari["VS"]
     for personel in vardiya_sefleri[:5]:
         oturum.add(
@@ -476,9 +569,51 @@ def _donemleri_ve_izinleri_olustur(
             )
         )
 
+    fazla_bas = tatilli.bitis_tarihi + timedelta(days=1)
+    fazla_bas = _bu_haftanin_pazartesisi(fazla_bas + timedelta(days=7))
+    fazla_calisma = Donem(
+        baslangic_tarihi=fazla_bas,
+        bitis_tarihi=fazla_bas + timedelta(days=6),
+        tercih_son_tarihi=kapali_pencere(fazla_bas),
+    )
+    kota_bas = fazla_bas + timedelta(days=7)
+    kota_siniri = Donem(
+        baslangic_tarihi=kota_bas,
+        bitis_tarihi=kota_bas + timedelta(days=6),
+        tercih_son_tarihi=kapali_pencere(kota_bas),
+    )
+    oturum.add_all([fazla_calisma, kota_siniri])
+    oturum.flush()
+
+    # FAZLA CALISMA SENARYOSU. Kadro 30 kisiyle kisi basina haftalik 38,4
+    # saat tasiyor - esigin (45) altinda. Guvenlik havuzunun ucte biri izne
+    # cikarildiginda kalanlarin haftalik yuku esigin uzerine ciker ve
+    # cozucu on iki saatlik bloklara yonelir; kota tuketimi ancak boyle
+    # GORUNUR olur. On iki saatlik bloklar olmasa ayni izin yalnizca
+    # kapsama acigi uretirdi.
+    guvenlik = personel_gruplari["GG"]
+    for personel in guvenlik[: len(guvenlik) // 3]:
+        oturum.add(
+            Musaitlik(
+                personel_id=personel.personel_id,
+                baslangic_tarihi=fazla_calisma.baslangic_tarihi,
+                bitis_tarihi=fazla_calisma.bitis_tarihi,
+                dilim=MusaitlikDilimi.TAM_GUN,
+                tip=MusaitlikTipi.YILLIK_IZIN,
+                not_="Demo: fazla calisma senaryosu - kalan kadro esigin uzerine cikar",
+            )
+        )
+
     _tatilli_donem_girdileri(oturum, personel_gruplari, tatilli)
     oturum.flush()
-    return DemoDonemleri(gecen=gecen, bu_hafta=bu_hafta, sikisik=sikisik, tatilli=tatilli)
+    return DemoDonemleri(
+        gecen=gecen,
+        bu_hafta=bu_hafta,
+        sikisik=sikisik,
+        tatilli=tatilli,
+        fazla_calisma=fazla_calisma,
+        kota_siniri=kota_siniri,
+    )
 
 
 def _tatilli_donem_girdileri(
@@ -497,6 +632,11 @@ def _tatilli_donem_girdileri(
       - Tercihin uc durumu (beklemede, onaylandi, reddedildi) ve iki tipi
         (calismama, vardiya tipi tercihi), calisan notu ve ret gerekcesiyle
     """
+    # INDISLER SONDAN SAYILIR. Kadro buyuklugu Tur 4'te 44'ten 30'a
+    # indi (SRS 3.3.6) ve sabit indisler (guvenlik[9], sefler[8]) listeden
+    # tastı. Sondan saymak, havuz buyuklugu bir daha degistiginde de
+    # calisir; bu kayitlarin amaci belirli bir KISIYI degil, cesitliligi
+    # gostermek.
     guvenlik = personel_gruplari["GG"]
     sefler = personel_gruplari["VS"]
     muracaat = personel_gruplari["MR"]
@@ -505,7 +645,7 @@ def _tatilli_donem_girdileri(
     oturum.add_all(
         [
             Musaitlik(
-                personel_id=guvenlik[9].personel_id,
+                personel_id=guvenlik[-3].personel_id,
                 baslangic_tarihi=gun + timedelta(days=1),
                 bitis_tarihi=gun + timedelta(days=3),
                 dilim=MusaitlikDilimi.TAM_GUN,
@@ -513,7 +653,7 @@ def _tatilli_donem_girdileri(
                 not_="Demo: üç günlük istirahat raporu",
             ),
             Musaitlik(
-                personel_id=guvenlik[10].personel_id,
+                personel_id=guvenlik[-2].personel_id,
                 baslangic_tarihi=gun,
                 bitis_tarihi=gun,
                 dilim=MusaitlikDilimi.OGLEDEN_ONCE,
@@ -523,7 +663,7 @@ def _tatilli_donem_girdileri(
                 not_="Demo: yarım gün eğitim (öğleden önce)",
             ),
             Musaitlik(
-                personel_id=guvenlik[11].personel_id,
+                personel_id=guvenlik[-1].personel_id,
                 baslangic_tarihi=gun + timedelta(days=2),
                 bitis_tarihi=gun + timedelta(days=2),
                 dilim=MusaitlikDilimi.OGLEDEN_SONRA,
@@ -531,7 +671,7 @@ def _tatilli_donem_girdileri(
                 not_="Demo: yarım gün mazeret izni (öğleden sonra)",
             ),
             Musaitlik(
-                personel_id=sefler[8].personel_id,
+                personel_id=sefler[-1].personel_id,
                 baslangic_tarihi=gun + timedelta(days=4),
                 bitis_tarihi=gun + timedelta(days=5),
                 dilim=MusaitlikDilimi.TAM_GUN,
@@ -646,6 +786,14 @@ def _cizelgeleri_uret(oturum: Session, donemler: DemoDonemleri) -> None:
     _donemi_coz(oturum, donemler.sikisik, zaman_limiti=30, etiket="Sikisik Donem")
     oturum.commit()
 
+    # Tur 4'un iki senaryosu. Ikisi de COZULUR durumda birakilir
+    # (yayinlanmaz): amaclari calisan panelini beslemek degil, kurallarin
+    # davranisini Analiz ve Cizelge ekranlarinda gostermek.
+    _donemi_coz(oturum, donemler.fazla_calisma, zaman_limiti=30, etiket="Fazla Calisma Donemi")
+    oturum.commit()
+    _donemi_coz(oturum, donemler.kota_siniri, zaman_limiti=30, etiket="Kota Siniri Donemi")
+    oturum.commit()
+
 
 def uret(*, sifirla: bool, coz: bool = True) -> None:
     oturum = OturumYerel()
@@ -692,8 +840,8 @@ def uret(*, sifirla: bool, coz: bool = True) -> None:
         f"Demo verisi uretildi: {toplam_personel} personel "
         f"({len(_SABIT_VARDIYALI)} sabit vardiyali, {len(_PASIF_PERSONEL)} pasif), "
         f"{len(NOKTA_TANIMLARI)} gorev noktasi, {len(_KURAL_TANIMLARI)} kural, "
-        f"{len(_bayram_takvimi(bugun))} resmi tatil, 4 donem "
-        f"(Gecen, Bu Hafta, Sikisik, Tatilli)."
+        f"{len(_bayram_takvimi(bugun))} resmi tatil, 6 donem "
+        f"(Gecen, Bu Hafta, Sikisik, Tatilli, Fazla Calisma, Kota Siniri)."
     )
     # Silinen hesap SESSIZ kalmamali: silinen sey bir kullanicinin sisteme
     # girisidir, gecmis dondugunde geri gelmez.
