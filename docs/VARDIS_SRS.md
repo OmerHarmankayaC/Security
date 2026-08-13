@@ -43,6 +43,8 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 13.08.2026 | Esnek hedeflerin ceza değişkenlerinin üst sınırla kısıtlanamayacağı 4.3'e yazıldı: S3'ün sapma değişkenine konan üst sınır, kadro yetersizken modeli çözülemez kılıyor ve FR-5.2'yi ihlal ediyordu | 1.18 |
 | Ömer HARMANKAYA | 13.08.2026 | Model, önceden tanımlı çalışma bloklarının seçiminden gerçek saatlik karara geçirildi: karar değişkeni mutlak saat ekseninde tanımlandı (TD-13), blok kataloğu ve `gece_mi` bayrağı kaldırıldı (3.3.1, TD-2), H1 kesintisizlik kısıtına, H3 gece gününe, H9 günlük toplama, S6 fiilî başlangıç kaymasına dönüştürüldü, asgari blok süresi ve gece eşiği parametreleri eklendi (3.3.5). Müracaat görev noktası ve yetkinliği kaldırıldı; talebi Güvenlik'e taşındı (3.3.2, 3.3.3, 3.3.4) | 1.19 |
 | Ömer HARMANKAYA | 13.08.2026 | S4'ün sapma ölçüsü, S2 ve S3'ün kullandığı taban/tavan yöntemine çevrildi; üç adalet hedefi artık aynı yöntemi kullanıyor | 1.20 |
+| Ömer HARMANKAYA | 13.08.2026 | H1 ve H9'daki "gün d" ifadesi bloğun başlangıç gününe bağlandı; takvim günü sayımı gece yarısını aşan blokta günlük tavanı hiç tetiklemiyordu. 3.3.6'daki müracaat satırı ve blok sayısına dayalı toplam kaldırıldı | 1.21 |
+| Ömer HARMANKAYA | 13.08.2026 | 7.2'deki çizelge dışa aktarma biçimi saat modeline göre yeniden yazıldı; vardiya tipi ve gece bayrağı alanları kaldırıldı, başlangıç ve bitiş ISO damgasına çevrildi | 1.22 |
 
 
 
@@ -372,16 +374,19 @@ Kadro gereksinimi fazla çalışma eşiği üzerinden hesaplanır: 1.152 saat / 
 
 Yetkinlik havuzları ayrı ayrı değerlendirildiğinde tablo aşağıdaki gibidir.
 
-| Yetkinlik Havuzu | Haftalık Kişi-Vardiya | Teorik Asgari | İzin Payıyla |
+| Yetkinlik Havuzu | Haftalık Kişi-Saat | Teorik Asgari | İzin Payıyla |
 | --- | --- | --- | --- |
-| Vardiya Şefi | 21 | 5 | 7 |
-| Müracaat Görevlisi | 20 | 4 | 6 |
-| Güvenlik Görevi | 103 | 21 | 23 |
-| Toplam | 144 | 29 | 36 |
+| Vardiya Şefi | 168 | 4 | 6 |
+| Güvenlik Görevi | 984 | 22 | 25 |
+| Toplam | 1.152 | 26 | 31 |
+
+Vardiya Şefliği noktası haftanın her günü kesintisiz bir kişi gerektirir: 7 × 24 = 168 kişi-saat. Kalan yük güvenlik noktasınındır. Şef yetkinliğine sahip personel güvenlik noktasında da çalışabildiği için iki havuzun asgarileri toplandığında bir miktar fazlalık oluşur; tabloda havuzlar bağımsız hesaplanmıştır.
+
+**Vardiya Şefi havuzu yapısal olarak kırılgandır.** Tek bir noktanın kesintisiz doldurulması gerekir ve o noktanın ön koşulunu yalnızca bu havuz karşılar. Havuzun bir kısmının aynı dönemde izinli olması, kadro büyüklüğünden ve çalışma sürelerinin uzunluğundan bağımsız olarak kapsama açığı üretir; kırılganlık senaryosu (Charter bölüm 5, K4) bu mekanizmayı kullanır.
 
 
 
-Vardiya şefliği havuzu sistemin en kırılgan bileşenidir. Kesintisiz doldurulan tek bir görev noktası haftada 21 vardiya gerektirmekte; beş kişilik bir havuzda tek bir personelin izne ayrılması, kalan dört kişinin haftalık tavanı aşmadan bu yükü karşılayamaması nedeniyle kapatılamayan bir boşluk doğurmaktadır. Müracaat havuzunda aynı durum dört kişilik kadroda ortaya çıkmaktadır.
+Vardiya şefliği havuzu sistemin en kırılgan bileşenidir. Kesintisiz doldurulan tek bir görev noktası haftada 168 kişi-saat gerektirmekte; küçük bir havuzda tek bir personelin izne ayrılması, kalanların fazla çalışma eşiğini aşmadan bu yükü karşılayamaması nedeniyle kapatılamayan bir boşluk doğurmaktadır. Kırılganlık kadro büyüklüğünden değil erişilebilirlikten gelir: noktanın ön koşulunu yalnızca bu havuz karşılar, dolayısıyla açık çalışma sürelerinin uzunluğundan bağımsızdır.
 
 Bu analiz, bölüm 5.5'te tanımlanan fizibilite geri bildirimi işlevinin neden zorunlu kısıt yerine esnek hedef üzerine kurulduğunu göstermektedir. Kadro daraldığında doğru davranış çözümü reddetmek değil, açığın hangi gün, vardiya ve noktada oluştuğunu göstermektir.
 
@@ -424,7 +429,8 @@ bas[p,s] ≥ z[p,s] − z[p,s−1]              blok başlangıcı göstergesi
 bas[p,s] ≤ z[p,s]
 bas[p,s] ≤ 1 − z[p,s−1]
 ∀p, ∀d :  Σ_{s ∈ gün d} bas[p,s] ≤ 1
-∀p, ∀d :  Σ_{s ∈ gün d} z[p,s] ≥ asgari_blok_saat · Σ_{s ∈ gün d} bas[p,s]
+∀p, ∀d :  Σ_{s ∈ G(p,d)} z[p,s] ≥ asgari_blok_saat · Σ_{s ∈ gün d} bas[p,s]
+          G(p,d) : d gününde başlayan bloğa ait saatler (H9)
 ```
 
 Parametre: asgari_blok_saat. Kuralın son satırı, bir gün çalışma başlamışsa o günün toplam çalışma süresinin asgari blok süresine ulaşmasını zorunlu kılar; hiç çalışılmayan günde her iki taraf da sıfırdır.
@@ -525,12 +531,16 @@ Bu tanım, yetkinlik gereksinimini sayma yerine eşleme problemine dönüştür�
 Bir personelin bir takvim günündeki çalışma süresi günlük tavanı aşamaz.
 
 ```
-∀p, ∀d :  Σ_{s ∈ gün d} z[p,s] ≤ azami_gunluk_saat
+G(p,d) = { s : p'nin d gününde başlayan bloğuna ait saatler }
+         gece yarısını aşan blokta ertesi güne taşan saatler dahildir
+∀p, ∀d :  Σ_{s ∈ G(p,d)} z[p,s] ≤ azami_gunluk_saat
 ```
 
 Parametre: azami_gunluk_saat (varsayılan 11).
 
-Kural, H1'in asgari süre koşuluyla birlikte çalışma bloğunun alt ve üst sınırını çizer: bir günlük çalışma dört saatten kısa, on bir saatten uzun olamaz. Gece yarısını aşan bloğun saatleri başladığı güne sayılır (TD-1); ertesi günün tavanı bu saatlerle dolmaz.
+**"Gün d" takvim günü değil, bloğun başlangıç günüdür.** Sayım takvim günü üzerinden yapılsaydı gece yarısını aşan bir blok ikiye bölünür ve tavan hiç tetiklenmezdi: 20.00–08.00 arası on iki saatlik bir çalışma, takvim günü sayımında dört ve sekiz saat olarak görünür; ikisi de on bir saatin altında kalır ve on bir saatlik tavanı aşan blok sessizce geçer. Aynı bağ H1'in günde tek başlangıç kısıtı için de geçerlidir ve TD-1'in doğrudan sonucudur.
+
+Kural, H1'in asgari süre koşuluyla birlikte çalışma bloğunun alt ve üst sınırını çizer: bir günlük çalışma dört saatten kısa, on bir saatten uzun olamaz.
 
 ### H10 — Yıllık fazla çalışma kotası
 
@@ -754,7 +764,7 @@ Ağırlıkların tamamı kullanıcı tarafından ayarlanabilir. Sistem hangi hed
 | FR-1.6 | Sistem, görev noktalarının ad, bağlı olduğu bina ve ön koşul yetkinliğiyle tanımlanmasına imkân vermelidir. Bina alanı boş bırakıldığında nokta tesis geneli olarak değerlendirilir. | Zorunlu |
 | FR-1.7 | Sistem, talep tanımının görev noktası, zaman aralığı ve gün tipi kırılımında yapılmasına ve tekil tarihler için istisna tanımlanmasına imkân vermelidir. | Zorunlu |
 | FR-1.8 | Sistem, talep tanımlarını görev noktası ve gün tipi kırılımında, her kayıt bir zaman aralığı olacak biçimde göstermeli; aralıkların ve gereken sayıların doğrudan düzenlenmesine imkân vermelidir. Aynı nokta ve gün tipi için çakışan aralıklar tanımlanamaz. | Yüksek |
-| FR-1.9 | Sistem, tanımlı talepten haftalık toplam kişi-saat yükünü ve kural parametreleri altındaki asgari kadro büyüklüğünü hesaplayarak göstermelidir. Hesap saat tabanlıdır; kişi-vardiya karşılığı gösterilmez, çünkü karışık uzunluklu katalogda bu sayı kataloğun bileşimine bağlıdır. | Orta |
+| FR-1.9 | Sistem, tanımlı talepten haftalık toplam kişi-saat yükünü ve kural parametreleri altındaki asgari kadro büyüklüğünü hesaplayarak göstermelidir. Hesap saat tabanlıdır; blok süreleri çözümün çıktısı olduğundan vardiya sayısı üzerinden bir karşılık gösterilmez. | Orta |
 | FR-1.10 | Sistem, resmî tatillerin takvimde işaretlenmesine imkân vermelidir. | Yüksek |
 | FR-1.11 | Sistem, zorunlu kural parametrelerinin görüntülenmesine ve değiştirilmesine imkân vermelidir. | Zorunlu |
 | FR-1.12 | Sistem, esnek hedef ağırlıklarının görüntülenmesine ve değiştirilmesine imkân vermelidir. | Zorunlu |
@@ -1040,16 +1050,31 @@ Dilim değerleri: TAM, OO (öğleden önce), OS (öğleden sonra)
 **Çizelge dışa aktarma (CSV):**
 
 ```
-tarih; sicil; ad; vardiya_tipi; gorev_noktasi; gece_mi; hafta_sonu_mu; sure_saat
+sicil; ad; baslangic; bitis; gorev_noktasi; gece_saat; hafta_sonu_mu; sure_saat
 ```
+
+Başlangıç ve bitiş tam ISO zaman damgasıdır, tarih ve saat metni değil. Gece
+yarısını aşan bir bloğun bitişi ertesi güne düşer; ayrı bir tarih sütunuyla saat
+metni bunu makineye söyleyemez ve blok iki gün arasında kaybolur. Bloğun hangi
+güne sayıldığı (TD-1) başlangıç damgasından türetilir.
+
+`gece_saat`, bloğun 20.00–06.00 aralığıyla kesişiminin uzunluğudur (TD-2); önceki
+sürümlerdeki `gece_mi` bayrağının yerini alır ve çalışma zamanı saat düzeyinde
+belirlendiği için ikili bir değer taşımaz.
 
 Görev noktası sütunu, atamanın görev noktası kırılımında tutulmasından gelir (Yazılım Tasarım Dokümanı 4.2.4); noktası olmayan bir satır kaydın yalnızca bir bölümünü taşır. Tarih sütunu, satırların gün ekseninde okunmasını kolaylaştırmak üzere başa alınmıştır.
 
 **Kapsama açığı dışa aktarma (CSV):**
 
 ```
-tarih; vardiya_tipi; gorev_noktasi; tur; kisi_sayisi
+baslangic; bitis; gorev_noktasi; tur; kisi_sayisi
 ```
+
+Başlangıç ve bitiş burada da tam ISO zaman damgasıdır. Kapsama açığı kaydı bugün
+veritabanında tarih ve ofsetsiz saat olarak tutulmaktadır (SDD 4.2.4); bu
+gösterimden ISO damgası kurmak, saklanmayan bir ofseti uydurmak anlamına gelir ve
+gece yarısını aşan bir açık aralığı dosyada okunamaz kalır. Kaydın atama tablosuyla
+aynı biçime (zaman damgası) taşınması gerekmektedir; Ürün Backlog'unda kayıtlıdır.
 
 Bu dosya iki tür sapmayı birlikte taşır: talebin altında kalan kapsama açıkları ve manuel düzenlemeyle talebin üzerine çıkılan fazla kadro kayıtları. Tür sütunu hangisinin söz konusu olduğunu belirtir; kişi sayısı her iki türde de pozitif yazılır, yönü tür bildirir. İkisinin aynı dosyada bulunması, satır şekillerinin aynı olmasından kaynaklanır — ayrı dosya gerekçesi, farklı sütun kümelerinin tek dosyaya sıkıştırılmasına karşıdır, aynı şekildeki satırların ayrılmasını gerektirmez.
 

@@ -48,9 +48,10 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 12.08.2026 | Ön kontrol bulgularının çözüm işini düşürmesi kaldırıldı (5.2) — davranış SRS FR-5.2'yi ihlal ediyordu; kapsama oranının kaynağı kapsama açığı tablosundan atama kayıtlarına çevrildi (5.7) | 1.23 |
 | Ömer HARMANKAYA | 12.08.2026 | Tur 3 uygulamasının doğurduğu borçlar kapatıldı: gün sonunun kodlanışı (24.00 yerine bitiş ≤ başlangıç sözleşmesi) 4.2.2'ye, `cozum_isi.on_kontrol_bulgulari` 4.2.4'e, aynı kısıtı üreten saatlerin tek değişkende toplanması 5.3'e, talep uç noktalarının kayıt tabanlı hâli Ek B'ye yazıldı | 1.24 |
 | Ömer HARMANKAYA | 12.08.2026 | Gün sonunun arayüzde 24.00 olarak gösterilmesi ve saatlerin saat başında sınırlanması 6.3.1'e yazıldı | 1.25 |
+| Ömer HARMANKAYA | 13.08.2026 | Kural kataloğunun saatlik düzene taşınması tasarlandı: takvim haftası kümelerinin kayan pencereden ayrı hesaplanması ve blok görünümü türevinin kaldırılması 5.3'e, kota ve devir bakiyesi bulguları 5.2'ye, çizelge ızgarasının blok gösterimi 6.3.3'e yazıldı; kural parametreleri 4.2.3'e eklendi | 1.26 |
 | Ömer HARMANKAYA | 13.08.2026 | Gerçek saatlik modele geçiş tasarlandı: `vardiya_tipi` tablosu kaldırıldı, `atama` blok kaydına çevrildi (başlangıç ve bitiş zamanı), model kurma mutlak saat ekseni üzerine yeniden yazıldı (5.3), Tanımlar'dan Vardiya Tipi sekmesi kaldırıldı ve Çizelge ekranı gün ızgarası ile hafta şeridine ayrıldı (6.3.1, 6.3.3) | 1.27 |
 | Ömer HARMANKAYA | 13.08.2026 | Ölçüm sonrası üç madde 5.3'e yazıldı: taşma göstergelerinin günlük tavanla sınırlanması, değişken elemenin kural kısıtlarını sessizce iptal edebilmesi ve ısıtma penceresinin gerçekten sabitlenmesinin doğrulanması | 1.28 |
-| Ömer HARMANKAYA | 13.08.2026 | Kural kataloğunun saatlik düzene taşınması tasarlandı: takvim haftası kümelerinin kayan pencereden ayrı hesaplanması ve blok görünümü türevinin kaldırılması 5.3'e, kota ve devir bakiyesi bulguları 5.2'ye, çizelge ızgarasının blok gösterimi 6.3.3'e yazıldı; kural parametreleri 4.2.3'e eklendi | 1.26 |
+| Ömer HARMANKAYA | 13.08.2026 | Çizelge ekranının görünüm anahtarı ve nokta süzgeci 6.3.3'e, analiz yanıtındaki adil pay alanı Ek B'ye yazıldı; revizyon tablosunun sıralaması düzeltildi | 1.29 |
 
 
 
@@ -1242,6 +1243,12 @@ düzendedir. İki sunum kuralı vardır:
 
 - Kapsama Açığı İşareti: Talebin karşılanamadığı saat-nokta hücreleri belirgin biçimde işaretlenir; üzerine gelindiğinde eksik personel sayısı gösterilir. Gün ızgarasında işaret saat düzeyindedir, hafta şeridinde gün başlığında toplanır.
 
+- Görünüm Anahtarı: Gün ızgarası ile hafta şeridi arasında geçiş yapar. Önceki sürümlerde bu anahtar personel ekseni ile nokta ekseni arasında geçiş yapıyordu; nokta ekseni kaldırılmıştır. Saat modelinde nokta ekseni zayıf bir ayrımdır — görev noktası sayısı azdır ve blok boyunca sabittir (H1) — buna karşılık çözünürlük ayrımı (bir günü ayrıntılı okumak / yedi güne birden bakmak) ekranın asıl ihtiyacıdır.
+
+- Nokta Süzgeci: Gün ızgarasında görünen satırları belirli bir görev noktasına indirir. "Bu noktada bugün kim var" sorusu, kaldırılan nokta ekseninin verdiğinden daha ince bir çözünürlükte yanıtlanır: yalnızca kimin atandığı değil, hangi saatlerde bulunduğu da okunur.
+
+- Renk Bandı Erişilebilirliği: Renk tek başına bilgi taşımaz. Şeridin üzerinde saat aralığı metni her zaman bulunur; kilitli bloklar renkle değil dokuyla, kapsama açığı ise simge ve sayıyla işaretlenir. Renk körlüğü ve arka plan basımının kapalı olduğu yazdırma bu nedenle bilgi kaybettirmez.
+
 ### 6.3.4 Analiz Ekranı
 
 - Kapsama Kartı: Dönem geneli kapsama oranı ile açık verilen gün, saat aralığı ve nokta listesi.
@@ -1436,7 +1443,7 @@ Aşağıdaki tablo başlıca uç noktaların işlevsel bir özetidir. Uç noktal
 | /api/cozum/{id}/karar | POST | Durdurulan işte kullanıcı kararı (kullan / at / devam) |
 | /api/atama/dogrula | POST | Manuel değişikliğin kural doğrulaması |
 | /api/atama | PUT | Doğrulanmış manuel değişikliğin uygulanması |
-| /api/analiz/{surum_id} | GET | Analiz metriklerinin hesaplanması |
+| /api/analiz/{surum_id} | GET | Analiz metriklerinin hesaplanması; kişiye düşen adil pay değerleri dahil |
 | /api/calisan/vardiyalarim | GET | Çalışanın yayınlanmış çizelgedeki atamaları |
 | /api/calisan/tercih | GET, POST | Çalışanın tercih bildirimi |
 
