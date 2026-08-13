@@ -151,27 +151,40 @@ class AnalizServisi:
         # (SRS S2/S3'teki P_gece, P_hs) uzerinden raporlanir - yetkinligi
         # geregi o talebin bulundugu hicbir noktada calisamayan personel
         # olcume dahil edilmez, aksi halde kalici olarak ortalamanin altinda
-        # gorunur. Havuz tanimi Baglam.uygun_havuz'da tek yerde durur;
-        # cozucu, dogrulayici ve Analiz ayni tabani kullanir.
+        # gorunur. Havuz tanimi Baglam.adil_paylar'da tek yerde durur (havuz,
+        # payi sifirdan buyuk olanlardir); cozucu, dogrulayici ve Analiz ayni
+        # tabani kullanir.
         # Yuklem SAAT EKSENLI talebe uygulanir (anahtar: tarih, saat, nokta).
-        gece_havuzu = baglam.uygun_havuz(lambda anahtar: gece_saati_mi(anahtar[1]))
-        hs_havuzu = baglam.uygun_havuz(lambda anahtar: baglam.hafta_sonu_mu(anahtar[0]))
+        #
+        # PAY DA RAPORLANIR (Tur 6). Havuz uyeligi zaten "payi sifirdan
+        # buyuk olan" demek; `uygun_havuz` payi hesaplayip atiyordu ve
+        # arayuz elinde yalnizca sayilarla kalinca referans olarak HAVUZ
+        # ORTALAMASINI cizmek zorunda kaliyordu. Ortalama, S2/S3'un acikca
+        # reddettigi olcudur: erisilebilirligi kisitli bir havuz ona gore
+        # kalici olarak sapmali gorunur. Paylar bir kez hesaplanir, havuz
+        # ondan turer — iki ayri gecis yapilmaz ve tanim yine tek yerdedir.
+        gece_paylari = baglam.adil_paylar(lambda anahtar: gece_saati_mi(anahtar[1]))
+        hs_paylari = baglam.adil_paylar(lambda anahtar: baglam.hafta_sonu_mu(anahtar[0]))
 
         kisi_basina_gece = [
             KisiSayisiOku(
                 personel_id=p.personel_id,
                 ad_soyad=p.ad_soyad,
                 sayi=gece_saat.get(p.personel_id, 0.0),
+                pay=gece_paylari[p.personel_id],
             )
             for p in personel_satirlari
-            if p.personel_id in gece_havuzu
+            if gece_paylari.get(p.personel_id, 0.0) > 0
         ]
         kisi_basina_hafta_sonu = [
             KisiSayisiOku(
-                personel_id=p.personel_id, ad_soyad=p.ad_soyad, sayi=hs_saat.get(p.personel_id, 0.0)
+                personel_id=p.personel_id,
+                ad_soyad=p.ad_soyad,
+                sayi=hs_saat.get(p.personel_id, 0.0),
+                pay=hs_paylari[p.personel_id],
             )
             for p in personel_satirlari
-            if p.personel_id in hs_havuzu
+            if hs_paylari.get(p.personel_id, 0.0) > 0
         ]
 
         # SDD 5.7 (surum 1.7): saat dagiliminin tabani kisisel SOZLESME saati

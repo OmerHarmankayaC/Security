@@ -18,6 +18,14 @@ class KisiSayisiOku(BaseModel):
     personel_id: int
     ad_soyad: str
     sayi: float
+    # KISIYE DUSEN ADIL PAY (SRS S2/S3) — olcunun referansi. Havuz ortalamasi
+    # DEGIL: erisilebilirligi kisitli bir havuz tek ortalamaya vuruldugunda
+    # kalici olarak sapmali gorunur ve olcu ayirt edici olmaktan cikar. Adalet
+    # grafigi referans cizgisini bu degerden ceker.
+    #
+    # Payi olmayan olculer icin (bina degisim sayaci) None kalir: orada
+    # "adil pay" diye bir kavram yok ve sifir yazmak yanlis bir hedef gosterir.
+    pay: float | None = None
 
 
 class SaatDengesiOku(BaseModel):

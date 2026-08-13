@@ -397,6 +397,15 @@ export interface KisiSayisi {
   personel_id: number
   ad_soyad: string
   sayi: number
+  /**
+   * Kişiye düşen ADİL PAY — ölçünün referansı (SRS S2/S3).
+   *
+   * Havuz ortalaması DEĞİLDİR ve onun yerine geçer: erişilebilirliği kısıtlı
+   * bir havuz tek ortalamaya vurulduğunda kalıcı olarak sapmalı görünür ve
+   * ölçü ayırt edici olmaktan çıkar. Payı bulunmayan ölçülerde (bina değişim
+   * sayacı) `null`dur — orada adil pay diye bir kavram yok.
+   */
+  pay: number | null
 }
 
 export interface SaatDengesi {

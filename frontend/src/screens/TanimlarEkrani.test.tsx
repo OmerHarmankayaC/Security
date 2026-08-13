@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type {
   Ben,
   GorevNoktasi,
+  Kural,
   OzelGun,
   Personel,
   TalepAraligi,
@@ -84,6 +85,47 @@ const TALEP_ARALIKLARI: TalepAraligi[] = [
   },
 ]
 
+/**
+ * Kural kataloğunun saat parametreleri (Tur 6 İş 6).
+ *
+ * `asgari_blok_saat` ve `gece_esigi_saat` göçle kural kayıtlarına eklendi
+ * (`f2a8c561d94b`) ve kural sınıfları onları `parametre_tanimlari` ile
+ * bildiriyor. Kural ekranı parametreleri katalogdan GENEL olarak çizdiği için
+ * ayrı bir kod gerekmedi; aşağıdaki testler o varsayımı kanıta çevirir —
+ * kullanıcı bu ikisini değiştirebilmeyi açıkça istedi.
+ */
+const KURALLAR: Kural[] = [
+  {
+    kural_id: 1,
+    kimlik: 'H1',
+    tip: 'zorunlu',
+    parametreler: { asgari_blok_saat: 4 },
+    agirlik: null,
+    aktif: true,
+    ad: 'Günde tek ve kesintisiz çalışma',
+    aciklama: 'Bir personelin bir takvim gününde en fazla bir çalışma bloğu bulunur.',
+    parametre_tanimlari: [
+      { anahtar: 'asgari_blok_saat', etiket: 'Asgari blok süresi', birim: 'saat', asgari: 1, azami: 24 },
+    ],
+    silinebilir_mi: false,
+  },
+  {
+    kural_id: 3,
+    kimlik: 'H3',
+    tip: 'zorunlu',
+    parametreler: { azami_ardisik_gece: 2, gece_esigi_saat: 4 },
+    agirlik: null,
+    aktif: true,
+    ad: 'Ardışık gece üst sınırı',
+    aciklama: 'Bir gün, gece saatlerinde geçirilen süre eşiğe ulaşıyorsa gece günü sayılır.',
+    parametre_tanimlari: [
+      { anahtar: 'azami_ardisik_gece', etiket: 'Azami ardışık gece', birim: 'gün', asgari: 1, azami: 14 },
+      { anahtar: 'gece_esigi_saat', etiket: 'Gece günü eşiği', birim: 'saat', asgari: 1, azami: 12 },
+    ],
+    silinebilir_mi: false,
+  },
+]
+
 let gonderilenler: { yol: string; yontem: string; govde: unknown }[] = []
 // Doluysa talep yazma istekleri bu durumla ve bu gövdeyle karşılık bulur;
 // çakışma (409) yolunu sınamanın tek yolu budur.
@@ -111,6 +153,7 @@ function fetchTaklidi() {
         if (yol === '/api/yetkinlik') return YETKINLIKLER
         if (yol === '/api/nokta') return NOKTALAR
         if (yol === '/api/ozel-gun') return OZEL_GUNLER
+        if (yol === '/api/kural') return KURALLAR
         if (yol.startsWith('/api/talep')) {
           return {
             araliklar: TALEP_ARALIKLARI,
@@ -457,5 +500,49 @@ describe('Personel formu — devir bakiyesi (FR-1.1)', () => {
     const govde = gonderilenler.find((g) => g.yontem === 'PUT')!.govde as Record<string, unknown>
     expect(govde.devir_fazla_calisma_saat).toBe(12.5)
     expect(govde.kota_yili).toBe(2026)
+  })
+})
+
+describe('Kural sekmesi — saat parametreleri (Tur 6 İş 6)', () => {
+  async function kuralSekmesiniAc() {
+    ekraniCiz()
+    fireEvent.click(await screen.findByRole('button', { name: 'Kural' }))
+    await waitFor(() => expect(screen.getByText('Asgari blok süresi (saat)')).toBeDefined())
+  }
+
+  it('asgari blok süresini ve gece günü eşiğini değerleriyle gösterir', async () => {
+    await kuralSekmesiniAc()
+    expect(screen.getByText('Asgari blok süresi (saat)')).toBeDefined()
+    expect(screen.getByText('Gece günü eşiği (saat)')).toBeDefined()
+    // Okuma kipinde değerler metin olarak durur.
+    expect(screen.getAllByText('4').length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('ikisi de DÜZENLENEBİLİR — kullanıcı bunu açıkça istedi', async () => {
+    await kuralSekmesiniAc()
+    fireEvent.click(screen.getByRole('button', { name: 'Değiştir' }))
+    const asgari = screen.getByLabelText('Asgari blok süresi (saat)') as HTMLInputElement
+    const esik = screen.getByLabelText('Gece günü eşiği (saat)') as HTMLInputElement
+    expect(asgari.value).toBe('4')
+    expect(esik.value).toBe('4')
+
+    fireEvent.change(asgari, { target: { value: '6' } })
+    fireEvent.change(esik, { target: { value: '5' } })
+    // Kaydetme ONAY KUTUSUNDAN geçer (madde 3a): tek tıkla kalıcı olan bir
+    // kural değişikliği canlıda bir kez S1'i pasif bıraktı. Üst çubuktaki
+    // Kaydet kutuyu açar, kutudaki Kaydet yazar.
+    fireEvent.click(screen.getByRole('button', { name: 'Kaydet' }))
+    expect(await screen.findByText('2 değişiklik kaydedilecek.')).toBeDefined()
+    const kaydetler = screen.getAllByRole('button', { name: 'Kaydet' })
+    fireEvent.click(kaydetler[kaydetler.length - 1]!)
+
+    await waitFor(() => expect(gonderilenler.some((g) => g.yontem === 'PUT')).toBe(true))
+    const yazmalar = gonderilenler.filter((g) => g.yontem === 'PUT')
+    expect(yazmalar.map((y) => y.govde)).toEqual(
+      expect.arrayContaining([
+        { parametreler: { asgari_blok_saat: 6 } },
+        { parametreler: { gece_esigi_saat: 5 } },
+      ]),
+    )
   })
 })
