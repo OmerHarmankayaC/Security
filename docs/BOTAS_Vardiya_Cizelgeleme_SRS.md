@@ -38,6 +38,8 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 11.08.2026 | FR-4.9'a, karar noktasının yalnızca arama başlamış işlerde doğduğu yazıldı; henüz kuyrukta veya ön kontrolde olan bir işin durdurulması doğrudan iptaldir | 1.13 |
 | Ömer HARMANKAYA | 12.08.2026 | Saatlik çalışma düzenine geçişin veri temeli tanımlandı: çalışma bloğu kavramı TD-13 olarak eklendi, talep tanımı zaman aralığı kaydına çevrildi (3.3.4, FR-1.7, FR-1.8), S1'in kapsama kısıtı saat eksenine taşındı, blok kataloğu kısıtları FR-1.3'e yazıldı, personel kaydına devir bakiyesi alanı eklendi (FR-1.1) | 1.14 |
 | Ömer HARMANKAYA | 12.08.2026 | FR-5.1'e ön kontrol bulgularının çözümü engellemediği, FR-5.3'e kapsama açığının saat aralığı düzeyinde raporlandığı, FR-8.1'e kapsama oranının atamalardan hesaplandığı yazıldı; FR-5.6 (bulgu metinlerinde ad kullanımı) eklendi | 1.15 |
+| Ömer HARMANKAYA | 13.08.2026 | Kural kataloğu saatlik düzene taşındı: H5 mutlak tavana dönüştü, H9 (günlük azami saat) ve H10 (yıllık fazla çalışma kotası) eklendi, S1'in üst sınırı esnek hâle getirildi, S2 ve S3 saat birimine geçti, S6 başlangıç saati kaymasıyla yeniden tanımlandı; TD-2 ve TD-7 yeniden yazıldı, TD-14 eklendi; blok kataloğu genişletildi (3.3.1), parametre tablosu (3.3.5) ve kadro analizi (3.3.6) saat tabanına taşındı; amaç fonksiyonu (4.4) yeniden yazıldı | 1.16 |
+| Ömer HARMANKAYA | 13.08.2026 | S2 ve S3'ün hedefi tek ortalamadan kişiye özel adil paya çevrildi: erişilebilirliği kısıtlı havuzlar için tek hedef ulaşılamaz kalıyor ve o havuz kalıcı olarak sapmalı görünüyordu | 1.17 |
 
 
 
@@ -154,9 +156,17 @@ Bu bölümdeki tanımlar sistemin tamamı için bağlayıcıdır. Bir kuralın n
 
 Bir vardiya, başladığı takvim gününe ilişkilendirilir. Gece yarısını aşan vardiyalar da başlangıç gününe yazılır. Bu kural atama, sayma, raporlama ve arayüz gösteriminin tamamında geçerlidir.
 
-### TD-2 — Gece vardiyası tanımı
+### TD-2 — Gece çalışması: bayrak ve saat
 
-Gece vardiyası, vardiya tipi üzerindeki gece_mi bayrağıyla belirlenir. Bayrak hesaplanan değil tanımlanan bir alandır. Yeni bir vardiya tipi oluşturulurken, tipin zaman aralığının 20:00–06:00 aralığıyla kesişimi dört saat veya daha fazlaysa bayrak otomatik olarak önerilir; nihai değeri kullanıcı belirler.
+Gece çalışması iki ayrı soruya karşılık gelir ve sistem ikisini ayrı ayrı yanıtlar.
+
+**"Bu blok bir gece nöbeti midir?"** — ikili bir sorudur ve ergonomik bir eşiğe dayanır. Yanıtı çalışma bloğu üzerindeki `gece_mi` bayrağıdır. Bayrak **hesaplanan değil tanımlanan** bir alandır. Yeni bir blok oluşturulurken, bloğun zaman aralığının 20:00–06:00 aralığıyla kesişimi dört saat veya daha fazlaysa bayrak otomatik olarak önerilir; nihai değeri kullanıcı belirler ve öneri kuralı **tanımlı bir değeri asla ezmez**. H3 (ardışık gece sınırı) bu bayrağı kullanır.
+
+**"Bu kişi ne kadar gece saati taşıdı?"** — sürekli bir ölçüdür ve adalet hesabına girer. Yanıtı hesaplanır: bir bloğun gece saati, bloğun 20:00–06:00 aralığıyla kesişiminin uzunluğudur. S2 (gece adaleti) bu ölçüyü kullanır.
+
+Ayrım, blokların farklı uzunluklarda tanımlanabilmesinin sonucudur. On bir saatlik bir gece bloğu ile sekiz saatlik bir gece bloğunu adalet hesabında aynı saymak, uzun bloğu alan personelin yükünü görünmez kılar. Buna karşılık ardışık gece sınırı bir sayım kuralıdır ve saat üzerinden yazılamaz.
+
+İki tanım çelişmez; farklı sorulara yanıt verirler. Bayrağın hesaplanan değere dönüştürülmesi denenmemelidir: öneri kuralının tanımlı değeri ezmesi bir kez yaşanmış ve K3 kabul kriterinin kalmasının iki nedeninden biri olmuştur.
 
 ### TD-3 — Hafta sonu tanımı
 
@@ -178,13 +188,38 @@ Zaman penceresine dayanan tüm kurallar — asgari dinlenme, ardışık gece sı
 
 Adalet sayaçları ısıtma penceresini içermez (bkz. TD-6). Önceki dönem bulunmadığında ısıtma penceresi boştur.
 
-### TD-6 — Adalet ufku
+### TD-6 — Ölçüm ufukları
 
-Yük dengesi ve adalet hesapları yalnızca planlama dönemi içindeki atamaları kapsar. Geçmiş dönemlerden devreden kümülatif denge bu sürümde hesaba katılmaz.
+Dönem öncesi birikimin hesaba katılması iki ayrı ufuk gerektirir ve bunlar birbirinin yerine geçmez.
+
+**Yasal ufuk (H10).** Kota hesabı, ısıtma penceresini (TD-5) ve personel kaydındaki devir bakiyesini kapsar. Kapsamaması hâlinde dönem sınırında bölünen takvim haftası eksik ölçülür ve kota sessizce aşılır.
+
+**Adalet ufku (S2, S3, S4).** Sayaçlar, dönemin başlangıcından geriye doğru `adalet_ufku_gun` (varsayılan 90) günlük kayan bir pencereyi kapsar. Pencere içindeki yayınlanmış sürümlerin atamaları, planlama dönemindeki atamalarla birlikte sayılır.
+
+Ufkun "son N dönem" olarak tanımlanmaması bilinçlidir: dönem uzunluğu değişkendir (bir hafta ile bir ay arasında) ve aynı sayı farklı kurulumlarda farklı uzunlukta pencereler üretirdi. "Kota yılının başından bugüne" tanımı ise ufku ocak ayında sıfırlayıp aralıkta on iki aya çıkarır; yıl başında ağır gece yükü alan bir personelin bu yükü şubatta hiç görünmez.
+
+**Birikim türetilir, saklanmaz.** İki ufkun de kaynağı yayınlanmış sürümlerin atamalarıdır; ayrı bir sayaç tablosunda tutulmaz. Saklanan sayaç, bir dönem yeniden çözüldüğünde veya bir sürüm arşive alındığında bayatlar. Tek istisna personel kaydındaki devir bakiyesidir: sistemin kota yılının başından beri her şeyi bilmediği durumu karşılar ve türetilen değere eklenir.
 
 ### TD-7 — Haftalık saat penceresi
 
-Haftalık saat tavanı, takvim haftası yerine kayan yedi günlük pencere üzerinde değerlendirilir. Bir vardiyanın süresi tamamıyla başlangıç gününe yazılır (TD-1). Bunun sonucu olarak, pencerenin son gününde başlayan bir vardiyanın ertesi güne taşan saatleri de o pencereye sayılır. Bu, bilinçli olarak kabul edilmiş bir yaklaşıklıktır; alternatifi vardiya süresini günlere bölmektir ve modeli gereksiz karmaşıklaştırır.
+Haftalık mutlak saat tavanı (H5), takvim haftası yerine kayan yedi günlük pencere üzerinde değerlendirilir. Bir bloğun süresi tamamıyla başlangıç gününe yazılır (TD-1). Bunun sonucu olarak, pencerenin son gününde başlayan bir bloğun ertesi güne taşan saatleri de o pencereye sayılır. Bu, bilinçli olarak kabul edilmiş bir yaklaşıklıktır; alternatifi blok süresini günlere bölmektir ve modeli gereksiz karmaşıklaştırır.
+
+Yıllık fazla çalışma kotası (H10) bu pencereyi **kullanamaz**; gerekçesi TD-14'te yazılıdır.
+
+### TD-14 — İki hafta kavramı bir arada yaşar
+
+Sistem iki farklı "hafta" tanımı taşır ve bunlar birbirinin yerine geçmez.
+
+| | Kapsam | Kullanan |
+| --- | --- | --- |
+| Kayan yedi günlük pencere | herhangi yedi ardışık gün | H4, H5, H6 |
+| Takvim haftası (pazartesi–pazar) | ayrık, örtüşmeyen haftalar | H10 |
+
+Dinlenme kuralları kayan olmak zorundadır: takvim haftasına dayanan bir dinlenme kuralı, pazar–pazartesi sınırında yan yana iki yoğun haftayı serbest bırakır ve kişi on dört günün on ikisinde çalışabilir.
+
+Fazla çalışma kotası ise ayrık pencere gerektirir. Kota, "haftalık eşiğin üstünde çalışılan saatlerin yıllık toplamı" olarak tanımlıdır ve bir toplam ancak örtüşmeyen pencerelerde anlamlıdır. Kayan pencerede aynı saat yedi ayrı pencereye girer ve toplam yedi katına çıkar.
+
+İki kavramın tek bir yardımcıda birleştirilmemesi bilinçlidir; birleştirildiklerinde hangi kuralın hangi pencereyi kullandığı çağrı yerine bakılarak anlaşılır hâle gelir.
 
 ### TD-8 — Çizelge sürümü durum modeli
 
@@ -239,10 +274,16 @@ Planlama dönemi varsayılan olarak bir haftadır; yönetici bunu istediği bir 
 | Gece | 00.00 – 08.00 | 8 saat | Evet |
 | Gündüz | 08.00 – 16.00 | 8 saat | Hayır |
 | Akşam | 16.00 – 24.00 | 8 saat | Hayır |
+| Uzun gece | 20.00 – 08.00 | 12 saat | Evet |
+| Uzun gündüz | 08.00 – 20.00 | 12 saat | Hayır |
+| Erken uzun | 06.00 – 16.00 | 10 saat | Hayır |
+| Geç uzun | 14.00 – 24.00 | 10 saat | Hayır |
 
 
 
-Bu üç blok, mevcut işleyişteki üçlü sekiz saatlik düzenin karşılığıdır ve kataloğun tamamı değil başlangıç hâlidir. Katalog kullanıcı tarafından tanımlanan bir listedir (FR-1.3): farklı başlangıç saatleri ve farklı uzunluklar eklenebilir. Bloklar parametrik olarak üretilmez — her başlangıç saatinin her süreyle çarpımı yüzlerce satır eder ve NFR-1'deki çözüm süresi hedefini tehdit eder; gerçek bir tesisin kullandığı blok sayısı ise sınırlıdır.
+İlk üç blok mevcut işleyişteki üçlü sekiz saatlik düzenin karşılığıdır; kalan dördü on ve on iki saatlik seçeneklerdir. On iki saatlik bloklar haftalık fazla çalışma eşiğini gerçekten aşabildiği için kotanın (H10) işlediğini gösterebilen tek yapıdır: yalnızca sekiz saatlik bloklarla haftada altı gün çalışan bir personel 48 saate ulaşır ve eşiği ancak üç saat aşar.
+
+Katalog kullanıcı tarafından tanımlanan bir listedir (FR-1.3) ve bu tablo bir başlangıç hâlidir; gerçek işleyişteki saatler öğrenildiğinde satırlar değiştirilir. Değişiklik veridir, kod değildir. Katalog kullanıcı tarafından tanımlanan bir listedir (FR-1.3): farklı başlangıç saatleri ve farklı uzunluklar eklenebilir. Bloklar parametrik olarak üretilmez — her başlangıç saatinin her süreyle çarpımı yüzlerce satır eder ve NFR-1'deki çözüm süresi hedefini tehdit eder; gerçek bir tesisin kullandığı blok sayısı ise sınırlıdır.
 
 
 
@@ -300,18 +341,27 @@ Talep kayıtları gün tipi başına ayrı tutulur: hafta içi, hafta sonu ve re
 | H2 | asgari_dinlenme_saati | 16 |
 | H3 | azami_ardisik_gece | 3 |
 | H4 | azami_ardisik_calisma_gunu | 6 |
-| H5 | azami_haftalik_saat | 45 |
+| H5 | haftalik_mutlak_tavan | 66 |
 | H6 | haftalik_asgari_izin_gunu | 1 |
+| H9 | azami_gunluk_saat | 11 |
+| H10 | fazla_calisma_esigi | 45 |
+| H10 | yillik_fazla_kotasi | 270 |
+| S6 | desen_toleransi_saat | 2 |
+| S2, S3, S4 | adalet_ufku_gun | 90 |
 
 
+
+Haftalık mutlak tavanın 66 saat olması, günlük azami on bir saat ile haftada en az bir izin gününün (H6) zaten ima ettiği üst sınırdır: altı çalışma günü × on bir saat. Değer bu nedenle tek başına ek bir kısıt getirmez; daha sıkı bir tavan istendiğinde parametre değiştirilir, kural yeniden yazılmaz. Kırk beş saat artık bir tavan değil, fazla çalışmanın başladığı eşiktir (H10).
 
 Asgari dinlenme süresinin 16 saat olarak belirlenmesi, üçlü sekiz saatlik düzende iki çalışılan vardiya arasında en az iki boş vardiya bulunması gereksiniminin saat cinsinden karşılığıdır. Kuralın saat üzerinden yazılması, vardiya yapısı değiştiğinde yeniden tanımlanmasını gereksiz kılar (bkz. H2). Bu değer altında yalnızca ileri yönlü vardiya geçişleri mümkün kalır; gece, gündüz ve akşam sırası korunur, geri yönlü geçişler için araya en az bir izin günü girmesi gerekir.
 
 ### 3.3.6 Kadro Büyüklüğü Analizi
 
-Talep matrisi, haftada 144 kişi-vardiyalık bir iş yükü üretmektedir: hafta içi beş gün için günde 24, hafta sonu iki gün için günde 12 kişi-vardiya. Sekiz saatlik vardiya süresiyle bu, haftalık 1.152 saate karşılık gelmektedir.
+Talep, haftada **1.152 kişi-saatlik** bir iş yükü üretmektedir: hafta içi beş gün için günde 192, hafta sonu iki gün için günde 96 kişi-saat. Sekiz saatlik blokların kullanıldığı bir katalogda bu 144 kişi-vardiyaya karşılık gelir, fakat asıl ölçü saattir; katalog karışık uzunluklu olduğunda vardiya sayısı kataloğun bileşimine göre değişir, saat yükü değişmez.
 
-H5 ve H6 birlikte değerlendirildiğinde bir personelin haftada en fazla beş vardiya tutabildiği görülmektedir; altı vardiya 48 saat ederek haftalık tavanı aşmaktadır. Buradan, izin ve rapor payı hariç asgari 29 kişilik bir kadro gereksinimi çıkmaktadır.
+Kadro gereksinimi fazla çalışma eşiği üzerinden hesaplanır: 1.152 saat / 45 saat ≈ 26 kişi. H6 (haftada en az bir izin günü) ile birlikte bir personel haftada en çok altı gün çalışabilir; on bir saatlik günlük tavan (H9) teorik olarak 66 saate izin verse de bu saatlerin tamamı fazla çalışma sayılır ve yıllık kotayı hızla tüketir. Sürdürülebilir planlama eşiğin altında kalmayı gerektirir. İzin ve rapor payı hariç asgari **26 kişilik** bir kadro gereksinimi çıkmaktadır; payla birlikte 29.
+
+**Kadronun asgarinin belirgin biçimde üzerinde olması, adalet hedeflerini dar bir banda sıkıştırır.** Kırk dört kişilik bir kadroda kişi başına haftalık yük 26 saate düşer ve hiç kimse fazla çalışma eşiğine yaklaşmaz; H10 hiçbir zaman tetiklenmez, S4 dar bir aralıkta çalışır. Gösterim verisi bu nedenle kadroyu talebe göre boyutlandırmalıdır — aksi hâlde kuralların işlediği gösterilemez.
 
 Yetkinlik havuzları ayrı ayrı değerlendirildiğinde tablo aşağıdaki gibidir.
 
@@ -403,15 +453,17 @@ M = azami_ardisik_gun
 
 Parametre: azami_ardisik_gun.
 
-### H5 — Kayan yedi günlük saat tavanı
+### H5 — Kayan yedi günlük mutlak tavan
 
-Herhangi bir yedi günlük pencerede toplam çalışma saati tavanı aşamaz.
+Herhangi bir yedi günlük pencerede toplam çalışma saati mutlak tavanı aşamaz.
 
 ```
-∀p, ∀d :  Σ_{i=0..6} Σ_s sure[s] · y[p,d+i,s] ≤ azami_haftalik_saat
+∀p, ∀d :  Σ_{i=0..6} Σ_b sure[b] · y[p,d+i,b] ≤ haftalik_mutlak_tavan
 ```
 
-Parametre: azami_haftalik_saat. Saatlerin güne yazılma biçimi TD-7'de tanımlanmıştır.
+Parametre: haftalik_mutlak_tavan (varsayılan 66). Saatlerin güne yazılma biçimi TD-7'de tanımlanmıştır.
+
+Bu kural önceki sürümlerde kırk beş saatlik bir tavandı. Kırk beş saat artık bir tavan değil, fazla çalışmanın başladığı **eşiktir** ve H10'un parametresidir: haftalık kırk beş saatin üzerinde çalışmak yasak değildir, yıllık kotaya yazılır. H5 ise dinlenme amaçlı, aşılamayan üst sınırı korur.
 
 ### H6 — Haftalık asgari izin günü
 
@@ -443,6 +495,40 @@ musait değeri, müsaitlik kayıtlarının zaman aralıklarıyla vardiyanın zam
 
 Bu tanım, yetkinlik gereksinimini sayma yerine eşleme problemine dönüştürür. Yetkinliklerin örtüştüğü durumlarda — örneğin bir personelin iki farklı noktanın ön koşulunu birden taşıması — sayma tabanlı bir formülasyon aynı kişiyi iki gereksinim için birden sayabilir ve sahada karşılığı olmayan bir çizelge üretir. Nokta boyutu bu hatayı yapısal olarak ortadan kaldırır.
 
+### H9 — Günlük azami çalışma süresi
+
+Bir personelin bir takvim günündeki çalışma süresi günlük tavanı aşamaz.
+
+```
+∀p, ∀d :  Σ_b sure[b] · y[p,d,b] ≤ azami_gunluk_saat
+```
+
+Parametre: azami_gunluk_saat (varsayılan 11).
+
+H1 bir günde en fazla bir blok verdiğinden bu kural pratikte "katalogdaki hiçbir blok günlük tavanı aşamaz" demeye gelir ve aynı sınır blok tanımlanırken de uygulanır (FR-1.3) — geçersiz veriyi girişte durdurmak, dakikalar süren bir çözümün sonunda keşfetmekten ucuzdur. Kural yine de ayrı yazılır: yasal dayanağı H1'den bağımsızdır ve H1'in gelecekte gevşetilmesi hâlinde tek başına geçerliliğini korumalıdır. Gerekçe H6'nın H4 karşısındaki durumuyla aynıdır.
+
+Blok kataloğu kısıtı ile bu kural aynı parametreyi okur; iki ayrı değer tanımlanmaz.
+
+### H10 — Yıllık fazla çalışma kotası
+
+Haftalık eşiğin üzerinde çalışılan saatlerin kota yılı içindeki toplamı, yıllık kotayı aşamaz.
+
+```
+W       : dönemin dokunduğu takvim haftaları (pazartesi–pazar, TD-14)
+saat[p,w] = Σ_{d ∈ w} Σ_b sure[b] · y[p,d,b]
+fazla[p,w] ≥ saat[p,w] − fazla_calisma_esigi
+fazla[p,w] ≥ 0
+∀p :  devir[p] + Σ_{w ∈ W} fazla[p,w] ≤ yillik_fazla_kotasi
+```
+
+Parametreler: fazla_calisma_esigi (varsayılan 45), yillik_fazla_kotasi (varsayılan 270).
+
+`devir[p]`, personelin içinde bulunulan kota yılında bu dönemden önce biriktirdiği fazla çalışma saatidir. Kaynağı iki parçalıdır: sistemin bildiği yayınlanmış sürümlerden türetilen toplam ile personel kaydındaki devir alanı. İkincisi, sistemin kota yılının başından beri her şeyi bilmediği durumu karşılar; türetilen değerin yerine geçmez, ona eklenir.
+
+**Takvim haftası dönem sınırını aştığında**, haftanın dönem dışında kalan günleri sabit girdi olarak hesaba katılır: ısıtma penceresinden (TD-5) veya yayınlanmış sürümlerden okunur, ikisi de yoksa sıfır sayılır. Hesaba katılmaması hâlinde dönem sınırındaki hafta eksik ölçülür ve kota sessizce aşılır — kuralın hiç bulunmamasıyla aynı sonucu verir.
+
+**Kural zorunludur ve modeli çözülemez yapmaz.** Yalnızca fazla çalışmayı sınırlar, çalışmayı değil: kotası dolmuş bir personel haftalık eşiğe kadar çalışmaya devam eder, yalnızca üstüne çıkamaz. `fazla[p,w] = 0` her zaman uygulanabilir bir değer olduğundan kısıt tek başına çelişki üretmez. Tek istisna `devir[p]`in kotayı zaten aşmış olmasıdır; bu bir veri hatasıdır ve ön kontrolde bildirilir (FR-5.1), çözüm anında değil.
+
 ## 4.3 Esnek Hedefler
 
 Esnek hedefler ihlal edildiğinde ceza puanı üretir. Her hedefin ağırlığı kullanıcı tarafından ayarlanabilir. Amaç fonksiyonu, ağırlıklı ceza toplamını en aza indirir.
@@ -459,10 +545,16 @@ talep[d,t,n] : d gününde t saatinde n noktası için gereken personel
 
 Saat bazında kapsama (alt sınır, esnek):
 ∀d, t, n :  Σ_p Σ_{b ∋ t} x[p,d,b,n] + eksik[d,t,n] ≥ talep[d,t,n],  eksik ≥ 0
-Saat bazında kadro (üst sınır, zorunlu):
-∀d, t, n :  Σ_p Σ_{b ∋ t} x[p,d,b,n] ≤ talep[d,t,n]
-Ceza:  w1 · Σ_{d,t,n} eksik[d,t,n]
+Saat bazında kadro (üst sınır, esnek):
+∀d, t, n :  Σ_p Σ_{b ∋ t} x[p,d,b,n] − fazla[d,t,n] ≤ talep[d,t,n],  fazla ≥ 0
+Ceza:  w1 · Σ eksik[d,t,n]  +  w1f · Σ fazla[d,t,n]        (w1f ≪ w1)
 ```
+
+**Üst sınır da esnektir.** Önceki sürümde talep sayısı aşılamayan bir tavandı. Karışık uzunluklu bir katalogda bu, modeli çözülemez hâle getirebilir: blok sınırları talep aralıklarının sınırlarıyla hizalanmadığında bir saatte fazla kadro oluşması yapısal olarak kaçınılmazdır. Örneğin 08.00–16.00 arasında dört kişi isteyen bir talep, on saatlik bir blokla kapatıldığında 16.00–18.00 saatlerinde de kadro üretir. Bu çözücünün tercihi değil, kataloğun sonucudur.
+
+Fazla kadro gerçek bir maliyettir — boşa geçen kişi-saat — fakat açık kadar ağır değildir. Cezalandırılmazsa çözücü kayıtsız kalır ve gereksiz fazla üretir; zorunlu tutulursa hizalanmayan taleplerde çözüm hiç bulunamaz. Küçük ağırlıklı ceza ikisinin arasındadır.
+
+Bu, çözücü tarafının davranışıdır. Manuel düzenlemede fazla kadro ceza üretmez (bölüm 4.3'ün sonundaki not): vardiya yöneticisi bilinçli olarak talebin üzerine çıkabilir ve sistem bunu bir hata gibi göstermez. İki tarafın farklı davranması bilinçlidir; çözücü kendi ürettiği fazlayı en aza indirmeye çalışır, kullanıcının bilerek yazdığını sorgulamaz.
 
 Kısıt saat ekseninde yazılır çünkü talep bir bloğa değil bir zaman aralığına bağlıdır (3.3.4, TD-13). Bir personel bir saatte, o saati kapsayan bloğa atanmışsa sayılır; blokların uzunlukları farklı olabildiğinden aynı saati farklı bloklardan gelen personel birlikte doldurabilir.
 
@@ -480,34 +572,54 @@ Ağırlık w1, diğer tüm ağırlıkların toplamından belirgin biçimde büy�
 
 ### S2 — Gece adaleti
 
-Gece vardiyası yükü, bu yükü üstlenebilecek personel arasında dengeli dağıtılır. Kişi başına düşen gece sayısının hedeften sapması cezalandırılır.
+Gece çalışma yükü, bu yükü üstlenebilecek personel arasında dengeli dağıtılır. Kişi başına düşen **gece saatinin** hedeften sapması cezalandırılır.
 
 ```
-gece_sayisi[p] = Σ_{d ∈ dönem} Σ_{s: gece[s]=1} y[p,d,s]
-P_gece = { p ∈ P : p, gece talebi bulunan en az bir
-                   görev noktasının ön koşulunu karşılıyor }
-hedef_gece = ( Σ_{d,s,n: gece[s]=1} talep[d,s,n] ) / |P_gece|
+gece_saat[b]  = | b ∩ [20:00, 06:00] |          (TD-2)
+gece_yuku[p]  = Σ_{d ∈ ufuk} Σ_{b,n} gece_saat[b] · x[p,d,b,n]
+erisebilen(n) = { q ∈ P : q, n noktasının ön koşulunu karşılıyor }
+pay_gece[p]   = Σ_{d, t ∈ gece, n : p ∈ erisebilen(n)}
+                    talep[d,t,n] / |erisebilen(n)|
+P_gece = { p ∈ P : pay_gece[p] > 0 }
 ∀p ∈ P_gece :
-    sapma[p] ≥ gece_sayisi[p] − ⌊hedef_gece⌋
-    sapma[p] ≥ ⌈hedef_gece⌉ − gece_sayisi[p]
+    sapma[p] ≥ gece_yuku[p] − pay_gece[p]
+    sapma[p] ≥ pay_gece[p] − gece_yuku[p]
 Ceza:  w2 · Σ_{p ∈ P_gece} sapma[p]
 ```
 
-Hedefin bütün personele değil yalnızca uygun havuza bölünmesi zorunludur. Yetkinliği gereği gece talebi bulunan hiçbir noktada çalışamayan personel (H8), gece sayısı sıfır olduğu için paydaya dahil edildiğinde kalıcı biçimde "hedefin altında" görünür; bu sapma hiçbir çizelgeyle kapatılamaz, dolayısıyla hedef ayırt ediciliğini kaybeder ve kabul kriteri sağlanamaz hâle gelir. Adalet, yükü paylaşabilecekler arasında paylaştırmaktır; paylaşamayan personel ölçümün dışındadır.
+**Hedef kişiye özeldir, havuz ortalaması değildir.** Her talep birimi, ona
+erişebilenler arasında eşit bölünür; kişinin hedefi kendi erişebildiği
+taleplerden gelen payların toplamıdır. Tek bir ortalama kullanıldığında,
+erişilebilirliği kısıtlı bir havuz kalıcı olarak hedefin altında görünür: yalnızca
+tek bir noktada çalışabilen bir personel, o noktanın gece talebi düşükse hedefe
+hiçbir çizelgeyle ulaşamaz. Bu bir adaletsizlik değil yapısal bir sınırdır ve
+ölçünün onu sapma olarak raporlaması, ölçüyü ayırt edici olmaktan çıkarır.
 
-Sayım yalnızca planlama dönemini kapsar; ısıtma penceresi dahil edilmez (TD-6).
+Bu, S4'ün adil pay tanımıyla aynı mantıktır; üç adalet hedefi de kişiye düşen
+payı ölçer. Payı sıfır olan personel ölçünün dışındadır — hedefe ulaşması
+imkânsız olan kimse ölçülmez.
+
+Ölçünün birimi **saattir**, vardiya sayısı değil. Katalog farklı uzunlukta bloklar taşıdığında sayım adaleti bozar: on iki saatlik bir gece bloğu ile sekiz saatlik bir gece bloğu aynı sayılırsa, uzun bloğu alan personelin dört saatlik fazla yükü ölçüye hiç girmez. Saat, karışık uzunluklu kataloğun tek doğru ölçüsüdür.
+
+Aynı değişiklik S3 ve S4 için de geçerlidir; üç adalet hedefi de saat biriminde olduğundan `w2`, `w3` ve `w4` doğrudan karşılaştırılabilir. Önceki sürümde `w4`'ün diğerlerinin sekizde biri ölçeğinde tutulması gereğini doğuran birim farkı ortadan kalkmıştır.
+
+Adalet, yükü paylaşabilecekler arasında paylaştırmaktır; paylaşamayan personel ölçümün dışındadır ve **kısmen paylaşabilen personel kendi payı kadar ölçülür.** Bu ayrım iki kez bedeli ödenmiş bir hatanın karşılığıdır: önce hiç gece alamayan personel paydada sayılıyordu, sonra kısıtlı erişimi olan havuz tek ortalamaya vuruluyordu. İkisinde de ölçü, hiçbir çizelgeyle kapatılamayan bir sapma raporluyor ve ayırt ediciliğini kaybediyordu.
+
+Ölçüm ufku TD-6'da tanımlıdır.
 
 ### S3 — Hafta sonu adaleti
 
-Kişi başına düşen hafta sonu ve resmî tatil vardiyası sayısının hedeften sapması cezalandırılır. Formülasyon S2 ile aynıdır; gece[s] yerine hs[d] kullanılır (TD-3) ve uygun havuz aynı mantıkla belirlenir.
+Kişi başına düşen hafta sonu ve resmî tatil **saatinin** hedeften sapması cezalandırılır. Formülasyon S2 ile aynıdır; gece saati yerine hafta sonu günlerindeki toplam süre kullanılır (TD-3) ve uygun havuz aynı mantıkla belirlenir.
 
 ```
-hs_sayisi[p] = Σ_{d: hs[d]=1} Σ_s y[p,d,s]
-P_hs = { p ∈ P : p, hafta sonu talebi bulunan en az bir
-                 görev noktasının ön koşulunu karşılıyor }
-hedef_hs = ( Σ_{d,s,n: hs[d]=1} talep[d,s,n] ) / |P_hs|
+hs_yuku[p] = Σ_{d: hs[d]=1} Σ_{b,n} sure[b] · x[p,d,b,n]
+pay_hs[p]  = Σ_{d: hs[d]=1, t, n : p ∈ erisebilen(n)}
+                 talep[d,t,n] / |erisebilen(n)|
+P_hs = { p ∈ P : pay_hs[p] > 0 }
 Ceza:  w3 · Σ_{p ∈ P_hs} sapma_hs[p]
 ```
+
+Hedef S2'deki gibi kişiye özel paydır.
 
 Uygun havuz kısıtlaması burada da geçerlidir ve aynı gerekçeye dayanır: yalnızca hafta içi talebi bulunan bir noktada çalışabilen personel, hafta sonu adaleti ölçümünün dışındadır.
 
@@ -538,17 +650,23 @@ Ceza:  w5 · Σ ihlal
 
 Yalnızca yönetici tarafından onaylanmış tercihler modele dahil edilir. Reddedilen veya bekleyen tercihler ceza üretmez.
 
-### S6 — Vardiya deseni tutarlılığı
+### S6 — Çalışma deseni tutarlılığı
 
-Ardışık günlerde vardiya tipi değiştirmek ergonomik olarak istenmeyen bir durumdur ve cezalandırılır. Aynı gerekçeyle, ardışık günlerde farklı binalarda görevlendirilmek de ayrı bir ceza bileşeni üretir.
+Ardışık günlerde çalışma saatlerini kaydırmak ergonomik olarak istenmeyen bir durumdur ve cezalandırılır. Aynı gerekçeyle, ardışık günlerde farklı binalarda görevlendirilmek de ayrı bir ceza bileşeni üretir.
 
 ```
+kayma[p,d] = dairesel_fark( baslangic[b_{d+1}], baslangic[b_d] )
+           = min( |Δ|, 24 − |Δ| )
 degisim[p,d] = 1  eğer p, d ve d+1 günlerinde çalışıyor ve
-                  vardiya tipleri farklıysa
+                  kayma[p,d] > desen_toleransi_saat
 bina_degisim[p,d] = 1  eğer p, d ve d+1 günlerinde çalışıyor ve
                        atandığı noktaların binaları farklıysa
 Ceza:  w6 · Σ degisim[p,d]  +  w6b · Σ bina_degisim[p,d]
 ```
+
+Kural önceki sürümde "aynı vardiya tipi" üzerinden yazılıydı; katalog genişlediğinde bu tanım anlamını yitirir, çünkü 08.00–16.00 ile 08.00–20.00 farklı bloklardır fakat aynı saatte başlarlar ve ergonomik olarak bir kayma üretmezler. Ölçü bu nedenle blok kimliği değil **başlangıç saatidir**.
+
+Farkın dairesel alınması zorunludur: 22.00 ile 02.00 arasındaki kayma dört saattir, yirmi saat değil. Tolerans parametredir (varsayılan 2 saat); bir saatlik kaymayı cezalandırmak, kataloğun ince taneli olmasının anlamını ortadan kaldırır.
 
 Tesis geneli noktalar (bina bilgisi boş olanlar) bina değişimi hesabına girmez. Bölüm 3.3.3'te tanımlanan mevcut uygulama alanında bütün görev noktaları tesis geneli olduğundan, S6b bileşeni şu anda hiçbir ceza üretmemekte ve etkisiz kalmaktadır; kural, binaya bağlı nokta tanımlanması durumunda kendiliğinden devreye girmek üzere katalogda tutulmaktadır. Gösterim verisinde pasif bırakılması, amaç fonksiyonunu gereksiz terimden arındırır.
 
@@ -575,12 +693,14 @@ Kilitli atamalar bu hedefin dışındadır; onlar sabit değer olarak modele gir
 ## 4.4 Amaç Fonksiyonu
 
 ```
-min   w1·(Σ eksik + Σ eksikK)
-    + w2·Σ sapma_gece  + w3·Σ sapma_hs
-    + w4·Σ sapma_saat  + w5·Σ tercih_ihlal
-    + w6·Σ degisim     + w7·Σ izole
-    + w8·Σ onceki_sapma
+min   w1·Σ eksik      + w1f·Σ fazla
+    + w2·Σ sapma_gece + w3·Σ sapma_hs
+    + w4·Σ sapma_saat + w5·Σ tercih_ihlal
+    + w6·Σ degisim    + w6b·Σ bina_degisim
+    + w7·Σ izole      + w8·Σ onceki_sapma
 ```
+
+Önceki sürümdeki `eksikK` terimi kaldırılmıştır: yetkinlik bazlı eksik değişkeni, nokta boyutunun eklenmesiyle (H8) tanımsız kalmıştı ve amaç fonksiyonunda karşılığı bulunmayan bir sembol olarak duruyordu. `w1f` ve `w6b` terimleri ise kural kataloğunda tanımlı oldukları hâlde bu listede eksikti.
 
 Ağırlıkların tamamı kullanıcı tarafından ayarlanabilir. Sistem hangi hedefin daha öncelikli olduğuna kendisi karar vermez; bu tercihi parametre olarak alır ve sonucunu hesaplar.
 
@@ -600,7 +720,7 @@ Ağırlıkların tamamı kullanıcı tarafından ayarlanabilir. Sistem hangi hed
 | FR-1.6 | Sistem, görev noktalarının ad, bağlı olduğu bina ve ön koşul yetkinliğiyle tanımlanmasına imkân vermelidir. Bina alanı boş bırakıldığında nokta tesis geneli olarak değerlendirilir. | Zorunlu |
 | FR-1.7 | Sistem, talep tanımının görev noktası, zaman aralığı ve gün tipi kırılımında yapılmasına ve tekil tarihler için istisna tanımlanmasına imkân vermelidir. | Zorunlu |
 | FR-1.8 | Sistem, talep tanımlarını görev noktası ve gün tipi kırılımında, her kayıt bir zaman aralığı olacak biçimde göstermeli; aralıkların ve gereken sayıların doğrudan düzenlenmesine imkân vermelidir. Aynı nokta ve gün tipi için çakışan aralıklar tanımlanamaz. | Yüksek |
-| FR-1.9 | Sistem, tanımlı talepten haftalık toplam kişi-saat yükünü ve kural parametreleri altındaki asgari kadro büyüklüğünü hesaplayarak göstermelidir. | Orta |
+| FR-1.9 | Sistem, tanımlı talepten haftalık toplam kişi-saat yükünü ve kural parametreleri altındaki asgari kadro büyüklüğünü hesaplayarak göstermelidir. Hesap saat tabanlıdır; kişi-vardiya karşılığı gösterilmez, çünkü karışık uzunluklu katalogda bu sayı kataloğun bileşimine bağlıdır. | Orta |
 | FR-1.10 | Sistem, resmî tatillerin takvimde işaretlenmesine imkân vermelidir. | Yüksek |
 | FR-1.11 | Sistem, zorunlu kural parametrelerinin görüntülenmesine ve değiştirilmesine imkân vermelidir. | Zorunlu |
 | FR-1.12 | Sistem, esnek hedef ağırlıklarının görüntülenmesine ve değiştirilmesine imkân vermelidir. | Zorunlu |

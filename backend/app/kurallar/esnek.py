@@ -15,11 +15,29 @@ from ortools.sat.python import cp_model
 
 from app.kurallar.baglam import AtamaKaydi, Baglam
 from app.kurallar.kayit_defteri import kayitli
-from app.kurallar.temel import EsnekHedef, Ihlal, KuralKapsami, XAnahtari
+from app.kurallar.temel import EsnekHedef, Ihlal, KuralKapsami, ParametreTanimi, XAnahtari
 from app.kurallar.yardimcilar import calisilan_gunler
-from app.kurallar.zaman_araligi import aralik_metni, saatleri_araliklara_birlestir
+from app.kurallar.zaman_araligi import (
+    aralik_metni,
+    baslangic_kaymasi,
+    gece_saati_mi,
+    saatleri_araliklara_birlestir,
+)
 from app.kurallar.zaman_araligi import aralik_sure_saat as _aralik_sure_saat
 from app.models.girdi import TercihTipi
+
+# SRS 3.3.5. Kural kaydinda parametre bulunmadiginda kullanilir; katalog
+# disindan kurulan test baglamlari bu yoldan gecer.
+_VARSAYILAN_DESEN_TOLERANSI_SAAT = 2
+
+
+def _tam_saat(sure_saat: float) -> int:
+    """Blok suresini tamsayiya cevirir — CP-SAT tamsayi katsayi ister.
+
+    Bloklar saat basinda baslar ve biter (FR-1.3, girise kapali), dolayisiyla
+    sure her zaman tam saattir; yuvarlama kayip uretmez.
+    """
+    return int(round(sure_saat))
 
 
 @kayitli("S1")
@@ -54,10 +72,16 @@ class S1TalepKarsilama(EsnekHedef):
         iki kisi eksik kalmakla ayni cezayi uretir. Ikisi de ayni miktarda
         karsilanmamis kisi-saattir.
 
-        UST SINIR BU TURDA ZORUNLU KALIR (K4 Tur 4'un isi). Uc blok talep
-        araliklariyla hizali oldugu icin sorun cikarmaz; hizalanmayan bir
-        katalogda bir saatte fazla kadro YAPISAL olarak kacinilmaz olur ve
-        model cozulemez hale gelir.
+        UST SINIR DA ESNEKTIR (K4). Karisik uzunluklu katalogda bir saatte
+        fazla kadro YAPISAL olarak kacinilmazdir: 08.00-16.00 arasinda dort
+        kisi isteyen bir talep on saatlik blokla kapatildiginda 16.00-18.00
+        saatlerinde de kadro uretir. Bu cozucunun tercihi degil katalogun
+        sonucudur; ust sinir zorunlu kalsaydi model cozulemez hale gelirdi.
+
+        `fazla` degiskenleri baglama birakilir ve CEZALARINI S1f uretir:
+        SDD 4.2.3'teki kural tablosu kural basina TEK agirlik sutunu tasir,
+        S1'in formulasyonunda ise iki agirlik vardir (w1, w1f). Ayni bolme
+        S6/S6b'de de yapildi.
         """
         # Bir blogun kapsadigi saatler o gunun disina tasabilir (gece
         # yarisini asan blok); atamayi ilgili saate baglayan tablo bu.
@@ -92,10 +116,16 @@ class S1TalepKarsilama(EsnekHedef):
                 if (p, g, v, n) in degiskenler
             ]
             atanan_ifadesi = sum(ilgili) if ilgili else 0
-            model.add(atanan_ifadesi <= gereken)
             ilk_gun, ilk_saat = min(saatler)
             eksik = model.new_int_var(0, gereken, f"s1_eksik_g{ilk_gun}_t{ilk_saat}_n{n}")
             model.add(atanan_ifadesi + eksik >= gereken)
+            # Ust sinir: `fazla` ayni gruplamadan gecer. `eksik` icin yapilan
+            # simetri kirma burada da gerekli - gruplanmamis bir `fazla`
+            # kumesi ayni bilgiyi tasiyan birbirinin yerine gecebilen
+            # degiskenler uretir ve arama zamani yine simetriyi kirmaya gider.
+            fazla = model.new_int_var(0, len(ilgili), f"s1_fazla_g{ilk_gun}_t{ilk_saat}_n{n}")
+            model.add(atanan_ifadesi - fazla <= gereken)
+            baglam.kadro_fazlalari[(ilk_gun, ilk_saat, n)] = (fazla, len(saatler))
             # Katsayi = grubun kapsadigi saat sayisi; bir kisi bir saat eksik
             # kalmak bir birim ceza uretir (SRS 4.3 S1).
             ceza_terimi = ceza_terimi + len(saatler) * eksik
@@ -103,6 +133,7 @@ class S1TalepKarsilama(EsnekHedef):
             # icin grubun her saati ayni degiskene bakar.
             for saat_gunu, saat in saatler:
                 baglam.kapsama_eksikleri[(saat_gunu, saat, n)] = eksik
+                baglam.kapsama_fazlalari[(saat_gunu, saat, n)] = fazla
         return ceza_terimi
 
     def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
@@ -117,19 +148,14 @@ class S1TalepKarsilama(EsnekHedef):
         cunku yalnizca COZUCUNUN URETTIGI cizelgeleri dogrulayiciya verir
         ve cozucu zaten fazla kadro uretemez.
 
-        FAZLA KADRO CEZA URETMEZ, uyari uretir (ceza=None). Gerekcesi
-        SRS 4.4'teki amac fonksiyonudur: orada fazla kadroya karsilik gelen
-        bir terim YOKTUR (cozucu tarafinda kisit, ceza degil). Buraya bir
-        ceza sayisi uydurmak, cozucunun hicbir zaman hesaplamayacagi bir
-        buyuklugu ceza dokumune sokar ve iki yorumlayici ayni cizelge icin
-        farkli toplam uretirdi. Bulgu kullaniciya metin olarak gider
-        (urun karari, 11.08.2026: fazla kadro engel degil uyaridir).
+        FAZLA KADRO BURADA DEGIL, S1f'te bildirilir - agirligi ayri
+        oldugu icin kural kaydi da ayri (bkz. `modele_ekle`).
         """
         # Talep ile atamanin farki BAGLAMDA tek yerde tanimli; sapma
         # tablolarini yazan yol da ayni tanimi kullanir (SDD 3.2.1).
         # Bulgu SAAT SAAT degil ARALIK olarak bildirilir: yirmi dort satirlik
         # bir liste kullaniciya hicbir sey anlatmaz (SRS 4.3 S1).
-        eksik_saatler, fazla_saatler = baglam.sapma_saatleri(atamalar)
+        eksik_saatler, _fazla_saatler = baglam.sapma_saatleri(atamalar)
 
         ihlaller: list[Ihlal] = []
         for nokta_id, saatler in sorted(eksik_saatler.items()):
@@ -142,19 +168,6 @@ class S1TalepKarsilama(EsnekHedef):
                         aciklama=(
                             f"{self._yer_metni(baglam, tarih, bas, bit, nokta_id)} — "
                             f"{sayi} kişi eksik"
-                        ),
-                    )
-                )
-        for nokta_id, saatler in sorted(fazla_saatler.items()):
-            for tarih, bas, bit, sayi in saatleri_araliklara_birlestir(saatler):
-                ihlaller.append(
-                    Ihlal(
-                        kural_kimlik=self.kimlik,
-                        tarih=tarih,
-                        ceza=None,
-                        aciklama=(
-                            f"{self._yer_metni(baglam, tarih, bas, bit, nokta_id)} — "
-                            f"talepten {sayi} kişi fazla"
                         ),
                     )
                 )
@@ -173,17 +186,87 @@ class S1TalepKarsilama(EsnekHedef):
         )
 
 
+@kayitli("S1f")
+class S1fFazlaKadro(EsnekHedef):
+    """Talebin uzerinde kalan kadro (SRS 4.3 S1'in ust siniri, ceza terimi `w1f`).
+
+    AYRI BIR KURAL KAYDI OLMASININ NEDENI AGIRLIK: SDD 4.2.3'teki kural
+    tablosu kural basina TEK agirlik sutunu tasir, S1'in formulasyonunda ise
+    iki agirlik vardir (`w1` eksik, `w1f` fazla). Ayni bolme S6/S6b'de de
+    yapildi. Kisitin kendisi ve `fazla` degiskenleri S1'de kurulur; burada
+    yalnizca cezalari toplanir.
+
+    `w1f ≪ w1` (baslangic degeri 2). Fazla kadro gercek bir maliyettir -
+    bosa gecen kisi-saat - fakat acik kadar agir degildir: cezalandirilmazsa
+    cozucu kayitsiz kalir ve gereksiz fazla uretir, zorunlu tutulursa
+    hizalanmayan taleplerde cozum hic bulunamaz.
+
+    MANUEL DUZENLEMEDE CEZA URETMEZ (`dogrula` ceza=None dondurur) ve bu
+    AYRIM BILINCLIDIR (SRS 4.3): cozucu kendi urettigi fazlayi en aza
+    indirmeye calisir, kullanicinin bilerek yazdigini sorgulamaz. Vardiya
+    yoneticisi devir, egitim veya gecici takviye icin talebin uzerine
+    cikabilir ve sistem bunu bir hata gibi gostermez.
+    """
+
+    ad = "Fazla kadro"
+    aciklama = (
+        "Talebin üzerinde kalan her kişi-saat küçük bir ceza üretir. Karışık uzunluklu "
+        "katalogda bir miktar fazla kadro yapısaldır; ceza gereksiz olanı ayıklar."
+    )
+
+    def modele_ekle(
+        self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
+    ) -> cp_model.LinearExprT:
+        """S1'in kurdugu `fazla` degiskenlerinin saat agirlikli toplami.
+
+        S1 PASIFSE burasi bos doner ve bu dogrudur: kapsama kisiti hic
+        kurulmadiginda ust sinir da yoktur (SDD 5.2, "S1 pasifken").
+        """
+        ceza_terimi: cp_model.LinearExprT = 0
+        for fazla, saat_sayisi in baglam.kadro_fazlalari.values():
+            ceza_terimi = ceza_terimi + saat_sayisi * fazla
+        return ceza_terimi
+
+    def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
+        """Fazla kadro UYARI olarak bildirilir, ceza uretmez (ceza=None).
+
+        Bulgu SAAT SAAT degil ARALIK olarak gider; yirmi dort satirlik bir
+        liste kullaniciya hicbir sey anlatmaz (SRS 4.3 S1).
+        """
+        _eksik_saatler, fazla_saatler = baglam.sapma_saatleri(atamalar)
+        ihlaller: list[Ihlal] = []
+        for nokta_id, saatler in sorted(fazla_saatler.items()):
+            for tarih, bas, bit, sayi in saatleri_araliklara_birlestir(saatler):
+                ihlaller.append(
+                    Ihlal(
+                        kural_kimlik=self.kimlik,
+                        tarih=tarih,
+                        ceza=None,
+                        aciklama=(
+                            f"{tarih.isoformat()} · {aralik_metni(bas, bit)} · "
+                            f"{baglam.nokta_adi(nokta_id)} — talepten {sayi} kişi fazla"
+                        ),
+                    )
+                )
+        return ihlaller
+
+
 @kayitli("S2")
 class S2GeceAdaleti(EsnekHedef):
-    """Kisi basina gece vardiyasi sayisinin donem hedefinden sapmasi (SRS 4.3 S2).
+    """Kisi basina gece SAATININ donem hedefinden sapmasi (SRS 4.3 S2).
 
     SDD 5.5 (surum 1.3): donem geneli kapsamli - taban/tavan donem genelindeki
     en dusuk/en yuksek degerden turedigi icin pencereyle sinirlandirilamaz.
+
+    OLCUNUN BIRIMI SAAT, vardiya sayisi degil (K12). Katalog farkli uzunlukta
+    bloklar tasidiginda sayim adaleti bozar: on iki saatlik bir gece blogu ile
+    sekiz saatlik bir gece blogu ayni sayilirsa, uzun blogu alan personelin
+    dort saatlik fazla yuku olcuye HIC girmez.
     """
 
     ad = "Gece adaleti"
     aciklama = (
-        "Kişi başına düşen gece sayısının hedeften sapması cezalandırılır. Hedef, yalnızca "
+        "Kişi başına düşen gece saatinin hedeften sapması cezalandırılır. Hedef, yalnızca "
         "gece görevi alabilecek personele bölünür."
     )
 
@@ -196,17 +279,23 @@ class S2GeceAdaleti(EsnekHedef):
         eden ornegi normatif SRS formuluyle celisiyordu, sdd.docx surum 1.4'te
         duzeltildi): hedef_gece = talep/|P|, sapma[p] = max(sayi-taban, tavan-sayi, 0)."""
         gunler = baglam.donem_gunleri
-        ust_sinir = len(gunler)
-        gece_sayisi = {
-            p: sum(baglam.y[(p, g, v)] for g in gunler for v in baglam.gece_vardiyalari)
+        gece_saatleri = {v: baglam.gece_saat(v) for v in baglam.vardiya_tipleri}
+        ust_sinir = len(gunler) * max(gece_saatleri.values(), default=0)
+        gece_yuku = {
+            p: sum(
+                gece_saatleri[v] * baglam.y[(p, g, v)]
+                for g in gunler
+                for v in baglam.vardiya_tipleri
+                if gece_saatleri[v] > 0
+            )
             for p in baglam.personel
         }
         return _adalet_sapmasi_terimi(
             model=model,
             baglam=baglam,
-            sayilar=gece_sayisi,
+            sayilar=gece_yuku,
             ust_sinir=ust_sinir,
-            talep_uygun_mu=lambda anahtar: baglam.gece_mi(anahtar[1]),
+            talep_uygun_mu=lambda anahtar: gece_saati_mi(anahtar[1]),
             degisken_onek="s2_sapma",
         )
 
@@ -215,23 +304,25 @@ class S2GeceAdaleti(EsnekHedef):
             kural_kimlik=self.kimlik,
             atamalar=atamalar,
             baglam=baglam,
-            atama_uygun_mu=lambda a: baglam.gece_mi(a.vardiya_tipi_id),
-            talep_uygun_mu=lambda anahtar: baglam.gece_mi(anahtar[1]),
-            aciklama="gece vardiyasi sayisi donem hedefinden sapiyor",
+            atama_agirligi=lambda a: baglam.gece_saat(a.vardiya_tipi_id),
+            talep_uygun_mu=lambda anahtar: gece_saati_mi(anahtar[1]),
+            aciklama="gece saati donem hedefinden sapiyor",
         )
 
 
 @kayitli("S3")
 class S3HaftaSonuAdaleti(EsnekHedef):
-    """Kisi basina hafta sonu/resmi tatil vardiyasi sayisinin hedeften sapmasi (TD-3).
+    """Kisi basina hafta sonu/resmi tatil SAATININ hedeften sapmasi (TD-3).
 
     SDD 5.5 (surum 1.3): donem geneli kapsamli, S2 ile ayni gerekce.
+    Birim S2 ile birlikte saate gecti (K12); uc adalet hedefi (S2, S3, S4)
+    artik ayni birimde oldugundan `w2`, `w3` ve `w4` dogrudan
+    karsilastirilabilir.
     """
 
     ad = "Hafta sonu adaleti"
     aciklama = (
-        "Kişi başına düşen hafta sonu ve resmî tatil vardiyası sayısının hedeften sapması "
-        "cezalandırılır."
+        "Kişi başına düşen hafta sonu ve resmî tatil saatinin hedeften sapması " "cezalandırılır."
     )
 
     kapsam = KuralKapsami.DONEM_GENELI
@@ -239,17 +330,21 @@ class S3HaftaSonuAdaleti(EsnekHedef):
     def modele_ekle(
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
     ) -> cp_model.LinearExprT:
-        """S2 ile ayni formulasyon; gece[s] yerine hs[d] kullanilir (SRS S3)."""
+        """S2 ile ayni formulasyon; gece saati yerine hafta sonu gununun tam
+        blok suresi sayilir (SRS S3: `hs_yuku[p] = Σ sure[b] · x`)."""
         hs_gunleri = [g for g in baglam.donem_gunleri if baglam.hafta_sonu_mu(g)]
-        ust_sinir = len(hs_gunleri) * max(len(baglam.vardiya_tipleri), 1)
-        hs_sayisi = {
-            p: sum(baglam.y[(p, g, v)] for g in hs_gunleri for v in baglam.vardiya_tipleri)
+        sureler = {v: _tam_saat(baglam.sure_saat(v)) for v in baglam.vardiya_tipleri}
+        ust_sinir = len(hs_gunleri) * max(sureler.values(), default=0)
+        hs_yuku = {
+            p: sum(
+                sureler[v] * baglam.y[(p, g, v)] for g in hs_gunleri for v in baglam.vardiya_tipleri
+            )
             for p in baglam.personel
         }
         return _adalet_sapmasi_terimi(
             model=model,
             baglam=baglam,
-            sayilar=hs_sayisi,
+            sayilar=hs_yuku,
             ust_sinir=ust_sinir,
             talep_uygun_mu=lambda anahtar: baglam.hafta_sonu_mu(anahtar[0]),
             degisken_onek="s3_sapma",
@@ -260,9 +355,13 @@ class S3HaftaSonuAdaleti(EsnekHedef):
             kural_kimlik=self.kimlik,
             atamalar=atamalar,
             baglam=baglam,
-            atama_uygun_mu=lambda a: baglam.hafta_sonu_mu(a.tarih),
+            atama_agirligi=lambda a: (
+                _tam_saat(baglam.sure_saat(a.vardiya_tipi_id))
+                if baglam.hafta_sonu_mu(a.tarih)
+                else 0
+            ),
             talep_uygun_mu=lambda anahtar: baglam.hafta_sonu_mu(anahtar[0]),
-            aciklama="hafta sonu/resmi tatil vardiyasi sayisi donem hedefinden sapiyor",
+            aciklama="hafta sonu/resmi tatil saati donem hedefinden sapiyor",
         )
 
 
@@ -433,45 +532,89 @@ class S5TercihKarsilama(EsnekHedef):
 
 @kayitli("S6")
 class S6VardiyaDeseniTutarliligi(EsnekHedef):
-    """Ardisik gunlerde vardiya tipi degisimi. Bina tutarliligi S6b'de ayri degerlendirilir."""
+    """Ardisik gunlerde BASLANGIC SAATI kaymasi. Bina tutarliligi S6b'de ayri.
 
-    ad = "Vardiya deseni tutarlılığı"
+    Kural once "ayni vardiya tipi" uzerinden yaziliydi; katalog genisledigi an
+    o tanim anlamini yitirdi (K13). 08.00-16.00 ile 08.00-20.00 FARKLI
+    bloklardir ama AYNI saatte baslarlar ve ergonomik olarak bir kayma
+    uretmezler. Olcu bu yuzden blok kimligi degil baslangic saatidir ve fark
+    DAIRESEL alinir: 22.00 ile 02.00 arasindaki kayma dort saattir, yirmi
+    degil.
+    """
+
+    ad = "Çalışma deseni tutarlılığı"
     aciklama = (
-        "Ardışık günlerde vardiya tipi değiştirmek ergonomik olarak istenmez ve cezalandırılır."
+        "Ardışık günlerde çalışma saatlerini kaydırmak ergonomik olarak istenmez ve "
+        "cezalandırılır. Ölçü blok kimliği değil başlangıç saatidir; tolerans kadar "
+        "kayma cezasızdır."
+    )
+
+    parametre_tanimlari = (
+        ParametreTanimi(
+            anahtar="desen_toleransi_saat",
+            etiket="Desen toleransı",
+            birim="saat",
+            asgari=0,
+            azami=12,
+        ),
     )
 
     def modele_ekle(
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
     ) -> cp_model.LinearExprT:
-        """degisim[p,d] >= y[p,d,v1] + y[p,d+1,v2] - 1 (v1 != v2): amac fonksiyonunda
-        yalnizca pozitif katkili oldugu icin alt sinirlamak yeterlidir (minimize edilen
-        bir degisken, gereksiz yere yuksek tutulmaz)."""
+        """degisim[p,d] >= y[p,d,v1] + y[p,d+1,v2] - 1, yalnizca kaymasi
+        toleransi ASAN (v1, v2) ciftleri icin.
+
+        Amac fonksiyonunda yalnizca pozitif katkili oldugu icin alt sinirlamak
+        yeterlidir (minimize edilen bir degisken gereksiz yere yuksek
+        tutulmaz). Tolerans icinde kalan ciftler icin gosterge HIC
+        uretilmez - uretilip sifire sabitlenmesi ayni sonucu verirdi ama
+        modeli buyuturdu.
+        """
+        tolerans = self._tolerans()
         gunler = baglam.donem_gunleri
         terimler = []
         for p in baglam.personel:
             for g, g_sonraki in zip(gunler, gunler[1:], strict=False):
-                for v1 in baglam.vardiya_tipleri:
-                    for v2 in baglam.vardiya_tipleri:
-                        if v1 == v2:
-                            continue
-                        gosterge = model.new_bool_var(f"s6_p{p}_g{g}_{v1}_{v2}")
-                        model.add(
-                            gosterge >= baglam.y[(p, g, v1)] + baglam.y[(p, g_sonraki, v2)] - 1
-                        )
-                        terimler.append(gosterge)
+                for v1, v2 in self._cezali_ciftler(baglam, tolerans):
+                    gosterge = model.new_bool_var(f"s6_p{p}_g{g}_{v1}_{v2}")
+                    model.add(gosterge >= baglam.y[(p, g, v1)] + baglam.y[(p, g_sonraki, v2)] - 1)
+                    terimler.append(gosterge)
         return sum(terimler) if terimler else 0
 
+    def _tolerans(self) -> int:
+        return int(self.parametreler.get("desen_toleransi_saat", _VARSAYILAN_DESEN_TOLERANSI_SAAT))
+
+    @staticmethod
+    def _cezali_ciftler(baglam: Baglam, tolerans: int) -> list[tuple[int, int]]:
+        """Kaymasi toleransi asan (v1, v2) blok ciftleri.
+
+        Ayni blogun kendisiyle esleneni (kayma sifir) hicbir zaman cezali
+        degildir; farkli iki blok AYNI saatte basliyorsa da degildir.
+        """
+        ciftler = []
+        for v1, bilgi1 in baglam.vardiya_tipleri.items():
+            for v2, bilgi2 in baglam.vardiya_tipleri.items():
+                if baslangic_kaymasi(bilgi1.baslangic_saati, bilgi2.baslangic_saati) > tolerans:
+                    ciftler.append((v1, v2))
+        return ciftler
+
     def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
+        tolerans = self._tolerans()
         return [
             Ihlal(
                 kural_kimlik=self.kimlik,
                 personel_id=personel_id,
                 tarih=yarin.tarih,
                 ceza=1,
-                aciklama="Ardisik gunde vardiya tipi degisti",
+                aciklama="Ardisik gunde calisma baslangici toleransi asan olcude kaydi",
             )
             for personel_id, bugun, yarin in _ardisik_gun_ciftleri(atamalar)
-            if bugun.vardiya_tipi_id != yarin.vardiya_tipi_id
+            if baslangic_kaymasi(
+                baglam.vardiya_tipleri[bugun.vardiya_tipi_id].baslangic_saati,
+                baglam.vardiya_tipleri[yarin.vardiya_tipi_id].baslangic_saati,
+            )
+            > tolerans
         ]
 
 
@@ -708,13 +851,17 @@ def s4_hedef_paylari_x10(baglam: Baglam, donem_gun_sayisi: float) -> dict[int, i
     olceklenmis tamsayi olarak (modele_ekle ve dogrula'nin ortak hesabi; SDD Ek A
     "Kesirli hedeflerin tamsayiya olceklenmesi").
 
-    toplam_talep_saat yalnizca baglam.donem_icinde olan (tarih,vardiya,nokta)
-    anahtarlarini sayar - _adalet_sapmasi_terimi'ndeki ayni docstring notuyla ayni
-    gerekce: baglam.talep, isitma penceresini de kapsayan tam zaman ekseni icin
-    cozulur (TD-5), donem filtresi olmadan toplam yaklasik iki katina cikar."""
-    toplam_talep_saat_x10 = sum(
-        round(baglam.sure_saat(vardiya_tipi_id) * S4_OLCEK) * gereken
-        for (tarih, vardiya_tipi_id, _nokta_id), gereken in baglam.talep.items()
+    toplam_talep_saat yalnizca baglam.donem_icinde olan anahtarlari sayar -
+    _adalet_sapmasi_terimi'ndeki ayni docstring notuyla ayni gerekce:
+    talep_saat, isitma penceresini de kapsayan tam zaman ekseni icin cozulur
+    (TD-5), donem filtresi olmadan toplam yaklasik iki katina cikar.
+
+    Talep artik SAAT EKSENINDE tutuldugu icin toplam kisi-saat yuku dogrudan
+    degerlerin toplamidir; once blok gorunumunden `sure_saat × gereken` ile
+    turetiliyordu ve o turev karisik uzunluklu katalogda sessizce yanlisti."""
+    toplam_talep_saat_x10 = S4_OLCEK * sum(
+        gereken
+        for (tarih, _saat, _nokta_id), gereken in baglam.talep_saat.items()
         if baglam.donem_icinde(tarih)
     )
     hedef_saatler = {
@@ -751,32 +898,38 @@ def _adalet_sapmasi_terimi(
     """S2 ve S3'un modele_ekle'sinin ortak formulasyonu (SRS 4.3): _adalet_sapmasi_ihlalleri
     ile ayni taban/tavan hesabi, CP-SAT tarafinda kisi basina bir sapma degiskeniyle.
 
-    toplam_talep yalnizca baglam.donem_icinde olan (g,v,n) anahtarlarini sayar (TD-6,
-    SDD Ek A'daki S2 ornegi: "TOPLA(talep[g,v,n]) HER (g,v,n) ICIN baglam.donem"):
-    baglam.talep, model_kur'un zaman ekseninin tamami (isitma penceresi dahil) icin
-    cozulur, isitma penceresi donemle ayni takvim gunu deseninden bir hafta once
-    basladigindan (TD-5) donem filtresi olmadan hedef gercek donem talebinin
-    yaklasik iki katina cikardi."""
+    Hedef KISIYE OZELDIR (SRS 1.17): her talep birimi ona erisebilenler
+    arasinda esit bolunur ve kisinin hedefi kendi paylarinin toplamidir.
+    Tek bir havuz ortalamasi kullanildiginda erisilebilirligi kisitli bir
+    havuz kalici olarak sapmali gorunuyordu; ayrinti `Baglam.adil_paylar`da.
+
+    Paylar yalnizca donem ici talepten hesaplanir (TD-6): talep_saat,
+    model_kur'un zaman ekseninin tamami (isitma penceresi dahil) icin
+    cozulur ve donem filtresi olmadan paylar yaklasik iki katina cikardi."""
     if not sayilar:
         return 0
-    # SRS 1.5: payda BUTUN personel degil UYGUN HAVUZ (P_gece / P_hs); ceza da
-    # yalniz o havuzun sapmalari uzerinden toplanir.
-    havuz = baglam.uygun_havuz(talep_uygun_mu)
-    if not havuz:
-        return 0
-    toplam_talep = sum(
-        gereken
-        for anahtar, gereken in baglam.talep.items()
-        if talep_uygun_mu(anahtar) and baglam.donem_icinde(anahtar[0])
-    )
-    hedef = toplam_talep / len(havuz)
-    taban, tavan = floor(hedef), ceil(hedef)
-
+    paylar = baglam.adil_paylar(talep_uygun_mu)
     terimler: list[cp_model.IntVar] = []
     for p, sayi in sayilar.items():
-        if p not in havuz:
+        pay = paylar.get(p, 0.0)
+        if pay <= 0:
+            # Payi sifir olan personel olcunun DISINDADIR: hedefe ulasmasi
+            # zaten imkansiz, sapmasini raporlamak olcuyu ayirt edici
+            # olmaktan cikarir.
             continue
-        sapma = model.new_int_var(0, ust_sinir, f"{degisken_onek}_p{p}")
+        # Taban/tavan: pay kesirli oldugundan iki tam sayi arasinda kalan
+        # her deger cezasizdir. Ceza birimi SAAT kalir (S4 ile ayni
+        # sozlesme); kesirli bir ceza CP-SAT'a tamsayi katsayi olarak
+        # giremezdi.
+        taban, tavan = floor(pay), ceil(pay)
+        # UST SINIR PAYI DA KAPSAMALI. `ust_sinir` bir kisinin fiilen
+        # tasiyabilecegi azami yuktur; pay ise talebin kisiye dusen
+        # bolumudur ve KADRO YETERSIZ oldugunda bunu asabilir. O durumda
+        # `sapma >= tavan - sayi` kisiti degiskenin ust sinirini asar ve
+        # MODEL COZULEMEZ hale gelir - kadro yetersizliginin dogru cevabi
+        # ise cizelgeyi uretip acigi gostermektir (SRS FR-5.2). Uyum testi
+        # bunu 24 ornekten birinde yakaladi.
+        sapma = model.new_int_var(0, max(ust_sinir, tavan), f"{degisken_onek}_p{p}")
         model.add(sapma >= sayi - taban)
         model.add(sapma >= tavan - sayi)
         terimler.append(sapma)
@@ -788,39 +941,40 @@ def _adalet_sapmasi_ihlalleri(
     kural_kimlik: str,
     atamalar: list[AtamaKaydi],
     baglam: Baglam,
-    atama_uygun_mu: Callable[[AtamaKaydi], bool],
+    atama_agirligi: Callable[[AtamaKaydi], int],
     talep_uygun_mu: Callable[[tuple[date, int, int]], bool],
     aciklama: str,
 ) -> list[Ihlal]:
     """S2 ve S3'un ortak formulasyonu: sapma[p] = max(sayi-taban, tavan-sayi, 0).
 
     toplam_talep, _adalet_sapmasi_terimi ile ayni gerekceyle donem disi (isitma
-    penceresi) talebi haric tutar - bkz. o fonksiyonun docstring'i."""
+    penceresi) talebi haric tutar - bkz. o fonksiyonun docstring'i.
+
+    `atama_agirligi` bir atamanin olcuye KAC BIRIM kattigini soyler (K12):
+    S2 icin blogun gece saati, S3 icin hafta sonu gunundeki blok suresi,
+    ilgisiz atamalar icin sifir. Once ikili bir yuklem vardi ve her uygun
+    atama BIR sayiliyordu; karisik uzunluklu katalogda bu, on iki saatlik
+    bir blogu sekiz saatlik blokla ayni sayarak adaleti bozuyordu."""
     if not baglam.personel:
         return []
 
-    # SRS 1.5: modele_ekle ile BIREBIR ayni payda (uygun havuz) - iki
-    # yorumlayici ayni sayiyi uretmek zorundadir (SDD 3.2.1 uyum testi).
-    havuz = baglam.uygun_havuz(talep_uygun_mu)
+    # modele_ekle ile BIREBIR ayni paylar - iki yorumlayici ayni sayiyi
+    # uretmek zorundadir (SDD 3.2.1 uyum testi).
+    paylar = baglam.adil_paylar(talep_uygun_mu)
+    havuz = {p for p, pay in paylar.items() if pay > 0}
     if not havuz:
         return []
 
-    toplam_talep = sum(
-        gereken
-        for anahtar, gereken in baglam.talep.items()
-        if talep_uygun_mu(anahtar) and baglam.donem_icinde(anahtar[0])
-    )
-    hedef = toplam_talep / len(havuz)
-    taban, tavan = floor(hedef), ceil(hedef)
-
     sayilar: dict[int, int] = defaultdict(int)
     for a in atamalar:
-        if baglam.donem_icinde(a.tarih) and atama_uygun_mu(a):
-            sayilar[a.personel_id] += 1
+        if baglam.donem_icinde(a.tarih):
+            sayilar[a.personel_id] += atama_agirligi(a)
 
     ihlaller: list[Ihlal] = []
     for personel_id in sorted(havuz):
         sayi = sayilar.get(personel_id, 0)
+        pay = paylar[personel_id]
+        taban, tavan = floor(pay), ceil(pay)
         sapma = max(sayi - taban, tavan - sayi, 0)
         if sapma > 0:
             ihlaller.append(
@@ -828,7 +982,7 @@ def _adalet_sapmasi_ihlalleri(
                     kural_kimlik=kural_kimlik,
                     personel_id=personel_id,
                     ceza=sapma,
-                    aciklama=f"{aciklama} (sayi={sayi}, hedef≈{hedef:.1f})",
+                    aciklama=f"{aciklama} (yuk={sayi}, adil pay≈{pay:.1f})",
                 )
             )
     return ihlaller

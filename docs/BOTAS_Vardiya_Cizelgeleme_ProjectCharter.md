@@ -25,6 +25,7 @@ Kurum Mentörü: ____________________
 | Ömer HARMANKAYA | 05.08.2026 | İlk sürüm — kapsam, hedefler ve ön plan tanımlandı | 1.0 |
 | Ömer HARMANKAYA | 05.08.2026 | Uygulama alanı güvenlik personeline daraltıldı; görev noktası yapısı, yetkinlik tanımları ve talep matrisi eklendi | 1.1 |
 | Ömer HARMANKAYA | 09.08.2026 | Kimlik doğrulama kapsama alındı: harici kimlik servisi maddesi kurumsal dizin entegrasyonu olarak yeniden yazıldı ve açık soru güncellendi | 1.2 |
+| Ömer HARMANKAYA | 13.08.2026 | Gece adaleti kabul kriteri (K3) saatlik çalışma düzenine uyarlandı: ölçünün birimi vardiya sayısından gece saatine döndüğü için eşik bir gece bloğu uzunluğu olarak yeniden yazıldı | 1.3 |
 
 
 
@@ -158,7 +159,7 @@ Projenin kapsamı bilinçli olarak sınırlı tutulmuştur. Sistem, halihazırda
 
 **Önemli Fonksiyonel Olmayan Gereksinimler**
 
-- Kişi başına düşen gece sayısı hedeften en fazla bir birim sapmalıdır.
+- Kişi başına düşen gece yükü, kişiye düşen adil paydan en fazla bir gece bloğu kadar sapmalıdır.
 
 - Sistem, hangi hedefin daha öncelikli olduğuna kendisi karar vermemeli; bu tercihi kullanıcıdan parametre olarak almalıdır.
 
@@ -449,9 +450,9 @@ Aşağıdaki işlevler bilinçli olarak kapsam dışında bırakılmıştır. Ka
 
 - Üretilen çizelgede zorunlu kısıt ihlali bulunmaz; bu durum otomatik testlerle doğrulanır.
 
-- Kişi başına düşen gece sayısı hedeften en fazla bir birim sapar.
+- Kişi başına düşen gece yükü, kişiye düşen adil paydan en fazla bir gece bloğu kadar sapar. Ölçünün birimi gece saatidir; eşik, çalışma bloğu kataloğundaki en uzun gece bloğunun süresidir ve katalog değiştiğinde kendiliğinden güncellenir.
 
-- Kasten çelişkili kurulan örnekte sistem hangi gün ve hangi vardiyada kaç kişi eksik kaldığını gösterir.
+- Kasten çelişkili kurulan örnekte sistem hangi gün, hangi saat aralığı ve hangi görev noktasında kaç kişi eksik kaldığını gösterir.
 
 - Manuel düzenlemede kural ihlali bir saniyenin altında bildirilir.
 

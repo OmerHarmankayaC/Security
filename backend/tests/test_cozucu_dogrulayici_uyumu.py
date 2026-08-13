@@ -32,7 +32,7 @@ _H_PARAMETRELERI: dict[str, dict[str, int]] = {
     "H2": {"asgari_dinlenme_saati": 16},
     "H3": {"azami_ardisik_gece": 3},
     "H4": {"azami_ardisik_calisma_gunu": 6},
-    "H5": {"azami_haftalik_saat": 45},
+    "H5": {"haftalik_mutlak_tavan": 66},
     "H6": {"haftalik_asgari_izin_gunu": 1},
     "H7": {},
     "H8": {},
@@ -128,21 +128,25 @@ def test_kasten_bozulan_cizelge_s1_fazla_kadroyu_yakalar() -> None:
     3.2.1'in istedigi "cozucunun gecerli SAYMAYACAGI bir cizelgede
     dogrulayicinin de ihlal bulmasi" yonunun testidir.
     """
-    from app.kurallar.esnek import S1TalepKarsilama
+    from app.kurallar.esnek import S1fFazlaKadro
 
     baglam = _baglam()
-    baglam.talep[(date(2026, 2, 2), GUNDUZ, KAPI)] = 1
+    for _gun, saat in baglam.blok_saatleri(date(2026, 2, 2), GUNDUZ):
+        baglam.talep_saat[(date(2026, 2, 2), saat, KAPI)] = 1
 
     # Cozucunun ureteceginden FAZLASI: talep 1 iken 2 kisi atanmis.
     fazla = [
         AtamaKaydi(personel_id=1, tarih=date(2026, 2, 2), vardiya_tipi_id=GUNDUZ, nokta_id=KAPI),
         AtamaKaydi(personel_id=2, tarih=date(2026, 2, 2), vardiya_tipi_id=GUNDUZ, nokta_id=KAPI),
     ]
-    ihlaller = S1TalepKarsilama(parametreler={}, agirlik=10000).dogrula(fazla, baglam)
+    ihlaller = S1fFazlaKadro(parametreler={}, agirlik=2).dogrula(fazla, baglam)
 
     assert len(ihlaller) == 1
-    assert ihlaller[0].kural_kimlik == "S1"
+    # FAZLA KADRO ARTIK S1f'IN BULGUSU (K4): S1'in ust siniri esnedi ve
+    # cezasi ayri bir agirlik (w1f) tasidigi icin kayit da ayrildi.
+    assert ihlaller[0].kural_kimlik == "S1f"
     assert "fazla" in ihlaller[0].aciklama
-    # Fazla kadro CEZA URETMEZ (bkz. S1TalepKarsilama.dogrula docstring'i);
-    # bulgu yalnizca metin olarak tasinir.
+    # MANUEL DUZENLEMEDE ceza uretmez (bkz. S1fFazlaKadro.dogrula); cozucu
+    # tarafinda ise w1f ile cezalanir. Iki tarafin farkli davranmasi
+    # bilinclidir (SRS 4.3).
     assert ihlaller[0].ceza is None

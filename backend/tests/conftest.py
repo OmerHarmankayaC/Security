@@ -5,6 +5,7 @@ import sys
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,8 @@ from sqlalchemy.orm import Session
 from app.config import ayarlar
 from app.db import OturumYerel, engine
 from app.guvenlik import oturum_baglami
+from app.kurallar.baglam import VardiyaTipiBilgisi
+from app.kurallar.zaman_araligi import aralik_saatleri
 from app.main import app
 from app.models.kimlik import Kullanici, Rol
 from app.models.sonuc import CozumIsiDurumu
@@ -287,3 +290,29 @@ def bos_vardiya_blogu(istemci: TestClient, *, sure_saat: int = 8) -> dict[str, s
                 "bitis_saati": f"{(saat + sure_saat) % 24:02d}:00:00",
             }
     raise AssertionError(f"{sure_saat} saatlik butun baslangic saatleri katalogda dolu")
+
+
+def blok_talebini_saate_ac(
+    talep: dict[tuple[date, int, int], int],
+    vardiya_tipleri: dict[int, VardiyaTipiBilgisi],
+) -> dict[tuple[date, int, int], int]:
+    """BLOK eksenli test talebini SAAT eksenine acar.
+
+    Testlerin cogu talebi tarihsel olarak `(gun, blok, nokta) -> gereken`
+    biciminde kuruyordu; `Baglam.talep` (blok eksenli turev) Tur 4'te
+    kaldirildi ve tek kaynak `talep_saat` oldu. Bu yardimci, testin
+    ANLATTIGI seyi degistirmeden anahtari cevirir: "bu blokta su kadar kisi"
+    ifadesi "blogun kapsadigi her saatte su kadar kisi"ye acilir - uretimdeki
+    `talebi_saate_ac` ile ayni sozlesme (SDD 5.3).
+
+    Ayni saati birden fazla blok kapsiyorsa EN BUYUK gereken alinir; hizali
+    kataloglarda bloklar cakismadigi icin bu durum ancak kasitli kurulan
+    ornekte olusur.
+    """
+    saat_talebi: dict[tuple[date, int], int] = {}
+    for (tarih, vardiya_tipi_id, nokta_id), gereken in talep.items():
+        vt = vardiya_tipleri[vardiya_tipi_id]
+        for gun, saat in aralik_saatleri(tarih, vt.baslangic_saati, vt.bitis_saati):
+            anahtar = (gun, saat, nokta_id)
+            saat_talebi[anahtar] = max(saat_talebi.get(anahtar, 0), gereken)
+    return saat_talebi

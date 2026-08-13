@@ -51,7 +51,14 @@ def model_kur(
         for g in zaman_ekseni:
             for v in baglam.vardiya_tipleri:
                 for n, nokta in baglam.gorev_noktalari.items():
-                    if baglam.gereken_sayi(g, v, n) == 0:
+                    # ON ELEME (SDD 5.3): blogun kapsadigi HICBIR saatte
+                    # talep yoksa degisken hic uretilmez. Blok eksenli
+                    # turev Tur 4'te kalktigi icin soru dogrudan saat
+                    # ekseninde soruluyor.
+                    if not any(
+                        baglam.gereken_sayi_saat(saat_gunu, saat, n) > 0
+                        for saat_gunu, saat in baglam.blok_saatleri(g, v)
+                    ):
                         continue
                     if nokta.onkosul_yetkinlik_id is not None and not baglam.yetkin_mi(
                         p, nokta.onkosul_yetkinlik_id

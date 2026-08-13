@@ -20,6 +20,7 @@ import { Buton, Kart, KartEtiketi, Sayi } from '../components/app-ui'
 import { cn } from '../lib/utils'
 import { belirtmeHaliEki, buyukHarf, kisalt } from '../lib/metin'
 import { sayiBicimle } from '../lib/sayi'
+import { saatAraligiEtiketi, vardiyaHucreSinifi } from '../lib/vardiyaRenk'
 import {
   bugunIso,
   donemAraligiBicimle,
@@ -82,15 +83,11 @@ const HUCRE_YUKSEKLIGI = 'h-[46px]' // 28 -> 46
 // buyudugu icin pay 280 -> 292.
 const IZGARA_YUKSEKLIGI = 'max-h-[calc(100svh-292px)]'
 
-// Vardiya kodlaması yalnızca Çizelge ızgarasında kullanılır (TASARIM_REFERANSI.md):
-// gündüz soluk sıcak (#E9E7D9 — sürüm 4'te beyazdan çıkarıldı, boş hücreden
-// ayrılsın diye), akşam sage, gece koyu — vardiya tipinin kendisi bunu
-// taşımadığından (yalnızca gece_mi var) başlangıç saatinden yaklaştırılır.
-function vardiyaHucreSinifi(vardiya: VardiyaTipi | undefined): string {
+// Renk BAŞLANGIÇ SAATİ BANDINDAN gelir, blok kimliğinden değil; tanım
+// lib/vardiyaRenk.ts'te tek yerde durur (SDD 6.3.3).
+function hucreSinifi(vardiya: VardiyaTipi | undefined): string {
   if (!vardiya) return 'bg-surface'
-  if (vardiya.gece_mi) return 'bg-vardiya-gece text-vardiya-gece-ink'
-  const saat = Number(vardiya.baslangic_saati.slice(0, 2))
-  return saat >= 14 ? 'bg-vardiya-aksam text-ink' : 'bg-vardiya-gunduz text-ink'
+  return vardiyaHucreSinifi(vardiya.gece_mi, vardiya.baslangic_saati)
 }
 
 export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }: Props) {
@@ -752,7 +749,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                                   // Bos hucre: kenarlik ve zemin yok — goz yalniz
                                   // dolu hucreleri gorur, 28 gunluk izgarada
                                   // bosluklar arka plana cekilir.
-                                  atama && !kapsama && vardiyaHucreSinifi(vardiya),
+                                  atama && !kapsama && hucreSinifi(vardiya),
                                   kapsama && 'bg-signal-soft font-medium text-signal',
                                   atama?.kilitli && 'outline-2 outline-offset-[-2px] outline-accent',
                                   seciliMi && 'ring-2 ring-inset ring-ink',
@@ -769,8 +766,16 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                                     <span className="font-semibold">−{kapsama.eksik_sayi}</span>
                                   ) : (
                                     <>
+                                      {/* Blok ADI değil SAAT ARALIĞI: karışık
+                                          uzunluklu katalogda iki farklı blok
+                                          aynı kısaltmaya sıkışır (SDD 6.3.3). */}
                                       <span className="font-semibold">
-                                        {kisalt(vardiya?.ad ?? '')}
+                                        {vardiya
+                                          ? saatAraligiEtiketi(
+                                              vardiya.baslangic_saati,
+                                              vardiya.bitis_saati,
+                                            )
+                                          : ''}
                                       </span>
                                       <span className="opacity-80">{kisalt(nokta?.ad ?? '')}</span>
                                     </>
@@ -815,7 +820,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                               <div
                                 className={cn(
                                   'flex flex-col gap-px rounded-sm px-1 py-0.5 font-mono text-mono-kucuk leading-tight',
-                                  hucreAtamalari.length > 0 && vardiyaHucreSinifi(vardiya),
+                                  hucreAtamalari.length > 0 && hucreSinifi(vardiya),
                                   hucreAtamalari.length > 0 && 'border border-rule',
                                   kapsama && 'border-signal',
                                 )}

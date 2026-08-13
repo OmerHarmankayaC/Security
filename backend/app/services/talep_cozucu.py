@@ -33,7 +33,6 @@ saati kapsayan blogun hangi gun basladigindan bagimsiz bir gereksinimdir.
 from collections.abc import Iterable, Sequence
 from datetime import date
 
-from app.kurallar.baglam import VardiyaTipiBilgisi
 from app.kurallar.zaman_araligi import aralik_saatleri
 from app.models.tanim import GunTipi, Talep
 
@@ -102,46 +101,3 @@ def _satirin_gunleri(
             continue
         if gun_tipi_belirle(gun, ozel_gunler) is satir.gun_tipi:
             yield gun
-
-
-def blok_gorunumu_uret(
-    talep_saat: TalepSaat,
-    vardiya_tipleri: dict[int, VardiyaTipiBilgisi],
-) -> dict[tuple[date, int, int], int]:
-    """Saat eksenli talebin BLOK eksenli turevi: `(gun, blok, nokta) -> gereken`.
-
-    GECICI BIR UYUM KATMANIDIR. S2, S3 ve S4 talebi hala VARDIYA biriminde
-    okuyor (`hedef_gece = Σ talep / |havuz|`, `Σ sure_saat × gereken`) ve bu
-    turda kural katalogu degismiyor. Talep dogrudan saate cevrilseydi
-    S2/S3'un hedefi sekiz katina cikar ve ayni donem ayni cezayi vermezdi.
-    Tur 4'te S2/S3 saat birimine gecince bu turev kalkar.
-
-    Ikinci bir TANIM degildir: tek kaynak `talep_saat`tir, buradaki islem
-    ondan tek yerde yapilan bir TUREVDIR. Bir blogun gereken sayisi,
-    kapsadigi saatlerdeki EN BUYUK gerekendir; talep araliklari blok
-    sinirlariyla hizali oldugunda (bu turdaki uc bloklu katalog) bu deger
-    blogun her saatinde ayni olur ve blok eksenli eski tablonun birebir
-    aynisini verir.
-
-    VARSAYIM - TEK UZUNLUKLU, HIZALI KATALOG. "En buyuk gereken" ancak
-    boyle dogrudur. Tur 4'te 10 ve 12 saatlik bloklar girdiginde bir blok
-    farkli gerekenler tasiyan saatleri kapsayacak (orn. 06.00-18.00 blogu,
-    gece 3 ve gunduz 7 kisilik talebi birlikte orter) ve turev o blogu 7
-    kisilik sayacak: fazla kadro talep gibi gorunur, HATA VERMEDEN. Bu
-    fonksiyon o turda kalkmalidir, duzeltilmemelidir - dogru cozum S2/S3'u
-    saat eksenine tasimaktir.
-    """
-    gunler = {tarih for (tarih, _saat, _nokta) in talep_saat}
-    noktalar = {nokta for (_tarih, _saat, nokta) in talep_saat}
-    gorunum: dict[tuple[date, int, int], int] = {}
-    for gun in gunler:
-        for blok_id, blok in vardiya_tipleri.items():
-            dilimler = list(aralik_saatleri(gun, blok.baslangic_saati, blok.bitis_saati))
-            for nokta in noktalar:
-                gereken = max(
-                    (talep_saat.get((d, s, nokta), 0) for d, s in dilimler),
-                    default=0,
-                )
-                if gereken > 0:
-                    gorunum[(gun, blok_id, nokta)] = gereken
-    return gorunum

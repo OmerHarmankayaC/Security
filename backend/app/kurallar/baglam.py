@@ -14,6 +14,7 @@ from itertools import product
 from typing import Any
 
 from app.kurallar.zaman_araligi import aralik_saatleri as _aralik_saatleri
+from app.kurallar.zaman_araligi import gece_saat_sayisi
 from app.models.girdi import MusaitlikDilimi, TercihTipi
 
 
@@ -46,6 +47,11 @@ class PersonelBilgisi:
     aktif_bitis: date | None = None
     yetkinlikler: frozenset[int] = frozenset()
     haftalik_hedef_saat: float = 0.0
+    # H10: kota yilinin basindan bu doneme kadar birikmis fazla calisma
+    # saati. BU TURDA personel kaydindaki alandan gelir; yayinlanmis
+    # surumlerden turetme Tur 5'in isi (`GecmisSayaclar`), o zaman ikisi
+    # TOPLANIR - alan turetilen degerin yerine gecmez (TD-6).
+    devir_fazla_calisma_saat: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,13 +93,6 @@ class Baglam:
     # araligidir; acilim `talebi_saate_ac`ta bir kez yapilir ve bes tuketici
     # ayni ciktiyi kullanir. Kapsama kisiti (S1) bu eksende yazilir.
     talep_saat: dict[tuple[date, int, int], int] = field(default_factory=dict)
-    # BLOK EKSENLI TUREV — (tarih, vardiya_tipi_id, nokta_id) -> gereken.
-    # `talep_saat`ten `blok_gorunumu_uret` ile TEK YERDE turetilir; ikinci
-    # bir tanim degildir. S2, S3 ve S4 talebi hala vardiya biriminde okudugu
-    # ve bu turda kural katalogu degismedigi icin duruyor (Tur 4'te kalkar).
-    # TUREV TEK UZUNLUKLU HIZALI KATALOG VARSAYAR: farkli uzunlukta bloklar
-    # girdiginde bu alan sessizce yanlislasir (bkz. `blok_gorunumu_uret`).
-    talep: dict[tuple[date, int, int], int] = field(default_factory=dict)
     donem_baslangic: date | None = None
     donem_bitis: date | None = None
     ozel_gunler: frozenset[date] = frozenset()
@@ -102,6 +101,9 @@ class Baglam:
     # birakildiginda metin kimlige duser - elle kurulan test baglamlari
     # icin gecerli kalir.
     yetkinlik_adlari: dict[int, str] = field(default_factory=dict)
+    # Ayni gerekce (K20): kota bulgulari personeli KIMLIKLE degil ADLA
+    # gosterir. Bos birakildiginda metin kimlige duser.
+    personel_adlari: dict[int, str] = field(default_factory=dict)
     tercihler: list[TercihKaydi] = field(default_factory=list)
     # Yalniz yeniden cozum dogrulamasinda dolu olur (S8); normalde None.
     onceki_atamalar: list[AtamaKaydi] | None = None
@@ -110,10 +112,16 @@ class Baglam:
     # donem, zaman_ekseni, y)").
     zaman_ekseni: list[date] = field(default_factory=list)
     y: dict[tuple[int, date, int], Any] = field(default_factory=dict)
-    # S1TalepKarsilama.modele_ekle tarafindan doldurulur: (tarih, vardiya_tipi_id,
+    # S1TalepKarsilama.modele_ekle tarafindan doldurulur: (tarih, saat,
     # nokta_id) -> eksik IntVar'i. Cozumden sonra kapsama_acigi tablosuna yazilacak
     # degerleri okumak icin (SDD 5.4: 'cozum.eksik_degiskenleri').
     kapsama_eksikleri: dict[tuple[date, int, int], Any] = field(default_factory=dict)
+    # Ayni saatlerin FAZLA kadro degiskenleri; fazla_kadro tablosuna yazilir.
+    kapsama_fazlalari: dict[tuple[date, int, int], Any] = field(default_factory=dict)
+    # S1f'in ceza terimini kurabilmesi icin: gruplanmis fazla degiskeni ->
+    # (degisken, grubun saat sayisi). S1 ile S1f AYNI gruplamayi paylasir;
+    # ikinci bir gruplama yazmak ayni hesabi iki yerde tutmak olurdu.
+    kadro_fazlalari: dict[tuple[date, int, int], tuple[Any, int]] = field(default_factory=dict)
 
     def vardiya_araligi(self, tarih: date, vardiya_tipi_id: int) -> tuple[datetime, datetime]:
         """Vardiyanin mutlak baslangic/bitis zamani (TD-1: vardiya baslangic gunune yazilir)."""
@@ -143,6 +151,22 @@ class Baglam:
 
     def sure_saat(self, vardiya_tipi_id: int) -> float:
         return self.vardiya_tipleri[vardiya_tipi_id].sure_saat
+
+    def devir_fazla_calisma_saat(self, personel_id: int) -> float:
+        """H10'un `devir[p]`i. Personel baglamda yoksa sifir."""
+        bilgi = self.personel.get(personel_id)
+        return bilgi.devir_fazla_calisma_saat if bilgi is not None else 0.0
+
+    def gece_saat(self, vardiya_tipi_id: int) -> int:
+        """Blogun gece donemiyle (20:00-06:00) kesisen saat sayisi (TD-2).
+
+        `gece_mi` BAYRAGIYLA KARISTIRILMAMALI: bayrak "bu bir gece nobeti
+        midir" sorusunun ikili yanitidir ve H3 onu kullanir; buradaki olcu
+        surekli bir buyukluktur ve S2 onu kullanir. Hesap tek yerde
+        (`zaman_araligi.gece_saat_sayisi`).
+        """
+        vt = self.vardiya_tipleri[vardiya_tipi_id]
+        return gece_saat_sayisi(vt.baslangic_saati, vt.bitis_saati)
 
     def sure_dakika(self, vardiya_tipi_id: int) -> int:
         """CP-SAT tamsayi katsayi gerektirdigi icin sure_saat'in dakika cinsinden tam sayisi."""
@@ -188,13 +212,12 @@ class Baglam:
         nokta = self.gorev_noktalari.get(nokta_id)
         return (nokta.ad if nokta and nokta.ad else "") or f"#{nokta_id} nolu nokta"
 
+    def personel_adi(self, personel_id: int) -> str:
+        return self.personel_adlari.get(personel_id) or f"#{personel_id} nolu personel"
+
     def vardiya_adi(self, vardiya_tipi_id: int) -> str:
         vardiya = self.vardiya_tipleri.get(vardiya_tipi_id)
         return (vardiya.ad if vardiya and vardiya.ad else "") or f"#{vardiya_tipi_id} nolu blok"
-
-    def gereken_sayi(self, tarih: date, vardiya_tipi_id: int, nokta_id: int) -> int:
-        """BLOK eksenli gereken sayi (turev gorunum; bkz. `talep` alani)."""
-        return self.talep.get((tarih, vardiya_tipi_id, nokta_id), 0)
 
     def gereken_sayi_saat(self, tarih: date, saat: int, nokta_id: int) -> int:
         """SAAT eksenli gereken sayi — kapsama kisitinin (S1) tabani."""
@@ -284,42 +307,78 @@ class Baglam:
     def gece_vardiyalari(self) -> frozenset[int]:
         return frozenset(v for v, vt in self.vardiya_tipleri.items() if vt.gece_mi)
 
-    def uygun_havuz(self, talep_uygun_mu: Callable[[tuple[date, int, int]], bool]) -> set[int]:
-        """SRS S2/S3'teki P_gece / P_hs: ilgili talebi bulunan EN AZ BIR gorev
-        noktasinin on kosulunu (H8) karsilayan personel.
+    def erisebilen(self, nokta_id: int) -> frozenset[int]:
+        """Bir noktanin on kosulunu (H8) karsilayan personel.
 
-        Neden gerekli: yetkinligi geregi o talebin bulundugu hicbir noktada
-        calisamayan personel, sayisi hicbir cizelgede sifirdan yukari
-        cikamayacagi icin paydaya dahil edildiginde KALICI olarak "hedefin
-        altinda" gorunur. Bu sapma hicbir cizelgeyle kapatilamaz; hedef
-        ayirt ediciligini kaybeder ve kabul kriteri saglanamaz hale gelir
-        (SRS 1.5'te S2/S3 bu yuzden duzeltildi). Adalet, yuku
-        paylasabilecekler arasinda paylastirmaktir.
+        MUSAITLIGE BAKMAZ, yalniz yetkinlige: musaitlik donem icinde
+        degisir, yetkinlik yapisaldir. Adil pay hesabi bu yuzden yetkinlik
+        uzerinden kurulur - izne cikan bir personelin payi, izinli oldugu
+        icin baskalarina devredilmis olmaz.
+        """
+        nokta = self.gorev_noktalari.get(nokta_id)
+        if nokta is None:
+            return frozenset()
+        if nokta.onkosul_yetkinlik_id is None:
+            return frozenset(self.personel)
+        return frozenset(
+            personel_id
+            for personel_id, bilgi in self.personel.items()
+            if nokta.onkosul_yetkinlik_id in bilgi.yetkinlikler
+        )
+
+    def adil_paylar(
+        self, talep_uygun_mu: Callable[[tuple[date, int, int]], bool]
+    ) -> dict[int, float]:
+        """SRS 4.3 S2/S3: kisiye dusen ADIL PAY.
+
+        ```
+        erisebilen(n) = { q ∈ P : q, n'in on kosulunu karsiliyor }
+        pay[p] = Σ_{d, t, n : p ∈ erisebilen(n)} talep[d,t,n] / |erisebilen(n)|
+        ```
+
+        HEDEF KISIYE OZELDIR, HAVUZ ORTALAMASI DEGIL (SRS 1.17). Tek bir
+        ortalama kullanildiginda erisilebilirligi kisitli bir havuz KALICI
+        olarak hedefin altinda gorunur: yalnizca tek bir noktada
+        calisabilen personel, o noktanin talebi dusukse hedefe hicbir
+        cizelgeyle ulasamaz. Bu bir adaletsizlik degil yapisal bir sinirdir
+        ve olcunun onu sapma olarak raporlamasi, olcuyu ayirt edici
+        olmaktan cikarir.
+
+        Bu, bu projede IKI KEZ bedeli odenmis bir hatanin karsiligidir:
+        once hic gece alamayan personel paydada sayiliyordu, sonra kisitli
+        erisimi olan havuz tek ortalamaya vuruluyordu.
+
+        Ayni mantik S4'un adil pay tanimindan geliyor; uc adalet hedefi de
+        artik kisiye dusen payi olcer.
 
         Cozucu (modele_ekle), dogrulayici (dogrula) ve Analiz servisi (SDD
         5.7) ayni tabani kullanmak zorunda oldugu icin tanim burada, tek
         yerde durur.
         """
-        uygun_noktalar = {
-            nokta_id
-            for (tarih, vardiya_tipi_id, nokta_id), gereken in self.talep.items()
-            if gereken > 0
-            and self.donem_icinde(tarih)
-            and talep_uygun_mu((tarih, vardiya_tipi_id, nokta_id))
-        }
-        havuz: set[int] = set()
-        for personel_id, bilgi in self.personel.items():
-            for nokta_id in uygun_noktalar:
-                nokta = self.gorev_noktalari.get(nokta_id)
-                if nokta is None:
-                    continue
-                if (
-                    nokta.onkosul_yetkinlik_id is None
-                    or nokta.onkosul_yetkinlik_id in bilgi.yetkinlikler
-                ):
-                    havuz.add(personel_id)
-                    break
-        return havuz
+        paylar: dict[int, float] = dict.fromkeys(self.personel, 0.0)
+        erisim_onbellegi: dict[int, frozenset[int]] = {}
+        for (tarih, saat, nokta_id), gereken in self.talep_saat.items():
+            if gereken <= 0 or not self.donem_icinde(tarih):
+                continue
+            if not talep_uygun_mu((tarih, saat, nokta_id)):
+                continue
+            if nokta_id not in erisim_onbellegi:
+                erisim_onbellegi[nokta_id] = self.erisebilen(nokta_id)
+            erisebilenler = erisim_onbellegi[nokta_id]
+            if not erisebilenler:
+                continue
+            kisi_basi = gereken / len(erisebilenler)
+            for personel_id in erisebilenler:
+                paylar[personel_id] += kisi_basi
+        return paylar
+
+    def uygun_havuz(self, talep_uygun_mu: Callable[[tuple[date, int, int]], bool]) -> set[int]:
+        """SRS S2/S3'teki P_gece / P_hs: PAYI SIFIRDAN BUYUK olan personel.
+
+        Hedefe ulasmasi imkansiz olan kimse olculmez; kismen paylasabilen
+        personel ise KENDI PAYI kadar olculur (bkz. `adil_paylar`).
+        """
+        return {p for p, pay in self.adil_paylar(talep_uygun_mu).items() if pay > 0}
 
     @property
     def vardiya_ciftleri(self) -> list[tuple[int, int]]:

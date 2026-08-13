@@ -51,20 +51,28 @@ def test_srs_3_3_6_referans_ornegi_birebir_uretilir() -> None:
     hucreler = _guvenlik_personeli_talep_matrisi()
     yuk = yuk_gostergesi_hesapla(
         hucreler,
-        _vardiya_tipleri(),
-        azami_haftalik_saat=Decimal(45),
+        fazla_calisma_esigi=Decimal(45),
+        azami_gunluk_saat=Decimal(11),
         haftalik_asgari_izin_gunu=1,
     )
-    assert yuk.haftalik_kisi_vardiya == 144
+    # KISI-VARDIYA ARTIK URETILMEZ (FR-1.9, Tur 4): karisik uzunluklu
+    # katalogda o sayi katalogun bilesimine baglidir ve ayni talep icin
+    # farkli sayilar verir. SRS 3.3.6'nin referansi saat cinsindendir.
     assert yuk.haftalik_kisi_saat == Decimal(1152)
-    assert yuk.asgari_kadro == 29
+    # 1.152 / 45 = 25,6 -> 26. Asgari kadro artik FAZLA CALISMA ESIGINDEN
+    # hesaplaniyor (SRS 3.3.6); once H5'in 45 saatlik tavanindan
+    # hesaplaniyordu ve ayni sayiyi baska bir gerekceyle veriyordu. H5 66'ya
+    # ciktigi icin eski yol 18 kisi derdi - surdurulebilir olmayan bir tempo.
+    assert yuk.asgari_kadro == 26
 
 
 def test_talep_yoksa_sifir_doner() -> None:
     yuk = yuk_gostergesi_hesapla(
-        [], _vardiya_tipleri(), azami_haftalik_saat=Decimal(45), haftalik_asgari_izin_gunu=1
+        [],
+        fazla_calisma_esigi=Decimal(45),
+        azami_gunluk_saat=Decimal(11),
+        haftalik_asgari_izin_gunu=1,
     )
-    assert yuk.haftalik_kisi_vardiya == 0
     assert yuk.haftalik_kisi_saat == 0
     assert yuk.asgari_kadro == 0
 
@@ -84,9 +92,13 @@ def test_tekil_tarih_istisnasi_haftalik_yuke_girmez() -> None:
         )
     ]
     yuk = yuk_gostergesi_hesapla(
-        hucreler, _vardiya_tipleri(), azami_haftalik_saat=Decimal(45), haftalik_asgari_izin_gunu=1
+        hucreler,
+        fazla_calisma_esigi=Decimal(45),
+        azami_gunluk_saat=Decimal(11),
+        haftalik_asgari_izin_gunu=1,
     )
-    assert yuk.haftalik_kisi_vardiya == 0
+    # Iddia SAAT cinsinden: kisi-vardiya artik uretilmiyor (FR-1.9).
+    assert yuk.haftalik_kisi_saat == 0
 
 
 def test_resmi_tatil_haftalik_yuke_girmez() -> None:
@@ -102,9 +114,13 @@ def test_resmi_tatil_haftalik_yuke_girmez() -> None:
         )
     ]
     yuk = yuk_gostergesi_hesapla(
-        hucreler, _vardiya_tipleri(), azami_haftalik_saat=Decimal(45), haftalik_asgari_izin_gunu=1
+        hucreler,
+        fazla_calisma_esigi=Decimal(45),
+        azami_gunluk_saat=Decimal(11),
+        haftalik_asgari_izin_gunu=1,
     )
-    assert yuk.haftalik_kisi_vardiya == 0
+    # Iddia SAAT cinsinden: kisi-vardiya artik uretilmiyor (FR-1.9).
+    assert yuk.haftalik_kisi_saat == 0
 
 
 def test_resmi_tatil_satirlari_haftalik_yuku_degistirmez() -> None:
@@ -121,9 +137,8 @@ def test_resmi_tatil_satirlari_haftalik_yuku_degistirmez() -> None:
 
     yuk = yuk_gostergesi_hesapla(
         hucreler,
-        _vardiya_tipleri(),
-        azami_haftalik_saat=Decimal(45),
+        fazla_calisma_esigi=Decimal(45),
+        azami_gunluk_saat=Decimal(11),
         haftalik_asgari_izin_gunu=1,
     )
-    assert yuk.haftalik_kisi_vardiya == 144
     assert yuk.haftalik_kisi_saat == Decimal(1152)

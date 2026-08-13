@@ -10,12 +10,13 @@ bulgusuzluk yalnizca bilinen engellerin bulunmadigi anlamina gelir.
 """
 
 import enum
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date
-from decimal import Decimal
+from decimal import ROUND_CEILING, Decimal
 
 from app.kurallar.baglam import AtamaKaydi, Baglam
-from app.services.kadro_hesaplari import kisi_basina_azami_haftalik_vardiya
+from app.services.kadro_hesaplari import surdurulebilir_haftalik_saat
 
 
 class BulguTipi(enum.StrEnum):
@@ -26,6 +27,10 @@ class BulguTipi(enum.StrEnum):
     # Yapilandirma bulgusu: veri yeterli olabilir ama kural katalogu cozumu
     # anlamsizlastiracak bicimde ayarlanmis.
     KAPSAMA_KURALI_PASIF = "kapsama_kurali_pasif"
+    # Kota bulgulari (SDD 5.2, Tur 4). Ikisi de BULGUDUR, ENGEL DEGIL (K18):
+    # cozum yine calisir.
+    DEVIR_KOTAYI_ASMIS = "devir_kotayi_asmis"
+    KOTASI_DOLMUS_PERSONEL = "kotasi_dolmus_personel"
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -37,6 +42,7 @@ class Bulgu:
     tarih: date | None = None
     vardiya_tipi_id: int | None = None
     nokta_id: int | None = None
+    personel_id: int | None = None
     # KESIN BULGU MU, UYARI MI? (SDD 5.2, karar notu K18)
     #
     # Bu alan bir zamanlar "cozumu durdurur mu" demekti ve yapisal bir
@@ -92,12 +98,20 @@ def kapsama_kurali_bulgusu(aktif_kural_kimlikleri: frozenset[str]) -> Bulgu | No
     )
 
 
+# Kalan kotanin "dolmus" sayilacagi esik: bir haftalik azami fazla calisma
+# (mutlak tavan - fazla calisma esigi = 66 - 45). Sifir yerine bu deger
+# secildi: bir saatlik kalan kota da pratikte kullanilamaz.
+_HAFTALIK_AZAMI_FAZLA = Decimal(21)
+
+
 def on_kontrol_yap(
     baglam: Baglam,
     donem_gunleri: list[date],
     *,
-    azami_haftalik_saat: Decimal,
+    fazla_calisma_esigi: Decimal,
+    azami_gunluk_saat: Decimal,
     haftalik_asgari_izin_gunu: int,
+    yillik_fazla_kotasi: Decimal = Decimal(270),
     aktif_kural_kimlikleri: frozenset[str] = frozenset({"S1"}),
 ) -> list[Bulgu]:
     """aktif_kural_kimlikleri varsayilani S1'i iceren kume: bu fonksiyonun
@@ -107,97 +121,167 @@ def on_kontrol_yap(
     if not donem_gunleri:
         return [kural_bulgusu] if kural_bulgusu else []
 
-    azami_vardiya_donem = _azami_vardiya_donem(
-        baglam,
+    azami_saat_donem = _kisi_basina_azami_saat(
         donem_gunleri,
-        azami_haftalik_saat=azami_haftalik_saat,
+        fazla_calisma_esigi=fazla_calisma_esigi,
+        azami_gunluk_saat=azami_gunluk_saat,
         haftalik_asgari_izin_gunu=haftalik_asgari_izin_gunu,
     )
     musait_gun_by_personel = {
         p: sum(1 for g in donem_gunleri if baglam.gunde_musait_mi(p, g)) for p in baglam.personel
     }
+    # Kisi basina kapasite SAAT cinsinden: musait gun sayisinin gunluk
+    # tavanla carpimi ile surdurulebilir donem saatinin KUCUGU.
+    kapasite_by_personel = {
+        p: min(Decimal(musait_gun) * azami_gunluk_saat, azami_saat_donem)
+        for p, musait_gun in musait_gun_by_personel.items()
+    }
 
     # Yapilandirma bulgusu once yazilir: kullanici listeye baktiginda once
     # "kapsama kurali kapali" gorsun, sonra kapsamaya dair sayilari.
     bulgular: list[Bulgu] = [kural_bulgusu] if kural_bulgusu else []
-    bulgular.extend(
-        _donem_kapasitesi_kontrolu(
-            baglam, donem_gunleri, azami_vardiya_donem, musait_gun_by_personel
-        )
-    )
-    bulgular.extend(
-        _yetkinlik_havuzu_kontrolu(
-            baglam, donem_gunleri, azami_vardiya_donem, musait_gun_by_personel
-        )
-    )
+    bulgular.extend(_donem_kapasitesi_kontrolu(baglam, donem_gunleri, kapasite_by_personel))
+    bulgular.extend(_yetkinlik_havuzu_kontrolu(baglam, donem_gunleri, kapasite_by_personel))
     bulgular.extend(_gunluk_musaitlik_kontrolu(baglam, donem_gunleri))
     bulgular.extend(_nokta_musaitlik_kontrolu(baglam, donem_gunleri))
+    bulgular.extend(
+        _kota_kontrolu(
+            baglam,
+            fazla_calisma_esigi=fazla_calisma_esigi,
+            yillik_fazla_kotasi=yillik_fazla_kotasi,
+        )
+    )
     return bulgular
 
 
-def _azami_vardiya_donem(
+def _kota_kontrolu(
     baglam: Baglam,
+    *,
+    fazla_calisma_esigi: Decimal,
+    yillik_fazla_kotasi: Decimal,
+) -> list[Bulgu]:
+    """5. Yillik fazla calisma kotasi (SDD 5.2, H10).
+
+    Iki ayri bulgu uretir ve ikisi de BULGUDUR, ENGEL DEGIL (K18):
+
+    - **Devir kotayi asmis.** `devir[p] > yillik_fazla_kotasi` olan bir
+      personel H10'u TEK BASINA cozulemez kilar - kisit
+      `devir + Σ fazla <= kota` ve `fazla >= 0` oldugundan saglanamaz. Bu
+      bir VERI HATASIDIR ve cozum aninda degil burada bildirilir (FR-5.1):
+      cozucunun "model cozulemez" demesi kullaniciya hangi personelin
+      hangi alaninin yanlis oldugunu soylemez.
+    - **Kotasi dolmus personel.** Kalan kotasi bir haftalik fazla
+      calismaya bile yetmeyen personel fazla calismaya atanamaz; kadro
+      hesabi bunu bilmeden yapildiginda acigin NEDENI gorunmez kalir -
+      kisi listede durur ama esigin uzerinde kullanilamaz.
+    """
+    bulgular: list[Bulgu] = []
+    kota = float(yillik_fazla_kotasi)
+    esik = float(fazla_calisma_esigi)
+    for personel_id in sorted(baglam.personel):
+        ad = baglam.personel_adi(personel_id)
+        devir = Decimal(str(baglam.devir_fazla_calisma_saat(personel_id)))
+        if devir > yillik_fazla_kotasi:
+            bulgular.append(
+                Bulgu(
+                    tip=BulguTipi.DEVIR_KOTAYI_ASMIS,
+                    personel_id=personel_id,
+                    eksik=int((devir - yillik_fazla_kotasi).to_integral_value(ROUND_CEILING)),
+                    aciklama=(
+                        f"{ad} devir bakiyesi {float(devir):g} saat; yıllık kota "
+                        f"{kota:g} saat. Veri hatası: bu personel için H10 "
+                        f"hiçbir çizelgeyle sağlanamaz."
+                    ),
+                )
+            )
+            continue
+        # "Dolmus" esigi: kalan kota, BIR HAFTALIK fazla calismaya
+        # yetmiyorsa. Sifir yerine bu esik secildi cunku 1 saatlik kalan
+        # kota da pratikte kullanilamaz ve kullaniciya "neredeyse dolu"
+        # demek "dolu" demekten daha az yararli olurdu.
+        kalan = yillik_fazla_kotasi - devir
+        if kalan < _HAFTALIK_AZAMI_FAZLA:
+            bulgular.append(
+                Bulgu(
+                    tip=BulguTipi.KOTASI_DOLMUS_PERSONEL,
+                    personel_id=personel_id,
+                    kesin_mi=False,
+                    aciklama=(
+                        f"{ad} kotasından {float(kalan):g} saat kaldı (eşik {esik:g} "
+                        f"saat/hafta). Bu personel fazla çalışmaya atanamaz; kadro "
+                        f"hesabında eşiğin üstü için sayılmamalı."
+                    ),
+                )
+            )
+    return bulgular
+
+
+def _kisi_basina_azami_saat(
     donem_gunleri: list[date],
     *,
-    azami_haftalik_saat: Decimal,
+    fazla_calisma_esigi: Decimal,
+    azami_gunluk_saat: Decimal,
     haftalik_asgari_izin_gunu: int,
-) -> int:
-    """azami_vardiya_sayisi(donem) (SDD 5.2): kisi basina azami haftalik vardiyanin
-    donem uzunluguna (hafta cinsinden) olceklenmis hali."""
-    toplam_vardiya = 0
-    toplam_saat = 0.0
-    for g in donem_gunleri:
-        for v in baglam.vardiya_tipleri:
-            for n in baglam.gorev_noktalari:
-                gereken = baglam.gereken_sayi(g, v, n)
-                if gereken == 0:
-                    continue
-                toplam_vardiya += gereken
-                toplam_saat += gereken * baglam.sure_saat(v)
-    ortalama_sure = toplam_saat / toplam_vardiya if toplam_vardiya > 0 else 0.0
-    kisi_basina_hafta = kisi_basina_azami_haftalik_vardiya(
-        ortalama_sure,
-        azami_haftalik_saat=azami_haftalik_saat,
+) -> Decimal:
+    """Bir personelin donem boyunca surdurulebilir bicimde calisabilecegi SAAT.
+
+    Kapasite artik kisi-vardiya degil KISI-SAAT olarak olculur (SRS 3.3.6,
+    FR-1.9): karisik uzunluklu katalogda vardiya sayisi katalogun bilesimine
+    gore degisir ve ayni talep icin farkli kapasiteler uretir.
+    """
+    haftalik = surdurulebilir_haftalik_saat(
+        fazla_calisma_esigi=fazla_calisma_esigi,
+        azami_gunluk_saat=azami_gunluk_saat,
         haftalik_asgari_izin_gunu=haftalik_asgari_izin_gunu,
     )
-    donem_hafta_sayisi = Decimal(len(donem_gunleri)) / 7
-    return int(Decimal(kisi_basina_hafta) * donem_hafta_sayisi)
+    return haftalik * Decimal(len(donem_gunleri)) / 7
 
 
 def _donem_kapasitesi_kontrolu(
     baglam: Baglam,
     donem_gunleri: list[date],
-    azami_vardiya_donem: int,
-    musait_gun_by_personel: dict[int, int],
+    kapasite_by_personel: dict[int, Decimal],
 ) -> list[Bulgu]:
-    """1. Donem geneli kapasite."""
-    toplam_talep = sum(
-        baglam.gereken_sayi(g, v, n)
-        for g in donem_gunleri
-        for v in baglam.vardiya_tipleri
-        for n in baglam.gorev_noktalari
-    )
-    azami_kapasite = sum(
-        min(musait_gun, azami_vardiya_donem) for musait_gun in musait_gun_by_personel.values()
-    )
+    """1. Donem geneli kapasite — KISI-SAAT cinsinden."""
+    toplam_talep = _talep_saati(baglam, donem_gunleri)
+    azami_kapasite = sum(kapasite_by_personel.values(), Decimal(0))
 
     if azami_kapasite < toplam_talep:
-        eksik = toplam_talep - azami_kapasite
+        eksik = int((toplam_talep - azami_kapasite).to_integral_value(rounding=ROUND_CEILING))
         return [
             Bulgu(
                 tip=BulguTipi.DONEM_KAPASITESI_YETERSIZ,
                 eksik=eksik,
-                aciklama=f"Dönem genelinde {eksik} vardiyalık kapasite açığı var",
+                aciklama=f"Dönem genelinde {eksik} kişi-saatlik kapasite açığı var",
             )
         ]
     return []
 
 
+def _talep_saati(
+    baglam: Baglam, donem_gunleri: list[date], *, nokta_idleri: set[int] | None = None
+) -> Decimal:
+    """Donemdeki toplam kisi-saat talebi (SAAT EKSENINDEN, dogrudan).
+
+    Talep bir zaman araligidir ve saat eksenine bir kez acilir (SDD 5.3);
+    kisi-saat, acilmis degerlerin toplamidir. Onceki hal blok gorunumunden
+    `gereken × sure_saat` ile turetiyordu ve o turev karisik uzunluklu
+    katalogda sessizce yanlisti.
+    """
+    gunler = set(donem_gunleri)
+    return Decimal(
+        sum(
+            gereken
+            for (tarih, _saat, nokta_id), gereken in baglam.talep_saat.items()
+            if tarih in gunler and (nokta_idleri is None or nokta_id in nokta_idleri)
+        )
+    )
+
+
 def _yetkinlik_havuzu_kontrolu(
     baglam: Baglam,
     donem_gunleri: list[date],
-    azami_vardiya_donem: int,
-    musait_gun_by_personel: dict[int, int],
+    kapasite_by_personel: dict[int, Decimal],
 ) -> list[Bulgu]:
     """2. Yetkinlik havuzu kapasitesi (SDD surum 1.2: bireysel izin de hesaba katilir,
     Kontrol 1'deki gibi kisi basina MIN(musait_gun, azami_vardiya_donem) toplanir).
@@ -214,20 +298,25 @@ def _yetkinlik_havuzu_kontrolu(
     }
     bulgular: list[Bulgu] = []
     for y in yetkinlikler:
-        y_talep = sum(
-            baglam.gereken_sayi(g, v, n_id)
-            for g in donem_gunleri
-            for v in baglam.vardiya_tipleri
-            for n_id, nokta in baglam.gorev_noktalari.items()
-            if nokta.onkosul_yetkinlik_id == y
+        y_talep = _talep_saati(
+            baglam,
+            donem_gunleri,
+            nokta_idleri={
+                n_id
+                for n_id, nokta in baglam.gorev_noktalari.items()
+                if nokta.onkosul_yetkinlik_id == y
+            },
         )
         y_kapasite = sum(
-            min(musait_gun_by_personel[p_id], azami_vardiya_donem)
-            for p_id, p in baglam.personel.items()
-            if y in p.yetkinlikler
+            (
+                kapasite_by_personel[p_id]
+                for p_id, p in baglam.personel.items()
+                if y in p.yetkinlikler
+            ),
+            Decimal(0),
         )
         if y_kapasite < y_talep:
-            eksik = y_talep - y_kapasite
+            eksik = int((y_talep - y_kapasite).to_integral_value(rounding=ROUND_CEILING))
             bulgular.append(
                 Bulgu(
                     tip=BulguTipi.YETKINLIK_HAVUZU_YETERSIZ,
@@ -235,7 +324,7 @@ def _yetkinlik_havuzu_kontrolu(
                     eksik=eksik,
                     aciklama=(
                         f"{baglam.yetkinlik_adi(y)} yetkinlik havuzunda "
-                        f"{eksik} vardiyalık açık var"
+                        f"{eksik} kişi-saatlik açık var"
                     ),
                 )
             )
@@ -246,11 +335,15 @@ def _gunluk_musaitlik_kontrolu(baglam: Baglam, donem_gunleri: list[date]) -> lis
     """3. Gun bazli musaitlik."""
     bulgular: list[Bulgu] = []
     for g in donem_gunleri:
-        gun_talep = sum(
-            baglam.gereken_sayi(g, v, n)
-            for v in baglam.vardiya_tipleri
-            for n in baglam.gorev_noktalari
-        )
+        # AYNI ANDA gereken en yuksek kisi sayisi: gun icindeki her saat
+        # icin noktalarin gerekenleri toplanir, saatlerin en buyugu alinir.
+        # Gun boyu toplam kisi-saat DEGIL - bir kisi gun icinde tek blok
+        # calisir (TD-13) ve karsilastirilan sey o gun musait KISI sayisi.
+        saat_toplamlari: dict[int, int] = defaultdict(int)
+        for (tarih, saat, _nokta_id), gereken in baglam.talep_saat.items():
+            if tarih == g:
+                saat_toplamlari[saat] += gereken
+        gun_talep = max(saat_toplamlari.values(), default=0)
         musait = sum(1 for p in baglam.personel if baglam.gunde_musait_mi(p, g))
         if musait < gun_talep:
             eksik = gun_talep - musait
@@ -271,7 +364,15 @@ def _nokta_musaitlik_kontrolu(baglam: Baglam, donem_gunleri: list[date]) -> list
     for g in donem_gunleri:
         for v in baglam.vardiya_tipleri:
             for n_id, nokta in baglam.gorev_noktalari.items():
-                talep = baglam.gereken_sayi(g, v, n_id)
+                # Blogun kapsadigi saatlerdeki EN YUKSEK gereken: blok o
+                # noktada calistirilacaksa en az bu kadar uygun kisi lazim.
+                talep = max(
+                    (
+                        baglam.gereken_sayi_saat(saat_gunu, saat, n_id)
+                        for saat_gunu, saat in baglam.blok_saatleri(g, v)
+                    ),
+                    default=0,
+                )
                 if talep == 0:
                     continue
                 uygun = sum(

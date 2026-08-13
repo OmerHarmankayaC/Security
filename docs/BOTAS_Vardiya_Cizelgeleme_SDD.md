@@ -47,6 +47,8 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 12.08.2026 | Saatlik düzenin veri temeli tasarlandı: talep tablosu zaman aralığı kaydına çevrildi, kapsama açığı ve fazla kadro tabloları saat eksenine taşındı, çalışma bloğu kısıtları ve personelin devir bakiyesi alanları 4.2.1'e eklendi, talebin saate açılımı 5.3'e yazıldı | 1.22 |
 | Ömer HARMANKAYA | 12.08.2026 | Ön kontrol bulgularının çözüm işini düşürmesi kaldırıldı (5.2) — davranış SRS FR-5.2'yi ihlal ediyordu; kapsama oranının kaynağı kapsama açığı tablosundan atama kayıtlarına çevrildi (5.7) | 1.23 |
 | Ömer HARMANKAYA | 12.08.2026 | Tur 3 uygulamasının doğurduğu borçlar kapatıldı: gün sonunun kodlanışı (24.00 yerine bitiş ≤ başlangıç sözleşmesi) 4.2.2'ye, `cozum_isi.on_kontrol_bulgulari` 4.2.4'e, aynı kısıtı üreten saatlerin tek değişkende toplanması 5.3'e, talep uç noktalarının kayıt tabanlı hâli Ek B'ye yazıldı | 1.24 |
+| Ömer HARMANKAYA | 12.08.2026 | Gün sonunun arayüzde 24.00 olarak gösterilmesi ve saatlerin saat başında sınırlanması 6.3.1'e yazıldı | 1.25 |
+| Ömer HARMANKAYA | 13.08.2026 | Kural kataloğunun saatlik düzene taşınması tasarlandı: takvim haftası kümelerinin kayan pencereden ayrı hesaplanması ve blok görünümü türevinin kaldırılması 5.3'e, kota ve devir bakiyesi bulguları 5.2'ye, çizelge ızgarasının blok gösterimi 6.3.3'e yazıldı; kural parametreleri 4.2.3'e eklendi | 1.26 |
 
 
 
@@ -662,6 +664,13 @@ Yetkilendirme sunucu tarafında, uç nokta düzeyinde yapılır. Arayüzün bir 
 
 Ön kontrol, çözücü çalıştırılmadan önce yapısal engelleri aritmetik olarak tespit eder ve sonucu insan tarafından okunabilir bulgular listesi olarak döndürür. Amaç, çözücünün dakikalarca çalışıp kapsama açığı raporlamasını beklemek yerine, kapatılamayacak açıkları saniyeler içinde göstermektir.
 
+Bu turda iki bulgu tipi eklenmiştir. **Devir bakiyesi kotayı aşmış personel:**
+`devir[p] > yillik_fazla_kotasi` olan bir personel H10'u tek başına çözülemez
+kılar; bu bir veri hatasıdır ve çözüm anında değil ön kontrolde bildirilir.
+**Kotası dolmuş personel:** kalan kotası sıfıra yakın olan personel fazla
+çalışmaya atanamaz; kadro hesabı bunu bilmeden yapıldığında açığın nedeni
+görünmez kalır.
+
 ```
 FONKSİYON on_kontrol(donem, tanimlar, musaitlikler):
     bulgular ← []
@@ -782,6 +791,27 @@ Aralık sınırları başlangıçta kapalı, bitişte açıktır: 08.00–16.00 
 aralıkları çakışmadan bitişir. Gün sonu `00.00` ile gösterilir (4.2.2); gece
 yarısını aşan bloklar ertesi günün saatlerine taşar ve taşan kısım TD-1 uyarınca
 yine başlangıç gününe ait sayılır.
+
+**Blok görünümü türevi kaldırılır.** Tur 3'te S2, S3 ve S4 talebi hâlâ vardiya
+biriminde okuduğu için talep, saat ekseninden blok eksenine geri türetiliyordu
+(`blok_gorunumu_uret`). Türev, bir bloğun gereken sayısını kapsadığı saatlerdeki
+en büyük gereken sayı olarak alır; bu yalnızca blok sınırlarının talep
+sınırlarıyla hizalandığı bir katalogda doğrudur. Karışık uzunluklu katalogda
+sessizce yanlış hesaplar. S2 ve S3'ün saat birimine geçmesiyle türevin tek
+tüketicisi kalmaz ve kaldırılır.
+
+**Takvim haftası kümeleri kayan pencerelerden ayrı hesaplanır.** H4, H5 ve H6
+kayan yedi günlük pencereleri, H10 ise ayrık takvim haftalarını (pazartesi–pazar)
+kullanır (SRS TD-14). İki küme ayrı yardımcılarda üretilir; tek bir fonksiyonda
+birleştirilmeleri hâlinde hangi kuralın hangi pencereyi kullandığı çağrı yerine
+bakılarak anlaşılır hâle gelir ve karışması an meselesidir. Karışmanın sonucu
+sessizdir: kayan pencerede toplanan fazla çalışma yedi katına çıkar ve kota
+gerçekte aşılmadan aşılmış görünür.
+
+Dönem sınırını aşan takvim haftalarının dönem dışı günleri sabit girdi olarak
+modele girer: ısıtma penceresinden (TD-5) veya yayınlanmış sürümlerden okunur,
+ikisi de yoksa sıfır sayılır. Bu değerler karar değişkeni değil, kısıtın sabit
+terimidir.
 
 **Aynı kısıtı üreten saatler tek değişkende toplanır.** Bir gün ve nokta için,
 aynı blok kümesi tarafından kapsanan ve aynı gereken sayıya sahip ardışık saatler
@@ -1119,6 +1149,21 @@ Silme eylemi, tanımın başka kayıtlarda kullanılıp kullanılmadığına gö
 
 - Kural Parametreleri Paneli: Her kural için kimlik, açıklama, parametre alanları, ağırlık (esnek hedeflerde) ve aktiflik anahtarı. Değişiklik kaydedildiğinde yalnızca kural tablosundaki satır güncellenir.
 
+
+**Talep sekmesi.** Talep kayıtları her satırı bir zaman aralığı olan bir liste
+olarak gösterilir; ekleme, değiştirme ve silme diğer tanım sekmeleriyle aynı
+düzendedir. İki sunum kuralı vardır:
+
+- Başlangıç ve bitiş saatleri açılır listeden seçilir, serbest metin girilmez.
+  Aralıklar saat başında başlar ve biter; serbest alan 08.30 gibi bir değerin
+  girilmesine izin verir ve saat ekseni bunu temsil edemez.
+- Veritabanında `00.00` ile kodlanan gün sonu, arayüzde **24.00** olarak
+  gösterilir (4.2.2). Dönüşüm başlangıç ile bitişi ayırt eder: gün başındaki
+  `00.00` başlangıç olarak `00.00`, bitiş olarak `24.00` yazılır. Ayrım
+  yapılmadığında gün başında başlayan bir aralık "24.00–08.00" görünür. Biçimleme
+  tek bir yardımcıda tanımlıdır; üç ayrı kopyası bulunduğunda üçü de aynı hatayı
+  taşıyordu.
+
 ### 6.3.2 Çözüm Ekranı
 
 - Dönem Seçici: Çözümün hangi dönem için çalıştırılacağını belirler.
@@ -1146,7 +1191,11 @@ Silme eylemi, tanımın başka kayıtlarda kullanılıp kullanılmadığına gö
 
 ### 6.3.3 Çizelge Ekranı
 
-- Çizelge Izgarası: Satırlarda personel, sütunlarda günler yer alır. Her hücre, o gün atanan vardiya tipini ve görev noktasını kısaltmayla gösterir. Boş hücreler izin veya atanmamış günü ifade eder.
+- Çizelge Izgarası: Satırlarda personel, sütunlarda günler yer alır. Her hücre, o gün atanan çalışma bloğunu **saat aralığı olarak** ve görev noktasını kısaltmayla gösterir (`08–16 · GÜV`). Boş hücreler izin veya atanmamış günü ifade eder.
+
+  Blok adının kısaltması yeterli değildir. Katalog karışık uzunluklu olduğunda "Gündüz" adını taşıyan sekiz saatlik blok ile on iki saatlik blok aynı kısaltmaya sıkışır ve ızgara iki farklı çizelgeyi aynı gösterir. Saat aralığı hem ayırt edicidir hem de sürenin kendisini okunur kılar; blok adı ayrıntı görünümünde kalır.
+
+  Hücre rengi başlangıç saati bandından hesaplanır, blok kimliğinden değil. Sabit üç renk (gündüz, akşam, gece) yalnızca üç bloklu katalogda anlamlıydı.
 
 - Görünüm Anahtarı: Izgarayı personel ekseninden görev noktası eksenine çevirir. Nokta görünümünde satırlar görev noktaları, hücreler o vardiyaya atanan personeldir.
 

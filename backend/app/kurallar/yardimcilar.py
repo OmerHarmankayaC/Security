@@ -131,6 +131,29 @@ def kayan_pencere_kisiti_ekle(
             model.add(toplam <= ust_sinir)
 
 
+def takvim_haftalari(gunler: Iterable[date]) -> dict[date, list[date]]:
+    """Gunleri AYRIK takvim haftalarina (pazartesi-pazar) toplar (SRS TD-14).
+
+    Anahtar haftanin pazartesisidir. Yalnizca H10 (yillik fazla calisma
+    kotasi) bunu kullanir.
+
+    BU FONKSIYON `kayan_pencere_kisiti_ekle` ILE BIRLESTIRILMEMELIDIR ve
+    ayri durmasi bilinclidir (TD-14, K9). Kayan pencere herhangi yedi ardisik
+    gundur ve H4/H5/H6 onu kullanir; takvim haftasi ortusmeyen bir bolumdur
+    ve yalniz H10 onu kullanir. Karismanin sonucu SESSIZDIR: kota "haftalik
+    esigin ustunde calisilan saatlerin toplami" olarak tanimlidir ve bir
+    toplam ancak ortusmeyen pencerelerde anlamlidir - kayan pencerede ayni
+    saat yedi ayri pencereye girer, toplam yedi katina cikar ve kota
+    gercekte asilmadan asilmis gorunur. Ters yonde de gecerli: takvim
+    haftasina dayanan bir dinlenme kurali, pazar-pazartesi sinirinda yan
+    yana iki yogun haftayi serbest birakir.
+    """
+    haftalar: dict[date, list[date]] = defaultdict(list)
+    for gun in sorted(set(gunler)):
+        haftalar[gun - timedelta(days=gun.weekday())].append(gun)
+    return dict(haftalar)
+
+
 __all__ = [
     "ardisik_kosu_ihlalleri",
     "calisilan_gunler",
@@ -139,4 +162,5 @@ __all__ = [
     "kayan_pencere_ihlalleri",
     "kayan_pencere_kisiti_ekle",
     "personel_bazinda_sirali",
+    "takvim_haftalari",
 ]

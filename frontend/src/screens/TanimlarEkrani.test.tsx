@@ -130,7 +130,6 @@ function fetchTaklidi() {
           return {
             araliklar: TALEP_ARALIKLARI,
             yuk_gostergesi: {
-              haftalik_kisi_vardiya: 0,
               haftalik_kisi_saat: '0',
               asgari_kadro: 0,
             },

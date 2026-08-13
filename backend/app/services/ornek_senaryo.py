@@ -109,8 +109,23 @@ class PersonelGrubuTanimi:
     sicil_on_eki: str
 
 
+# KADRO TALEBE GORE BOYUTLANDIRILDI (SRS 3.3.6, Tur 4). Onceki 44 kisilik
+# kadroda kisi basina haftalik yuk 26 saate dusuyor, kimse fazla calisma
+# esigine (45) yaklasmiyor ve H10 HICBIR ZAMAN tetiklenmiyordu - kurallarin
+# isledigini gosteremeyen bir gosterim verisi, kurallarin yazilmamis
+# olmasiyla ayni kapiya cikar.
+#
+# Yeni buyukluk 30: SRS 3.3.6'nin izin payli asgarisi 29, teorik asgarisi
+# 26. Kisi basina haftalik yuk 1.152 / 30 = 38,4 saat - esige yakin ama
+# ALTINDA; izin veya uzun blok girdiginde esik asilir ve kota tuketimi
+# gorunur hale gelir.
+#
+# Havuz oranlari SRS 3.3.6'daki izin payli degerlere (7 / 6 / 23) sadik
+# kalir; Vardiya Sefligi havuzunun kirilganligi (kesintisiz doldurulan tek
+# nokta, haftada 21 vardiya) korunur - sikisik senaryonun dayandigi
+# mekanizma budur.
 PERSONEL_GRUPLARI: tuple[PersonelGrubuTanimi, ...] = (
-    PersonelGrubuTanimi((VARDIYA_SEFI, GUVENLIK_GOREVI), 9, "VS"),
-    PersonelGrubuTanimi((MURACAAT_GOREVLISI,), 7, "MR"),
-    PersonelGrubuTanimi((GUVENLIK_GOREVI,), 28, "GG"),
+    PersonelGrubuTanimi((VARDIYA_SEFI, GUVENLIK_GOREVI), 7, "VS"),
+    PersonelGrubuTanimi((MURACAAT_GOREVLISI,), 6, "MR"),
+    PersonelGrubuTanimi((GUVENLIK_GOREVI,), 17, "GG"),
 )

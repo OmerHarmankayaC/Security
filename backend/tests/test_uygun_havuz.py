@@ -18,6 +18,8 @@ from app.kurallar.baglam import (
     PersonelBilgisi,
     VardiyaTipiBilgisi,
 )
+from app.kurallar.zaman_araligi import gece_saati_mi
+from tests.conftest import blok_talebini_saate_ac
 
 GECE, GUNDUZ = 1, 2
 GUVENLIK, MURACAAT = 10, 20  # nokta kimlikleri
@@ -28,11 +30,17 @@ _CUMARTESI = date(2026, 2, 7)
 
 
 def _baglam(talep: dict[tuple[date, int, int], int]) -> Baglam:
+    """Talep BLOK eksenli verilir, baglama SAAT ekseninde girer.
+
+    `Baglam.talep` (blok eksenli turev) Tur 4'te kaldirildi; testin
+    anlattigi sey degismedi, yalnizca anahtar cevriliyor.
+    """
+    vardiya_tipleri = {
+        GECE: VardiyaTipiBilgisi(GECE, time(0, 0), time(8, 0), 8.0, True),
+        GUNDUZ: VardiyaTipiBilgisi(GUNDUZ, time(8, 0), time(16, 0), 8.0, False),
+    }
     return Baglam(
-        vardiya_tipleri={
-            GECE: VardiyaTipiBilgisi(GECE, time(0, 0), time(8, 0), 8.0, True),
-            GUNDUZ: VardiyaTipiBilgisi(GUNDUZ, time(8, 0), time(16, 0), 8.0, False),
-        },
+        vardiya_tipleri=vardiya_tipleri,
         gorev_noktalari={
             GUVENLIK: GorevNoktasiBilgisi(GUVENLIK, onkosul_yetkinlik_id=YET_GUVENLIK),
             MURACAAT: GorevNoktasiBilgisi(MURACAAT, onkosul_yetkinlik_id=YET_MURACAAT),
@@ -41,14 +49,17 @@ def _baglam(talep: dict[tuple[date, int, int], int]) -> Baglam:
             1: PersonelBilgisi(1, date(2026, 1, 1), None, frozenset({YET_GUVENLIK})),
             2: PersonelBilgisi(2, date(2026, 1, 1), None, frozenset({YET_MURACAAT})),
         },
-        talep=talep,
+        talep_saat=blok_talebini_saate_ac(talep, vardiya_tipleri),
         donem_baslangic=_PAZARTESI,
         donem_bitis=date(2026, 2, 8),
     )
 
 
 def _gece_havuzu(baglam: Baglam) -> set[int]:
-    return baglam.uygun_havuz(lambda anahtar: baglam.gece_mi(anahtar[1]))
+    # Yuklem SAAT EKSENLI talebe uygulanir: anahtar artik
+    # (tarih, saat, nokta) ve S2'nin sorusu "bu saat gece donemine
+    # dusuyor mu" (TD-2). Once blok bayragina bakiyordu.
+    return baglam.uygun_havuz(lambda anahtar: gece_saati_mi(anahtar[1]))
 
 
 def _hs_havuzu(baglam: Baglam) -> set[int]:

@@ -772,17 +772,21 @@ export function TanimlarEkrani({ ekranSec }: Props) {
           {yukGostergesi && (
             <Kart className="bg-sunken">
               <div className="flex gap-10">
+                {/* KİŞİ-VARDİYA GÖSTERİLMEZ (FR-1.9). Karışık uzunluklu bir
+                    katalogda o sayı kataloğun bileşimine bağlıdır: aynı talep,
+                    blok listesi değiştiğinde farklı bir "kişi-vardiya" verir.
+                    Ölçü saattir. */}
                 <div>
                   <p className="m-0 etiket-caps text-ink-muted">
-                    HAFTALIK KİŞİ-VARDİYA YÜKÜ
+                    HAFTALIK KİŞİ-SAAT YÜKÜ
                   </p>
                   <Sayi className="text-sayi-buyuk font-semibold text-ink">
-                    {yukGostergesi.haftalik_kisi_vardiya}
+                    {yukGostergesi.haftalik_kisi_saat}
                   </Sayi>
                 </div>
                 <div>
                   <p className="m-0 etiket-caps text-ink-muted">
-                    ASGARİ KADRO (KURAL PARAMETRELERİNE GÖRE)
+                    ASGARİ KADRO (FAZLA ÇALIŞMA EŞİĞİNE GÖRE)
                   </p>
                   <Sayi className="text-sayi-buyuk font-semibold text-ink">{yukGostergesi.asgari_kadro}</Sayi>
                 </div>

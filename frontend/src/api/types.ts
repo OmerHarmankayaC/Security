@@ -175,6 +175,9 @@ export type OnKontrolBulguTipi =
   | 'gunluk_musaitlik'
   | 'nokta_musaitlik'
   | 'kapsama_kurali_pasif'
+  // Kota bulguları (SDD 5.2, Tur 4). İkisi de bulgudur, engel değil.
+  | 'devir_kotayi_asmis'
+  | 'kotasi_dolmus_personel'
 
 export interface OnKontrolBulgu {
   tip: OnKontrolBulguTipi
@@ -187,6 +190,7 @@ export interface OnKontrolBulgu {
   tarih: string | null
   vardiya_tipi_id: number | null
   nokta_id: number | null
+  personel_id: number | null
 }
 
 export interface Ihlal {
@@ -286,7 +290,6 @@ export interface TalepAraligi {
 export type TalepAraligiYazma = Omit<TalepAraligi, 'talep_id'>
 
 export interface YukGostergesi {
-  haftalik_kisi_vardiya: number
   haftalik_kisi_saat: string
   asgari_kadro: number
 }

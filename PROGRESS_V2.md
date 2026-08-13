@@ -9,6 +9,193 @@ başlar.
 
 ---
 
+## 2026-08-13 — Tur 4: Kural Kataloğu — **BİTTİ**
+
+Kaynak: `docs/turlar/CLAUDE_CODE_PROMPTU_TUR4.md`, `TUR4_DEVAM.md` ve
+`TUR4_K3_KARARI.md`. Sekiz iş; hepsi bitti. Çalışma `tur4-kural-katmani`
+dalında yürüdü — turun ilk yarısında yarım kalan kural katmanı `main`e
+bulaşmasın diye.
+
+Doküman sürümleri turun üç noktasında doğrulandı: başta SRS 1.16 / SDD
+1.26 / Backlog 1.12 / Charter 1.2; devam yönergesiyle Backlog **1.13**;
+K3 kararıyla Charter **1.3** / SRS **1.17** / Backlog **1.14**.
+
+### İş 1 — testler arası veri sızıntısı (B-22)
+
+Her testten **önce** çalışan bir fikstür tanım/girdi/sonuç tablolarını
+uygulamanın kendi silme yolundan boşaltıyor. Temizlik testten önce, sonra
+değil: başarısız bir testin verisi incelenebilsin.
+
+**Sızıntı önce ölçüldü.** `test_analiz_api` + `test_tanim_api` normal
+sırada 30/30 geçiyor, ters sırada bir test düşüyordu. Fikstürden sonra iki
+sıra da geçiyor; tam takım ters dosya sırasında da **327/327** verdi.
+
+### İş 2 — blok görünümü türevi kaldırıldı
+
+`blok_gorunumu_uret` ve `Baglam.talep` yok. S2, S3 ve S4 talebi doğrudan
+saat ekseninden okuyor; türevin tüketicisi kalmadı. Yük göstergesi de
+kişi-vardiya sayısını bıraktı (FR-1.9): karışık uzunluklu katalogda o sayı
+kataloğun bileşimine bağlıdır, talep değişmese bile değişir.
+
+### İş 3 — H5 yeniden, H9 ve H10
+
+45 saat artık tavan değil **eşik** (H10'un parametresi); H5 mutlak tavanı
+66'ya çıktı — günlük 11 saat × altı çalışma günü, H6 ve H9'un zaten ima
+ettiği sınır. H9 günü sınırlıyor ve blok kataloğu kısıtı **aynı
+parametreyi** okuyor, Tur 3'teki geçici sabit silindi.
+
+H10 fazla çalışmayı **ayrık takvim haftalarında** topluyor; hafta kümeleri
+kayan pencere yardımcısından ayrı bir fonksiyonda üretiliyor (TD-14).
+Karışmanın sonucu sessizdir: kayan pencerede aynı saat yedi pencereye
+girer ve toplam yedi katına çıkar.
+
+**Kural zorunlu ama modeli çözülemez yapmıyor** ve bunu söyleyen bir test
+var: kotası dolmuş personel eşiğe kadar çalışmaya devam ediyor.
+
+### İş 4 — S1'in üst sınırı esnek
+
+Karışık uzunluklu katalogda fazla kadro **yapısaldır** — on saatlik blokla
+kapatılan sekiz saatlik talep iki saat fazla üretir — dolayısıyla zorunlu
+üst sınır modeli çözülemez yapardı. `fazla` değişkenleri `eksik` ile aynı
+saat gruplamasından geçiyor.
+
+`w1f` **ayrı bir kural kaydı** (S1f): kural tablosu kural başına tek
+ağırlık sütunu taşıyor ve S1'in formülasyonunda iki ağırlık var —
+S6/S6b'deki aynı bölme. Karar Backlog 1.13'e işlendi; gerekçe ağırlığın
+Kural ekranından ayarlanabilir olması (FR-1.11).
+
+Manuel düzenlemede fazla kadro **ceza üretmemeye devam ediyor**; iki
+tarafın farklı davranması bilinçli (SRS 4.3).
+
+### İş 5 — S2/S3 saat birimine, S6 kaymaya
+
+`gece_saat[b] = |b ∩ [20:00, 06:00]|` tek yerde. `gece_mi` bayrağı tanımlı
+alan olarak kaldı — öneri kuralı yalnızca yeni blok oluştururken
+ön-dolduruyor. S6 dairesel başlangıç saati kaymasına geçti: 08.00–16.00 ile
+08.00–20.00 farklı bloklar ama aynı saatte başlıyorlar ve ergonomik bir
+kayma üretmiyorlar.
+
+### K3 KARARI — eşik değil, hedef yanlıştı
+
+Ölçüm iki ayrı sorun gösterdi ve ikincisi ağırdı: yedi kişilik Müracaat
+havuzunun erişebildiği gece talebi kişi başına en fazla **22,86 saat**,
+hedef 40. O havuz hedefe **hiçbir çizelgeyle** ulaşamıyordu; hangi eşik
+konursa konsun kalıcı olarak sapmalı görünürdü.
+
+**Hedef kişiye özel adil paya döndü** (SRS 1.17): her talep birimi ona
+erişebilenler arasında eşit bölünüyor, kişinin hedefi kendi paylarının
+toplamı. K3'ün ölçümü **34 → 1,15**'e indi ve ulaşılabilirlik teşhisi
+artık "her havuz hedefe erişebiliyor" diyor.
+
+**Eşik katalogdan türetiliyor** (Charter 1.3): katalogdaki en uzun gece
+bloğunun süresi. Sabit bir saat değeri katalog her değiştiğinde elle
+yeniden ölçekleme isterdi; oran ise hedef büyüdükçe gevşer, küçüldükçe
+imkânsızlaşır.
+
+Bu, aynı kalıbın **ikinci** görülüşü: önce hiç gece alamayan personel
+paydada sayılıyordu, sonra kısıtlı erişimi olan havuz tek ortalamaya
+vuruluyordu. İkisinde de ölçü, hiçbir çizelgeyle kapatılamayan bir sapma
+raporluyordu.
+
+### Uyum testinin yakaladığı gerçek hata
+
+S3'ün sapma değişkeninin üst sınırı bir kişinin **fiilen taşıyabileceği**
+azami yüktü; adil pay ise kadro yetersizken bunu aşabiliyor. O durumda
+kısıt sınırı aşıyor ve model **çözülemez** dönüyordu — oysa kadro
+yetersizliğinin doğru cevabı çizelgeyi üretip açığı göstermektir (FR-5.2).
+24 rastgele örnekten biri buna denk geldi. Üst sınır artık payı da
+kapsıyor; uyum testi **24/24** temiz.
+
+### İş 6 — katalog yedi bloğa, gösterim verisi dört senaryoya
+
+Katalog SRS 3.3.1'deki yedi blok. On iki saatlik bloklar haftalık eşiği
+gerçekten aşabildiği için H10'un işlediğini gösterebilen tek yapı.
+
+**Kadro 44'ten 30'a indi.** 44 kişide kişi başına haftalık yük 26 saatti;
+kimse eşiğe yaklaşmıyor, H10 hiçbir zaman tetiklenmiyordu. 30 kişide yük
+**38,4 saat** — eşiğe yakın ama altında.
+
+| Senaryo | Açık | En yüksek hafta | Fazla çalışma | Uzun blok |
+|---|---|---|---|---|
+| Dengeli (Bu Hafta) | 0 | 50 sa | 32 sa (10 kişi) | 9 |
+| Sıkışık | 56 | 54 sa | 149 sa (21 kişi) | 63 |
+| Fazla çalışma | 17 | 54 sa | 79 sa (17 kişi) | 19 |
+| Kota sınırı | 0 | 48 sa | 30 sa (10 kişi) | 9 |
+
+Kota senaryosunda Ahmet Yılmaz'ın (devir 265, kalan 5) haftalık yükü **40
+saat**: çalışmaya devam ediyor, eşiği aşamıyor. Ön kontrol bunu adıyla
+bildiriyor.
+
+**Sıkışık senaryonun çelişkisi erişilebilirliğe taşındı.** On iki saatlik
+bloklar girince "kadroyu küçült" mekanizması çalışmaz oldu — kabul ölçümü
+bunu sıfır açıkla yakaladı. Vardiya şefliği havuzunun beşini izne çıkarmak
+blok uzunluğundan bağımsız çalışıyor: eksik olan saat değil, o noktadan
+geçebilen **kişi** (H8).
+
+Personel gerçekçi adlar taşıyor.
+
+### İş 7 — çizelge hücresinde saat aralığı
+
+Hücre `08–16 · GÜV` gösteriyor, renk **başlangıç saati bandından**
+geliyor. Yedi bloklu katalogda "Gündüz" adını taşıyan iki blok aynı
+kısaltmaya sıkışıyor ve ızgara iki farklı çizelgeyi aynı gösteriyordu.
+06.00'da başlayan uzun blok gündüzden ayrı bir bantta — aynı renk olsalardı
+06–16 ile 08–16 ayırt edilemezdi.
+
+### İş 8 — ön kontrole kota bulguları
+
+Devir kotayı aşmışsa **kesin bulgu** (H10 tek başına sağlanamaz; veri
+hatası, kişinin adıyla), kalan kotası bir haftalık fazla çalışmaya
+yetmiyorsa **uyarı**. İkisi de çözümü engellemiyor (K18).
+
+### Kabul ölçümü — 5/5
+
+| Kriter | Eşik | Tur 3 | **Tur 4** |
+|---|---|---|---|
+| K1 40×28 | < 60 sn | 1,01 sn | **3,36 sn** |
+| K2 zorunlu ihlal | 0 | 0 | **0** |
+| K3 gece adaleti | ≤ 1 gece bloğu (10 sa) | 0,61¹ | **2,85** |
+| K4 eksik gösterimi | ≥1 açık | 13 aralık | **12 aralık (76 sa)** |
+| K5 manuel düzenleme | < 1 sn | 0,035 sn | **0,051 sn** |
+
+¹ Tur 3'te birim vardiya sayısıydı; sayılar doğrudan karşılaştırılamaz.
+
+K1 üç katına çıktı (katalog ikiye katlandı) ama eşiğin yarısı olan 30
+saniyenin çok altında — K17'nin "dur" koşulu oluşmadı.
+
+### Bilinen sapma — dengeli dönemde bir miktar fazla çalışma
+
+Dengeli dönemde on kişi toplam 32 saat fazla çalışma taşıyor; hedef "eşiğe
+yakın ama altında"ydı. Ortalama 38,4 saat, en yüksek hafta 50. Sebep
+**ağırlık ölçeği**: S2/S3'ün birimi saate döndüğü hâlde ağırlıkları
+değişmedi, dolayısıyla S4'ün dengeleme baskısı görece zayıf. Bu
+**beklenen** bir durum ve düzeltmesi Tur 8'in kalibrasyonu; bu turda
+ağırlıklara dokunulmadı.
+
+### DOKÜMAN BORCU — yok
+
+Bu turda dört kanonik dokümana dokunulmadı; K3 kararının gerektirdiği
+Charter 1.3, SRS 1.17 ve Backlog 1.13/1.14 güncellemeleri proje
+yürütücüsü tarafından yapıldı ve dala alındı.
+
+### Bekleyen göçler — dağıtım yapılmadı
+
+Sunucu **`d1f83a6c40b2`** noktasında (Tur 3, 12.08.2026'da çıktı; Tur 2'nin
+iki göçü ondan önce uygulanmıştı). Bekleyen tek göç bu turunki:
+**`e7b2c4915d80`** — şemayı değiştirmez, yalnızca `kural` tablosunu
+günceller: H5'in parametresini `azami_haftalik_saat` → `haftalik_mutlak_tavan`
+olarak taşır ve değerini 66 yapar, H9/H10/S1f kayıtlarını ekler. Var olan
+kayda dokunmaz (kullanıcının değiştirdiği bir ağırlığı geri almaz) ve iki
+kez koşulabilir.
+
+**Dağıtımda dikkat:** göç kural kayıtlarını değiştiriyor, kod ise yeni
+parametre adını okuyor — ikisi birlikte gitmeli. Eski kod yeni parametreyle
+`KeyError` verir, yeni kod eski parametreyle de. Dağıtım kararı proje
+yürütücüsünde.
+
+
+---
+
 ## 2026-08-12 — Tur 3: Saatlik Düzenin Veri Temeli — **BİTTİ**
 
 Kaynak: `docs/turlar/CLAUDE_CODE_PROMPTU_TUR3.md`, `TUR3_DEVAM.md` ve

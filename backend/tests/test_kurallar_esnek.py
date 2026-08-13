@@ -99,15 +99,20 @@ def test_s2_gece_adaletsizligi_ceza_uretir(baglam: Baglam) -> None:
     baglam.donem_bitis = date(2026, 1, 8)
     for i in range(4):
         gun = date(2026, 1, 5 + i)
-        baglam.talep[(gun, GECE, KAPI)] = 1
-        baglam.talep[(gun, GECE, KONTROL_ODASI)] = 1
-    # hedef = 8 / 2 = 4; personel 1 tum 8 gece vardiyasini, personel 2 hicbirini almiyor.
+        _blok_talebi(baglam, gun, GECE, KAPI, 1)
+        _blok_talebi(baglam, gun, GECE, KONTROL_ODASI, 1)
+    # OLCU ARTIK SAAT (K12). GECE blogu 00.00-08.00; gece donemiyle
+    # (20:00-06:00) kesisimi ALTI saattir (00-05; 06 gece degil).
+    # Talep: 4 gun x 2 nokta x 6 gece saati = 48 kisi-saat, havuz 2 ->
+    # hedef 24. Personel 1 sekiz gece blogunun tamamini aliyor: 8 x 6 = 48,
+    # sapma 24; personel 2 hic almiyor, sapma 24.
+    # Onceki beklenti 4'tu ve birimi VARDIYA sayisiydi.
     atamalar = [AtamaKaydi(1, date(2026, 1, 5 + i), GECE, KAPI) for i in range(4)] + [
         AtamaKaydi(1, date(2026, 1, 5 + i), GECE, KONTROL_ODASI) for i in range(4)
     ]
     ihlaller = kural.dogrula(atamalar, baglam)
     ceza_by_personel = {i.personel_id: i.ceza for i in ihlaller}
-    assert ceza_by_personel == {1: 4, 2: 4}
+    assert ceza_by_personel == {1: 24, 2: 24}
     assert all(i.kural_kimlik == "S2" for i in ihlaller)
 
 
@@ -117,8 +122,8 @@ def test_s2_dengeli_dagilim_ceza_uretmez(baglam: Baglam) -> None:
     baglam.donem_bitis = date(2026, 1, 8)
     for i in range(4):
         gun = date(2026, 1, 5 + i)
-        baglam.talep[(gun, GECE, KAPI)] = 1
-        baglam.talep[(gun, GECE, KONTROL_ODASI)] = 1
+        _blok_talebi(baglam, gun, GECE, KAPI, 1)
+        _blok_talebi(baglam, gun, GECE, KONTROL_ODASI, 1)
     atamalar = [AtamaKaydi(1, date(2026, 1, 5 + i), GECE, KAPI) for i in range(4)] + [
         AtamaKaydi(2, date(2026, 1, 5 + i), GECE, KONTROL_ODASI) for i in range(4)
     ]
@@ -129,16 +134,19 @@ def test_s3_hafta_sonu_adaletsizligi_ceza_uretir(baglam: Baglam) -> None:
     kural = S3HaftaSonuAdaleti(parametreler={}, agirlik=3)
     baglam.donem_baslangic = date(2026, 1, 5)
     baglam.donem_bitis = date(2026, 1, 11)
-    baglam.talep[(date(2026, 1, 10), GUNDUZ, KAPI)] = 1  # cumartesi
-    baglam.talep[(date(2026, 1, 11), GUNDUZ, KAPI)] = 1  # pazar
-    # hedef = 2 / 2 = 1; personel 1 her iki hafta sonu gununu de aliyor.
+    _blok_talebi(baglam, date(2026, 1, 10), GUNDUZ, KAPI, 1)  # cumartesi
+    _blok_talebi(baglam, date(2026, 1, 11), GUNDUZ, KAPI, 1)  # pazar
+    # OLCU ARTIK SAAT (K12). GUNDUZ blogu sekiz saat; hafta sonu talebi
+    # 2 gun x 8 saat = 16 kisi-saat, havuz 2 -> hedef 8. Personel 1 iki
+    # gunu de aliyor: 16 saat, sapma 8; personel 2 sifir, sapma 8.
+    # Onceki beklenti 1'di ve birimi VARDIYA sayisiydi.
     atamalar = [
         AtamaKaydi(1, date(2026, 1, 10), GUNDUZ, KAPI),
         AtamaKaydi(1, date(2026, 1, 11), GUNDUZ, KAPI),
     ]
     ihlaller = kural.dogrula(atamalar, baglam)
     ceza_by_personel = {i.personel_id: i.ceza for i in ihlaller}
-    assert ceza_by_personel == {1: 1, 2: 1}
+    assert ceza_by_personel == {1: 8, 2: 8}
     assert all(i.kural_kimlik == "S3" for i in ihlaller)
 
 
@@ -146,8 +154,8 @@ def test_s3_dengeli_hafta_sonu_ceza_uretmez(baglam: Baglam) -> None:
     kural = S3HaftaSonuAdaleti(parametreler={}, agirlik=3)
     baglam.donem_baslangic = date(2026, 1, 5)
     baglam.donem_bitis = date(2026, 1, 11)
-    baglam.talep[(date(2026, 1, 10), GUNDUZ, KAPI)] = 1
-    baglam.talep[(date(2026, 1, 11), GUNDUZ, KAPI)] = 1
+    _blok_talebi(baglam, date(2026, 1, 10), GUNDUZ, KAPI, 1)
+    _blok_talebi(baglam, date(2026, 1, 11), GUNDUZ, KAPI, 1)
     atamalar = [
         AtamaKaydi(1, date(2026, 1, 10), GUNDUZ, KAPI),
         AtamaKaydi(2, date(2026, 1, 11), GUNDUZ, KAPI),
@@ -161,7 +169,7 @@ def test_s4_saat_sapmasi_ceza_uretir(baglam: Baglam) -> None:
     baglam.donem_bitis = date(2026, 1, 11)  # 7 gun -> carpan 1.0
     # Ikisi de hedef=40 (esit agirlik) -> toplam_talep_saat 5*8=40'i esit bolusur: pay=20.
     for i in range(5):
-        baglam.talep[(date(2026, 1, 5 + i), GUNDUZ, KAPI)] = 1
+        _blok_talebi(baglam, date(2026, 1, 5 + i), GUNDUZ, KAPI, 1)
     # personel 1 yalnizca 3 vardiya x 8 saat = 24 saat calisiyor (payin 4 saat ustunde).
     atamalar = [AtamaKaydi(1, date(2026, 1, 5 + i), GUNDUZ, KAPI) for i in range(3)]
     ihlaller = kural.dogrula(atamalar, baglam)
@@ -177,7 +185,7 @@ def test_s4_hedefi_tutturunca_ceza_uretmez(baglam: Baglam) -> None:
     baglam.personel = {1: PersonelBilgisi(1, date(2026, 1, 1), None, frozenset(), 40)}
     # Tek personel oldugu icin toplam_talep_saatin tamami onun payi: 5*8=40 saat.
     for i in range(5):
-        baglam.talep[(date(2026, 1, 5 + i), GUNDUZ, KAPI)] = 1
+        _blok_talebi(baglam, date(2026, 1, 5 + i), GUNDUZ, KAPI, 1)
     atamalar = [AtamaKaydi(1, date(2026, 1, 5 + i), GUNDUZ, KAPI) for i in range(5)]  # 40 saat
     assert kural.dogrula(atamalar, baglam) == []
 
@@ -225,15 +233,19 @@ def test_s5_atanmamis_gun_vardiya_tipi_tercihini_ihlal_etmez(baglam: Baglam) -> 
     assert kural.dogrula([], baglam) == []
 
 
-def test_s6_vardiya_tipi_degisimi_ceza_uretir(baglam: Baglam) -> None:
-    kural = S6VardiyaDeseniTutarliligi(parametreler={}, agirlik=10)
+def test_s6_baslangic_saati_kaymasi_ceza_uretir(baglam: Baglam) -> None:
+    """OLCU BLOK KIMLIGI DEGIL BASLANGIC SAATI (K13).
+
+    08.00 -> 16.00 kaymasi sekiz saat, tolerans iki saat: cezali.
+    """
+    kural = S6VardiyaDeseniTutarliligi(parametreler={"desen_toleransi_saat": 2}, agirlik=10)
     atamalar = [
         AtamaKaydi(1, date(2026, 1, 5), GUNDUZ, KAPI),
         AtamaKaydi(1, date(2026, 1, 6), AKSAM, KAPI),
     ]
     ihlaller = kural.dogrula(atamalar, baglam)
     assert len(ihlaller) == 1
-    assert "vardiya tipi" in ihlaller[0].aciklama.lower()
+    assert "baslangici" in ihlaller[0].aciklama.lower()
 
 
 def test_s6_bina_degisimini_degerlendirmez(baglam: Baglam) -> None:
@@ -380,7 +392,13 @@ def test_kayit_defterinde_s1_s8_ve_s6b_tamami_bulunur() -> None:
         assert bul(kimlik) is not None, f"{kimlik} kayit defterinde yok"
 
 
-def test_kayit_defterinde_on_yedi_kural_kayitli() -> None:
-    beklenen = {f"H{i}" for i in range(1, 9)} | {f"S{i}" for i in range(1, 9)} | {"S6b"}
+def test_kayit_defterinde_yirmi_kural_kayitli() -> None:
+    """Tur 4'te uc kural eklendi: H9, H10 (SRS 4.2) ve S1f (K4).
+
+    S1f ayri bir kayittir cunku SDD 4.2.3'teki tablo kural basina TEK
+    agirlik sutunu tasir; S1'in formulasyonunda iki agirlik var (w1, w1f).
+    Ayni bolme S6/S6b'de de yapilmisti.
+    """
+    beklenen = {f"H{i}" for i in range(1, 11)} | {f"S{i}" for i in range(1, 9)} | {"S6b", "S1f"}
     assert set(tum_kimlikler()) == beklenen
-    assert len(beklenen) == 17
+    assert len(beklenen) == 20

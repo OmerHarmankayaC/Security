@@ -125,3 +125,56 @@ def saat_metni(an: time, *, bitis: bool = False) -> str:
 def aralik_metni(baslangic: time, bitis: time) -> str:
     """ "08.00–24.00" — arayuze ve bulgu metinlerine giden bicim."""
     return f"{saat_metni(baslangic)}–{saat_metni(bitis, bitis=True)}"
+
+
+# Gece donemi (SRS TD-2, K5): 20:00-06:00. Yarim acik aralik - 06 saati
+# gece degildir, 20 saati gecedir.
+GECE_BASLANGIC_SAATI = 20
+GECE_BITIS_SAATI = 6
+GECE_SAATLERI: frozenset[int] = frozenset(
+    (GECE_BASLANGIC_SAATI + kayma) % 24
+    for kayma in range((GECE_BITIS_SAATI - GECE_BASLANGIC_SAATI) % 24)
+)
+
+
+def gece_saati_mi(saat: int) -> bool:
+    """Duvar saati gece donemine (20:00-06:00) dusuyor mu?"""
+    return saat in GECE_SAATLERI
+
+
+def gece_saat_sayisi(baslangic: time, bitis: time) -> int:
+    """`gece_saat[b] = |b ∩ [20:00, 06:00]|` — TEK TANIM (SRS TD-2, K5).
+
+    TD-2 iki ayri soruyu ayirir ve sistem ikisini ayri yanitlar:
+
+    - "Bu blok bir gece nobeti midir?" — IKILI soru, yaniti `gece_mi`
+      BAYRAGIDIR ve bayrak TANIMLANAN bir alandir (H3 onu kullanir).
+    - "Bu kisi ne kadar gece saati tasidi?" — SUREKLI olcu, yaniti burasi
+      (S2 bunu kullanir).
+
+    Ikisi celismez, farkli sorulara yanit verirler. Bayragin hesaplanan
+    degere donusturulmesi DENENMEMELIDIR: oneri kuralinin tanimli degeri
+    ezmesi bir kez yasandi ve K3 kabul kriterinin kalmasinin iki nedeninden
+    biri oldu.
+
+    Olcu saat olmak zorunda: on iki saatlik bir gece blogu ile sekiz
+    saatlik bir gece blogunu adalet hesabinda ayni saymak, uzun blogu alan
+    personelin dort saatlik fazla yukunu olcuye hic sokmaz.
+    """
+    return sum(
+        1
+        for kayma in range(aralik_sure_saat(baslangic, bitis))
+        if gece_saati_mi((baslangic.hour + kayma) % 24)
+    )
+
+
+def baslangic_kaymasi(onceki: time, sonraki: time) -> int:
+    """Iki blogun baslangic saatleri arasindaki DAIRESEL fark (SRS 4.3 S6).
+
+    `min(|Δ|, 24 − |Δ|)`. Dairesellik zorunlu: 22.00 ile 02.00 arasindaki
+    kayma dort saattir, yirmi saat degil. Duz cikarma kullanan bir olcu,
+    gece bloklari arasindaki en kucuk gecisleri en buyuk ceza gibi
+    gosterirdi.
+    """
+    fark = abs(sonraki.hour - onceki.hour)
+    return min(fark, 24 - fark)

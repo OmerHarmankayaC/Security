@@ -47,7 +47,7 @@ _H_PARAMETRELERI = {
     "H2": {"asgari_dinlenme_saati": 16},
     "H3": {"azami_ardisik_gece": 3},
     "H4": {"azami_ardisik_calisma_gunu": 6},
-    "H5": {"azami_haftalik_saat": 45},
+    "H5": {"haftalik_mutlak_tavan": 66},
     "H6": {"haftalik_asgari_izin_gunu": 1},
     "H7": {},
     "H8": {},
@@ -78,15 +78,14 @@ def _kucuk_baglam() -> tuple[Baglam, list[date]]:
     }
     gunler = [date(2026, 2, 2) + timedelta(days=i) for i in range(3)]
     # S1 artik SAAT ekseninde calisiyor: talep, GUNDUZ blogunun kapsadigi
-    # her saate yazilir (SRS 4.3). Blok gorunumu S2/S3/S4 icin duruyor.
+    # her saate yazilir (SRS 4.3). Blok gorunumu Tur 4'te kalkti; S2/S3/S4
+    # de talebi dogrudan saat uzerinden okuyor.
     talep_saat = {(g, saat, KAPI): 1 for g in gunler for saat in range(8, 16)}
-    talep = {(g, GUNDUZ, KAPI): 1 for g in gunler}
     baglam = Baglam(
         vardiya_tipleri=vardiya_tipleri,
         gorev_noktalari=gorev_noktalari,
         personel=personel,
         talep_saat=talep_saat,
-        talep=talep,
         donem_baslangic=gunler[0],
         donem_bitis=gunler[-1],
     )
@@ -224,10 +223,6 @@ def test_cozum_sonucu_atama_tablosuna_yaziliyor() -> None:
             )
             for p in personel_satirlari
         }
-        talep = {
-            (gun, vardiya_satirlari["gunduz"].vardiya_tipi_id, nokta_satiri.nokta_id): 1
-            for gun in gunler
-        }
         talep_saat = {
             (gun, saat, nokta_satiri.nokta_id): 1 for gun in gunler for saat in range(8, 16)
         }
@@ -236,7 +231,6 @@ def test_cozum_sonucu_atama_tablosuna_yaziliyor() -> None:
             gorev_noktalari=gorev_noktalari,
             personel=personel,
             talep_saat=talep_saat,
-            talep=talep,
             donem_baslangic=gunler[0],
             donem_bitis=gunler[-1],
         )
@@ -301,9 +295,8 @@ def _esnek_uyum_baglami() -> tuple[Baglam, list[date], list[AtamaKaydi]]:
     }
     gunler = [date(2026, 2, 2) + timedelta(days=i) for i in range(7)]  # Pzt..Paz (hafta sonu dahil)
 
-    # Blok gorunumu (S2/S3/S4) ve saat ekseni (S1) birlikte kurulur; ikisi de
-    # ayni taleple beslenir.
-    talep = {}
+    # Talep YALNIZCA saat ekseninde kurulur: blok gorunumu Tur 4'te kalkti,
+    # S1 gibi S2/S3/S4 de dogrudan bu ekseni okuyor.
     talep_saat: dict[tuple[date, int, int], int] = {}
     blok_saatleri = {GUNDUZ: range(8, 16), AKSAM: range(16, 24), GECE: range(0, 8)}
     for i, gun in enumerate(gunler):
@@ -311,7 +304,6 @@ def _esnek_uyum_baglami() -> tuple[Baglam, list[date], list[AtamaKaydi]]:
         if i % 2 == 0:
             hucreler.append((GECE, NOKTA_A))
         for blok, nokta in hucreler:
-            talep[(gun, blok, nokta)] = 1
             for saat in blok_saatleri[blok]:
                 talep_saat[(gun, saat, nokta)] = 1
 
@@ -337,7 +329,6 @@ def _esnek_uyum_baglami() -> tuple[Baglam, list[date], list[AtamaKaydi]]:
         gorev_noktalari=gorev_noktalari,
         personel=personel,
         talep_saat=talep_saat,
-        talep=talep,
         donem_baslangic=gunler[0],
         donem_bitis=gunler[-1],
         tercihler=tercihler,

@@ -31,7 +31,7 @@ def _standart_kurallari_ekle(oturum: OturumYerel) -> None:
         ("H2", KuralTipi.ZORUNLU, {"asgari_dinlenme_saati": 16}, None),
         ("H3", KuralTipi.ZORUNLU, {"azami_ardisik_gece": 3}, None),
         ("H4", KuralTipi.ZORUNLU, {"azami_ardisik_calisma_gunu": 6}, None),
-        ("H5", KuralTipi.ZORUNLU, {"azami_haftalik_saat": 45}, None),
+        ("H5", KuralTipi.ZORUNLU, {"haftalik_mutlak_tavan": 66}, None),
         ("H6", KuralTipi.ZORUNLU, {"haftalik_asgari_izin_gunu": 1}, None),
         ("H7", KuralTipi.ZORUNLU, {}, None),
         ("H8", KuralTipi.ZORUNLU, {}, None),
@@ -140,7 +140,17 @@ def test_cozum_kadro_yeterliyken_tamamlandi_doner_ve_atama_yazilir(temel_kurulum
             .scalars()
             .all()
         )
-        assert len(atamalar) == 7  # her gun 1 kisi
+        # UST SINIR ARTIK ESNEK (K4, Tur 4): cozucu talebin uzerine
+        # cikabilir ve bunun kucuk bir cezasi vardir (S1f, w1f=2). Bu
+        # yuzden atama sayisi 7'ye SABIT DEGIL, en az 7'dir - her gunun
+        # doldurulmus olmasi yeterli kosuldur. Once uzeri zorunlu kisitla
+        # kapaliydi ve sayi tam 7 olurdu.
+        #
+        # Fazla kadronun kendisi bir hata degil: karisik uzunluklu
+        # katalogda yapisaldir ve S1f onu kaydeder. Testin asil olctugu
+        # sey asagida: BU noktada kapsama acigi yok.
+        assert len(atamalar) >= 7
+        assert {a.tarih for a in atamalar} == {baslangic + timedelta(days=i) for i in range(7)}
         kapsama = (
             oturum.execute(
                 select(KapsamaAcigi).where(
