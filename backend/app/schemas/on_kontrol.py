@@ -21,6 +21,7 @@ class BulguOku(BaseModel):
     tarih: date | None = None
     vardiya_tipi_id: int | None = None
     nokta_id: int | None = None
+    personel_id: int | None = None
     # KESIN BULGU MU, UYARI MI (SDD 5.2, K18). Hicbir bulgu cozumu
     # DUSURMEZ; ayrim yalnizca okuma amaclidir. Kesin bulgu, ortaya
     # cikacak acigin kadro yetersizliginden kaynaklandigini ONCEDEN

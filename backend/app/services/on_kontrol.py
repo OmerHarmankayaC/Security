@@ -27,6 +27,10 @@ class BulguTipi(enum.StrEnum):
     # Yapilandirma bulgusu: veri yeterli olabilir ama kural katalogu cozumu
     # anlamsizlastiracak bicimde ayarlanmis.
     KAPSAMA_KURALI_PASIF = "kapsama_kurali_pasif"
+    # Kota bulgulari (SDD 5.2, Tur 4). Ikisi de BULGUDUR, ENGEL DEGIL (K18):
+    # cozum yine calisir.
+    DEVIR_KOTAYI_ASMIS = "devir_kotayi_asmis"
+    KOTASI_DOLMUS_PERSONEL = "kotasi_dolmus_personel"
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -38,6 +42,7 @@ class Bulgu:
     tarih: date | None = None
     vardiya_tipi_id: int | None = None
     nokta_id: int | None = None
+    personel_id: int | None = None
     # KESIN BULGU MU, UYARI MI? (SDD 5.2, karar notu K18)
     #
     # Bu alan bir zamanlar "cozumu durdurur mu" demekti ve yapisal bir
@@ -93,6 +98,12 @@ def kapsama_kurali_bulgusu(aktif_kural_kimlikleri: frozenset[str]) -> Bulgu | No
     )
 
 
+# Kalan kotanin "dolmus" sayilacagi esik: bir haftalik azami fazla calisma
+# (mutlak tavan - fazla calisma esigi = 66 - 45). Sifir yerine bu deger
+# secildi: bir saatlik kalan kota da pratikte kullanilamaz.
+_HAFTALIK_AZAMI_FAZLA = Decimal(21)
+
+
 def on_kontrol_yap(
     baglam: Baglam,
     donem_gunleri: list[date],
@@ -100,6 +111,7 @@ def on_kontrol_yap(
     fazla_calisma_esigi: Decimal,
     azami_gunluk_saat: Decimal,
     haftalik_asgari_izin_gunu: int,
+    yillik_fazla_kotasi: Decimal = Decimal(270),
     aktif_kural_kimlikleri: frozenset[str] = frozenset({"S1"}),
 ) -> list[Bulgu]:
     """aktif_kural_kimlikleri varsayilani S1'i iceren kume: bu fonksiyonun
@@ -132,6 +144,75 @@ def on_kontrol_yap(
     bulgular.extend(_yetkinlik_havuzu_kontrolu(baglam, donem_gunleri, kapasite_by_personel))
     bulgular.extend(_gunluk_musaitlik_kontrolu(baglam, donem_gunleri))
     bulgular.extend(_nokta_musaitlik_kontrolu(baglam, donem_gunleri))
+    bulgular.extend(
+        _kota_kontrolu(
+            baglam,
+            fazla_calisma_esigi=fazla_calisma_esigi,
+            yillik_fazla_kotasi=yillik_fazla_kotasi,
+        )
+    )
+    return bulgular
+
+
+def _kota_kontrolu(
+    baglam: Baglam,
+    *,
+    fazla_calisma_esigi: Decimal,
+    yillik_fazla_kotasi: Decimal,
+) -> list[Bulgu]:
+    """5. Yillik fazla calisma kotasi (SDD 5.2, H10).
+
+    Iki ayri bulgu uretir ve ikisi de BULGUDUR, ENGEL DEGIL (K18):
+
+    - **Devir kotayi asmis.** `devir[p] > yillik_fazla_kotasi` olan bir
+      personel H10'u TEK BASINA cozulemez kilar - kisit
+      `devir + Σ fazla <= kota` ve `fazla >= 0` oldugundan saglanamaz. Bu
+      bir VERI HATASIDIR ve cozum aninda degil burada bildirilir (FR-5.1):
+      cozucunun "model cozulemez" demesi kullaniciya hangi personelin
+      hangi alaninin yanlis oldugunu soylemez.
+    - **Kotasi dolmus personel.** Kalan kotasi bir haftalik fazla
+      calismaya bile yetmeyen personel fazla calismaya atanamaz; kadro
+      hesabi bunu bilmeden yapildiginda acigin NEDENI gorunmez kalir -
+      kisi listede durur ama esigin uzerinde kullanilamaz.
+    """
+    bulgular: list[Bulgu] = []
+    kota = float(yillik_fazla_kotasi)
+    esik = float(fazla_calisma_esigi)
+    for personel_id in sorted(baglam.personel):
+        ad = baglam.personel_adi(personel_id)
+        devir = Decimal(str(baglam.devir_fazla_calisma_saat(personel_id)))
+        if devir > yillik_fazla_kotasi:
+            bulgular.append(
+                Bulgu(
+                    tip=BulguTipi.DEVIR_KOTAYI_ASMIS,
+                    personel_id=personel_id,
+                    eksik=int((devir - yillik_fazla_kotasi).to_integral_value(ROUND_CEILING)),
+                    aciklama=(
+                        f"{ad} devir bakiyesi {float(devir):g} saat; yıllık kota "
+                        f"{kota:g} saat. Veri hatası: bu personel için H10 "
+                        f"hiçbir çizelgeyle sağlanamaz."
+                    ),
+                )
+            )
+            continue
+        # "Dolmus" esigi: kalan kota, BIR HAFTALIK fazla calismaya
+        # yetmiyorsa. Sifir yerine bu esik secildi cunku 1 saatlik kalan
+        # kota da pratikte kullanilamaz ve kullaniciya "neredeyse dolu"
+        # demek "dolu" demekten daha az yararli olurdu.
+        kalan = yillik_fazla_kotasi - devir
+        if kalan < _HAFTALIK_AZAMI_FAZLA:
+            bulgular.append(
+                Bulgu(
+                    tip=BulguTipi.KOTASI_DOLMUS_PERSONEL,
+                    personel_id=personel_id,
+                    kesin_mi=False,
+                    aciklama=(
+                        f"{ad} kotasından {float(kalan):g} saat kaldı (eşik {esik:g} "
+                        f"saat/hafta). Bu personel fazla çalışmaya atanamaz; kadro "
+                        f"hesabında eşiğin üstü için sayılmamalı."
+                    ),
+                )
+            )
     return bulgular
 
 

@@ -277,3 +277,87 @@ def test_varsayilan_cagri_yapilandirma_uyarisi_uretmez() -> None:
         haftalik_asgari_izin_gunu=1,
     )
     assert bulgular == []
+
+
+# --- Kota bulgulari (SDD 5.2, Tur 4 Is 8) -----------------------------------
+
+
+def _kota_baglami(devir: float) -> Baglam:
+    """Tek personelli, talebi karsilanabilir bir baglam.
+
+    Kota bulgulari kadro aritmetigine bakmaz; digerlerinin susmasi icin
+    talep bilincli olarak kucuk tutuldu.
+    """
+    gunler = _gunler(7)
+    return Baglam(
+        vardiya_tipleri=_vardiya_tipleri(),
+        gorev_noktalari={KAPI: GorevNoktasiBilgisi(KAPI, onkosul_yetkinlik_id=None)},
+        personel={
+            1: PersonelBilgisi(
+                1,
+                date(2026, 1, 1),
+                None,
+                frozenset(),
+                devir_fazla_calisma_saat=devir,
+            )
+        },
+        personel_adlari={1: "Ayşe Yılmaz"},
+        talep_saat=blok_talebini_saate_ac({(gunler[0], GUNDUZ, KAPI): 1}, _vardiya_tipleri()),
+        donem_baslangic=gunler[0],
+        donem_bitis=gunler[-1],
+    )
+
+
+def _kota_bulgulari(devir: float) -> list:
+    return [
+        b
+        for b in on_kontrol_yap(
+            _kota_baglami(devir),
+            _gunler(7),
+            fazla_calisma_esigi=_FAZLA_CALISMA_ESIGI,
+            azami_gunluk_saat=_AZAMI_GUNLUK_SAAT,
+            haftalik_asgari_izin_gunu=_HAFTALIK_ASGARI_IZIN_GUNU,
+            yillik_fazla_kotasi=Decimal(270),
+        )
+        if b.tip in (BulguTipi.DEVIR_KOTAYI_ASMIS, BulguTipi.KOTASI_DOLMUS_PERSONEL)
+    ]
+
+
+def test_devir_kotayi_asmissa_veri_hatasi_bildirilir() -> None:
+    """`devir[p] > yillik_fazla_kotasi` H10'u TEK BASINA cozulemez kilar.
+
+    Kisit `devir + Σ fazla <= kota` ve `fazla >= 0`; devir kotayi asmissa
+    hicbir atama bunu saglayamaz. Cozucunun "model cozulemez" demesi
+    kullaniciya HANGI personelin hangi alaninin yanlis oldugunu soylemez -
+    bu yuzden on kontrolde bildirilir (FR-5.1).
+    """
+    bulgular = _kota_bulgulari(devir=300.0)
+    assert [b.tip for b in bulgular] == [BulguTipi.DEVIR_KOTAYI_ASMIS]
+    assert bulgular[0].personel_id == 1
+    # K20: metin kimlik degil AD tasir.
+    assert "Ayşe Yılmaz" in bulgular[0].aciklama
+    assert bulgular[0].eksik == 30
+
+
+def test_kotasi_dolmus_personel_uyari_uretir() -> None:
+    """Kalan kotasi bir haftalik fazla calismaya yetmeyen personel fazla
+    calismaya atanamaz; kadro hesabi bunu bilmeden yapildiginda acigin
+    NEDENI gorunmez kalir."""
+    bulgular = _kota_bulgulari(devir=260.0)
+    assert [b.tip for b in bulgular] == [BulguTipi.KOTASI_DOLMUS_PERSONEL]
+    assert bulgular[0].kesin_mi is False  # uyari, kesin bulgu degil
+    assert "10 saat kaldı" in bulgular[0].aciklama
+
+
+def test_kotasi_bol_personel_bulgu_uretmez() -> None:
+    assert _kota_bulgulari(devir=0.0) == []
+
+
+def test_kota_bulgulari_cozumu_engellemez() -> None:
+    """K18: hicbir bulgu isi dusurmez; ikisi de TESHIS uretir, karar vermez."""
+    from app.services.on_kontrol import kesin_bulgular
+
+    bulgular = _kota_bulgulari(devir=300.0)
+    # Kesin bulgu olmasi "cozum baslamasin" demek DEGILDIR - ayrimin tek
+    # anlami kullaniciya nasil gosterildigidir (SDD 5.2).
+    assert kesin_bulgular(bulgular) == bulgular

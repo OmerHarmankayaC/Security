@@ -898,32 +898,38 @@ def _adalet_sapmasi_terimi(
     """S2 ve S3'un modele_ekle'sinin ortak formulasyonu (SRS 4.3): _adalet_sapmasi_ihlalleri
     ile ayni taban/tavan hesabi, CP-SAT tarafinda kisi basina bir sapma degiskeniyle.
 
-    toplam_talep yalnizca baglam.donem_icinde olan (g,v,n) anahtarlarini sayar (TD-6,
-    SDD Ek A'daki S2 ornegi: "TOPLA(talep[g,v,n]) HER (g,v,n) ICIN baglam.donem"):
-    baglam.talep, model_kur'un zaman ekseninin tamami (isitma penceresi dahil) icin
-    cozulur, isitma penceresi donemle ayni takvim gunu deseninden bir hafta once
-    basladigindan (TD-5) donem filtresi olmadan hedef gercek donem talebinin
-    yaklasik iki katina cikardi."""
+    Hedef KISIYE OZELDIR (SRS 1.17): her talep birimi ona erisebilenler
+    arasinda esit bolunur ve kisinin hedefi kendi paylarinin toplamidir.
+    Tek bir havuz ortalamasi kullanildiginda erisilebilirligi kisitli bir
+    havuz kalici olarak sapmali gorunuyordu; ayrinti `Baglam.adil_paylar`da.
+
+    Paylar yalnizca donem ici talepten hesaplanir (TD-6): talep_saat,
+    model_kur'un zaman ekseninin tamami (isitma penceresi dahil) icin
+    cozulur ve donem filtresi olmadan paylar yaklasik iki katina cikardi."""
     if not sayilar:
         return 0
-    # SRS 1.5: payda BUTUN personel degil UYGUN HAVUZ (P_gece / P_hs); ceza da
-    # yalniz o havuzun sapmalari uzerinden toplanir.
-    havuz = baglam.uygun_havuz(talep_uygun_mu)
-    if not havuz:
-        return 0
-    toplam_talep = sum(
-        gereken
-        for anahtar, gereken in baglam.talep_saat.items()
-        if talep_uygun_mu(anahtar) and baglam.donem_icinde(anahtar[0])
-    )
-    hedef = toplam_talep / len(havuz)
-    taban, tavan = floor(hedef), ceil(hedef)
-
+    paylar = baglam.adil_paylar(talep_uygun_mu)
     terimler: list[cp_model.IntVar] = []
     for p, sayi in sayilar.items():
-        if p not in havuz:
+        pay = paylar.get(p, 0.0)
+        if pay <= 0:
+            # Payi sifir olan personel olcunun DISINDADIR: hedefe ulasmasi
+            # zaten imkansiz, sapmasini raporlamak olcuyu ayirt edici
+            # olmaktan cikarir.
             continue
-        sapma = model.new_int_var(0, ust_sinir, f"{degisken_onek}_p{p}")
+        # Taban/tavan: pay kesirli oldugundan iki tam sayi arasinda kalan
+        # her deger cezasizdir. Ceza birimi SAAT kalir (S4 ile ayni
+        # sozlesme); kesirli bir ceza CP-SAT'a tamsayi katsayi olarak
+        # giremezdi.
+        taban, tavan = floor(pay), ceil(pay)
+        # UST SINIR PAYI DA KAPSAMALI. `ust_sinir` bir kisinin fiilen
+        # tasiyabilecegi azami yuktur; pay ise talebin kisiye dusen
+        # bolumudur ve KADRO YETERSIZ oldugunda bunu asabilir. O durumda
+        # `sapma >= tavan - sayi` kisiti degiskenin ust sinirini asar ve
+        # MODEL COZULEMEZ hale gelir - kadro yetersizliginin dogru cevabi
+        # ise cizelgeyi uretip acigi gostermektir (SRS FR-5.2). Uyum testi
+        # bunu 24 ornekten birinde yakaladi.
+        sapma = model.new_int_var(0, max(ust_sinir, tavan), f"{degisken_onek}_p{p}")
         model.add(sapma >= sayi - taban)
         model.add(sapma >= tavan - sayi)
         terimler.append(sapma)
@@ -952,19 +958,12 @@ def _adalet_sapmasi_ihlalleri(
     if not baglam.personel:
         return []
 
-    # SRS 1.5: modele_ekle ile BIREBIR ayni payda (uygun havuz) - iki
-    # yorumlayici ayni sayiyi uretmek zorundadir (SDD 3.2.1 uyum testi).
-    havuz = baglam.uygun_havuz(talep_uygun_mu)
+    # modele_ekle ile BIREBIR ayni paylar - iki yorumlayici ayni sayiyi
+    # uretmek zorundadir (SDD 3.2.1 uyum testi).
+    paylar = baglam.adil_paylar(talep_uygun_mu)
+    havuz = {p for p, pay in paylar.items() if pay > 0}
     if not havuz:
         return []
-
-    toplam_talep = sum(
-        gereken
-        for anahtar, gereken in baglam.talep_saat.items()
-        if talep_uygun_mu(anahtar) and baglam.donem_icinde(anahtar[0])
-    )
-    hedef = toplam_talep / len(havuz)
-    taban, tavan = floor(hedef), ceil(hedef)
 
     sayilar: dict[int, int] = defaultdict(int)
     for a in atamalar:
@@ -974,6 +973,8 @@ def _adalet_sapmasi_ihlalleri(
     ihlaller: list[Ihlal] = []
     for personel_id in sorted(havuz):
         sayi = sayilar.get(personel_id, 0)
+        pay = paylar[personel_id]
+        taban, tavan = floor(pay), ceil(pay)
         sapma = max(sayi - taban, tavan - sayi, 0)
         if sapma > 0:
             ihlaller.append(
@@ -981,7 +982,7 @@ def _adalet_sapmasi_ihlalleri(
                     kural_kimlik=kural_kimlik,
                     personel_id=personel_id,
                     ceza=sapma,
-                    aciklama=f"{aciklama} (sayi={sayi}, hedef≈{hedef:.1f})",
+                    aciklama=f"{aciklama} (yuk={sayi}, adil pay≈{pay:.1f})",
                 )
             )
     return ihlaller

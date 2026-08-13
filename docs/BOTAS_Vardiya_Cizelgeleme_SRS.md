@@ -39,6 +39,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 12.08.2026 | Saatlik çalışma düzenine geçişin veri temeli tanımlandı: çalışma bloğu kavramı TD-13 olarak eklendi, talep tanımı zaman aralığı kaydına çevrildi (3.3.4, FR-1.7, FR-1.8), S1'in kapsama kısıtı saat eksenine taşındı, blok kataloğu kısıtları FR-1.3'e yazıldı, personel kaydına devir bakiyesi alanı eklendi (FR-1.1) | 1.14 |
 | Ömer HARMANKAYA | 12.08.2026 | FR-5.1'e ön kontrol bulgularının çözümü engellemediği, FR-5.3'e kapsama açığının saat aralığı düzeyinde raporlandığı, FR-8.1'e kapsama oranının atamalardan hesaplandığı yazıldı; FR-5.6 (bulgu metinlerinde ad kullanımı) eklendi | 1.15 |
 | Ömer HARMANKAYA | 13.08.2026 | Kural kataloğu saatlik düzene taşındı: H5 mutlak tavana dönüştü, H9 (günlük azami saat) ve H10 (yıllık fazla çalışma kotası) eklendi, S1'in üst sınırı esnek hâle getirildi, S2 ve S3 saat birimine geçti, S6 başlangıç saati kaymasıyla yeniden tanımlandı; TD-2 ve TD-7 yeniden yazıldı, TD-14 eklendi; blok kataloğu genişletildi (3.3.1), parametre tablosu (3.3.5) ve kadro analizi (3.3.6) saat tabanına taşındı; amaç fonksiyonu (4.4) yeniden yazıldı | 1.16 |
+| Ömer HARMANKAYA | 13.08.2026 | S2 ve S3'ün hedefi tek ortalamadan kişiye özel adil paya çevrildi: erişilebilirliği kısıtlı havuzlar için tek hedef ulaşılamaz kalıyor ve o havuz kalıcı olarak sapmalı görünüyordu | 1.17 |
 
 
 
@@ -576,20 +577,33 @@ Gece çalışma yükü, bu yükü üstlenebilecek personel arasında dengeli da�
 ```
 gece_saat[b]  = | b ∩ [20:00, 06:00] |          (TD-2)
 gece_yuku[p]  = Σ_{d ∈ ufuk} Σ_{b,n} gece_saat[b] · x[p,d,b,n]
-P_gece = { p ∈ P : p, gece saati bulunan en az bir
-                   görev noktasının ön koşulunu karşılıyor }
-hedef_gece = ( Σ_{d, t ∈ gece, n} talep[d,t,n] ) / |P_gece|
+erisebilen(n) = { q ∈ P : q, n noktasının ön koşulunu karşılıyor }
+pay_gece[p]   = Σ_{d, t ∈ gece, n : p ∈ erisebilen(n)}
+                    talep[d,t,n] / |erisebilen(n)|
+P_gece = { p ∈ P : pay_gece[p] > 0 }
 ∀p ∈ P_gece :
-    sapma[p] ≥ gece_yuku[p] − ⌊hedef_gece⌋
-    sapma[p] ≥ ⌈hedef_gece⌉ − gece_yuku[p]
+    sapma[p] ≥ gece_yuku[p] − pay_gece[p]
+    sapma[p] ≥ pay_gece[p] − gece_yuku[p]
 Ceza:  w2 · Σ_{p ∈ P_gece} sapma[p]
 ```
+
+**Hedef kişiye özeldir, havuz ortalaması değildir.** Her talep birimi, ona
+erişebilenler arasında eşit bölünür; kişinin hedefi kendi erişebildiği
+taleplerden gelen payların toplamıdır. Tek bir ortalama kullanıldığında,
+erişilebilirliği kısıtlı bir havuz kalıcı olarak hedefin altında görünür: yalnızca
+tek bir noktada çalışabilen bir personel, o noktanın gece talebi düşükse hedefe
+hiçbir çizelgeyle ulaşamaz. Bu bir adaletsizlik değil yapısal bir sınırdır ve
+ölçünün onu sapma olarak raporlaması, ölçüyü ayırt edici olmaktan çıkarır.
+
+Bu, S4'ün adil pay tanımıyla aynı mantıktır; üç adalet hedefi de kişiye düşen
+payı ölçer. Payı sıfır olan personel ölçünün dışındadır — hedefe ulaşması
+imkânsız olan kimse ölçülmez.
 
 Ölçünün birimi **saattir**, vardiya sayısı değil. Katalog farklı uzunlukta bloklar taşıdığında sayım adaleti bozar: on iki saatlik bir gece bloğu ile sekiz saatlik bir gece bloğu aynı sayılırsa, uzun bloğu alan personelin dört saatlik fazla yükü ölçüye hiç girmez. Saat, karışık uzunluklu kataloğun tek doğru ölçüsüdür.
 
 Aynı değişiklik S3 ve S4 için de geçerlidir; üç adalet hedefi de saat biriminde olduğundan `w2`, `w3` ve `w4` doğrudan karşılaştırılabilir. Önceki sürümde `w4`'ün diğerlerinin sekizde biri ölçeğinde tutulması gereğini doğuran birim farkı ortadan kalkmıştır.
 
-Hedefin bütün personele değil yalnızca uygun havuza bölünmesi zorunludur. Yetkinliği gereği gece talebi bulunan hiçbir noktada çalışamayan personel (H8), gece sayısı sıfır olduğu için paydaya dahil edildiğinde kalıcı biçimde "hedefin altında" görünür; bu sapma hiçbir çizelgeyle kapatılamaz, dolayısıyla hedef ayırt ediciliğini kaybeder ve kabul kriteri sağlanamaz hâle gelir. Adalet, yükü paylaşabilecekler arasında paylaştırmaktır; paylaşamayan personel ölçümün dışındadır.
+Adalet, yükü paylaşabilecekler arasında paylaştırmaktır; paylaşamayan personel ölçümün dışındadır ve **kısmen paylaşabilen personel kendi payı kadar ölçülür.** Bu ayrım iki kez bedeli ödenmiş bir hatanın karşılığıdır: önce hiç gece alamayan personel paydada sayılıyordu, sonra kısıtlı erişimi olan havuz tek ortalamaya vuruluyordu. İkisinde de ölçü, hiçbir çizelgeyle kapatılamayan bir sapma raporluyor ve ayırt ediciliğini kaybediyordu.
 
 Ölçüm ufku TD-6'da tanımlıdır.
 
@@ -599,11 +613,13 @@ Kişi başına düşen hafta sonu ve resmî tatil **saatinin** hedeften sapması
 
 ```
 hs_yuku[p] = Σ_{d: hs[d]=1} Σ_{b,n} sure[b] · x[p,d,b,n]
-P_hs = { p ∈ P : p, hafta sonu talebi bulunan en az bir
-                 görev noktasının ön koşulunu karşılıyor }
-hedef_hs = ( Σ_{d: hs[d]=1, t, n} talep[d,t,n] ) / |P_hs|
+pay_hs[p]  = Σ_{d: hs[d]=1, t, n : p ∈ erisebilen(n)}
+                 talep[d,t,n] / |erisebilen(n)|
+P_hs = { p ∈ P : pay_hs[p] > 0 }
 Ceza:  w3 · Σ_{p ∈ P_hs} sapma_hs[p]
 ```
+
+Hedef S2'deki gibi kişiye özel paydır.
 
 Uygun havuz kısıtlaması burada da geçerlidir ve aynı gerekçeye dayanır: yalnızca hafta içi talebi bulunan bir noktada çalışabilen personel, hafta sonu adaleti ölçümünün dışındadır.
 

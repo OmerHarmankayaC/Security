@@ -61,6 +61,7 @@ _VARSAYILAN_ZAMAN_LIMITI_SANIYE = 60
 _DURDURMA_YOKLAMA_ARALIGI_SANIYE = 0.5
 _VARSAYILAN_FAZLA_CALISMA_ESIGI = Decimal(45)
 _VARSAYILAN_AZAMI_GUNLUK_SAAT = Decimal(11)
+_VARSAYILAN_YILLIK_FAZLA_KOTASI = Decimal(270)
 _VARSAYILAN_HAFTALIK_ASGARI_IZIN_GUNU = 1
 
 _COZUM_BULUNAMADI_MESAJI = "Cozucu, zaman limiti icinde uygun bir cizelge bulamadi"
@@ -712,6 +713,11 @@ def _on_kontrolu_calistir(oturum: Session, kural_depo: KuralDeposu, donem: Donem
             "H9", "azami_gunluk_saat", varsayilan=_VARSAYILAN_AZAMI_GUNLUK_SAAT
         )
     )
+    yillik_fazla_kotasi = Decimal(
+        kural_depo.parametre_getir(
+            "H10", "yillik_fazla_kotasi", varsayilan=_VARSAYILAN_YILLIK_FAZLA_KOTASI
+        )
+    )
     haftalik_asgari_izin_gunu = int(
         kural_depo.parametre_getir(
             "H6",
@@ -725,6 +731,7 @@ def _on_kontrolu_calistir(oturum: Session, kural_depo: KuralDeposu, donem: Donem
         fazla_calisma_esigi=fazla_calisma_esigi,
         azami_gunluk_saat=azami_gunluk_saat,
         haftalik_asgari_izin_gunu=haftalik_asgari_izin_gunu,
+        yillik_fazla_kotasi=yillik_fazla_kotasi,
         aktif_kural_kimlikleri=frozenset(k.kimlik for k in kural_depo.aktif_kurallari_getir()),
     )
 

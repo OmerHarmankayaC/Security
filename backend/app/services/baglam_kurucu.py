@@ -90,6 +90,7 @@ def baglam_olustur(
         n.nokta_id: GorevNoktasiBilgisi(n.nokta_id, n.onkosul_yetkinlik_id, n.bina_id, ad=n.ad)
         for n in oturum.execute(nokta_sorgusu).scalars().all()
     }
+    personel_satirlari = oturum.execute(select(Personel)).scalars().all()
     personel = {
         p.personel_id: PersonelBilgisi(
             p.personel_id,
@@ -102,7 +103,7 @@ def baglam_olustur(
             # buna EKLENECEK, yerine gecmeyecek.
             devir_fazla_calisma_saat=float(p.devir_fazla_calisma_saat),
         )
-        for p in oturum.execute(select(Personel)).scalars().all()
+        for p in personel_satirlari
     }
     # Bulgu metinleri kimlik degil AD tasir (SRS FR-5.6).
     yetkinlik_adlari = {
@@ -152,6 +153,7 @@ def baglam_olustur(
         donem_baslangic=donem.baslangic_tarihi,
         donem_bitis=donem.bitis_tarihi,
         ozel_gunler=ozel_gunler,
+        personel_adlari={p.personel_id: p.ad_soyad for p in personel_satirlari},
         yetkinlik_adlari=yetkinlik_adlari,
         tercihler=tercihler,
     )
