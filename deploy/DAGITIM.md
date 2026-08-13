@@ -1533,15 +1533,30 @@ yazar, H9/H10/S1f satırlarını siler. **Veri kaybı yoktur** — çizelge, tan
 ve girdi verisi etkilenmez. Kaybolan tek şey, bu üç kuralın ağırlık veya
 parametresinde arayüzden yapılmış değişikliklerdir.
 
-### 16.7 Çıkış kaydı
-
-_Dağıtım yapıldığında doldurulacak._
+### 16.7 Çıkış kaydı (13.08.2026, 08:46 TSİ)
 
 | | |
 |---|---|
 | Kod sürümü | `a65ce6d` |
-| Göç | `d1f83a6c40b2` → `e7b2c4915d80` |
-| Yedek dosyası | — |
-| Kural satırları (H5/H9/H10/S1f) | — |
-| Servisler | — |
-| Uyarı/hata günlüğü | — |
+| Göç | `d1f83a6c40b2` → `e7b2c4915d80`, `alembic current` = `e7b2c4915d80 (head)` |
+| Yedek | `/opt/vardiya/yedek/vardiya-20260813-0846.dump`, 84K — **göçten önce ve zincir içinde** alındı |
+| `H5` | `{"haftalik_mutlak_tavan": 66}` — parametre taşındı |
+| `H9` | `{"azami_gunluk_saat": 11}`, aktif |
+| `H10` | `{"fazla_calisma_esigi": 45, "yillik_fazla_kotasi": 270}`, aktif |
+| `S1f` | ağırlık 2, aktif |
+| Servisler | `systemctl restart` zincir içinde koştu |
+| Arayüz kökü / `/health` | **200** / **200** |
+| `POST /api/talep` | **401** (uç var, oturum yok) |
+| Yayındaki paket | `index-Bx9rlmWK.js` — "Devir Fazla Çalışma" ve "HAFTALIK KİŞİ-SAAT" var, eski "HAFTALIK KİŞİ-VARDİYA" **yok** |
+
+**Bu, yedeği zincir içinde alınan ilk dağıtım.** Bölüm 15.8'deki üç hatanın
+hiçbiri tekrarlanmadı: `ssh` bayrakları satırında, `pg_dump` şemayı
+ayıklıyor ve adımlar `&&` ile bağlı.
+
+İlk `rsync` denemesi `Operation timed out` ile düştü; bağlantı hiç
+kurulmadığı için hiçbir dosya taşınmamıştı ve tekrar denemek yeterli oldu.
+`--delete` yarım bir kopya bırakmadı.
+
+**Sıradaki adım kullanıcıda:** on ve on iki saatlik blokları Tanımlar →
+Vardiya Tipi ekranından eklemek. Eklenene kadar H10 pratikte tetiklenmez
+(bkz. 16.2) ve turun asıl kazanımı sunucuda görünmez.
