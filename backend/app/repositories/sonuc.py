@@ -1,7 +1,7 @@
 """Sonuc varliklari icin depo katmani (SDD 4.2.4)."""
 
 from collections.abc import Sequence
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time, timedelta
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
@@ -221,27 +221,52 @@ class AtamaDeposu(TabanDepo[Atama]):
         self, surum_id: int, baslangic: date, bitis: date
     ) -> Sequence[Atama]:
         """SDD 5.5: degisikligi_dogrula'nin pencere kapsamli kurallar icin kullandigi
-        atama kumesi (degistirilen gunun +-7 gunluk penceresi)."""
+        atama kumesi (degistirilen gunun +-7 gunluk penceresi).
+
+        Sinir BASLANGIC ZAMANINA gore alinir: blok basladigi gune sayilir
+        (SRS TD-1) ve pencere de o gunler uzerinde tanimlidir. Bitis
+        zamanina bakan bir filtre, pencerenin son gecesinde baslayip ertesi
+        sabah biten blogu pencerenin disinda birakirdi.
+        """
         stmt = select(Atama).where(
-            Atama.surum_id == surum_id, Atama.tarih >= baslangic, Atama.tarih <= bitis
+            Atama.surum_id == surum_id,
+            Atama.baslangic_zamani >= datetime.combine(baslangic, time.min),
+            Atama.baslangic_zamani < datetime.combine(bitis + timedelta(days=1), time.min),
         )
         return self.oturum.execute(stmt).scalars().all()
 
     def surume_ve_personele_gore_getir(self, surum_id: int, personel_id: int) -> Sequence[Atama]:
         """Calisan Paneli — Vardiyalarim (SDD 6.1): bir surumdeki, tek bir
-        personele ait atamalar, tarihe gore sirali."""
+        personele ait bloklar, baslangic zamanina gore sirali."""
         stmt = (
             select(Atama)
             .where(Atama.surum_id == surum_id, Atama.personel_id == personel_id)
-            .order_by(Atama.tarih)
+            .order_by(Atama.baslangic_zamani)
         )
         return self.oturum.execute(stmt).scalars().all()
 
-    def tekil_getir(self, surum_id: int, personel_id: int, tarih: date) -> Atama | None:
-        stmt = select(Atama).where(
-            Atama.surum_id == surum_id, Atama.personel_id == personel_id, Atama.tarih == tarih
+    def gune_gore_getir(self, surum_id: int, personel_id: int, tarih: date) -> Sequence[Atama]:
+        """Bir personelin o gun BASLAYAN bloklari (SRS TD-1).
+
+        LISTE DONDURUR, tekil kayit degil. Eski benzersizlik kisiti
+        `(surum_id, personel_id, tarih)` idi ve "gunde tek atama"yi
+        veritabani duzeyinde zorluyordu; yeni anahtar baslangic ZAMANINI
+        tasidigi icin ayni gunde farkli saatte baslayan ikinci bir blogu
+        yakalayamaz (SDD 4.2.1). Kural artik yalnizca uygulama
+        katmanindadir; cagiran taraf "en fazla bir tane" varsayimini
+        yapamaz, saymak zorundadir.
+        """
+        stmt = (
+            select(Atama)
+            .where(
+                Atama.surum_id == surum_id,
+                Atama.personel_id == personel_id,
+                Atama.baslangic_zamani >= datetime.combine(tarih, time.min),
+                Atama.baslangic_zamani < datetime.combine(tarih + timedelta(days=1), time.min),
+            )
+            .order_by(Atama.baslangic_zamani)
         )
-        return self.oturum.execute(stmt).scalar_one_or_none()
+        return self.oturum.execute(stmt).scalars().all()
 
 
 class FazlaKadroDeposu(TabanDepo[FazlaKadro]):

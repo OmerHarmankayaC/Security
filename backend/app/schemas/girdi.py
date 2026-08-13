@@ -1,6 +1,6 @@
 """Musaitlik/Tercih uc noktalarinin istek/yanit semalari (SDD Ek B; SRS FR-2.x, FR-3.x)."""
 
-from datetime import date
+from datetime import date, time
 
 from pydantic import BaseModel, ConfigDict
 
@@ -38,7 +38,10 @@ class TercihOlustur(BaseModel):
     donem_id: int
     tarih: date
     tip: TercihTipi
-    vardiya_tipi_id: int | None = None
+    # Zaman araligi tercihinde istenen aralik; calismama tercihinde bos
+    # (SRS FR-3.2, TD-12).
+    tercih_baslangic: time | None = None
+    tercih_bitis: time | None = None
     calisan_notu: str | None = None
 
 
@@ -58,7 +61,8 @@ class TercihOku(BaseModel):
     donem_id: int
     tarih: date
     tip: TercihTipi
-    vardiya_tipi_id: int | None
+    tercih_baslangic: time | None
+    tercih_bitis: time | None
     durum: TercihDurumu
     calisan_notu: str | None
     ret_gerekcesi: str | None

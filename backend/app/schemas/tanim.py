@@ -77,39 +77,6 @@ class BinaOku(BaseModel):
     aktif: bool
 
 
-# --- Vardiya Tipi ----------------------------------------------------------
-
-
-class VardiyaTipiOlustur(BaseModel):
-    ad: str
-    baslangic_saati: time
-    bitis_saati: time
-    gece_mi: bool | None = None  # bos ise TD-2'ye gore onerilen deger kullanilir (FR-1.4)
-
-
-class VardiyaTipiGuncelle(BaseModel):
-    ad: str | None = None
-    baslangic_saati: time | None = None
-    bitis_saati: time | None = None
-    gece_mi: bool | None = None
-    aktif: bool | None = None
-
-
-class VardiyaTipiOku(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    vardiya_tipi_id: int
-    ad: str
-    baslangic_saati: time
-    bitis_saati: time
-    sure_saat: Decimal
-    gece_mi: bool
-    aktif: bool
-
-
-# --- Gorev Noktasi -----------------------------------------------------
-
-
 class GorevNoktasiOlustur(BaseModel):
     ad: str
     bina_id: int | None = None
@@ -146,7 +113,6 @@ class PersonelOlustur(BaseModel):
     ad_soyad: str
     sicil_no: Sicil
     haftalik_hedef_saat: int
-    sabit_vardiya_tipi_id: int | None = None
     aktif_baslangic: date
     aktif_bitis: date | None = None
     yetkinlik_idleri: list[int] = Field(default_factory=list)
@@ -161,7 +127,6 @@ class PersonelGuncelle(BaseModel):
     ad_soyad: str | None = None
     sicil_no: Sicil | None = None
     haftalik_hedef_saat: int | None = None
-    sabit_vardiya_tipi_id: int | None = None
     aktif_baslangic: date | None = None
     aktif_bitis: date | None = None
     yetkinlik_idleri: list[int] | None = None
@@ -176,7 +141,6 @@ class PersonelOku(BaseModel):
     ad_soyad: str
     sicil_no: str
     haftalik_hedef_saat: int
-    sabit_vardiya_tipi_id: int | None
     aktif_baslangic: date
     aktif_bitis: date | None
     yetkinlik_idleri: list[int]
@@ -190,7 +154,6 @@ class PersonelOku(BaseModel):
             ad_soyad=personel.ad_soyad,
             sicil_no=personel.sicil_no,
             haftalik_hedef_saat=personel.haftalik_hedef_saat,
-            sabit_vardiya_tipi_id=personel.sabit_vardiya_tipi_id,
             aktif_baslangic=personel.aktif_baslangic,
             aktif_bitis=personel.aktif_bitis,
             yetkinlik_idleri=[y.yetkinlik_id for y in personel.yetkinlikler],

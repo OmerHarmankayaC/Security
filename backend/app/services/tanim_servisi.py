@@ -1,20 +1,19 @@
 """Tanim yonetimi servis katmani (SDD 3.2: is mantigi burada, SQL depo katmaninda)."""
 
-from datetime import date, time
+from datetime import date
 from decimal import Decimal
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from app.kurallar import kayit_defteri
-from app.kurallar.zaman_araligi import aralik_metni, cakisiyor_mu, saat_metni
+from app.kurallar.zaman_araligi import aralik_metni, cakisiyor_mu
 from app.models.tanim import (
     Bina,
     GorevNoktasi,
     OzelGun,
     Personel,
     Talep,
-    VardiyaTipi,
     Yetkinlik,
 )
 from app.repositories.girdi import MusaitlikDeposu, TercihDeposu
@@ -25,18 +24,14 @@ from app.repositories.tanim import (
     OzelGunDeposu,
     PersonelDeposu,
     TalepDeposu,
-    VardiyaTipiDeposu,
     YetkinlikDeposu,
 )
 from app.schemas.tanim import (
     PersonelGuncelle,
     PersonelOlustur,
     TalepYazma,
-    VardiyaTipiGuncelle,
-    VardiyaTipiOlustur,
     YukGostergesi,
 )
-from app.services.vardiya_hesaplari import gece_mi_oner, sure_saat_hesapla
 from app.services.yuk_gostergesi import yuk_gostergesi_hesapla
 
 _VARSAYILAN_HAFTALIK_ASGARI_IZIN_GUNU = 1
@@ -67,14 +62,6 @@ class CakisanTalepAraligiError(ValueError):
     """Ayni nokta ve gun tipi icin cakisan talep araligi (SDD 4.2.2)."""
 
 
-class AyniVardiyaBlogunError(ValueError):
-    """Ayni (baslangic_saati, sure_saat) ikilisi katalogda zaten var (router 409)."""
-
-
-class VardiyaSuresiAzamiyiAsiyorError(ValueError):
-    """Blok, gunluk azami calisma saatinden uzun (router 400)."""
-
-
 class TanimServisi:
     def __init__(self, oturum: Session) -> None:
         self.oturum = oturum
@@ -82,7 +69,6 @@ class TanimServisi:
         self.yetkinlik = YetkinlikDeposu(oturum)
         self.bina = BinaDeposu(oturum)
         self.nokta = GorevNoktasiDeposu(oturum)
-        self.vardiya_tipi = VardiyaTipiDeposu(oturum)
         self.talep = TalepDeposu(oturum)
         self.kural = KuralDeposu(oturum)
         self.musaitlik = MusaitlikDeposu(oturum)
@@ -154,50 +140,13 @@ class TanimServisi:
     ) -> GorevNoktasi:
         return self.nokta.olustur(ad=ad, bina_id=bina_id, onkosul_yetkinlik_id=onkosul_yetkinlik_id)
 
-    # --- Vardiya Tipi (FR-1.3, FR-1.4) --------------------------------------
-
-    def vardiya_tipi_olustur(self, veri: VardiyaTipiOlustur) -> VardiyaTipi:
-        gece_mi = (
-            veri.gece_mi
-            if veri.gece_mi is not None
-            else gece_mi_oner(veri.baslangic_saati, veri.bitis_saati)
-        )
-        sure_saat = sure_saat_hesapla(veri.baslangic_saati, veri.bitis_saati)
-        self._blogu_dogrula(veri.baslangic_saati, sure_saat, haric_id=None)
-        return self.vardiya_tipi.olustur(
-            ad=veri.ad,
-            baslangic_saati=veri.baslangic_saati,
-            bitis_saati=veri.bitis_saati,
-            sure_saat=sure_saat,
-            gece_mi=gece_mi,
-        )
-
-    def vardiya_tipi_guncelle(self, id_: int, veri: VardiyaTipiGuncelle) -> VardiyaTipi | None:
-        mevcut = self.vardiya_tipi.getir(id_)
-        if mevcut is None:
-            return None
-        alanlar = veri.model_dump(exclude_unset=True)
-        if "baslangic_saati" in alanlar or "bitis_saati" in alanlar:
-            baslangic = alanlar.get("baslangic_saati", mevcut.baslangic_saati)
-            bitis = alanlar.get("bitis_saati", mevcut.bitis_saati)
-            alanlar["sure_saat"] = sure_saat_hesapla(baslangic, bitis)
-        # Pasiflestirilmis bir blok yeniden ACILIRKEN de dogrulanir: `aktif`
-        # alani degistiginde blogun kendisi degismese bile katalogda artik
-        # ikinci bir kopya olusabilir.
-        self._blogu_dogrula(
-            alanlar.get("baslangic_saati", mevcut.baslangic_saati),
-            alanlar.get("sure_saat", mevcut.sure_saat),
-            haric_id=id_,
-            aktif=alanlar.get("aktif", mevcut.aktif),
-        )
-        return self.vardiya_tipi.guncelle(id_, **alanlar)
-
     def azami_gunluk_calisma_saati(self) -> Decimal:
-        """Bir calisma blogunun asamayacagi uzunluk.
+        """H9'un gunluk tavani — kadro aritmetiginin okudugu deger.
 
-        Blok katalogu kisiti (FR-1.3) ile H9 AYNI degeri okur; iki ayri sayi
-        tanimlanmaz (SRS 4.2 H9). Ayrisirlarsa girisi gecen bir blok cozumde
-        her gun ayni ihlali uretir.
+        Once bu deger iki tuketiciliydi: blok katalogu kisiti (FR-1.3) ve
+        H9. Katalog kalktigi icin girise konan uzunluk kisiti de kalkti;
+        blogun uzunlugu artik yalnizca cozumde belirlenir ve tek sinir H9'un
+        kendisidir. Deger kural kaydindan okunur, koda gomulmez.
         """
         return Decimal(
             str(
@@ -206,41 +155,6 @@ class TanimServisi:
                 )
             )
         )
-
-    def _blogu_dogrula(
-        self,
-        baslangic_saati: time,
-        sure_saat: Decimal,
-        *,
-        haric_id: int | None,
-        aktif: bool = True,
-    ) -> None:
-        """Blok katalogunun iki kisiti (SRS FR-1.3): benzersizlik ve azami sure.
-
-        Ikisi de GIRISTE reddedilir. Cozum anina birakilsaydi: ayni blogun
-        iki kopyasi modele birbirinin yerine gecebilen degiskenler ekler
-        (arama bosuna yavaslar, cizelgede fark gorunmez), azami suresi asan
-        bir blok ise H9 ile her gun catisir ve dogrulama her cozumde ayni
-        ihlali yazardi.
-        """
-        azami = self.azami_gunluk_calisma_saati()
-        if sure_saat > azami:
-            raise VardiyaSuresiAzamiyiAsiyorError(
-                f"Blok {sure_saat:g} saat sürüyor; günlük azami çalışma {azami:g} saat."
-            )
-        if not aktif:
-            return
-        for komsu in self.vardiya_tipi.tumunu_getir():
-            # Pasif bloklar sayilmaz: kullanimda oldugu icin silinemeyip
-            # pasiflestirilmis bir blok, ayni saatlerde yeni bir blok
-            # tanimlamayi kalici olarak imkansiz kilardi.
-            if komsu.vardiya_tipi_id == haric_id or not komsu.aktif:
-                continue
-            if komsu.baslangic_saati == baslangic_saati and komsu.sure_saat == sure_saat:
-                raise AyniVardiyaBlogunError(
-                    f"{saat_metni(baslangic_saati)} başlangıçlı {sure_saat:g} saatlik blok "
-                    f"zaten tanımlı: {komsu.ad}."
-                )
 
     # --- Kural (FR-1.11, FR-1.12) ------------------------------------------
 

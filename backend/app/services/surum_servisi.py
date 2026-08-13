@@ -11,9 +11,11 @@ Iki is yapar:
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import datetime
 
 from sqlalchemy.orm import Session
 
+from app.kurallar.zaman_araligi import aralik_metni
 from app.models.sonuc import Atama, CizelgeSurumu, CizelgeSurumuDurumu
 from app.repositories.sonuc import (
     AtamaDeposu,
@@ -22,7 +24,7 @@ from app.repositories.sonuc import (
     FazlaKadroDeposu,
     KapsamaAcigiDeposu,
 )
-from app.repositories.tanim import GorevNoktasiDeposu, PersonelDeposu, VardiyaTipiDeposu
+from app.repositories.tanim import GorevNoktasiDeposu, PersonelDeposu
 from app.schemas.surum import (
     AtamaFarkiOku,
     SurumKarsilastirmaOku,
@@ -47,8 +49,19 @@ class KopyalanamazSurumDurumuError(Exception):
 
 @dataclass(frozen=True, slots=True)
 class _AtamaOzeti:
-    vardiya_tipi_id: int
+    """Karsilastirmaya giren alanlar: blogun ZAMAN ARALIGI ve noktasi.
+
+    Blok kimligi diye bir sey yok; iki surumun ayni gununu ayirt eden sey
+    calismanin ne zaman baslayip ne zaman bittigidir.
+    """
+
+    baslangic: datetime
+    bitis: datetime
     nokta_id: int
+
+    @property
+    def metin(self) -> str:
+        return aralik_metni(self.baslangic.time(), self.bitis.time())
 
 
 class SurumServisi:
@@ -60,7 +73,6 @@ class SurumServisi:
         self.kapsama = KapsamaAcigiDeposu(oturum)
         self.fazla_kadro = FazlaKadroDeposu(oturum)
         self.personel = PersonelDeposu(oturum)
-        self.vardiya_tipi = VardiyaTipiDeposu(oturum)
         self.nokta = GorevNoktasiDeposu(oturum)
 
     # --- Surum listesi (SDD 6.3.5) ------------------------------------------
@@ -138,8 +150,8 @@ class SurumServisi:
             self.atama.olustur(
                 surum_id=yeni.surum_id,
                 personel_id=a.personel_id,
-                tarih=a.tarih,
-                vardiya_tipi_id=a.vardiya_tipi_id,
+                baslangic_zamani=a.baslangic_zamani,
+                bitis_zamani=a.bitis_zamani,
                 nokta_id=a.nokta_id,
                 # Kilit, kopyada TASINIR: kullanicinin "bu atama degismesin"
                 # karari kaynaga degil o atamaya aittir ve kopyanin yeniden
@@ -186,7 +198,6 @@ class SurumServisi:
         yeni_atamalar = self._ozetle(self.atama.surume_gore_getir(yeni_surum_id))
 
         personel_adlari = {p.personel_id: p.ad_soyad for p in self.personel.tumunu_getir()}
-        vardiya_adlari = {v.vardiya_tipi_id: v.ad for v in self.vardiya_tipi.tumunu_getir()}
         nokta_adlari = {n.nokta_id: n.ad for n in self.nokta.tumunu_getir()}
 
         farklar: list[AtamaFarkiOku] = []
@@ -211,13 +222,9 @@ class SurumServisi:
                     ad_soyad=personel_adlari.get(personel_id, f"#{personel_id}"),
                     tarih=tarih,
                     tur=tur,
-                    onceki_vardiya_tipi_ad=(
-                        None if a is None else vardiya_adlari.get(a.vardiya_tipi_id)
-                    ),
+                    onceki_blok=None if a is None else a.metin,
                     onceki_nokta_ad=None if a is None else nokta_adlari.get(a.nokta_id),
-                    yeni_vardiya_tipi_ad=(
-                        None if b is None else vardiya_adlari.get(b.vardiya_tipi_id)
-                    ),
+                    yeni_blok=None if b is None else b.metin,
                     yeni_nokta_ad=None if b is None else nokta_adlari.get(b.nokta_id),
                 )
             )
@@ -236,10 +243,17 @@ class SurumServisi:
 
     @staticmethod
     def _ozetle(atamalar: Sequence[Atama]) -> dict[tuple[int, object], _AtamaOzeti]:
-        """(personel_id, tarih) -> atamanin karsilastirmaya giren alanlari.
+        """(personel_id, blogun basladigi gun) -> karsilastirmaya giren alanlar.
 
-        Atama tablosunda (surum_id, personel_id, tarih) benzersizdir
-        (SDD 4.2.4), dolayisiyla bu anahtar tekildir."""
+        Anahtarin tekilligi artik VERITABANI KISITINDAN DEGIL H1'den gelir
+        (SDD 4.2.1): benzersizlik `(surum_id, personel_id, baslangic_zamani)`
+        uzerindedir ve ayni gunde ikinci bir blogu yakalamaz. Boyle bir
+        veri cikarsa karsilastirma o gunun bloklarindan yalnizca sonuncusunu
+        gosterir - sessiz kalmasindansa H1'in dogrulamada yakalanmasi
+        dogru yoldur."""
         return {
-            (a.personel_id, a.tarih): _AtamaOzeti(a.vardiya_tipi_id, a.nokta_id) for a in atamalar
+            (a.personel_id, a.baslangic_zamani.date()): _AtamaOzeti(
+                a.baslangic_zamani, a.bitis_zamani, a.nokta_id
+            )
+            for a in atamalar
         }

@@ -19,12 +19,10 @@ from sqlalchemy.orm import Session
 
 from app.db import oturum_al
 from app.guvenlik import calisan_yetkisi, oturumdaki_personel
-from app.repositories.tanim import VardiyaTipiDeposu
 from app.schemas.calisan import (
     CalisanTercihListesiOku,
     CalisanTercihOku,
     CalisanTercihOlustur,
-    CalisanVardiyaTipiOku,
     VardiyalarimOku,
 )
 from app.services.calisan_servisi import CalisanServisi, TercihDonemiBulunamadiError
@@ -64,25 +62,3 @@ def tercih_bildir(
     return sonuc
 
 
-@router.get("/vardiya-tipi", response_model=list[CalisanVardiyaTipiOku])
-def vardiya_tipleri(oturum: Oturum) -> list[CalisanVardiyaTipiOku]:
-    """Tercih formundaki vardiya tipi listesi.
-
-    Calisan panelinin `/api/vardiya-tipi`yi (tanim yonlendiricisi)
-    cagirmasi, tanim uc noktalarini calisan rolune acmak demek olurdu; SRS
-    5.10 bunu acikca disarida birakiyor. Ihtiyac duyulan sey bir tanim
-    yonetimi degil, tercihini bildirebilmek icin vardiyanin ADI - bu yuzden
-    calisan yuzeyinin altinda, yalniz aktif tipleri ve yalniz gosterim
-    alanlarini tasiyan ayri bir okuma ucu var.
-    """
-    return [
-        CalisanVardiyaTipiOku(
-            vardiya_tipi_id=v.vardiya_tipi_id,
-            ad=v.ad,
-            baslangic_saati=v.baslangic_saati,
-            bitis_saati=v.bitis_saati,
-            gece_mi=v.gece_mi,
-        )
-        for v in VardiyaTipiDeposu(oturum).tumunu_getir()
-        if v.aktif
-    ]

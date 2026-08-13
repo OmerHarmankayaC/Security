@@ -13,7 +13,7 @@ sabit/degismeyen sapmalarin farkta iptal olmasini saglar.
 
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -24,6 +24,7 @@ from app.models.kural import KuralTipi
 from app.models.sonuc import Atama, AtamaKaynagi, CizelgeSurumuDurumu
 from app.repositories.kural import KuralDeposu
 from app.repositories.sonuc import AtamaDeposu, CizelgeSurumuDeposu, DonemDeposu
+from app.services.atama_donusumu import atama_kayitlarina_cevir
 from app.services.baglam_kurucu import baglam_olustur
 from app.services.talep_sapmasi import sapmalari_yenile
 
@@ -42,11 +43,32 @@ _DUZENLENEBILIR_DURUMLAR = (CizelgeSurumuDurumu.TASLAK, CizelgeSurumuDurumu.COZU
 
 @dataclass(frozen=True, slots=True)
 class AtamaDegisikligi:
+    """Tek bir gunun blogunu tanimlar (SDD 6.3.3).
+
+    Blok katalogu kalktigi icin degisiklik bir vardiya TIPI secmez;
+    baslangic ve bitis SAATINI verir. `baslangic_saati` bos birakildiginda
+    o gunun blogu KALDIRILIR.
+
+    Bitis saati baslangictan kucuk ya da esitse blok gece yarisini asar ve
+    ertesi gune tasar - `zaman_araligi` modulundeki sozlesmenin aynisi.
+    """
+
     surum_id: int
     personel_id: int
     tarih: date
-    vardiya_tipi_id: int | None = None
+    baslangic_saati: time | None = None
+    bitis_saati: time | None = None
     nokta_id: int | None = None
+
+    @property
+    def blok(self) -> tuple[datetime, datetime] | None:
+        if self.baslangic_saati is None or self.bitis_saati is None or self.nokta_id is None:
+            return None
+        baslangic = datetime.combine(self.tarih, self.baslangic_saati)
+        bitis = datetime.combine(self.tarih, self.bitis_saati)
+        if self.bitis_saati <= self.baslangic_saati:
+            bitis += timedelta(days=1)
+        return baslangic, bitis
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,12 +134,12 @@ class DogrulamaServisi:
 
         pencere_baslangic = degisiklik.tarih - timedelta(days=_PENCERE_GUN)
         pencere_bitis = degisiklik.tarih + timedelta(days=_PENCERE_GUN)
-        once_pencere = _cevir(
+        once_pencere = atama_kayitlarina_cevir(
             self.atama.surume_ve_araliga_gore_getir(
                 surum.surum_id, pencere_baslangic, pencere_bitis
             )
         )
-        once_donem = _cevir(self.atama.surume_gore_getir(surum.surum_id))
+        once_donem = atama_kayitlarina_cevir(self.atama.surume_gore_getir(surum.surum_id))
         sonra_pencere = _degisikligi_uygula(once_pencere, degisiklik)
         sonra_donem = _degisikligi_uygula(once_donem, degisiklik)
 
@@ -183,23 +205,25 @@ class DogrulamaServisi:
         if sonuc is None or not sonuc.kabul_edilebilir:
             return sonuc
 
-        mevcut = self.atama.tekil_getir(
+        # GUNDE TEK BLOK BURADA GARANTI EDILIR. Eski benzersizlik kisiti
+        # `(surum_id, personel_id, tarih)` idi ve ikinci blogu veritabani
+        # duruyordu; yeni anahtar baslangic ZAMANINI tasidigi icin ayni
+        # gunde farkli saatte baslayan ikinci bir blogu yakalamaz (SDD
+        # 4.2.1). O gunun butun bloklari once silinip yerine tek blok
+        # yazilir - yol yapisal olarak ikinci bir blok birakmaz.
+        for mevcut in self.atama.gune_gore_getir(
             degisiklik.surum_id, degisiklik.personel_id, degisiklik.tarih
-        )
-        if degisiklik.vardiya_tipi_id is None:
-            if mevcut is not None:
-                self.oturum.delete(mevcut)
-        elif mevcut is not None:
-            mevcut.vardiya_tipi_id = degisiklik.vardiya_tipi_id
-            mevcut.nokta_id = degisiklik.nokta_id
-            mevcut.kaynak = AtamaKaynagi.MANUEL
-        else:
+        ):
+            self.oturum.delete(mevcut)
+        blok = degisiklik.blok
+        if blok is not None:
+            baslangic, bitis = blok
             self.oturum.add(
                 Atama(
                     surum_id=degisiklik.surum_id,
                     personel_id=degisiklik.personel_id,
-                    tarih=degisiklik.tarih,
-                    vardiya_tipi_id=degisiklik.vardiya_tipi_id,
+                    baslangic_zamani=baslangic,
+                    bitis_zamani=bitis,
                     nokta_id=degisiklik.nokta_id,
                     kaynak=AtamaKaynagi.MANUEL,
                 )
@@ -228,11 +252,12 @@ class DogrulamaServisi:
             raise SurumTaslakDegilError(
                 f"Surum {surum.surum_id} kilitlenebilir durumda degil (durum={surum.durum})"
             )
-        atama = self.atama.tekil_getir(surum_id, personel_id, tarih)
-        if atama is None:
+        bloklar = self.atama.gune_gore_getir(surum_id, personel_id, tarih)
+        if not bloklar:
             return None
-        atama.kilitli = kilitli
-        return atama
+        for atama in bloklar:
+            atama.kilitli = kilitli
+        return bloklar[0]
 
 
 def _ceza_toplami(ihlaller: Sequence[Ihlal]) -> float:
@@ -260,25 +285,30 @@ def _yeni_bulgular(once: Sequence[Ihlal], sonra: Sequence[Ihlal]) -> list[Ihlal]
     ]
 
 
-def _cevir(atamalar: Sequence[Atama]) -> list[AtamaKaydi]:
-    return [AtamaKaydi(a.personel_id, a.tarih, a.vardiya_tipi_id, a.nokta_id) for a in atamalar]
-
-
 def _degisikligi_uygula(
     atamalar: list[AtamaKaydi], degisiklik: AtamaDegisikligi
 ) -> list[AtamaKaydi]:
+    """O gune ait blogu YERINE KOYAR.
+
+    Ayni gunun butun bloklari once dusurulur; boylece dogrulanan kume
+    "gunde tek blok" varsayimini yapisal olarak tasir (H1). Filtre blogun
+    BASLADIGI gune bakar (TD-1) - gece yarisini asip bugune tasan dunku
+    blok, dunun blogudur ve el degmeden kalir.
+    """
     kalanlar = [
         a
         for a in atamalar
         if not (a.personel_id == degisiklik.personel_id and a.tarih == degisiklik.tarih)
     ]
-    if degisiklik.vardiya_tipi_id is not None and degisiklik.nokta_id is not None:
+    blok = degisiklik.blok
+    if blok is not None:
+        baslangic, bitis = blok
         kalanlar.append(
             AtamaKaydi(
-                degisiklik.personel_id,
-                degisiklik.tarih,
-                degisiklik.vardiya_tipi_id,
-                degisiklik.nokta_id,
+                personel_id=degisiklik.personel_id,
+                baslangic=baslangic,
+                bitis=bitis,
+                nokta_id=degisiklik.nokta_id,
             )
         )
     return kalanlar

@@ -31,7 +31,8 @@ from sqlalchemy.orm import Session
 
 from app.config import ayarlar
 from app.cozucu import AramaKolu, CozucuAdaptoru, CozumSonucu, Ilerleme, model_kur
-from app.kurallar.baglam import AtamaKaydi
+from app.cozucu.model_kurucu import atamalari_bloklara_topla
+from app.kurallar.baglam import AtamaKaydi, Baglam
 from app.kurallar.kayit_defteri import kurallari_yukle
 from app.kurallar.zaman_araligi import saatleri_araliklara_birlestir
 from app.models.kural import Kural
@@ -53,6 +54,7 @@ from app.repositories.sonuc import (
     FazlaKadroDeposu,
     KapsamaAcigiDeposu,
 )
+from app.services.atama_donusumu import atama_kayitlarina_cevir
 from app.services.baglam_kurucu import baglam_olustur, donem_gunlerini_uret, zaman_ekseni_olustur
 from app.services.on_kontrol import Bulgu, on_kontrol_yap
 
@@ -150,7 +152,8 @@ class CozumYazmaVerisi:
     kalabilirdi (SDD 5.4.1).
     """
 
-    atamalar: tuple[tuple[int, date, int, int], ...]
+    # (personel_id, baslangic, bitis, nokta_id) — BLOK (SDD 4.2.1).
+    atamalar: tuple[tuple[int, datetime, datetime, int], ...]
     # (tarih, baslangic, bitis, nokta_id, sayi) — ARALIK (SDD 4.2.4).
     kapsama_eksikleri: tuple[tuple[date, time, time, int, int], ...]
     # Cozucu fazla kadro URETEMEZ (S1'in ust siniri modele zorunlu kisit
@@ -164,9 +167,21 @@ class CozumYazmaVerisi:
     sure_saniye: float | None = None
 
     @classmethod
-    def cozum_sonucundan(cls, sonuc: CozumSonucu) -> "CozumYazmaVerisi":
+    def cozum_sonucundan(cls, sonuc: CozumSonucu, baglam: Baglam) -> "CozumYazmaVerisi":
+        """Cozucunun SAAT eksenli ciktisi burada BLOKLARA toplanir (SDD 4.2.1).
+
+        Toplama yazma yolunun girisinde yapilir, sonunda degil: `atama`
+        tablosuna giden her sey (normal tamamlanma ve durdurmadaki "kullan"
+        karari) bu tek yapidan gecer ve iki yol farkli granulariteyle
+        yazamaz.
+        """
         return cls(
-            atamalar=tuple(sorted(sonuc.atanan_anahtarlar)),
+            atamalar=tuple(
+                sorted(
+                    (b.personel_id, b.baslangic, b.bitis, b.nokta_id)
+                    for b in atamalari_bloklara_topla(baglam, sonuc.atanan_anahtarlar)
+                )
+            ),
             # Cozucunun SAAT eksenli eksikleri, yazma aninda ARALIGA
             # birlestirilir (SDD 4.2.4): birlestirme tek yerde, `dogrula`
             # yolunun kullandigi ayni yardimciyla yapilir.
@@ -180,8 +195,8 @@ class CozumYazmaVerisi:
         """JSONB'ye yazilabilir bicim. Tarihler ISO dizeye cevrilir."""
         return {
             "atamalar": [
-                [personel_id, tarih.isoformat(), vardiya_tipi_id, nokta_id]
-                for personel_id, tarih, vardiya_tipi_id, nokta_id in self.atamalar
+                [personel_id, baslangic.isoformat(), bitis.isoformat(), nokta_id]
+                for personel_id, baslangic, bitis, nokta_id in self.atamalar
             ],
             "kapsama_eksikleri": [
                 [tarih.isoformat(), bas.isoformat(), bit.isoformat(), nokta_id, sayi]
@@ -200,7 +215,8 @@ class CozumYazmaVerisi:
     def jsondan(cls, veri: dict[str, Any]) -> "CozumYazmaVerisi":
         return cls(
             atamalar=tuple(
-                (int(p), date.fromisoformat(g), int(v), int(n)) for p, g, v, n in veri["atamalar"]
+                (int(p), datetime.fromisoformat(b), datetime.fromisoformat(s), int(n))
+                for p, b, s, n in veri["atamalar"]
             ),
             kapsama_eksikleri=tuple(
                 (
@@ -354,16 +370,10 @@ def cozum_isini_calistir(oturum: Session, is_id: int) -> None:
         # (baglam.onceki_atamalar), kilitli olanlar ise modele x=1 olarak
         # sabitlenir (bkz. model_kur'un kilitli_atamalar parametresi).
         onceki_atama_satirlari = atama_depo.surume_gore_getir(surum.onceki_surum_id)
-        onceki_atamalar = [
-            AtamaKaydi(a.personel_id, a.tarih, a.vardiya_tipi_id, a.nokta_id)
-            for a in onceki_atama_satirlari
-        ]
-        baglam.onceki_atamalar = onceki_atamalar
-        kilitli_atamalar = [
-            AtamaKaydi(a.personel_id, a.tarih, a.vardiya_tipi_id, a.nokta_id)
-            for a in onceki_atama_satirlari
-            if a.kilitli
-        ]
+        baglam.onceki_atamalar = atama_kayitlarina_cevir(onceki_atama_satirlari)
+        kilitli_atamalar = atama_kayitlarina_cevir(
+            [a for a in onceki_atama_satirlari if a.kilitli]
+        )
 
     # SDD 4.2.4 "devam et" ipucu: kendi sutunundan okunur ve BURADA
     # BOSALTILMAZ. Bosaltma is sonlandiginda yapilir (`_isi_sonlandir`);
@@ -404,7 +414,7 @@ def cozum_isini_calistir(oturum: Session, is_id: int) -> None:
     # SDD 5.4.1: durdurma cozumu ATMAZ. Elde ne varsa `gecici_sonuc`a yazilir
     # ve is kullanici kararini bekler; atamalara hicbir sey yazilmaz.
     if sonuc.durduruldu or _durdurma_istendi_mi(oturum, is_kaydi):
-        _durdurulmus_olarak_kapat(oturum, is_kaydi, sonuc=sonuc)
+        _durdurulmus_olarak_kapat(oturum, is_kaydi, sonuc=sonuc, baglam=baglam)
         return
 
     if sonuc.durum == "cozum_yok":
@@ -413,7 +423,7 @@ def cozum_isini_calistir(oturum: Session, is_id: int) -> None:
         oturum.commit()
         return
 
-    _sonucu_yaz(oturum, is_kaydi, surum, CozumYazmaVerisi.cozum_sonucundan(sonuc))
+    _sonucu_yaz(oturum, is_kaydi, surum, CozumYazmaVerisi.cozum_sonucundan(sonuc, baglam))
     oturum.commit()
 
 
@@ -438,13 +448,13 @@ def _sonucu_yaz(
     fazla_depo = FazlaKadroDeposu(oturum)
     fazla_depo.surume_gore_sil(surum.surum_id)
 
-    for personel_id, tarih, vardiya_tipi_id, nokta_id in veri.atamalar:
+    for personel_id, baslangic, bitis, nokta_id in veri.atamalar:
         oturum.add(
             Atama(
                 surum_id=surum.surum_id,
                 personel_id=personel_id,
-                tarih=tarih,
-                vardiya_tipi_id=vardiya_tipi_id,
+                baslangic_zamani=baslangic,
+                bitis_zamani=bitis,
                 nokta_id=nokta_id,
                 kaynak=AtamaKaynagi.COZUCU,
             )
@@ -639,7 +649,10 @@ def _ipucunu_al(is_kaydi: CozumIsi) -> list[AtamaKaydi] | None:
     if not is_kaydi.cozum_ipucu:
         return None
     veri = CozumYazmaVerisi.jsondan(is_kaydi.cozum_ipucu)
-    return [AtamaKaydi(p, g, v, n) for p, g, v, n in veri.atamalar]
+    return [
+        AtamaKaydi(personel_id=p, baslangic=b, bitis=s, nokta_id=n)
+        for p, b, s, n in veri.atamalar
+    ]
 
 
 def _taze_durum(oturum: Session, is_kaydi: CozumIsi) -> CozumIsiDurumu:
@@ -665,7 +678,7 @@ def _durdurma_istendi_mi(oturum: Session, is_kaydi: CozumIsi) -> bool:
 
 
 def _durdurulmus_olarak_kapat(
-    oturum: Session, is_kaydi: CozumIsi, *, sonuc: CozumSonucu | None
+    oturum: Session, is_kaydi: CozumIsi, *, sonuc: CozumSonucu | None, baglam: Baglam | None = None
 ) -> None:
     """Aramayi sonlandirir ve isi KULLANICI KARARINA birakir (SDD 5.4.1).
 
@@ -676,8 +689,8 @@ def _durdurulmus_olarak_kapat(
     nedeni `hata_mesaji`na yazilir; arayuz "kullan" secenegini bu durumda
     pasif gosterir (SRS FR-4.10).
     """
-    if sonuc is not None and sonuc.durum != "cozum_yok":
-        veri = CozumYazmaVerisi.cozum_sonucundan(sonuc)
+    if sonuc is not None and sonuc.durum != "cozum_yok" and baglam is not None:
+        veri = CozumYazmaVerisi.cozum_sonucundan(sonuc, baglam)
         is_kaydi.gecici_sonuc = veri.json_olarak()
         is_kaydi.ceza_dokumu = dict(veri.ceza_dokumu)
         is_kaydi.en_iyi_ceza = _ondalik(veri.toplam_ceza) if veri.toplam_ceza is not None else None

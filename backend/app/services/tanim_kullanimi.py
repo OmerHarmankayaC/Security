@@ -26,7 +26,6 @@ from app.models.tanim import (
     Personel,
     PersonelYetkinlik,
     Talep,
-    VardiyaTipi,
     Yetkinlik,
 )
 
@@ -53,7 +52,7 @@ class Kullanim:
 
 
 # Her tanim varligi icin ona referans veren tablolar. Yeni bir referans
-# eklendiginde (or. yeni bir tablo vardiya_tipi'ne baglandiginda) buraya bir
+# eklendiginde (or. yeni bir tablo gorev_noktasi'na baglandiginda) buraya bir
 # satir eklenmezse silme sessizce yabanci anahtar hatasina duser; testte bu
 # liste ile modeldeki gercek yabanci anahtarlar karsilastirilir.
 _KAYNAKLAR: dict[type[Base], tuple[KullanimKaynagi, ...]] = {
@@ -62,14 +61,6 @@ _KAYNAKLAR: dict[type[Base], tuple[KullanimKaynagi, ...]] = {
         KullanimKaynagi("görev noktası ön koşulu", GorevNoktasi.onkosul_yetkinlik_id),
     ),
     Bina: (KullanimKaynagi("görev noktası", GorevNoktasi.bina_id),),
-    # Talep, kapsama acigi ve fazla kadro artik BLOGA DEGIL zaman araligina
-    # baglidir (SDD 4.2.2, 4.2.4); bir blogun silinmesi o kayitlari
-    # etkilemez ve listede yer almazlar.
-    VardiyaTipi: (
-        KullanimKaynagi("atama", Atama.vardiya_tipi_id),
-        KullanimKaynagi("tercih", Tercih.vardiya_tipi_id),
-        KullanimKaynagi("sabit vardiyalı personel", Personel.sabit_vardiya_tipi_id),
-    ),
     GorevNoktasi: (
         KullanimKaynagi("atama", Atama.nokta_id),
         KullanimKaynagi("talep satırı", Talep.nokta_id),

@@ -23,11 +23,11 @@ ARALIK SINIRLARI baslangicta KAPALI, bitiste ACIKTIR: `08.00-16.00` araligi
 
 GUN SONU `00.00` ILE YAZILIR. SDD 4.2.2 `24.00` diyor; PostgreSQL o degeri
 saklayabiliyor fakat surucu `datetime.time` olarak geri okuyamiyor (24:00
-Python'da yok). `vardiya_tipi`nin zaten kullandigi sozlesme uygulanir:
-`bitis <= baslangic` ise aralik gun sonuna kadar surer, gece yarisini
-asiyorsa ERTESI GUNUN saatlerine tasar. Talepte tasan saatler ertesi gunun
-duvar saatleridir - bir noktanin 03.00'te dolu olmasi gerekiyorsa bu, o
-saati kapsayan blogun hangi gun basladigindan bagimsiz bir gereksinimdir.
+Python'da yok). Uygulanan sozlesme tektir: `bitis <= baslangic` ise aralik
+gun sonuna kadar surer, gece yarisini asiyorsa ERTESI GUNUN saatlerine
+tasar. Talepte tasan saatler ertesi gunun duvar saatleridir - bir noktanin
+03.00'te dolu olmasi gerekiyorsa bu, o saati kapsayan blogun hangi gun
+basladigindan bagimsiz bir gereksinimdir.
 """
 
 from collections.abc import Iterable, Sequence

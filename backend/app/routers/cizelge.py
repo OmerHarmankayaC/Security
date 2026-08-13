@@ -175,7 +175,8 @@ def _degisiklige_cevir(istek: AtamaDegisikligiIstek) -> AtamaDegisikligi:
         surum_id=istek.surum_id,
         personel_id=istek.personel_id,
         tarih=istek.tarih,
-        vardiya_tipi_id=istek.vardiya_tipi_id,
+        baslangic_saati=istek.baslangic_saati,
+        bitis_saati=istek.bitis_saati,
         nokta_id=istek.nokta_id,
     )
 

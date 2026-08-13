@@ -57,16 +57,43 @@ class CizelgeSurumu(Base, ZamanDamgasiKarisimi):
 
 
 class Atama(Base, ZamanDamgasiKarisimi):
+    """Bir CALISMA BLOGU (SDD 4.2.1).
+
+    KAYIT SAAT BASINA DEGIL BLOK BASINA TUTULUR. Cozucunun ciktisi saat
+    duzeyindedir (SRS TD-13); ardisik calisma saatleri yazma aninda tek bir
+    bloga toplanir. Saat basina satir tutulmasi halinde otuz personelin
+    yedi gunluk bir donemi yaklasik bin alti yuz satir eder ve her okuma
+    yuzeyi - cizelge izgarasi, manuel duzenleme, surum karsilastirmasi,
+    disa aktarma - satirlari yeniden bloklara toplamak zorunda kalirdi.
+
+    Tarih alani yerine BASLANGIC ZAMANI tutulur; gece yarisini asan blok
+    boylece tek kayitta durur ve `bitis_zamani` ertesi gune duser. Blogun
+    hangi gune sayildigi (SRS TD-1) baslangic zamanindan TURETILIR, ayri
+    bir alanda saklanmaz - iki alan ayrisabilir.
+
+    BENZERSIZLIK KISITI BIR GUVENCE KAYBEDDI. Eski anahtar
+    `(surum_id, personel_id, tarih)` idi ve "gunde tek atama"yi veritabani
+    duzeyinde zorluyordu. Yeni anahtar baslangic ZAMANINI tasidigi icin ayni
+    gunde farkli saatte baslayan ikinci bir blogu yakalayamaz; o kural artik
+    yalnizca uygulama katmanindadir (H1) ve manuel duzenleme yolu onu
+    denetlemek zorundadir.
+    """
+
     __tablename__ = "atama"
     __table_args__ = (
-        UniqueConstraint("surum_id", "personel_id", "tarih", name="uq_atama_surum_personel_tarih"),
+        UniqueConstraint(
+            "surum_id",
+            "personel_id",
+            "baslangic_zamani",
+            name="uq_atama_surum_personel_baslangic",
+        ),
     )
 
     atama_id: Mapped[int] = mapped_column(primary_key=True)
     surum_id: Mapped[int] = mapped_column(ForeignKey("cizelge_surumu.surum_id"))
     personel_id: Mapped[int] = mapped_column(ForeignKey("personel.personel_id"))
-    tarih: Mapped[date] = mapped_column(Date)
-    vardiya_tipi_id: Mapped[int] = mapped_column(ForeignKey("vardiya_tipi.vardiya_tipi_id"))
+    baslangic_zamani: Mapped[datetime] = mapped_column(ZamanDamgasi)
+    bitis_zamani: Mapped[datetime] = mapped_column(ZamanDamgasi)
     nokta_id: Mapped[int] = mapped_column(ForeignKey("gorev_noktasi.nokta_id"))
     kilitli: Mapped[bool] = mapped_column(default=False)
     kaynak: Mapped[AtamaKaynagi]

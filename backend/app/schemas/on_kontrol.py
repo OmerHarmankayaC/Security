@@ -19,7 +19,7 @@ class BulguOku(BaseModel):
     eksik: int | None = None
     yetkinlik_id: int | None = None
     tarih: date | None = None
-    vardiya_tipi_id: int | None = None
+    saat: int | None = None
     nokta_id: int | None = None
     personel_id: int | None = None
     # KESIN BULGU MU, UYARI MI (SDD 5.2, K18). Hicbir bulgu cozumu

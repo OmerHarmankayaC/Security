@@ -34,7 +34,6 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
-from app.kurallar.baglam import AtamaKaydi
 from app.kurallar.zaman_araligi import aralik_sure_saat, saatleri_araliklara_birlestir
 from app.models.sonuc import FazlaKadro, KapsamaAcigi
 from app.repositories.sonuc import (
@@ -44,6 +43,7 @@ from app.repositories.sonuc import (
     FazlaKadroDeposu,
     KapsamaAcigiDeposu,
 )
+from app.services.atama_donusumu import atama_kayitlarina_cevir
 from app.services.baglam_kurucu import baglam_olustur
 
 
@@ -80,9 +80,7 @@ def sapmalari_yenile(oturum: Session, surum_id: int) -> SapmaOzeti | None:
     # servisiyle ayni gerekce).
     baglam = baglam_olustur(oturum, donem, yalniz_aktif=False)
     atamalar = AtamaDeposu(oturum).surume_gore_getir(surum_id)
-    atama_kayitlari = [
-        AtamaKaydi(a.personel_id, a.tarih, a.vardiya_tipi_id, a.nokta_id) for a in atamalar
-    ]
+    atama_kayitlari = atama_kayitlarina_cevir(atamalar)
 
     kapsama_depo = KapsamaAcigiDeposu(oturum)
     fazla_depo = FazlaKadroDeposu(oturum)
