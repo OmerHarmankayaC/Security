@@ -113,6 +113,40 @@ def _durumu_oku(is_id: int) -> CozumIsiDurumu | None:
 
 
 @pytest.fixture(autouse=True)
+def _her_test_bos_veritabaniyla_baslasin():  # noqa: ANN202 - pytest fixture
+    """Testler arasi veri sizintisini yapisal olarak imkansiz kilar (B-22).
+
+    Test veritabani ayridir (B-20) ama kosumlar arasinda SIFIRLANMIYORDU;
+    kayit birakan bir test sonrakinin gordugu dunyayi degistiriyordu. Iki
+    kez gozlendi ve ikisinde de kirilan test degil, testin gordugu dunya
+    yanlisti:
+
+    - `test_cizelge_api` sira bagimli hale gelmisti (on kontrol butun tanim
+      verisini okuyor).
+    - Blok yaratan testlerin biraktigi kayitlar katalogda uc ayri 08.00
+      blogu biriktirdi ve benzersizlik kisiti (FR-1.3) girince uc test
+      birden kirildi.
+
+    Temizlik TESTTEN ONCE yapilir, sonra degil: basarisiz bir testin
+    verisi incelenebilsin diye. Silme uygulamanin kendi yolundan
+    (`veriyi_temizle`) gecer; yabanci anahtar sirasi tek yerde
+    (`app/veri_temizligi.py`) durur ve testler o listenin ikinci bir
+    kopyasini tasimaz.
+
+    Hesap kapsami HEPSI'dir. Hesap acan fikstürler autouse OLMAYAN
+    fikstürlerdir ve pytest onlari bu fikstürden SONRA kurar; dolayisiyla
+    testin kendi actigi hesap silinmez.
+    """
+    oturum = OturumYerel()
+    try:
+        veriyi_temizle(oturum, hesaplar=HesapKapsami.HEPSI)
+        oturum.commit()
+    finally:
+        oturum.close()
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _cerez_uretim_ayariyla_olculsun():  # noqa: ANN202 - pytest fixture
     """Testler cerezi HER ZAMAN uretim ayariyla (Secure) olcer.
 
