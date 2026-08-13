@@ -40,6 +40,8 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 12.08.2026 | FR-5.1'e ön kontrol bulgularının çözümü engellemediği, FR-5.3'e kapsama açığının saat aralığı düzeyinde raporlandığı, FR-8.1'e kapsama oranının atamalardan hesaplandığı yazıldı; FR-5.6 (bulgu metinlerinde ad kullanımı) eklendi | 1.15 |
 | Ömer HARMANKAYA | 13.08.2026 | Kural kataloğu saatlik düzene taşındı: H5 mutlak tavana dönüştü, H9 (günlük azami saat) ve H10 (yıllık fazla çalışma kotası) eklendi, S1'in üst sınırı esnek hâle getirildi, S2 ve S3 saat birimine geçti, S6 başlangıç saati kaymasıyla yeniden tanımlandı; TD-2 ve TD-7 yeniden yazıldı, TD-14 eklendi; blok kataloğu genişletildi (3.3.1), parametre tablosu (3.3.5) ve kadro analizi (3.3.6) saat tabanına taşındı; amaç fonksiyonu (4.4) yeniden yazıldı | 1.16 |
 | Ömer HARMANKAYA | 13.08.2026 | S2 ve S3'ün hedefi tek ortalamadan kişiye özel adil paya çevrildi: erişilebilirliği kısıtlı havuzlar için tek hedef ulaşılamaz kalıyor ve o havuz kalıcı olarak sapmalı görünüyordu | 1.17 |
+| Ömer HARMANKAYA | 13.08.2026 | Esnek hedeflerin ceza değişkenlerinin üst sınırla kısıtlanamayacağı 4.3'e yazıldı: S3'ün sapma değişkenine konan üst sınır, kadro yetersizken modeli çözülemez kılıyor ve FR-5.2'yi ihlal ediyordu | 1.18 |
+| Ömer HARMANKAYA | 13.08.2026 | Model, önceden tanımlı çalışma bloklarının seçiminden gerçek saatlik karara geçirildi: karar değişkeni mutlak saat ekseninde tanımlandı (TD-13), blok kataloğu ve `gece_mi` bayrağı kaldırıldı (3.3.1, TD-2), H1 kesintisizlik kısıtına, H3 gece gününe, H9 günlük toplama, S6 fiilî başlangıç kaymasına dönüştürüldü, asgari blok süresi ve gece eşiği parametreleri eklendi (3.3.5). Müracaat görev noktası ve yetkinliği kaldırıldı; talebi Güvenlik'e taşındı (3.3.2, 3.3.3, 3.3.4) | 1.19 |
 
 
 
@@ -61,8 +63,8 @@ Kapsam ilkesi, proje tanım dokümanında tanımlandığı gibidir: sistem, hali
 | --- | --- |
 | Dönem | Çizelgenin üretildiği takvim aralığı. Varsayılan uzunluk dört haftadır, kullanıcı değiştirebilir. |
 | Vardiya tipi | Ad, başlangıç saati, bitiş saati ve süre ile tanımlanan çalışma dilimi (örn. gece 20:00–08:00). |
-| Atama | Bir personelin belirli bir günde belirli bir vardiya tipine yerleştirilmesi. |
-| Talep | Bir gün ve vardiya tipi için gereken personel sayısı ve yetkinlik dağılımı. |
+| Atama | Bir personelin belirli bir günde, belirli bir saat aralığında ve görev noktasında çalıştırılması. |
+| Talep | Bir gün tipi ve zaman aralığı için bir görev noktasında gereken personel sayısı. |
 | Zorunlu kısıt | İhlal edilmesi mümkün olmayan kural. Çözücü bu kuralları ihlal eden çözüm üretemez. |
 | Esnek hedef | İhlal edildiğinde ceza puanı üreten kural. Çözücü toplam cezayı en aza indirmeye çalışır. |
 | Isıtma penceresi | Önceki dönemin son günlerine ait, karar değişkeni olmayan sabit atamalar. |
@@ -134,17 +136,16 @@ Sistem bağımsız bir web uygulamasıdır ve mevcut bir kurum sisteminin parça
 | Personel | Ad, sicil, haftalık hedef saat, aktiflik başlangıç ve bitiş tarihi |
 | Yetkinlik | Ad, açıklama |
 | Personel-Yetkinlik | Personel, yetkinlik (seviyesiz çoktan-çoğa ilişki) |
-| Vardiya Tipi | Ad, başlangıç saati, bitiş saati, süre (saat), gece_mi bayrağı |
 | Bina | Ad, açıklama |
 | Görev Noktası | Ad, bağlı olduğu bina (boş ise tesis geneli), ön koşul yetkinliği (boş olabilir), aktiflik |
 | Gün Tipi | Hafta içi, hafta sonu, resmî tatil |
-| Talep | Gün tipi veya tekil tarih, vardiya tipi, görev noktası, gereken personel sayısı |
+| Talep | Gün tipi veya tekil tarih, zaman aralığı, görev noktası, gereken personel sayısı |
 | Müsaitlik Kaydı | Personel, başlangıç tarihi, bitiş tarihi, dilim (tam gün / öğleden önce / öğleden sonra), tip (yıllık izin, rapor, eğitim, mazeret) |
-| Tercih | Personel, tarih veya tarih aralığı, tip (çalışmama, vardiya tipi tercihi), durum (beklemede, onaylandı, reddedildi), çalışanın isteğe bağlı notu, yöneticinin ret gerekçesi |
+| Tercih | Personel, tarih veya tarih aralığı, tip (çalışmama, tercih edilen zaman aralığı), durum (beklemede, onaylandı, reddedildi), çalışanın isteğe bağlı notu, yöneticinin ret gerekçesi |
 | Kural | Kimlik, tip (zorunlu / esnek), parametreler, ağırlık (esnekse), aktiflik |
 | Dönem | Başlangıç tarihi, bitiş tarihi, tercih son bildirim tarihi |
 | Çizelge Sürümü | Dönem, sürüm numarası, durum, oluşturma zamanı, çözüm süresi, ceza dökümü |
-| Atama | Çizelge sürümü, personel, tarih, vardiya tipi, görev noktası, kilitli_mi bayrağı, kaynak (çözücü / manuel) |
+| Atama | Çizelge sürümü, personel, başlangıç zamanı, bitiş zamanı, görev noktası, kilitli_mi bayrağı, kaynak (çözücü / manuel) |
 
 
 
@@ -156,17 +157,16 @@ Bu bölümdeki tanımlar sistemin tamamı için bağlayıcıdır. Bir kuralın n
 
 Bir vardiya, başladığı takvim gününe ilişkilendirilir. Gece yarısını aşan vardiyalar da başlangıç gününe yazılır. Bu kural atama, sayma, raporlama ve arayüz gösteriminin tamamında geçerlidir.
 
-### TD-2 — Gece çalışması: bayrak ve saat
+### TD-2 — Gece çalışması
 
-Gece çalışması iki ayrı soruya karşılık gelir ve sistem ikisini ayrı ayrı yanıtlar.
+Gece çalışması hesaplanır, işaretlenmez. Bir çalışmanın gece saati, o çalışmanın **20.00–06.00 aralığıyla kesişiminin uzunluğudur**.
 
-**"Bu blok bir gece nöbeti midir?"** — ikili bir sorudur ve ergonomik bir eşiğe dayanır. Yanıtı çalışma bloğu üzerindeki `gece_mi` bayrağıdır. Bayrak **hesaplanan değil tanımlanan** bir alandır. Yeni bir blok oluşturulurken, bloğun zaman aralığının 20:00–06:00 aralığıyla kesişimi dört saat veya daha fazlaysa bayrak otomatik olarak önerilir; nihai değeri kullanıcı belirler ve öneri kuralı **tanımlı bir değeri asla ezmez**. H3 (ardışık gece sınırı) bu bayrağı kullanır.
+Ölçü iki yerde kullanılır ve ikisinde de aynı tabandan gelir:
 
-**"Bu kişi ne kadar gece saati taşıdı?"** — sürekli bir ölçüdür ve adalet hesabına girer. Yanıtı hesaplanır: bir bloğun gece saati, bloğun 20:00–06:00 aralığıyla kesişiminin uzunluğudur. S2 (gece adaleti) bu ölçüyü kullanır.
+- **H3** — bir günün gece günü sayılıp sayılmadığı, o gün gece saatlerinde geçirilen sürenin `gece_esigi_saat` değerine ulaşıp ulaşmadığından belirlenir. Ergonomik yorum burada taşınır: iki saat gece çalışmak bir gece nöbeti değildir.
+- **S2** — kişinin taşıdığı gece yükü, ufuk içindeki gece saatlerinin toplamıdır.
 
-Ayrım, blokların farklı uzunluklarda tanımlanabilmesinin sonucudur. On bir saatlik bir gece bloğu ile sekiz saatlik bir gece bloğunu adalet hesabında aynı saymak, uzun bloğu alan personelin yükünü görünmez kılar. Buna karşılık ardışık gece sınırı bir sayım kuralıdır ve saat üzerinden yazılamaz.
-
-İki tanım çelişmez; farklı sorulara yanıt verirler. Bayrağın hesaplanan değere dönüştürülmesi denenmemelidir: öneri kuralının tanımlı değeri ezmesi bir kez yaşanmış ve K3 kabul kriterinin kalmasının iki nedeninden biri olmuştur.
+Önceki sürümlerde çalışma zamanı bir katalogdan seçildiği için gece bilgisi vardiya tipi üzerinde `gece_mi` bayrağı olarak tanımlanıyordu ve bayrağın hesaplanan değil tanımlanan bir alan olması gerekiyordu. Blok kataloğu kaldırıldığı için işaretlenecek bir nesne kalmamıştır; bayrak da kalkmıştır. Bayrağın otomatik hesaplanan bir öneriyle ezilmesi bir kez yaşanmış ve K3 kabul kriterinin karşılanmamasının iki nedeninden biri olmuştu — o risk artık yapısal olarak yoktur, çünkü tek bir tanım vardır.
 
 ### TD-3 — Hafta sonu tanımı
 
@@ -249,17 +249,28 @@ Personel belirli bir binaya bağlı değildir; tek havuz olarak değerlendirilir
 
 Bir tercihin karşılanıp karşılanmadığı, onay durumundan ayrı bir bilgidir (FR-3.6) ve saklanmaz; okuma anında yayınlanmış çizelgeden türetilir. Saklanması hâlinde çizelge yeniden çözüldüğünde değer bayatlar ve iki kaynak arasında tutarsızlık doğar.
 
-Türetme yalnızca onaylanmış tercihler için yapılır ve tercihin tipine göre değişir. Çalışmama tercihi, ilgili günde o personele hiçbir atama yapılmamışsa karşılanmış sayılır. Vardiya tipi tercihi ise ilgili günde atama bulunması ve atanan vardiya tipinin istenen tiple aynı olması hâlinde karşılanmış sayılır.
+Türetme yalnızca onaylanmış tercihler için yapılır ve tercihin tipine göre değişir. Çalışmama tercihi, ilgili günde o personele hiçbir atama yapılmamışsa karşılanmış sayılır. Zaman aralığı tercihi ise ilgili günde atama bulunması ve atanan bloğun tamamının tercih edilen aralığın içinde kalması hâlinde karşılanmış sayılır; bloğun bir kısmı aralığın dışına taşıyorsa tercih karşılanmamıştır.
 
 Değer ikili değil üç durumludur. Dönem için yayınlanmış bir çizelge sürümü henüz yoksa sonuç "karşılanmadı" değil "henüz belirsiz"dir; bu ayrım kullanıcı arayüzünde de korunmalıdır, aksi hâlde çizelge üretilmeden önce bütün tercihler reddedilmiş gibi görünür.
 
-### TD-13 — Çalışma bloğu
+### TD-13 — Çalışma zamanı ve kesintisizlik
 
-Bir personelin bir takvim günündeki çalışması **en fazla bir bloktur** ve blok kesintisizdir. Gün içinde bölünmüş çalışma — dört saat çalışıp ara verip aynı gün beş saat daha çalışmak — tanımlı değildir.
+Sistem, çalışma zamanını önceden tanımlanmış vardiya tiplerinin seçimi olarak değil, **saatin kendisi** üzerinden modeller. Karar değişkeni bir personelin belirli bir saatte çalışıp çalışmadığıdır; bloğun başlangıç saati ve süresi çözümün çıktısıdır, girdisi değil.
 
-Bu kuralın sonucu olarak bir kişi-gün, `(başlangıç saati, süre)` çiftiyle tam olarak tanımlanır. Sistem bu nedenle çalışma zamanını sürekli bir karar değişkeni olarak değil, önceden tanımlanmış blokların seçimi olarak modeller: karar değişkeni `x[personel, gün, blok, nokta]` biçimini korur. Süre ve başlangıç saatinin ayrı tamsayı değişkenler olduğu sürekli zaman modeli, tek blok kuralı altında aynı çözüm kümesini üretir; karşılığında arama uzayını, doğrulayıcıyı ve manuel düzenleme yüzeyini karmaşıklaştırdığı için tercih edilmemiştir.
+```
+S = { 0, 1, …, 24·D−1 }   dönemin ve ısıtma penceresinin mutlak saat ekseni
+z[p,s] ∈ {0,1}            p personeli s saatinde çalışıyor
+x[p,s,n] ∈ {0,1}          … ve n görev noktasında
+∀p, ∀s :  Σ_n x[p,s,n] = z[p,s]
+```
 
-Blok, önceki sürümlerdeki "vardiya tipi" kavramının genelleştirilmiş hâlidir ve aynı tanım tablosunda tutulur. Fark, kataloğun sabit üç satırla sınırlı olmaması ve blokların farklı uzunluklarda tanımlanabilmesidir. Veritabanı alan adlarında `vardiya_tipi` ifadesi geriye dönük uyumluluk için korunur.
+**Zaman ekseni gün başına sıfırlanmaz.** Eksenin gün × saat biçiminde kurulması hâlinde gece yarısını aşan bir çalışma — örneğin 20.00–08.00 — günün sonunda kesilir, ertesi günün başında yeniden başlar ve kesintisizlik kuralı onu iki ayrı blok sayar; kural, tam da izin verilmesi gereken çalışmayı yasaklamış olur. Mutlak eksende blok gün sınırını doğal olarak aşar ve gün kavramı yalnızca sayım için kullanılır.
+
+**Bir personelin bir gündeki çalışması tek ve kesintisizdir.** Gün içinde bölünmüş çalışma — dört saat çalışıp ara verip aynı gün beş saat daha çalışmak — tanımlı değildir. Kural, blok başlangıcı göstergesi üzerinden yazılır (H1).
+
+Blok başladığı güne sayılır (TD-1); ertesi güne taşan saatler yeni bir başlangıç üretmediği için ayrı blok sayılmaz. Adalet, ardışıklık ve haftalık saat hesapları da bloğu başladığı güne yazar.
+
+Önceki sürümler çalışma zamanını bir katalogdan seçilen blok olarak tanımlıyordu. Katalog yaklaşımı, kullanıcının vardiya tiplerini elle tanımlamaya devam etmesini gerektiriyor ve çizelgeyi o tiplerin dizilimi hâline getiriyordu. Yeterince ince taneli bir katalog (her saatte başlayan, her makul uzunlukta) ise saat modelinden yaklaşık sekiz kat fazla karar değişkeni üretmektedir; kataloğun sağladığı sadelik yalnızca katalog kaba kaldığı sürece geçerlidir.
 
 ## 3.3 Uygulama Alanı: Güvenlik Personeli
 
@@ -267,37 +278,32 @@ Bu bölüm, bölüm 3.1 ve 3.2'de tanımlanan yapının ilk uygulama alanına ai
 
 Planlama dönemi varsayılan olarak bir haftadır; yönetici bunu istediği bir uzunluğa çıkarabilir. Bu bir kısıt değil bir başlangıç değeridir — sistem daha uzun dönemleri de destekler ve NFR-1'in kırk personel/yirmi sekiz gün ölçeğindeki performans hedefi bu daha büyük dönemler için hâlâ geçerlidir (bkz. 3.3.6).
 
-### 3.3.1 Çalışma Blokları
+### 3.3.1 Çalışma Zamanı
 
-| Blok | Saat Aralığı | Süre | gece_mi |
-| --- | --- | --- | --- |
-| Gece | 00.00 – 08.00 | 8 saat | Evet |
-| Gündüz | 08.00 – 16.00 | 8 saat | Hayır |
-| Akşam | 16.00 – 24.00 | 8 saat | Hayır |
-| Uzun gece | 20.00 – 08.00 | 12 saat | Evet |
-| Uzun gündüz | 08.00 – 20.00 | 12 saat | Hayır |
-| Erken uzun | 06.00 – 16.00 | 10 saat | Hayır |
-| Geç uzun | 14.00 – 24.00 | 10 saat | Hayır |
+Sistem çalışma zamanını saat düzeyinde belirler (TD-13); önceden tanımlanmış vardiya tipleri veya blok kataloğu bulunmaz. Çözücü, her personelin her gün için çalışıp çalışmayacağına, çalışacaksa hangi saatte başlayıp kaç saat süreceğine kendisi karar verir.
 
+Kararın çerçevesini üç parametre çizer:
 
+| Parametre | Değer | Etkisi |
+| --- | --- | --- |
+| asgari_blok_saat | 4 | Bir günlük çalışma bundan kısa olamaz |
+| azami_gunluk_saat | 11 | Bir günlük çalışma bundan uzun olamaz (H9) |
+| gece_esigi_saat | 4 | Bir gün, gece saati bu değere ulaşıyorsa gece günü sayılır (H3) |
 
-İlk üç blok mevcut işleyişteki üçlü sekiz saatlik düzenin karşılığıdır; kalan dördü on ve on iki saatlik seçeneklerdir. On iki saatlik bloklar haftalık fazla çalışma eşiğini gerçekten aşabildiği için kotanın (H10) işlediğini gösterebilen tek yapıdır: yalnızca sekiz saatlik bloklarla haftada altı gün çalışan bir personel 48 saate ulaşır ve eşiği ancak üç saat aşar.
+Asgari blok süresi olmadan çözücü tek saatlik çalışmalar üretebilir; bu sahada karşılığı olmayan ve çizelgeyi okunamaz kılan bir sonuçtur. Değer, diğer bütün kural parametreleri gibi Kural ekranından değiştirilebilir.
 
-Katalog kullanıcı tarafından tanımlanan bir listedir (FR-1.3) ve bu tablo bir başlangıç hâlidir; gerçek işleyişteki saatler öğrenildiğinde satırlar değiştirilir. Değişiklik veridir, kod değildir. Katalog kullanıcı tarafından tanımlanan bir listedir (FR-1.3): farklı başlangıç saatleri ve farklı uzunluklar eklenebilir. Bloklar parametrik olarak üretilmez — her başlangıç saatinin her süreyle çarpımı yüzlerce satır eder ve NFR-1'deki çözüm süresi hedefini tehdit eder; gerçek bir tesisin kullandığı blok sayısı ise sınırlıdır.
-
-
+Gece saati, çalışmanın 20.00–06.00 aralığıyla kesişimidir ve hesaplanır (TD-2); işaretlenen bir alan değildir.
 
 ### 3.3.2 Yetkinlikler
 
 | Yetkinlik | Tanım |
 | --- | --- |
 | Güvenlik Görevi | Güvenlik noktasında (kapı ve kontrol odası görevlerini birlikte kapsar) görev alabilmenin ön koşuludur; kontrol odasında görevli personel ayrı bir meslek grubu değil, aynı noktanın bir parçasıdır. |
-| Vardiya Şefi | Vardiya şefliği noktasının ön koşuludur. Bu yetkinliğe sahip personel Güvenlik Görevi yetkinliğini de taşır ve müracaat dışındaki bütün noktalarda görevlendirilebilir. |
-| Müracaat Görevlisi | Müracaat noktasının ön koşuludur. Bu yetkinliğe sahip personel Güvenlik Görevi yetkinliğini taşımaz; dolayısıyla başka bir noktaya atanamaz. Aynı biçimde müracaat noktası da bu yetkinliği taşımayan personele kapalıdır. |
+| Vardiya Şefi | Vardiya şefliği noktasının ön koşuludur. Bu yetkinliğe sahip personel Güvenlik Görevi yetkinliğini de taşır ve bütün noktalarda görevlendirilebilir. |
 
 
 
-Müracaat görevlilerinin çift yönlü dışlayıcılığı, TD-9'da tanımlandığı üzere ayrı bir kural tipiyle değil yetkinlik dağılımıyla sağlanmaktadır.
+Önceki sürümlerde üçüncü bir yetkinlik (Müracaat Görevlisi) ve buna karşılık gelen bir görev noktası bulunuyordu. Müracaat noktası kaldırılmış, personeli güvenlik görevlisi olarak havuza katılmıştır (3.3.3).
 
 ### 3.3.3 Görev Noktaları
 
@@ -305,34 +311,32 @@ Müracaat görevlilerinin çift yönlü dışlayıcılığı, TD-9'da tanımland
 | --- | --- | --- |
 | Vardiya Şefliği | — (tesis geneli) | Vardiya Şefi |
 | Güvenlik | — (tesis geneli) | Güvenlik Görevi |
-| Müracaat | — (tesis geneli) | Müracaat Görevlisi |
 
 
 
-Tesiste iki bina bulunmaktadır, ancak görev noktaları bina ayrımı yapılmadan tesis geneli tanımlanmıştır: kapı ve kontrol odası arasındaki ayrım kaldırılmış, ikisi tek bir "Güvenlik" noktasında birleştirilmiştir — kontrol odasında görevli personel zaten ayrı bir meslek grubu değil, aynı yetkinliğe sahip bir güvenlik görevlisiydi (bkz. 3.3.2), dolayısıyla atamanın hangi fiziksel noktaya yazıldığı modelin ihtiyaç duyduğu bir bilgi değildir; kim hangi kapıda veya kontrol odasında duracağını vardiya şefi o gün belirler. Aynı gerekçeyle müracaat noktası da bina ayrımı olmadan tanımlanmıştır. Devriye görevi bulunmamaktadır.
+Tesiste iki bina bulunmaktadır, ancak görev noktaları bina ayrımı yapılmadan tesis geneli tanımlanmıştır: kapı ve kontrol odası arasındaki ayrım kaldırılmış, ikisi tek bir "Güvenlik" noktasında birleştirilmiştir — kontrol odasında görevli personel zaten ayrı bir meslek grubu değil, aynı yetkinliğe sahip bir güvenlik görevlisiydi (bkz. 3.3.2), dolayısıyla atamanın hangi fiziksel noktaya yazıldığı modelin ihtiyaç duyduğu bir bilgi değildir; kim hangi kapıda veya kontrol odasında duracağını vardiya şefi o gün belirler. Devriye görevi bulunmamaktadır.
+
+Müracaat noktası kaldırılmıştır. Noktanın iş yükü Güvenlik talebine eklenmiş, personeli güvenlik görevlisi olarak havuza katılmıştır; toplam iş yükü değişmemiştir (3.3.4). Kaldırma, modeli sadeleştirmenin yanında erişilebilirlik asimetrisini de büyük ölçüde ortadan kaldırır: tek noktaya kapalı bir personel havuzu kalmamıştır. Bir personel bir çalışma bloğu boyunca nokta değiştiremez; gün içinde iki farklı noktada görev almak tanımlı değildir.
 
 ### 3.3.4 Talep Matrisi
 
-Talep, bir çalışma bloğuna değil bir **zaman aralığına** bağlanır. Bir talep kaydı `(görev noktası, gün tipi, başlangıç, bitiş, gereken sayı)` biçimindedir ve "bu noktada, bu saatler arasında şu kadar kişi bulunsun" anlamına gelir.
+Talep bir **zaman aralığına** bağlanır. Bir talep kaydı `(görev noktası, gün tipi, başlangıç, bitiş, gereken sayı)` biçimindedir ve "bu noktada, bu saatler arasında şu kadar kişi bulunsun" anlamına gelir.
 
 | Görev Noktası | Gün Tipi | Aralık | Gereken |
 | --- | --- | --- | --- |
 | Vardiya Şefliği | Hafta içi | 00.00 – 24.00 | 1 |
 | Vardiya Şefliği | Hafta sonu / tatil | 00.00 – 24.00 | 1 |
-| Güvenlik | Hafta içi | 08.00 – 24.00 | 7 |
 | Güvenlik | Hafta içi | 00.00 – 08.00 | 3 |
+| Güvenlik | Hafta içi | 08.00 – 24.00 | 9 |
 | Güvenlik | Hafta sonu / tatil | 00.00 – 24.00 | 3 |
-| Müracaat | Hafta içi | 08.00 – 24.00 | 2 |
 
 
 
-Bu tablo, önceki sürümdeki vardiya tipi eksenli matrisin birebir karşılığıdır: hafta içi gündüz ve akşam vardiyalarındaki 7 kişilik güvenlik talebi tek bir 08.00–24.00 aralığına, gece vardiyasındaki 3 kişilik talep 00.00–08.00 aralığına karşılık gelir. Toplam iş yükü değişmemiştir.
-
-Talebin bloktan ayrılmasının nedeni, kataloğun genişlemesiyle blok ekseninin hem anlamını hem kullanılabilirliğini kaybetmesidir. Yirmi bloklu bir katalogda "06.00–14.00 bloğunda yedi kişi" ifadesi kullanıcının söylemek istediği şey değildir; söylemek istediği "sabah sekizden akşam on ikiye kadar yedi kişi bulunsun"dur. Hangi blokların bu aralığı hangi bileşimle kapatacağı çözücünün kararıdır.
+Haftalık toplam iş yükü **1.152 kişi-saattir**. Müracaat noktasının kaldırılması bu toplamı değiştirmemiştir: noktanın hafta içi gündüz ve akşam saatlerindeki iki kişilik talebi Güvenlik'in 08.00–24.00 aralığına eklenmiş, gereken sayı yediden dokuza çıkmıştır.
 
 Kapsama, aralık kaydından türetilen saat ekseninde değerlendirilir (bölüm 4.3, S1). Açılım tek bir yerde yapılır; talep ekranı, ön kontrol, çözücü, analiz ve kapsama açığı raporlaması aynı açılımı kullanır.
 
-Talep kayıtları gün tipi başına ayrı tutulur: hafta içi, hafta sonu ve resmî tatil için ayrı satırlar bulunur. Resmî tatil satırlarının eksik olması, o gün için hiçbir satır bulunamamasına ve talebin sessizce sıfıra düşmesine yol açar; talep sıfır olduğunda kapsama açığı da doğmayacağı için durum hiçbir raporda görünmez. Bu nedenle resmî tatil satırları, tatil tanımı yapılabilen her kurulumda bulunmak zorundadır. Müracaat noktası yalnızca hafta içi gündüz saatlerinde açıktır.
+Talep kayıtları gün tipi başına ayrı tutulur: hafta içi, hafta sonu ve resmî tatil için ayrı satırlar bulunur. Resmî tatil satırlarının eksik olması, o gün için hiçbir satır bulunamamasına ve talebin sessizce sıfıra düşmesine yol açar; talep sıfır olduğunda kapsama açığı da doğmayacağı için durum hiçbir raporda görünmez. Bu nedenle resmî tatil satırları, tatil tanımı yapılabilen her kurulumda bulunmak zorundadır.
 
 ### 3.3.5 Kural Parametreleri
 
@@ -343,6 +347,8 @@ Talep kayıtları gün tipi başına ayrı tutulur: hafta içi, hafta sonu ve re
 | H4 | azami_ardisik_calisma_gunu | 6 |
 | H5 | haftalik_mutlak_tavan | 66 |
 | H6 | haftalik_asgari_izin_gunu | 1 |
+| H1 | asgari_blok_saat | 4 |
+| H3 | gece_esigi_saat | 4 |
 | H9 | azami_gunluk_saat | 11 |
 | H10 | fazla_calisma_esigi | 45 |
 | H10 | yillik_fazla_kotasi | 270 |
@@ -357,7 +363,7 @@ Asgari dinlenme süresinin 16 saat olarak belirlenmesi, üçlü sekiz saatlik d�
 
 ### 3.3.6 Kadro Büyüklüğü Analizi
 
-Talep, haftada **1.152 kişi-saatlik** bir iş yükü üretmektedir: hafta içi beş gün için günde 192, hafta sonu iki gün için günde 96 kişi-saat. Sekiz saatlik blokların kullanıldığı bir katalogda bu 144 kişi-vardiyaya karşılık gelir, fakat asıl ölçü saattir; katalog karışık uzunluklu olduğunda vardiya sayısı kataloğun bileşimine göre değişir, saat yükü değişmez.
+Talep, haftada **1.152 kişi-saatlik** bir iş yükü üretmektedir: hafta içi beş gün için günde 192, hafta sonu iki gün için günde 96 kişi-saat. Ölçü kişi-saattir; blok süreleri çözümün çıktısı olduğundan vardiya sayısı üzerinden bir hesap tanımlı değildir.
 
 Kadro gereksinimi fazla çalışma eşiği üzerinden hesaplanır: 1.152 saat / 45 saat ≈ 26 kişi. H6 (haftada en az bir izin günü) ile birlikte bir personel haftada en çok altı gün çalışabilir; on bir saatlik günlük tavan (H9) teorik olarak 66 saate izin verse de bu saatlerin tamamı fazla çalışma sayılır ve yıllık kotayı hızla tüketir. Sürdürülebilir planlama eşiğin altında kalmayı gerektirir. İzin ve rapor payı hariç asgari **26 kişilik** bir kadro gereksinimi çıkmaktadır; payla birlikte 29.
 
@@ -408,15 +414,29 @@ Isıtma penceresine düşen günler için x değişkenleri sabittir ve önceki y
 
 ## 4.2 Zorunlu Kısıtlar
 
-### H1 — Günde en fazla bir vardiya
+### H1 — Günde tek ve kesintisiz çalışma
 
-Bir personel bir takvim gününde en fazla bir vardiyaya ve o vardiya içinde en fazla bir görev noktasına atanabilir. Kısıt, bütün vardiya tipleri ve bütün görev noktaları üzerinden birlikte yazılır; böylece aynı personelin aynı anda iki noktada sayılması yapısal olarak imkânsız hale gelir.
+Bir personelin bir takvim gününde en fazla bir çalışma bloğu bulunur; blok kesintisizdir ve süresi asgari blok süresinden kısa olamaz.
 
 ```
-∀p, ∀d :  Σ_s Σ_n x[p,d,s,n] ≤ 1
+bas[p,s] ≥ z[p,s] − z[p,s−1]              blok başlangıcı göstergesi
+bas[p,s] ≤ z[p,s]
+bas[p,s] ≤ 1 − z[p,s−1]
+∀p, ∀d :  Σ_{s ∈ gün d} bas[p,s] ≤ 1
+∀p, ∀d :  Σ_{s ∈ gün d} z[p,s] ≥ asgari_blok_saat · Σ_{s ∈ gün d} bas[p,s]
 ```
 
-Parametresizdir. Vardiyalar başlangıç gününe yazıldığından (TD-1) gece yarısını aşan vardiyalar bu kuralı bozmaz.
+Parametre: asgari_blok_saat. Kuralın son satırı, bir gün çalışma başlamışsa o günün toplam çalışma süresinin asgari blok süresine ulaşmasını zorunlu kılar; hiç çalışılmayan günde her iki taraf da sıfırdır.
+
+Gün içinde bölünmüş çalışma bu kuralla dışlanır: ikinci bir aralık ikinci bir başlangıç göstergesi üretir ve toplam bir sınırını aşar. Gece yarısını aşan bloklar kuralı bozmaz — taşan saatler yeni bir başlangıç üretmez ve blok başladığı güne sayılır (TD-1, TD-13).
+
+Nokta ataması blok boyunca sabittir:
+
+```
+∀p, ∀s, ∀n :  x[p,s,n] ≥ z[p,s] + x[p,s−1,n] − 1
+```
+
+Bir personel çalışmaya devam ettiği sürece görev noktası değişmez. Gün içinde nokta değiştirmenin sahada karşılığı yoktur ve serbest bırakılması arama uzayını gereksiz genişletir.
 
 ### H2 — Asgari dinlenme süresi
 
@@ -433,14 +453,18 @@ Parametre: asgari_dinlenme_saati (varsayılan 16; bkz. bölüm 3.3.5). Bu kural,
 
 ### H3 — Ardışık gece üst sınırı
 
-Bir personel, üst üste tanımlı sayıdan fazla gece vardiyası tutamaz.
+Bir personel, üst üste tanımlı sayıdan fazla gece günü çalışamaz.
 
 ```
+gece_saat[p,d] = Σ_{s ∈ gün d, s gece saati} z[p,s]
+gece_gunu[p,d] = 1  eğer gece_saat[p,d] ≥ gece_esigi_saat
 N = azami_ardisik_gece
-∀p, ∀d :  Σ_{i=0..N} Σ_{s: gece[s]=1} y[p,d+i,s] ≤ N
+∀p, ∀d :  Σ_{i=0..N} gece_gunu[p,d+i] ≤ N
 ```
 
-Parametre: azami_ardisik_gece. Pencere, ısıtma penceresini de kapsayacak şekilde değerlendirilir.
+Parametreler: azami_ardisik_gece, gece_esigi_saat. Pencere, ısıtma penceresini de kapsayacak şekilde değerlendirilir.
+
+Kural önceki sürümlerde vardiya tipi üzerindeki gece bayrağına dayanıyordu. Blok kataloğu kaldırıldığı için işaretlenecek bir nesne kalmamıştır; bir günün gece günü sayılıp sayılmadığı, o gün gece saatlerinde geçirilen sürenin eşiğe ulaşıp ulaşmadığından hesaplanır. Eşik, ergonomik yorumu taşır: iki saat gece çalışmak bir gece nöbeti değildir.
 
 ### H4 — Ardışık çalışma günü üst sınırı
 
@@ -500,14 +524,12 @@ Bu tanım, yetkinlik gereksinimini sayma yerine eşleme problemine dönüştür�
 Bir personelin bir takvim günündeki çalışma süresi günlük tavanı aşamaz.
 
 ```
-∀p, ∀d :  Σ_b sure[b] · y[p,d,b] ≤ azami_gunluk_saat
+∀p, ∀d :  Σ_{s ∈ gün d} z[p,s] ≤ azami_gunluk_saat
 ```
 
 Parametre: azami_gunluk_saat (varsayılan 11).
 
-H1 bir günde en fazla bir blok verdiğinden bu kural pratikte "katalogdaki hiçbir blok günlük tavanı aşamaz" demeye gelir ve aynı sınır blok tanımlanırken de uygulanır (FR-1.3) — geçersiz veriyi girişte durdurmak, dakikalar süren bir çözümün sonunda keşfetmekten ucuzdur. Kural yine de ayrı yazılır: yasal dayanağı H1'den bağımsızdır ve H1'in gelecekte gevşetilmesi hâlinde tek başına geçerliliğini korumalıdır. Gerekçe H6'nın H4 karşısındaki durumuyla aynıdır.
-
-Blok kataloğu kısıtı ile bu kural aynı parametreyi okur; iki ayrı değer tanımlanmaz.
+Kural, H1'in asgari süre koşuluyla birlikte çalışma bloğunun alt ve üst sınırını çizer: bir günlük çalışma dört saatten kısa, on bir saatten uzun olamaz. Gece yarısını aşan bloğun saatleri başladığı güne sayılır (TD-1); ertesi günün tavanı bu saatlerle dolmaz.
 
 ### H10 — Yıllık fazla çalışma kotası
 
@@ -532,6 +554,10 @@ Parametreler: fazla_calisma_esigi (varsayılan 45), yillik_fazla_kotasi (varsay�
 ## 4.3 Esnek Hedefler
 
 Esnek hedefler ihlal edildiğinde ceza puanı üretir. Her hedefin ağırlığı kullanıcı tarafından ayarlanabilir. Amaç fonksiyonu, ağırlıklı ceza toplamını en aza indirir.
+
+**Ceza değişkenlerine üst sınır konulmaz.** Bir esnek hedefin sapma veya eksik değişkeni yukarıdan sınırlandığında, o hedef fiilen zorunlu kısıta dönüşür: sınırın yetmediği bir girdide model çözülemez döner. Bu, esnek hedef tanımının tam tersidir ve FR-5.2'yi ihlal eder — sistem çizelgeyi üretip açığı göstermek yerine reddetmiş olur.
+
+Sınır makul göründüğünde bile konmaz. Bir sapma değişkeninin üst sınırının "bir kişinin fiilen taşıyabileceği yük" olarak belirlenmesi doğru görünür, fakat adil pay kadro yetersizken bu değeri aşabilir; o anda sapma tanımlanamaz hâle gelir ve çözücü çelişki bildirir. Bu hata bir kez yaşanmış ve çözücü–doğrulayıcı uyum testinin rastgele örneklerinden biri tarafından yakalanmıştır.
 
 ### S1 — Talep karşılama
 
@@ -575,8 +601,7 @@ Ağırlık w1, diğer tüm ağırlıkların toplamından belirgin biçimde büy�
 Gece çalışma yükü, bu yükü üstlenebilecek personel arasında dengeli dağıtılır. Kişi başına düşen **gece saatinin** hedeften sapması cezalandırılır.
 
 ```
-gece_saat[b]  = | b ∩ [20:00, 06:00] |          (TD-2)
-gece_yuku[p]  = Σ_{d ∈ ufuk} Σ_{b,n} gece_saat[b] · x[p,d,b,n]
+gece_yuku[p]  = Σ_{s ∈ ufuk, s gece saati} z[p,s]
 erisebilen(n) = { q ∈ P : q, n noktasının ön koşulunu karşılıyor }
 pay_gece[p]   = Σ_{d, t ∈ gece, n : p ∈ erisebilen(n)}
                     talep[d,t,n] / |erisebilen(n)|
@@ -599,7 +624,7 @@ Bu, S4'ün adil pay tanımıyla aynı mantıktır; üç adalet hedefi de kişiye
 payı ölçer. Payı sıfır olan personel ölçünün dışındadır — hedefe ulaşması
 imkânsız olan kimse ölçülmez.
 
-Ölçünün birimi **saattir**, vardiya sayısı değil. Katalog farklı uzunlukta bloklar taşıdığında sayım adaleti bozar: on iki saatlik bir gece bloğu ile sekiz saatlik bir gece bloğu aynı sayılırsa, uzun bloğu alan personelin dört saatlik fazla yükü ölçüye hiç girmez. Saat, karışık uzunluklu kataloğun tek doğru ölçüsüdür.
+Ölçünün birimi **saattir**. Blok süreleri çözümün çıktısı olduğundan sayıma dayalı bir ölçü tanımsızdır: on iki saat gece çalışan personel ile altı saat çalışan aynı sayılamaz. Gece saati, çalışmanın 20.00–06.00 aralığıyla kesişimidir (TD-2).
 
 Aynı değişiklik S3 ve S4 için de geçerlidir; üç adalet hedefi de saat biriminde olduğundan `w2`, `w3` ve `w4` doğrudan karşılaştırılabilir. Önceki sürümde `w4`'ün diğerlerinin sekizde biri ölçeğinde tutulması gereğini doğuran birim farkı ortadan kalkmıştır.
 
@@ -612,7 +637,7 @@ Adalet, yükü paylaşabilecekler arasında paylaştırmaktır; paylaşamayan pe
 Kişi başına düşen hafta sonu ve resmî tatil **saatinin** hedeften sapması cezalandırılır. Formülasyon S2 ile aynıdır; gece saati yerine hafta sonu günlerindeki toplam süre kullanılır (TD-3) ve uygun havuz aynı mantıkla belirlenir.
 
 ```
-hs_yuku[p] = Σ_{d: hs[d]=1} Σ_{b,n} sure[b] · x[p,d,b,n]
+hs_yuku[p] = Σ_{d: hs[d]=1} Σ_{s ∈ gün d} z[p,s]
 pay_hs[p]  = Σ_{d: hs[d]=1, t, n : p ∈ erisebilen(n)}
                  talep[d,t,n] / |erisebilen(n)|
 P_hs = { p ∈ P : pay_hs[p] > 0 }
@@ -655,7 +680,8 @@ Yalnızca yönetici tarafından onaylanmış tercihler modele dahil edilir. Redd
 Ardışık günlerde çalışma saatlerini kaydırmak ergonomik olarak istenmeyen bir durumdur ve cezalandırılır. Aynı gerekçeyle, ardışık günlerde farklı binalarda görevlendirilmek de ayrı bir ceza bileşeni üretir.
 
 ```
-kayma[p,d] = dairesel_fark( baslangic[b_{d+1}], baslangic[b_d] )
+bas_saati[p,d] = blok başlangıcının gün içindeki saati (bas[p,s] = 1 olan s)
+kayma[p,d] = dairesel_fark( bas_saati[p,d+1], bas_saati[p,d] )
            = min( |Δ|, 24 − |Δ| )
 degisim[p,d] = 1  eğer p, d ve d+1 günlerinde çalışıyor ve
                   kayma[p,d] > desen_toleransi_saat
@@ -664,7 +690,7 @@ bina_degisim[p,d] = 1  eğer p, d ve d+1 günlerinde çalışıyor ve
 Ceza:  w6 · Σ degisim[p,d]  +  w6b · Σ bina_degisim[p,d]
 ```
 
-Kural önceki sürümde "aynı vardiya tipi" üzerinden yazılıydı; katalog genişlediğinde bu tanım anlamını yitirir, çünkü 08.00–16.00 ile 08.00–20.00 farklı bloklardır fakat aynı saatte başlarlar ve ergonomik olarak bir kayma üretmezler. Ölçü bu nedenle blok kimliği değil **başlangıç saatidir**.
+Kural önceki sürümlerde "aynı vardiya tipi" üzerinden yazılıydı. Blok kataloğu kaldırıldığı için karşılaştırılacak bir tip kalmamıştır; ölçü, çözümün ürettiği **fiilî başlangıç saatidir**. Sekizde başlayıp on altıda biten bir gün ile sekizde başlayıp yirmide biten bir gün arasında kayma yoktur — ergonomik olarak da yoktur, kişi aynı saatte kalkar.
 
 Farkın dairesel alınması zorunludur: 22.00 ile 02.00 arasındaki kayma dört saattir, yirmi saat değil. Tolerans parametredir (varsayılan 2 saat); bir saatlik kaymayı cezalandırmak, kataloğun ince taneli olmasının anlamını ortadan kaldırır.
 
@@ -714,8 +740,6 @@ Ağırlıkların tamamı kullanıcı tarafından ayarlanabilir. Sistem hangi hed
 | --- | --- | --- |
 | FR-1.1 | Sistem, personel kayıtlarının oluşturulmasına, güncellenmesine ve pasifleştirilmesine imkân vermelidir. Personel kaydı haftalık hedef saat, aktiflik tarih aralığı ve içinde bulunulan kota yılına ait devir fazla çalışma saatini içerir. | Zorunlu |
 | FR-1.2 | Sistem, yetkinlik tanımlarının oluşturulmasına ve personele seviyesiz olarak atanmasına imkân vermelidir. | Zorunlu |
-| FR-1.3 | Sistem, çalışma bloklarının ad, başlangıç saati ve bitiş saatiyle tanımlanmasına imkân vermelidir. Süre, başlangıç ve bitiş saatinden hesaplanır. Aynı başlangıç ve süre ikilisi iki kez tanımlanamaz; süresi günlük azami çalışma saatini aşan blok tanımlanamaz. | Zorunlu |
-| FR-1.4 | Sistem, vardiya tipi oluşturulurken gece_mi bayrağını TD-2'ye göre önermeli, kullanıcının bu öneriyi değiştirmesine imkân vermelidir. | Yüksek |
 | FR-1.5 | Sistem, bina tanımlarının oluşturulmasına ve güncellenmesine imkân vermelidir. | Zorunlu |
 | FR-1.6 | Sistem, görev noktalarının ad, bağlı olduğu bina ve ön koşul yetkinliğiyle tanımlanmasına imkân vermelidir. Bina alanı boş bırakıldığında nokta tesis geneli olarak değerlendirilir. | Zorunlu |
 | FR-1.7 | Sistem, talep tanımının görev noktası, zaman aralığı ve gün tipi kırılımında yapılmasına ve tekil tarihler için istisna tanımlanmasına imkân vermelidir. | Zorunlu |
@@ -747,7 +771,7 @@ Ağırlıkların tamamı kullanıcı tarafından ayarlanabilir. Sistem hangi hed
 | Kimlik | Gereksinim | Öncelik |
 | --- | --- | --- |
 | FR-3.1 | Sistem, personelin belirli bir günde çalışmama tercihini kaydetmesine imkân vermelidir. | Yüksek |
-| FR-3.2 | Sistem, personelin belirli bir vardiya tipine yönelik tercihini kaydetmesine imkân vermelidir. | Orta |
+| FR-3.2 | Sistem, personelin tercih ettiği çalışma saati aralığını kaydetmesine imkân vermelidir. | Orta |
 | FR-3.3 | Sistem, dönem bazında tercih son bildirim tarihi tanımlanmasına imkân vermeli ve bu tarihten sonra yeni tercih kabul etmemelidir. | Yüksek |
 | FR-3.4 | Sistem, yöneticinin tercihleri onaylamasına veya gerekçeyle reddetmesine imkân vermelidir; ret gerekçesi tercih kaydında saklanır ve çalışana gösterilir. | Yüksek |
 | FR-3.5 | Sistem, yalnızca onaylanmış tercihleri çözücü modeline dahil etmelidir. | Zorunlu |
@@ -848,7 +872,7 @@ seçenek kullanıcıya yeni bir zaman limiti sorularak sunulur ve arayüzde
 | FR-9.1 | Sistem, personelin yalnızca kendi çizelgesini görüntülemesine imkân vermelidir. Hangi personelin verisinin gösterileceği yalnızca oturumdan belirlenir; istek içindeki hiçbir alan bu seçimi değiştiremez. | Zorunlu |
 | FR-9.2 | Sistem, personele yalnızca yayınlanmış durumdaki çizelge sürümünü göstermelidir. | Zorunlu |
 | FR-9.3 | Sistem, personelin çizelgesini dönem görünümünde (dönem uzunluğu ne ise o kadar) ve liste görünümünde sunmalı, sıradaki vardiyayı öne çıkarmalıdır. | Yüksek |
-| FR-9.4 | Sistem, yayınlanmış çizelgede, aynı dönemde en son arşive alınmış sürüme göre değişen günleri işaretlemelidir. Değişim üç biçimde ayrışır: eklendi, kaldırıldı, değişti (vardiya tipi veya görev noktası farklı). Dönemin ilk yayınında karşılaştırma tabanı bulunmadığından hiçbir gün işaretlenmez. | Yüksek |
+| FR-9.4 | Sistem, yayınlanmış çizelgede, aynı dönemde en son arşive alınmış sürüme göre değişen günleri işaretlemelidir. Değişim üç biçimde ayrışır: eklendi, kaldırıldı, değişti (çalışma saatleri veya görev noktası farklı). Dönemin ilk yayınında karşılaştırma tabanı bulunmadığından hiçbir gün işaretlenmez. | Yüksek |
 | FR-9.5 | Sistem, personelin dönem içindeki gece, hafta sonu ve toplam saat sayısını ekip ortalamasıyla birlikte göstermelidir. | Orta |
 | FR-9.6 | Sistem, personelin tercih bildirmesine ve bildirdiği tercihlerin durumunu görmesine imkân vermelidir. | Yüksek |
 
@@ -890,7 +914,7 @@ Roller kapsayıcıdır: yönetim rolü, yönetici rolünün yetkilerini içerir.
 
 Aktör: Vardiya Yöneticisi
 
-Ön koşul: Personel, yetkinlik, vardiya tipi ve talep tanımları girilmiştir.
+Ön koşul: Personel, yetkinlik, görev noktası ve talep tanımları girilmiştir.
 
 **Akış:**
 
@@ -981,7 +1005,7 @@ Sonuç: Tercih kayıt altına alınır; onay durumu ve karşılanma durumu ayrı
 | Panel | Ekran | Temel İçerik |
 | --- | --- | --- |
 | Yönetici | Özet | Kapsama oranı, eksik hücre sayısı, toplam ceza, bekleyen tercih sayısı, yaklaşan müsaitlik kayıtları |
-| Yönetici | Tanımlar | Personel, yetkinlik, vardiya tipi, talep matrisi, takvim, kural parametreleri, ağırlıklar |
+| Yönetici | Tanımlar | Personel, yetkinlik, görev noktası, talep tanımları, takvim, kural parametreleri, ağırlıklar |
 | Yönetici | Müsaitlik | Aylık takvim, kayıt girişi, toplu içe aktarma, kapsama uyarısı |
 | Yönetici | Tercihler | Bekleyen ve karara bağlanmış tercih listesi, onay ve red işlemleri |
 | Yönetici | Çizelge | Personel × gün ızgarası, hücre düzenleme, ihlal göstergesi, kilitleme, günlük kapsama satırı, filtreler |

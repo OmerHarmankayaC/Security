@@ -140,30 +140,49 @@ dolmuş bir personel 45 saatin üstüne çıkmaz ama çalışmaya devam eder. Re
 
 ---
 
-## Tur 5 — Geçmiş Sayaçlar ve Kümülatif Adalet
+## Tur 5 — Gerçek Saatlik Model
 
-**Hedef:** dönem öncesi birikim katmanı. Hem kotanın devri hem adalet ufku bu
-katmandan beslenir.
+**Hedef:** çalışma zamanının blok seçiminden saat düzeyinde karara geçirilmesi ve
+Müracaat noktasının kapsamdan çıkarılması.
 
-**Dayanak:** K10, K11; SRS TD-6, TD-15; SDD yeni servis bölümü.
+**Dayanak:** `docs/turlar/SAATLIK_MODEL_KARARLARI.md`; SRS 1.19, SDD 1.27,
+Charter 1.4.
 
-- `GecmisSayaclar` servisi: bir dönem ve bir ufuk verildiğinde her personel için
-  gece saati, hafta sonu saati, toplam saat ve fazla çalışma saati döndürür.
-  Yayınlanmış sürümlerin atamalarından **türetir**, saklamaz.
-- Dört tüketici aynı servisten okur: çözücü, ön kontrol, analiz, kabul ölçümü.
-  Beşinci bir hesap yeri açılmaz.
-- Yasal ufuk ısıtma penceresini ve devir bakiyesini kapsar; adalet ufku
-  yapılandırılabilir penceredir (K10).
-- Ön kontrole yeni bulgu: devir bakiyesi kotayı aşmış personel (K8).
+Bu tur, Tur 3 ve Tur 4'ün blok kataloğu kararını geri alır. Kalkanlar:
+`vardiya_tipi` tablosu, `gece_mi` bayrağı, blok kataloğu, Müracaat noktası ve
+yetkinliği. Korunanlar: talep ekseni, S1'in saat bazlı kapsaması, kişiye özel adil
+pay, H10 kotası, takvim haftası ayrımı, saat gruplaması.
 
-**Kabul:** Arka arkaya iki dönem çözüldüğünde ikinci dönemin adalet sayaçları
-birincinin yükünü görüyor; aynı kişiye iki dönem üst üste ağır gece yükü
-verilmiyor. Dönem sınırında bölünen takvim haftasının fazla çalışması tam
-hesaplanıyor — bunu doğrudan gösteren bir test yazılır.
+- **İlk iş prototip ölçümüdür.** Saat modeli değişken sayısını düşürür fakat kısıt
+  yapısı ağırdır; K1 riski ölçülmeden tam uygulamaya geçilmez. 40 × 28 ölçeğinde
+  ilk uygun çözüm 30 saniyeyi aşarsa durulur ve formülasyon gözden geçirilir.
+- Göç: atama blok kaydına (`baslangic_zamani`, `bitis_zamani`), `vardiya_tipi`
+  düşürülür, tercih zaman aralığına çevrilir, iki yeni kural parametresi eklenir.
+- Model kurma mutlak saat ekseninde yeniden yazılır.
+- H1, H3, H9, S2, S3, S6 yeniden tanımlanır; kalan kurallara dokunulmaz.
+- Gösterim verisi Müracaat'sız yeniden üretilir; K4'ün çelişkisi şef havuzu
+  üzerinden kurulur.
+- Arayüz yalnız kırık kalmayacak kadar uyarlanır.
 
----
+**Kabul:** Prototip ölçümü kayıtlı; uyum testi 24/24; kabul ölçümü Charter 1.4'ün
+yeni K3 ve K4 tanımlarıyla koşulmuş.
 
-## Tur 6 — Arayüz
+## Tur 6 — Saat Görünümleri ve Arayüz
+
+**Hedef:** çalışma zamanının ekranda saat çözünürlüğünde görünmesi.
+
+- Gün ızgarası: satırlarda personel, sütunlarda seçili günün yirmi dört saati.
+  Blok, kapsadığı saat hücrelerinin kesintisiz şeridi olarak görünür.
+- Hafta şeridi: her gün hücresi yirmi dört dilimlik mini şerit; tıklanınca gün
+  ızgarasına geçilir.
+- Renk saatin kendisinden hesaplanır — gece koyu, gündüz açık, geçiş sürekli.
+- Yazdırma ve CSV saat ızgarasına geçer.
+- Kural ekranı yeni parametreleri gösterir; Analiz saat birimine hizalanır.
+
+**Kabul:** Bir dönem baştan sona arayüzden kurulup çözülebiliyor ve çizelge saat
+düzeyinde okunabiliyor.
+
+## Tur 7 — Geçmiş Sayaçlar ve Kümülatif Adalet
 
 **Hedef:** saatlik düzenin ekranlara yansıması.
 
@@ -185,7 +204,7 @@ görüntüleniyor, analiz ekranında kota göstergesi doğru sayıları veriyor.
 
 ---
 
-## Tur 7 — Gösterim Verisinin Tamamlanması
+## Tur 8 — Gösterim Verisinin Tamamlanması
 
 **Hedef:** Tur 4 ve Tur 5'te kurulan senaryoların üzerine, kümülatif davranışı
 gösteren tarihsel derinlik.
@@ -203,7 +222,7 @@ görüyor ve bu Analiz ekranında okunabiliyor.
 
 ---
 
-## Tur 8 — Kalibrasyon, Ölçüm ve Kapanış
+## Tur 9 — Kalibrasyon, Ölçüm ve Kapanış
 
 **Hedef:** ağırlıkların yeniden kalibrasyonu ve altı kabul kriterinin yeniden
 ölçülmesi.
@@ -228,11 +247,11 @@ olduğu net.
 
 Bunlar saatlik düzenin üstüne oturur ve sırayla ele alınır:
 
-- **Tur 9** — Excel ve analiz dışa aktarma (madde 1, 9)
-- **Tur 10** — Çizelge görünüm iyileştirmeleri ve sürükle-bırak (madde 3, 4)
-- **Tur 11** — Özet ekranı (madde 12)
-- **Tur 12** — Müsaitlik kaydına belge (madde 7)
-- **Tur 13** — Kullanıcı hesaplarının düzenlenmesi (madde 6)
+- **Tur 10** — Excel ve analiz dışa aktarma (madde 1, 9)
+- **Tur 11** — Sürükle-bırak (madde 3)
+- **Tur 12** — Özet ekranı (madde 12)
+- **Tur 13** — Müsaitlik kaydına belge (madde 7)
+- **Tur 14** — Kullanıcı hesaplarının düzenlenmesi (madde 6)
 
 Madde 1, 4, 9 ve 12 henüz prompta dönüşecek kadar tanımlı değildir; sıra gelmeden
 önce somut belirtileri yazılmalıdır.

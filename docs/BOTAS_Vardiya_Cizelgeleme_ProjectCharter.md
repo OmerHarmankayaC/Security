@@ -26,6 +26,7 @@ Kurum Mentörü: ____________________
 | Ömer HARMANKAYA | 05.08.2026 | Uygulama alanı güvenlik personeline daraltıldı; görev noktası yapısı, yetkinlik tanımları ve talep matrisi eklendi | 1.1 |
 | Ömer HARMANKAYA | 09.08.2026 | Kimlik doğrulama kapsama alındı: harici kimlik servisi maddesi kurumsal dizin entegrasyonu olarak yeniden yazıldı ve açık soru güncellendi | 1.2 |
 | Ömer HARMANKAYA | 13.08.2026 | Gece adaleti kabul kriteri (K3) saatlik çalışma düzenine uyarlandı: ölçünün birimi vardiya sayısından gece saatine döndüğü için eşik bir gece bloğu uzunluğu olarak yeniden yazıldı | 1.3 |
+| Ömer HARMANKAYA | 13.08.2026 | Model gerçek saatlik karara geçirildiği için K3'ün eşiği sabit sekiz gece saati olarak yazıldı ve K4'teki vardiya ifadesi saat aralığıyla değiştirildi; müracaat görev noktası kapsamdan çıkarıldı | 1.4 |
 
 
 
@@ -159,7 +160,7 @@ Projenin kapsamı bilinçli olarak sınırlı tutulmuştur. Sistem, halihazırda
 
 **Önemli Fonksiyonel Olmayan Gereksinimler**
 
-- Kişi başına düşen gece yükü, kişiye düşen adil paydan en fazla bir gece bloğu kadar sapmalıdır.
+- Kişi başına düşen gece yükü, kişiye düşen adil paydan en fazla sekiz gece saati kadar sapmalıdır.
 
 - Sistem, hangi hedefin daha öncelikli olduğuna kendisi karar vermemeli; bu tercihi kullanıcıdan parametre olarak almalıdır.
 
@@ -291,7 +292,7 @@ Nihayetinde araç, neyin daha önemli olduğuna kendisi karar vermemektedir. Ada
 
 Sistemin ilk uygulama alanı BOTAŞ tesislerinin güvenlik personelidir. Aşağıda tanımlanan yapı, mentör görüşmesi sonrasında kesinleşmek üzere mevcut işleyişten alınmış varsayımlara dayanmaktadır. Bu değerlerin tamamı sistem içinden düzenlenebildiği için, gerçek değerlerin farklı çıkması durumunda yazılım değişikliği gerekmemektedir.
 
-Tesiste iki bina bulunmakta ve güvenlik hizmeti günde üç vardiya halinde (00.00–08.00, 08.00–16.00, 16.00–24.00) kesintisiz yürütülmektedir. Devriye görevi bulunmamakta; personel güvenlik ve müracaat noktalarında görevlendirilmektedir. Görev noktaları bina ayrımı yapılmadan tesis geneli tanımlanmıştır: kapı ve kontrol odası arasındaki ayrım kaldırılmış, tek bir "Güvenlik" noktasında birleştirilmiştir — kontrol odasında görevli personel zaten ayrı bir meslek grubu değil aynı yetkinliğe sahip bir güvenlik görevlisiydi, dolayısıyla atamanın hangi fiziksel noktaya yazıldığı modelin ihtiyaç duyduğu bir bilgi değildir; kim hangi kapıda veya kontrol odasında duracağını vardiya şefi o gün belirler. Aynı gerekçeyle müracaat noktası da bina ayrımı olmadan tanımlanmıştır.
+Tesiste iki bina bulunmakta ve güvenlik hizmeti kesintisiz yürütülmektedir. Mevcut işleyiş günde üç sekiz saatlik vardiyaya dayanmakla birlikte, sistem çalışma zamanını sabit vardiya tipleriyle değil saat düzeyinde belirler (SRS TD-13). Devriye görevi bulunmamakta; personel vardiya şefliği ve güvenlik noktalarında görevlendirilmektedir. Görev noktaları bina ayrımı yapılmadan tesis geneli tanımlanmıştır: kapı ve kontrol odası arasındaki ayrım kaldırılmış, tek bir "Güvenlik" noktasında birleştirilmiştir — kontrol odasında görevli personel zaten ayrı bir meslek grubu değil aynı yetkinliğe sahip bir güvenlik görevlisiydi, dolayısıyla atamanın hangi fiziksel noktaya yazıldığı modelin ihtiyaç duyduğu bir bilgi değildir; kim hangi kapıda veya kontrol odasında duracağını vardiya şefi o gün belirler. 
 
 Görev noktaları ve her noktanın gerektirdiği yetkinlik aşağıdaki gibidir.
 
@@ -299,20 +300,19 @@ Görev noktaları ve her noktanın gerektirdiği yetkinlik aşağıdaki gibidir.
 | --- | --- | --- |
 | Vardiya Şefliği | Tesis geneli | Vardiya Şefi |
 | Güvenlik | Tesis geneli | Güvenlik Görevi |
-| Müracaat | Tesis geneli | Müracaat Görevlisi |
 
 
 
-Yetkinlik yapısı üç tanımdan oluşmaktadır. Güvenlik Görevi yetkinliği, güvenlik noktasında (kapı ve kontrol odası görevlerini birlikte kapsar) görev alabilmenin ön koşuludur. Vardiya Şefi yetkinliğine sahip personel aynı zamanda Güvenlik Görevi yetkinliğini de taşımakta, dolayısıyla müracaat dışındaki tüm noktalarda görevlendirilebilmektedir. Müracaat Görevlisi ise yalnızca müracaat noktasında çalışmakta; bu personel Güvenlik Görevi yetkinliğini taşımadığı için başka bir noktaya atanamamakta, aynı şekilde müracaat noktası da bu yetkinliğe sahip olmayan personele açılmamaktadır.
+Yetkinlik yapısı iki tanımdan oluşmaktadır. Güvenlik Görevi yetkinliği, güvenlik noktasında (kapı ve kontrol odası görevlerini birlikte kapsar) görev alabilmenin ön koşuludur. Vardiya Şefi yetkinliğine sahip personel aynı zamanda Güvenlik Görevi yetkinliğini de taşımakta, dolayısıyla her iki noktada da görevlendirilebilmektedir. Önceki sürümlerde tanımlı olan müracaat noktası ve Müracaat Görevlisi yetkinliği kapsamdan çıkarılmış, noktanın iş yükü güvenlik talebine eklenmiştir.
 
 Görev noktası başına gereken personel sayısı gün tipine ve vardiyaya göre değişmektedir. Hafta içi gündüz ve akşam vardiyaları tam kadro çalışmakta; gece vardiyası ile hafta sonu ve resmî tatillerin tüm vardiyaları azaltılmış kadroyla yürütülmektedir.
 
-| Görev Noktası | Hafta İçi Gündüz / Akşam | Gece, Hafta Sonu ve Tatil |
-| --- | --- | --- |
-| Vardiya Şefliği | 1 | 1 |
-| Güvenlik | 7 | 3 |
-| Müracaat | 2 | — |
-| Toplam | 10 | 4 |
+| Görev Noktası | Gün Tipi | Aralık | Gereken |
+| --- | --- | --- | --- |
+| Vardiya Şefliği | her gün tipi | 00.00 – 24.00 | 1 |
+| Güvenlik | Hafta içi | 08.00 – 24.00 | 9 |
+| Güvenlik | Hafta içi | 00.00 – 08.00 | 3 |
+| Güvenlik | Hafta sonu / tatil | 00.00 – 24.00 | 3 |
 
 
 
@@ -450,9 +450,9 @@ Aşağıdaki işlevler bilinçli olarak kapsam dışında bırakılmıştır. Ka
 
 - Üretilen çizelgede zorunlu kısıt ihlali bulunmaz; bu durum otomatik testlerle doğrulanır.
 
-- Kişi başına düşen gece yükü, kişiye düşen adil paydan en fazla bir gece bloğu kadar sapar. Ölçünün birimi gece saatidir; eşik, çalışma bloğu kataloğundaki en uzun gece bloğunun süresidir ve katalog değiştiğinde kendiliğinden güncellenir.
+- Kişi başına düşen gece yükü, kişiye düşen adil paydan en fazla **sekiz gece saati** kadar sapar. Ölçünün birimi gece saatidir (SRS TD-2); eşik, bir gece nöbeti uzunluğuna karşılık gelir — bir kişinin payından bir nöbet kadar fazla veya eksik gece alması kabul edilebilir, ötesi başarısızlıktır. Çalışma blokları çözümün çıktısı olduğundan eşik katalogdan türetilemez ve sabit yazılır.
 
-- Kasten çelişkili kurulan örnekte sistem hangi gün, hangi saat aralığı ve hangi görev noktasında kaç kişi eksik kaldığını gösterir.
+- Kasten çelişkili kurulan örnekte sistem hangi gün, hangi saat aralığı ve hangi görev noktasında kaç kişi eksik kaldığını gösterir. Çelişki, kadro büyüklüğü üzerinden değil erişilebilirlik üzerinden kurulur: ön koşulu yalnızca küçük bir havuzun karşıladığı bir noktanın o havuzun izinli olduğu bir dönemde açık vermesi, çalışma sürelerinin uzunluğundan bağımsızdır.
 
 - Manuel düzenlemede kural ihlali bir saniyenin altında bildirilir.
 
@@ -480,8 +480,6 @@ Aşağıdaki işlevler bilinçli olarak kapsam dışında bırakılmıştır. Ka
 - Vardiya şefliği gerçekten iki bina için ortak tek bir görev midir, yoksa bina başına ayrı şef bulunmakta mıdır?
 
 - Kontrol odası yalnızca bir binada mı bulunmaktadır?
-
-- Müracaat personeli güvenlik görevlerinde hiç görevlendirilmemekte midir?
 
 - Vardiya şefi kadrosu kaç kişiden oluşmaktadır? Bu havuz, tek görev noktasının kesintisiz doldurulması nedeniyle izin dönemlerinde kritik hale gelmektedir.
 
