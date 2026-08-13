@@ -9,6 +9,237 @@ başlar.
 
 ---
 
+## 2026-08-13 — Tur 6: Saat Görünümleri ve Arayüz — **BİTTİ**
+
+Kaynak: `docs/turlar/CLAUDE_CODE_PROMPTU_TUR6.md`. Altı iş, hepsi bitti.
+Çalışma `tur6-saat-gorunumleri` dalında yürüdü.
+
+Doküman sürümleri turun başında doğrulandı: Charter **1.4**, SRS **1.21**,
+SDD **1.28**, Backlog **1.18** — dördü de taşıyor. (SDD'nin revizyon
+tablosunda satır SIRASI bozuk: ... 1.24, 1.25, **1.27**, **1.28**, **1.26**.
+İçerik eksik değil, yalnızca son üç satır sıra dışı; en yüksek sürüm 1.28.)
+
+### İş 1 — Gün ızgarası
+
+Satırlarda personel, sütunlarda seçili günün yirmi dört saati
+(`components/GunIzgarasi.tsx`). Blok, saat hücrelerinin ÜZERİNDE tek parça
+bir şerit olarak durur — hücreler yalnızca ızgara çizgisi ve sürükleme
+hedefi. Ayrım görsel değil anlamsal: blok tek bir karardır (SRS TD-13) ve
+yirmi dört ayrı boyalı kutu, kataloglu sürümün "vardiya dizilimi"
+görüntüsünü geri getirirdi.
+
+**Gece yarısını aşan blok** başladığı günde sağ kenara dayanır (köşe açık,
+kenarlık yok, `›` işareti), ertesi gün sol kenardan başlar (`‹`). İki günde
+de etiket bloğun TAMAMINI yazar ("20.00–06.00"). "20.00–24.00" ve
+"00.00–06.00" yazmak, modelin tam olarak yasakladığı iki-blok görüntüsünü
+ekranda üretmek olurdu. Gün toplamı bloğun BAŞLADIĞI güne yazılır (TD-1);
+ertesi günün satırında altı saat görünür ama toplamına girmez.
+
+Geometri `lib/blok.ts`te tek yerde: `gunParcasi` / `gununParcalari`. Gün
+ızgarası, hafta şeridi ve yazdırma üçü de oradan okur; ikinci bir çözümleme
+yazılmadı.
+
+### İş 2 — Hafta şeridi ve **DOM ÖLÇÜMÜ**
+
+`components/HaftaSeridi.tsx`. Her gün hücresi yirmi dört dilimlik mini
+şerittir ve **tek öğeyle** çizilir: dilimler bir CSS gradientinin sert
+duraklarıdır (`lib/saatRengi.ts`, `saatGradyani`).
+
+**Ölçüm — otuz personel × yedi gün (210 hücre), jsdom, tam ağaç:**
+
+| Çizim yolu | DOM düğümü |
+|---|---|
+| Bugünkü hâli (gradient, hücre başına 1 düğüm) | **574** |
+| Dilim başına ayrı düğüm olsaydı | ~5.400 (yalnız dilimler 210 × 24 = 5.040) |
+
+Ölçüm testle kilitlendi (`HaftaSeridi.test.tsx`: düğüm sayısı < 1.000 ve
+210 şerit gerçekten çizilmiş). Dilimler ayrı öğelere bölünürse test düşer.
+
+### İş 3 — Renk saatin kendisinden · **YENİ RENK BANDI**
+
+Kategorik üç ton kalktı. `lib/vardiyaRenk.ts` silindi; yerine
+`lib/saatRengi.ts` geldi.
+
+**Bandın tanımı** (`docs/tasarim/TASARIM_REFERANSI.md` sürüm 4'ün vardiya
+rampasının yerine geçer — kanonik doküman değil, proje yürütücüsü
+işleyecek):
+
+```
+aydinlik(saat) = (1 − cos(2π · (saat − 1) / 24)) / 2      → 0…1
+renk(saat)     = lerp(#2F3A38, #E9E7D9, aydinlik(saat))
+```
+
+- Uçlar mevcut paletten: en koyu gece `--vardiya-gece` **#2F3A38**, en açık
+  gündüz `--vardiya-gunduz` **#E9E7D9**. Yeni bir palet uydurulmadı.
+- Dip nokta **01.00**, tepe **13.00**. Dip, gece penceresinin (20.00–06.00,
+  TD-2) ORTASINA konuldu; kenarına konsaydı 20.00 ile 05.00 farklı koyulukta
+  çıkardı, oysa ikisi de gecenin kenarıdır.
+- `--vardiya-aksam` (#C7CEC0) artık kullanılmıyor — bandın 16.00 civarındaki
+  değeri onun yerini tutuyor.
+- Bandın 24 basamağı modül yüklenirken bir kez hesaplanır; beş binden fazla
+  renk sorgusunda kosinüs tekrar çalışmaz.
+
+Örnek basamaklar: `00 #323d3b` · `01 #2f3a38` · `06 #747a74` · `08 #a4a79d`
+· `12 #e6e4d6` · `13 #e9e7d9` · `16 #cecec1` · `20 #747a74` · `23 #3b4643`.
+
+**Renk tek başına bilgi taşımıyor.** Şeridin üzerinde saat aralığı metni
+durur (`blokErisilebilirEtiket`, aynı metin `aria-label`de). Kilitli blok
+RENKLE değil **eğik tarama** + aksan dış çizgiyle işaretlenir
+(`KILIT_DOKUSU`); kapsama açığı **▲ + sayı** ile — şekil, renk körlüğünde ve
+siyah-beyaz yazdırmada da ayrışır. Şerit metni kendi yarı saydam zeminini
+taşır (`ETIKET_ZEMINI`): aynı şerit hem #2F3A38 hem #E9E7D9 taşıyabildiği
+için tek bir mürekkep rengi baştan sona okunmuyor.
+
+Çalışan paneli de aynı banda taşındı — "Gündüz / Akşam / Gece" rozeti ve üç
+kutulu lejant kalktı. Aynı vardiyanın yöneticide ve çalışanda farklı
+okunmaması için renk iki panelde de aynı fonksiyondan geliyor.
+
+### İş 4 — Sürükleyerek blok tanımlama
+
+Gün satırında sürükleme bloğu tanımlar; var olan bloğun iki kenarından da
+uzatma/kısaltma çalışır. Bırakıldığında panel doldurulur ve **doğrulama
+isteği** gönderilir — değişiklik uygulanmaz, "Uygula" arada durur.
+
+`asgari_blok_saat` (H1) ve `azami_gunluk_saat` (H9) **kural kataloğundan**
+okunur (`lib/kuralParametre.ts`), koda gömülmez; kullanıcı parametreyi
+değiştirdiğinde ızgara yeni sınırı gösterir. **Pasif kural sınır koymaz.**
+Sınır sürükleme SIRASINDA görünür: önizleme kırmızıya döner ve nedenini
+yazar ("Asgari blok 4 saat (H1)").
+
+Tek tık blok tanımlamaz, yalnızca satırı seçer — bir saatlik blok üretip
+ardından "asgari dört saat" diye reddetmek, kullanıcının yapmadığı bir
+işlemi ona geri okumak olurdu.
+
+### İş 5 — Yazdırma ve CSV
+
+Yazdırılabilir görünüm artık **gün ızgarası**: her gün kendi sayfasında
+başlar (`.yazdirma-sayfa-basi`), bir günün personeli sayfaya sığmadığında
+tablo bölünür ve **saat başlığı `thead`de olduğu için her sayfada yeniden
+basılır**. Şeridin üzerinde saat aralığı ve nokta kısaltması METİN olarak
+durur: tarayıcı arka plan basmayabilir, kâğıtta kalan tek şey odur.
+
+CSV'de `baslangic`/`bitis` saat metninden **tam ISO damgasına** çevrildi.
+Dosyanın okuyucusu makinedir ve `tarih` sütununun yanında "20.00; 06.00"
+gören bir okuyucu bitişin ertesi güne düştüğünü çıkaramaz — gece yarısını
+aşan blok tam da bu dosyada görünmez oluyordu.
+
+Üçüncü kopya çıkmadı: `saatEtiketi`in `talepAraligi.ts`teki ikinci tanımı
+`blok.ts`e katlandı, yazdırma ızgaranın biçimlendiricilerini çağırıyor.
+
+### İş 6 — Kural ekranı ve analiz
+
+**Kural ekranına kod eklenmedi** ve gerekmedi: ekran parametreleri
+katalogdan genel olarak çiziyor, `asgari_blok_saat` ve `gece_esigi_saat` de
+göçle (`f2a8c561d94b`) kural kayıtlarına eklenmişti. Varsayım teste
+çevrildi (`TanimlarEkrani.test.tsx`): ikisi de görünüyor, düzenlenebiliyor
+ve onay kutusundan geçerek kaydediliyor.
+
+**Adalet grafiğinin referansı havuz ortalamasından kişiye düşen ADİL PAYA
+geçti** (SRS S2/S3). Gece ve hafta sonu artık ayrı iki grafik: havuzları da
+hedefleri de farklı, iki hedefi tek yığılmış çubuktan okumak mümkün değil.
+Gösterilen sapma çözücünün kendi formülü — `max(saat − ⌊pay⌋, ⌈pay⌉ − saat,
+0)` — böylece ceza dökümü ile grafik aynı çizelge için farklı sayı söylemez.
+
+Saat dengesi tablosunun "HEDEF" sütunu **"ADİL PAY"** olarak adlandırıldı;
+o sütun Analiz servisi yazıldığından beri S4'ün adil payıydı ve "hedef"
+demek onu sözleşme saati gibi okutuyordu.
+
+### Backend'e dokunuldu — tek yer, ek alan
+
+Tur backend'e neredeyse hiç dokunmamayı istiyordu. Bir yerde gerekti ve
+nedeni şu: adalet grafiğinin referansı için gereken `pay_gece[p]` /
+`pay_hs[p]` sunucuda **zaten hesaplanıyor ama atılıyordu** —
+`Baglam.uygun_havuz` payları hesaplayıp yalnızca "payı sıfırdan büyük
+olanlar" kümesini döndürüyor. Arayüz elinde sayılarla kalınca referans
+olarak havuz ortalamasını çizmek zorundaydı, yani S2'nin açıkça reddettiği
+ölçüyü.
+
+Değişiklik ikisi: `KisiSayisiOku`ya `pay: float | None = None` alanı
+eklendi (var olan tüketiciler için kırıcı değil), Analiz servisi
+`uygun_havuz` yerine `adil_paylar`ı doğrudan çağırıp payı da yazıyor. Tanım
+yine `Baglam.adil_paylar`da tek yerde; ikinci bir geçiş de yapılmıyor.
+**Göç yok, şema değişikliği yok.**
+
+### Tasarımdan sapma — Çizelge ekranındaki nokta EKSENİ kaldırıldı
+
+Ekranda "Personel / Nokta" görünüm anahtarı vardı; yerini "Gün / Hafta"
+aldı. Gerekçe: SDD 6.3.3 (sürüm 1.28) ekranın iki görünümünü ÇÖZÜNÜRLÜK
+üzerinden tanımlıyor ve listesinde Görünüm Anahtarı yok. Nokta ekseni,
+satırların nokta × vardiya TİPİ olduğu kataloglu sürümden kalmaydı ve Tur
+5'te zaten yarısını kaybetmişti (satır doğrudan noktaya inmişti).
+
+Kayıp telafi edildi: gün ızgarasına **nokta süzgeci** eklendi. "Bu noktada
+bugün kim var" sorusu artık orada yanıtlanıyor ve yanıt saat çözünürlüğünde
+— eski eksenin veremediği bilgiyle birlikte. Nokta eksenini geri
+istiyorsanız söyleyin; gün ızgarasında nokta satırları alt satırlara
+yığılarak çizilebilir.
+
+### DOKÜMAN BORCU — **üçü de açık**
+
+1. **SRS 7.2 — çizelge dışa aktarma sütunları.** Doküman hâlâ
+   `vardiya_tipi` ve `gece_mi` yazıyor; kod Tur 5'ten beri
+   `baslangic`/`bitis` + `gece_saat` üretiyor. Bu turda ikisi daha
+   değişti: `baslangic`/`bitis` artık saat metni değil **tam ISO damgası**.
+   Kapsama açığı dosyasının sütunları da `vardiya_tipi` yerine
+   `baslangic`/`bitis` + `tur`/`kisi_sayisi`.
+2. **SDD 6.3.3 — kaldırılan Görünüm Anahtarı ve eklenen nokta süzgeci.**
+   Yukarıdaki sapma. Ayrıca gün ızgarasının kapsama satırının saat
+   düzeyinde olduğu ve işaretin şekil taşıdığı yazılı değil.
+3. **Ek B — `KisiSayisi` yanıtına `pay` alanı eklendi.** Uç nokta sayısı
+   değişmedi, `GET /api/analiz/{surum_id}` yanıtının şekli değişti.
+
+### Bilinen sınır — kapsama açığı dosyasında gece yarısı
+
+Çizelge CSV'si ISO damgasına geçti; **talep sapması dosyası** hâlâ `tarih` +
+saat metni taşıyor (`00.00`, `08.00`). Kapsama açığı kaydı sunucuda TIME
+sütunlarında duruyor ve saat dilimi ofseti taşımıyor; ondan bir ISO damgası
+kurmak ofseti uydurmak olurdu. Gece yarısını aşan bir açık aralığı bu
+dosyada hâlâ okunamaz. Düzeltmenin yeri sunucu tarafı (aralığa bitiş tarihi
+ya da ofset eklemek) ve bu tur backend'e dokunmama kuralının içinde
+kalmadı.
+
+### Sen ne göreceksin — **şu üç ekranı kendi gözünle aç**
+
+Ekranı tarayıcıda yine göremedim (5173 portu başka projede, ekran girişin
+arkasında). Testler kanıt yerine geçiyor ama **jest değil**: aşağıdakiler
+test edilmedi ve gözle bakılmalı.
+
+1. **Çizelge → Gün.** Sürükleyerek blok tanımla ve kenarından uzat.
+   jsdom düzen (layout) hesaplamadığı için imlecin gerçekten hangi saatin
+   üzerinde olduğu test edilemiyor; test hücrelere doğrudan olay göndererek
+   jestin MANTIĞINI doğruluyor. Bakılacak: sürükleme akıcı mı, önizleme
+   doğru hücrelerde mi, kenar tutamakları 6px genişlikte tutulabiliyor mu.
+2. **Çizelge → Gün, gece yarısını aşan bir blok.** Şeridin iki günde de
+   tek blok gibi okunduğu ancak gözle doğrulanabilir: köşe açıklığı,
+   `‹ ›` işaretleri ve etiketin sığması. Dar sütunda etiket kırpılıyorsa
+   söyle.
+3. **Çizelge → Yazdır.** Yatay A4 önizlemesi. Gün ızgarası sayfaya sığıyor
+   mu, saat başlığı ikinci sayfada tekrarlanıyor mu, arka plan basımı kapalı
+   olduğunda şeritler hâlâ okunuyor mu — üçü de yalnızca gerçek baskı
+   önizlemesinde görülür.
+
+Ayrıca **Analiz** ekranındaki iki yeni adalet grafiğine bakmanı öneririm:
+referans çizgisi (dikey ince çizgi) çubukların arasında kaybolabiliyor mu?
+
+### Turun bitiş kontrolü
+
+- [x] `tsc -b` temiz, `oxlint` temiz (4 uyarı, hepsi turdan önce vardı ve
+      `react/only-export-components` — dosya başına bir bileşen kuralı)
+- [x] `vitest` **231 test geçiyor** (turdan önce 162; 69 yeni test).
+      Ters/karışık sırada da geçiyor (`--sequence.shuffle`)
+- [x] `pytest` tam takım **341 test geçiyor** (10 dk 26 sn)
+- [x] `ruff check` ve `ruff format --check` temiz
+- [x] Hafta şeridinin DOM maliyeti ölçüldü ve yukarıda
+- [x] Yeni renk bandı yukarıda (tasarım referansına proje yürütücüsü işleyecek)
+- [ ] `git status` temiz — dal `main`e alınmayı bekliyor
+
+### Bekleyen göçler — dağıtım yapılmadı
+
+Bu tur göç üretmedi. Tur 5'in göçü (`f2a8c561d94b`) hâlâ bekliyor; durumu
+değişmedi.
+
+---
+
 ## 2026-08-13 — Tur 5: Gerçek Saatlik Model — **BİTTİ**
 
 Kaynak: `docs/turlar/CLAUDE_CODE_PROMPTU_TUR5.md` ve devamı
