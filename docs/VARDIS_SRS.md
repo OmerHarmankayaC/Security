@@ -2,7 +2,7 @@
 
 **CMPE 399 — Yaz Stajı**
 
-BOTAŞ Boru Hatları ile Petrol Taşıma A.Ş.
+kurum Boru Hatları ile Petrol Taşıma A.Ş.
 
 **VARDİYA ÇİZELGELEME KARAR DESTEK ARACI**
 
@@ -42,6 +42,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 13.08.2026 | S2 ve S3'ün hedefi tek ortalamadan kişiye özel adil paya çevrildi: erişilebilirliği kısıtlı havuzlar için tek hedef ulaşılamaz kalıyor ve o havuz kalıcı olarak sapmalı görünüyordu | 1.17 |
 | Ömer HARMANKAYA | 13.08.2026 | Esnek hedeflerin ceza değişkenlerinin üst sınırla kısıtlanamayacağı 4.3'e yazıldı: S3'ün sapma değişkenine konan üst sınır, kadro yetersizken modeli çözülemez kılıyor ve FR-5.2'yi ihlal ediyordu | 1.18 |
 | Ömer HARMANKAYA | 13.08.2026 | Model, önceden tanımlı çalışma bloklarının seçiminden gerçek saatlik karara geçirildi: karar değişkeni mutlak saat ekseninde tanımlandı (TD-13), blok kataloğu ve `gece_mi` bayrağı kaldırıldı (3.3.1, TD-2), H1 kesintisizlik kısıtına, H3 gece gününe, H9 günlük toplama, S6 fiilî başlangıç kaymasına dönüştürüldü, asgari blok süresi ve gece eşiği parametreleri eklendi (3.3.5). Müracaat görev noktası ve yetkinliği kaldırıldı; talebi Güvenlik'e taşındı (3.3.2, 3.3.3, 3.3.4) | 1.19 |
+| Ömer HARMANKAYA | 13.08.2026 | S4'ün sapma ölçüsü, S2 ve S3'ün kullandığı taban/tavan yöntemine çevrildi; üç adalet hedefi artık aynı yöntemi kullanıyor | 1.20 |
 
 
 
@@ -662,6 +663,15 @@ Ceza:  w4 · Σ_p |saat[p] − pay[p]|
 Sözleşme tipleri farklı olan personel için haftalık hedef saat farklılaşabildiğinden, pay eşit bölüşüm değil hedef saatle orantılı bölüşümdür; kırk saatlik sözleşmeli bir personel, otuz saatlik sözleşmeli bir personelden orantılı olarak daha fazla pay alır.
 
 Sapmanın kişisel sözleşme saatine değil bu paya göre hesaplanmasının nedeni, sözleşme saatinin ulaşılabilir bir hedef olmamasıdır. Haftalık saat tavanı ve asgari izin günü kuralları birlikte kişi başına azami vardiya sayısını sınırlar; kadro asgari gereksinimin üzerinde olduğunda hiçbir personel sözleşme saatine ulaşamaz. Bu durumda bütün sapmalar aynı yönde olur ve toplamları, çalışılan toplam saat talep tarafından sabitlendiği için dağılımdan bağımsız bir sabite dönüşür — hedef, ayırt edici olma özelliğini tamamen kaybeder. Paya göre hesaplanan sapma ise iki yönlü olabildiğinden dengesizliği gerçekten ölçer.
+
+**Sapma ölçüsü taban/tavan yöntemiyle kurulur.** Adil pay kesirli bir değerdir; sapma, payın tabanı ile tavanı arasındaki bant dışına çıkıldığında birikir:
+
+```
+∀p :  sapma[p] ≥ toplam_saat[p] − ⌊pay[p]⌋
+      sapma[p] ≥ ⌈pay[p]⌉ − toplam_saat[p]
+```
+
+Bandın içindeki fark cezasızdır. Bu, S2 ve S3'ün zaten kullandığı yöntemdir; üç adalet hedefinin aynı biçimde ölçülmesi, birinin kesirli payı doğrudan kısıtlaması ve diğer ikisinin bant kullanmasından daha tutarlıdır. Kesirli payın modelde bölme kısıtı olarak kurulması ayrıca çözüm süresini belirgin biçimde artırmaktadır.
 
 ### S5 — Tercih karşılama
 

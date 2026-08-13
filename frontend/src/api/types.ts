@@ -39,9 +39,11 @@ export interface AtamaFarki {
   ad_soyad: string
   tarih: string
   tur: AtamaFarkiTuru
-  onceki_vardiya_tipi_ad: string | null
+  /** Blok adı diye bir şey yok (SRS TD-13); karşılaştırma bloğun ZAMAN
+   *  ARALIĞINI gösterir ("08.00–16.00"). */
+  onceki_blok: string | null
   onceki_nokta_ad: string | null
-  yeni_vardiya_tipi_ad: string | null
+  yeni_blok: string | null
   yeni_nokta_ad: string | null
 }
 
@@ -60,11 +62,20 @@ export interface SurumKarsilastirmasi {
 
 export type AtamaKaynagi = 'cozucu' | 'manuel'
 
+/**
+ * Bir çalışma bloğu (SDD 4.2.1).
+ *
+ * `tarih` ve `sure_saat` sunucuda TÜRETİLİR, saklanmaz: blok başladığı güne
+ * sayılır (SRS TD-1) ve ızgara satırları o güne göre gruplanır. Gece yarısını
+ * aşan blokta `bitis_zamani` ertesi güne düşer.
+ */
 export interface Atama {
   atama_id: number
   personel_id: number
+  baslangic_zamani: string
+  bitis_zamani: string
   tarih: string
-  vardiya_tipi_id: number
+  sure_saat: number
   nokta_id: number
   kilitli: boolean
   kaynak: AtamaKaynagi
@@ -73,7 +84,8 @@ export interface Atama {
 export interface KapsamaAcigi {
   acik_id: number
   tarih: string
-  vardiya_tipi_id: number
+  baslangic: string
+  bitis: string
   nokta_id: number
   eksik_sayi: number
 }
@@ -82,7 +94,8 @@ export interface KapsamaAcigi {
 export interface FazlaKadro {
   fazla_id: number
   tarih: string
-  vardiya_tipi_id: number
+  baslangic: string
+  bitis: string
   nokta_id: number
   fazla_sayi: number
 }
@@ -92,7 +105,6 @@ export interface Personel {
   ad_soyad: string
   sicil_no: string
   haftalik_hedef_saat: number
-  sabit_vardiya_tipi_id: number | null
   aktif_baslangic: string
   aktif_bitis: string | null
   yetkinlik_idleri: number[]
@@ -109,16 +121,6 @@ export interface Personel {
 export interface OzelGun {
   tarih: string
   ad: string
-}
-
-export interface VardiyaTipi {
-  vardiya_tipi_id: number
-  ad: string
-  baslangic_saati: string
-  bitis_saati: string
-  sure_saat: string
-  gece_mi: boolean
-  aktif: boolean
 }
 
 export interface GorevNoktasi {
@@ -188,7 +190,8 @@ export interface OnKontrolBulgu {
   eksik: number | null
   yetkinlik_id: number | null
   tarih: string | null
-  vardiya_tipi_id: number | null
+  /** Bulgu artık bir vardiya TİPİNİ değil bir SAATİ gösterir (SRS TD-13). */
+  saat: number | null
   nokta_id: number | null
   personel_id: number | null
 }
@@ -225,11 +228,20 @@ export interface DogrulamaSonucu {
   uyarilar: Ihlal[]
 }
 
+/**
+ * Izgaradaki bir (personel, gün) satırına yazılan blok (SDD 6.3.3).
+ *
+ * Üçü de boş ise o günün bloğu kaldırılır; üçü de doluysa günün bloğu bu olur.
+ * Saatler saat başında olmalıdır — saat ekseni yarım saatlik sınırları temsil
+ * edemez (SDD 6.3.1). Bitiş başlangıçtan küçük ya da eşitse blok gece yarısını
+ * aşar.
+ */
 export interface AtamaDegisikligiIstek {
   surum_id: number
   personel_id: number
   tarih: string
-  vardiya_tipi_id: number | null
+  baslangic_saati: string | null
+  bitis_saati: string | null
   nokta_id: number | null
 }
 
@@ -237,7 +249,7 @@ export interface AtamaDegisikligiIstek {
 
 // Tanım varlıklarının API yolu. Silme ve kullanım sorgusu beş varlıkta da aynı
 // biçimde çalıştığından tek bir yol üzerinden geçer.
-export type TanimYolu = 'yetkinlik' | 'bina' | 'nokta' | 'vardiya-tipi' | 'personel'
+export type TanimYolu = 'yetkinlik' | 'bina' | 'nokta' | 'personel'
 
 export interface TanimKullanimiKalemi {
   kayit_turu: string
@@ -355,7 +367,7 @@ export interface MusaitlikOlusturIstek {
 
 // --- Tercih (FR-3.x) --------------------------------------------------------
 
-export type TercihTipi = 'calismama' | 'vardiya_tipi_tercihi'
+export type TercihTipi = 'calismama' | 'zaman_araligi_tercihi'
 export type TercihDurumu = 'beklemede' | 'onaylandi' | 'reddedildi'
 
 export interface Tercih {
@@ -364,7 +376,9 @@ export interface Tercih {
   donem_id: number
   tarih: string
   tip: TercihTipi
-  vardiya_tipi_id: number | null
+  /** Zaman aralığı tercihinde istenen aralık; çalışmama tercihinde boş. */
+  tercih_baslangic: string | null
+  tercih_bitis: string | null
   durum: TercihDurumu
   calisan_notu: string | null
   ret_gerekcesi: string | null
@@ -372,6 +386,13 @@ export interface Tercih {
 
 // --- Analiz (FR-8.x, SDD 5.7) -----------------------------------------------
 
+/**
+ * Kişi başına bir metriğin değeri.
+ *
+ * `sayi`nın BİRİMİ ÖLÇÜYE GÖRE DEĞİŞİR: gece ve hafta sonu dağılımlarında
+ * SAAT (SRS S2/S3 — blok süreleri çözümün çıktısı olduğundan sayıma dayalı
+ * bir ölçü tanımsızdır), bina değişim sayacında ADET.
+ */
 export interface KisiSayisi {
   personel_id: number
   ad_soyad: string
@@ -389,8 +410,8 @@ export interface SaatDengesi {
 /** Analiz ekranının fazla kadro satırı — adlarıyla birlikte (NFR-5). */
 export interface FazlaKadroKalemi {
   tarih: string
-  vardiya_tipi_id: number
-  vardiya_tipi_ad: string
+  baslangic: string
+  bitis: string
   nokta_id: number
   nokta_ad: string
   fazla_sayi: number
@@ -421,13 +442,18 @@ export interface Analiz {
 export type DegisimTipi = 'eklendi' | 'degisti'
 export type KarsilanmaDurumu = 'karsilandi' | 'karsilanmadi' | 'henuz_belirsiz'
 
+/**
+ * Çalışanın bir günlük çalışma bloğu.
+ *
+ * Blok adı diye bir şey yok (SRS TD-13); çalışanın görmesi gereken bilgi
+ * saatin kendisidir. `gece_saati` HESAPLANIR (TD-2), işaretlenmez.
+ */
 export interface Vardiyam {
   tarih: string
-  vardiya_tipi_id: number
-  vardiya_tipi_ad: string
-  baslangic_saati: string
-  bitis_saati: string
-  gece_mi: boolean
+  baslangic_zamani: string
+  bitis_zamani: string
+  sure_saat: number
+  gece_saati: number
   nokta_id: number
   nokta_ad: string
   degisim_tipi: DegisimTipi | null
@@ -438,21 +464,20 @@ export interface Vardiyam {
 // dönem ızgarasının dolu hücreleri yalnızca gerçek vardiyalardan beslenir.
 export interface KaldirilanGun {
   tarih: string
-  onceki_vardiya_tipi_ad: string
-  onceki_baslangic_saati: string
-  onceki_bitis_saati: string
-  onceki_gece_mi: boolean
+  onceki_baslangic_zamani: string
+  onceki_bitis_zamani: string
   onceki_nokta_ad: string
 }
 
 export interface DonemOzeti {
-  gece_sayisi: number
+  /** Birim SAAT (SRS S2, S3). */
+  gece_saati: number
   ekip_ortalama_gece: number
   // SRS S2/S3'teki uygun havuz (P_gece / P_hs) üyeliği. Havuz dışındaki
   // çalışan o vardiyaları yetkinliği gereği hiç alamaz; karşılaştırma
   // anlamsız olduğu için gösterilmez (SDD 5.7).
   gece_havuzunda: boolean
-  hafta_sonu_sayisi: number
+  hafta_sonu_saati: number
   ekip_ortalama_hafta_sonu: number
   hafta_sonu_havuzunda: boolean
   toplam_saat: number
@@ -487,8 +512,8 @@ export interface CalisanTercih {
   tercih_id: number
   tarih: string
   tip: TercihTipi
-  vardiya_tipi_id: number | null
-  vardiya_tipi_ad: string | null
+  tercih_baslangic: string | null
+  tercih_bitis: string | null
   calisan_notu: string | null
   durum: TercihDurumu
   ret_gerekcesi: string | null
@@ -529,11 +554,3 @@ export interface Kullanici {
   kilitli_mi: boolean
 }
 
-/** Tercih formundaki vardiya tipi listesi — çalışan yüzeyinin kendi ucu. */
-export interface CalisanVardiyaTipi {
-  vardiya_tipi_id: number
-  ad: string
-  baslangic_saati: string
-  bitis_saati: string
-  gece_mi: boolean
-}

@@ -1,6 +1,6 @@
 import { type PropsWithChildren, type ReactNode, useEffect, useState } from 'react'
 import { api } from '@/api/client'
-import type { Donem, Rol, VardiyaTipi } from '@/api/types'
+import type { Donem, Rol } from '@/api/types'
 import { cn } from '@/lib/utils'
 import { buyukHarf } from '@/lib/metin'
 import { bugunIso, donemAraligiBicimle, gunlerListesi } from '@/lib/tarih'
@@ -139,14 +139,11 @@ export function AppShell({
 }: PropsWithChildren<AppShellProps>) {
   const { ben, cikis, parolaDegistir } = useOturum()
   const [donemler, setDonemler] = useState<Donem[]>([])
-  const [vardiyaTipleri, setVardiyaTipleri] = useState<VardiyaTipi[]>([])
 
   useEffect(() => {
-    Promise.all([api.donemler(), api.vardiyaTipiListele()])
-      .then(([d, v]) => {
-        setDonemler(d)
-        setVardiyaTipleri(v)
-      })
+    api
+      .donemler()
+      .then(setDonemler)
       .catch(() => {
         // Dönem bloğu salt bilgilendirme amaçlı — sessizce boş bırakılır,
         // asıl ekranın kendi veri yükleme hatası zaten görünür olur.
@@ -154,11 +151,6 @@ export function AppShell({
   }, [])
 
   const donem = donemSec(donemler, donemId)
-  const ilkVardiya = vardiyaTipleri[0]
-  const vardiyaOzeti = ilkVardiya
-    ? `${vardiyaTipleri.length}×${Number(ilkVardiya.sure_saat)}`
-    : null
-
   return (
     // Kabuk, görünür alanın TAMAMINI kaplar ve kendisi kaydırılmaz
     // (`overflow-hidden`): kaydırma, aşağıdaki içerik alanının kendi
@@ -260,11 +252,12 @@ export function AppShell({
                 <p className="m-0 mt-1.5 font-mono text-sayi-orta font-semibold text-chrome-ink">
                   {buyukHarf(donemAraligiBicimle(donem.baslangic_tarihi, donem.bitis_tarihi))}
                 </p>
-                {/* `veri/mono-küçük` — dokümanın kendi örneği bu satırı
-                    ("7 gün · 3×8 vardiya") mono sayar. */}
+                {/* `veri/mono-küçük`. Blok özeti ("3×8 vardiya") KALKTI:
+                    blok kataloğu yok, blok uzunlukları çözümün çıktısı
+                    (SRS TD-13) ve dönem başında söylenebilecek bir sayı
+                    değil. */}
                 <p className="m-0 mt-0.5 font-mono text-mono-kucuk text-chrome-ink-muted">
                   {gunlerListesi(donem.baslangic_tarihi, donem.bitis_tarihi).length} gün
-                  {vardiyaOzeti ? ` · ${vardiyaOzeti} vardiya` : ''}
                 </p>
               </>
             ) : (

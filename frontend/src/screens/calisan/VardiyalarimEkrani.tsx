@@ -12,6 +12,7 @@ import {
   zamanBicimle,
 } from '@/lib/tarih'
 import { vardiyaHucreSinifi } from '@/lib/vardiyaRenk'
+import { blokEtiketi } from '@/lib/blok'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -19,7 +20,13 @@ interface Props {
 }
 
 function saatAraligi(v: Vardiyam): string {
-  return `${v.baslangic_saati.slice(0, 5)}-${v.bitis_saati.slice(0, 5)}`
+  return blokEtiketi(v.baslangic_zamani, v.bitis_zamani)
+}
+
+// Gece HESAPLANIR, işaretlenmez (SRS TD-2): blok üzerinde bir bayrak yok.
+// Kart, gece saati taşıyan bir bloğu koyu gösterir.
+function geceli(v: Vardiyam): boolean {
+  return v.gece_saati > 0
 }
 
 // Takvim ızgarası pazartesi ile başlar (TD-3'teki hafta sonu tanımı cumartesi/
@@ -91,33 +98,33 @@ export function VardiyalarimEkrani({ veri }: Props) {
         <Kart
           className={cn(
             'border-none',
-            vardiyaHucreSinifi(veri.siradaki.gece_mi, veri.siradaki.baslangic_saati),
+            vardiyaHucreSinifi(veri.siradaki.baslangic_zamani.slice(11, 19)),
           )}
         >
           <p
             className={cn(
               'mb-4 etiket-caps',
-              veri.siradaki.gece_mi ? 'text-vardiya-gece-ink-muted' : 'text-ink-muted',
+              geceli(veri.siradaki) ? 'text-vardiya-gece-ink-muted' : 'text-ink-muted',
             )}
           >
             {buyukHarf('Sıradaki Vardiyan')}
           </p>
-          <p className={cn('m-0 text-baslik-bolum font-semibold', veri.siradaki.gece_mi ? 'text-vardiya-gece-ink' : 'text-ink')}>
+          <p className={cn('m-0 text-baslik-bolum font-semibold', geceli(veri.siradaki) ? 'text-vardiya-gece-ink' : 'text-ink')}>
             {gunEtiketi(veri.siradaki.tarih, bugun)} · {tarihUzunBicim(veri.siradaki.tarih)}
           </p>
           <div className="mt-2 flex items-center gap-2">
             <Sayi
               className={cn(
                 'text-sayi-buyuk font-semibold',
-                veri.siradaki.gece_mi ? 'text-vardiya-gece-ink' : 'text-ink',
+                geceli(veri.siradaki) ? 'text-vardiya-gece-ink' : 'text-ink',
               )}
             >
               {saatAraligi(veri.siradaki)}
             </Sayi>
             <BeyazEtiket genislik={88}>
-              {veri.siradaki.gece_mi
+              {geceli(veri.siradaki)
                 ? 'Gece'
-                : Number(veri.siradaki.baslangic_saati.slice(0, 2)) >= 14
+                : Number(veri.siradaki.baslangic_zamani.slice(11, 13)) >= 14
                   ? 'Akşam'
                   : 'Gündüz'}
             </BeyazEtiket>
@@ -164,7 +171,9 @@ export function VardiyalarimEkrani({ veri }: Props) {
                 key={g}
                 className={cn(
                   'relative flex flex-col items-center gap-0.5 py-3 text-sm',
-                  v ? vardiyaHucreSinifi(v.gece_mi, v.baslangic_saati) : 'bg-surface text-ink-muted',
+                  v
+                    ? vardiyaHucreSinifi(v.baslangic_zamani.slice(11, 19))
+                    : 'bg-surface text-ink-muted',
                   bugunMu && 'ring-2 ring-inset ring-accent',
                 )}
                 title={degisimBasligi}
@@ -205,8 +214,8 @@ export function VardiyalarimEkrani({ veri }: Props) {
                   tarih={satir.v.tarih}
                   bugun={bugun}
                   saatler={saatAraligi(satir.v)}
-                  geceMi={satir.v.gece_mi}
-                  baslangicSaati={satir.v.baslangic_saati}
+                  geceli={geceli(satir.v)}
+                  baslangicSaati={satir.v.baslangic_zamani.slice(11, 19)}
                   noktaAd={satir.v.nokta_ad}
                   isaretli={satir.v.degisim_tipi !== null}
                   rozet={
@@ -225,9 +234,14 @@ export function VardiyalarimEkrani({ veri }: Props) {
                   key={`k-${satir.k.tarih}`}
                   tarih={satir.k.tarih}
                   bugun={bugun}
-                  saatler={`${satir.k.onceki_baslangic_saati.slice(0, 5)}-${satir.k.onceki_bitis_saati.slice(0, 5)}`}
-                  geceMi={satir.k.onceki_gece_mi}
-                  baslangicSaati={satir.k.onceki_baslangic_saati}
+                  saatler={blokEtiketi(
+                    satir.k.onceki_baslangic_zamani,
+                    satir.k.onceki_bitis_zamani,
+                  )}
+                  // Kaldırılan gün için gece saati taşınmıyor; bant
+                  // başlangıç saatinden okunur (SRS TD-2 ile tutarlı).
+                  geceli={false}
+                  baslangicSaati={satir.k.onceki_baslangic_zamani.slice(11, 19)}
                   noktaAd={satir.k.onceki_nokta_ad}
                   isaretli
                   rozet="Kaldırıldı"
@@ -258,7 +272,7 @@ function ListeSatiri({
   tarih,
   bugun,
   saatler,
-  geceMi,
+  geceli,
   baslangicSaati,
   noktaAd,
   isaretli,
@@ -268,7 +282,7 @@ function ListeSatiri({
   tarih: string
   bugun: string
   saatler: string
-  geceMi: boolean
+  geceli: boolean
   baslangicSaati: string
   noktaAd: string
   isaretli: boolean
@@ -276,7 +290,7 @@ function ListeSatiri({
   kaldirildi?: boolean
 }) {
   const vardiyaEtiketi = buyukHarf(
-    geceMi ? 'Gece' : Number(baslangicSaati.slice(0, 2)) >= 14 ? 'Akşam' : 'Gündüz',
+    geceli ? 'Gece' : Number(baslangicSaati.slice(0, 2)) >= 14 ? 'Akşam' : 'Gündüz',
   )
   const soluk = kaldirildi ? 'text-ink-muted' : 'text-ink'
   return (

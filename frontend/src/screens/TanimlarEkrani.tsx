@@ -10,7 +10,6 @@ import type {
   TalepAraligi,
   TalepYaniti,
   TanimYolu,
-  VardiyaTipi,
   Yetkinlik,
   YukGostergesi,
 } from '../api/types'
@@ -51,7 +50,6 @@ const SEKMELER = [
   'Yetkinlik',
   'Bina',
   'Görev Noktası',
-  'Vardiya Tipi',
   'Özel Gün',
   'Kural',
 ] as const
@@ -68,7 +66,9 @@ type Sekme = (typeof SEKMELER)[number]
 // bağımsız bir kayıt yoktur (satırlar görev noktalarından türer, hücreler
 // yerinde düzenlenir); kural kataloğunda ise H1–H8/S1–S8 kodda tanımlı
 // sınıflarla eşleşir, eklenip silinemez, yalnızca pasifleştirilir (SDD 3.2.1).
-const TANIM_SEKMELERI = ['Personel', 'Yetkinlik', 'Bina', 'Görev Noktası', 'Vardiya Tipi'] as const
+// VARDIYA TIPI SEKMESI KALKTI (SRS TD-13): seçilecek bir blok yok, blok
+// uzunlukları çözümün çıktısı.
+const TANIM_SEKMELERI = ['Personel', 'Yetkinlik', 'Bina', 'Görev Noktası'] as const
 type TanimSekmesi = (typeof TANIM_SEKMELERI)[number]
 
 // RESMÎ TATİL SATIRI ZORUNLU. `talebi_saate_ac` bir gün için önce tarihe
@@ -139,7 +139,6 @@ export function TanimlarEkrani({ ekranSec }: Props) {
   const [yetkinlikler, setYetkinlikler] = useState<Yetkinlik[]>([])
   const [binalar, setBinalar] = useState<Bina[]>([])
   const [noktalar, setNoktalar] = useState<GorevNoktasi[]>([])
-  const [vardiyaTipleri, setVardiyaTipleri] = useState<VardiyaTipi[]>([])
   const [talepAraliklari, setTalepAraliklari] = useState<TalepAraligi[]>([])
   const [yukGostergesi, setYukGostergesi] = useState<YukGostergesi | null>(null)
   const [kurallar, setKurallar] = useState<Kural[]>([])
@@ -185,17 +184,15 @@ export function TanimlarEkrani({ ekranSec }: Props) {
       api.yetkinlikListele(),
       api.binaListele(),
       api.noktaListele(),
-      api.vardiyaTipiListele(),
       api.talepGetir(),
       api.kuralListele(),
       api.ozelGunListele(),
     ])
-      .then(([p, y, b, n, v, t, k, og]) => {
+      .then(([p, y, b, n, t, k, og]) => {
         setPersonelListesi(p)
         setYetkinlikler(y)
         setBinalar(b)
         setNoktalar(n)
-        setVardiyaTipleri(v)
         setTalepAraliklari(t.araliklar)
         setYukGostergesi(t.yuk_gostergesi)
         setKurallar(k)
@@ -357,9 +354,7 @@ export function TanimlarEkrani({ ekranSec }: Props) {
           {p.sicil_no} · <Sayi>{p.haftalik_hedef_saat}</Sayi> sa ·{' '}
           {p.yetkinlik_idleri.map((id) => yetkinlikMap.get(id)?.ad ?? id).join(', ') ||
             'yetkinlik yok'}
-          {p.sabit_vardiya_tipi_id
-            ? ` · sabit: ${vardiyaTipleri.find((v) => v.vardiya_tipi_id === p.sabit_vardiya_tipi_id)?.ad ?? '—'}`
-            : ''}
+
         </>
       ),
       // Personelin `aktif` bayrağı yoktur; aktiflik tarih aralığıyla ifade
@@ -404,25 +399,6 @@ export function TanimlarEkrani({ ekranSec }: Props) {
             : 'Ön koşul yok'
         }`,
       aktifMi: (n: GorevNoktasi) => n.aktif,
-    }),
-    'Vardiya Tipi': gorunumKur({
-      yol: 'vardiya-tipi',
-      kayitlar: vardiyaTipleri,
-      kimlik: (v: VardiyaTipi) => v.vardiya_tipi_id,
-      baslik: (v: VardiyaTipi) => v.ad,
-      ozet: (v: VardiyaTipi) => (
-        <span className="font-mono">
-          {v.baslangic_saati.slice(0, 5)} – {v.bitis_saati.slice(0, 5)} ·{' '}
-          <Sayi>{v.sure_saat}</Sayi> saat
-        </span>
-      ),
-      aktifMi: (v: VardiyaTipi) => v.aktif,
-      ekRozet: (v: VardiyaTipi) =>
-        v.gece_mi ? (
-          <Rozet varyant="kilitli" genislik={64}>
-            Gece
-          </Rozet>
-        ) : null,
     }),
   }
 
@@ -665,7 +641,6 @@ export function TanimlarEkrani({ ekranSec }: Props) {
           sekme={sekme}
           binalar={binalar}
           yetkinlikler={yetkinlikler}
-          vardiyaTipleri={vardiyaTipleri}
           duzenlenen={duzenleniyor ? seciliKayit : null}
           onIptal={() => {
             setEkleAcik(false)
@@ -1139,7 +1114,6 @@ interface EkleFormuProps {
   sekme: Sekme
   binalar: Bina[]
   yetkinlikler: Yetkinlik[]
-  vardiyaTipleri: VardiyaTipi[]
   /** Dolu ise form düzenleme kipindedir; boş ise yeni kayıt açar. */
   duzenlenen: unknown | null
   onIptal: () => void
@@ -1158,7 +1132,6 @@ function EkleFormu({
   sekme,
   binalar,
   yetkinlikler,
-  vardiyaTipleri,
   duzenlenen,
   onIptal,
   onKaydedildi,
@@ -1170,7 +1143,6 @@ function EkleFormu({
     Yetkinlik: 'yetkinlik_id',
     Bina: 'bina_id',
     'Görev Noktası': 'nokta_id',
-    'Vardiya Tipi': 'vardiya_tipi_id',
   }
   const id = mevcut ? Number(mevcut[kimlikAlani[sekme] ?? '']) : null
 
@@ -1185,16 +1157,12 @@ function EkleFormu({
       ? ilkDeger('sicil_no')
       : sekme === 'Yetkinlik'
         ? ilkDeger('aciklama')
-        : sekme === 'Vardiya Tipi'
-          ? ilkDeger('baslangic_saati').slice(0, 5)
-          : '',
+        : '',
   )
   const [ucuncuAlan, setUcuncuAlan] = useState(() =>
     sekme === 'Personel'
       ? ilkDeger('haftalik_hedef_saat')
-      : sekme === 'Vardiya Tipi'
-        ? ilkDeger('bitis_saati').slice(0, 5)
-        : '',
+      : '',
   )
   const [binaId, setBinaId] = useState(() => ilkDeger('bina_id'))
   // Görev noktasının TEK ön koşul yetkinliği (SDD 4.2.1: onkosul_yetkinlik_id).
@@ -1225,13 +1193,6 @@ function EkleFormu({
   )
   const [aktifBitis, setAktifBitis] = useState(() =>
     personelMi ? ilkDeger('aktif_bitis') : '',
-  )
-  // Sabit vardiya tipi (SDD 4.2.1 sabit_vardiya_tipi_id; SDD 6.3.1 "Sabit
-  // Vardiya Alanı"). Alan modelde ve API'de baştan beri vardı, yalnızca
-  // formda yoktu — dolayısıyla arayüzden eklenen her personel rotasyona
-  // dahil doğuyordu ve bu bir seçim değil, alanın yokluğuydu.
-  const [sabitVardiya, setSabitVardiya] = useState(() =>
-    personelMi ? ilkDeger('sabit_vardiya_tipi_id') : '',
   )
   // Devir bakiyesi (FR-1.1). BU TURDA HİÇBİR KURAL OKUMAZ; alanın formda
   // olmasının nedeni, kota hesabı yazıldığında (Tur 4) verinin hazır
@@ -1276,7 +1237,6 @@ function EkleFormu({
           sicil_no: ikinciAlan,
           haftalik_hedef_saat: Number(ucuncuAlan) || 40,
           yetkinlik_idleri: yetkinlikIdleri,
-          sabit_vardiya_tipi_id: sabitVardiya ? Number(sabitVardiya) : null,
           aktif_baslangic: aktifBaslangic || bugunIso(),
           // Boş bırakılmış bitiş "süresiz" demektir (SDD 4.2.1); null
           // göndermek, kapalı bir pencereyi yeniden açmanın da yoludur.
@@ -1307,15 +1267,6 @@ function EkleFormu({
             aktif,
           })
         else await api.noktaOlustur(ad, binaDegeri, yetkinlikDegeri)
-      } else if (sekme === 'Vardiya Tipi') {
-        if (id !== null)
-          await api.vardiyaTipiGuncelle(id, {
-            ad,
-            baslangic_saati: ikinciAlan,
-            bitis_saati: ucuncuAlan,
-            aktif,
-          })
-        else await api.vardiyaTipiOlustur(ad, ikinciAlan, ucuncuAlan)
       }
       onKaydedildi()
     } catch (e) {
@@ -1364,27 +1315,6 @@ function EkleFormu({
                 placeholder="40"
                 className="w-24 rounded-sm border-rule font-mono"
               />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label htmlFor="personel-sabit-vardiya" className="text-sm text-ink-muted">
-                Sabit Vardiya
-              </label>
-              <select
-                id="personel-sabit-vardiya"
-                className={INPUT_SINIFI}
-                value={sabitVardiya}
-                onChange={(e) => setSabitVardiya(e.target.value)}
-              >
-                {/* Boş = rotasyona dahil (SDD 4.2.1). */}
-                <option value="">Rotasyona dahil</option>
-                {vardiyaTipleri
-                  .filter((v) => v.aktif)
-                  .map((v) => (
-                    <option key={v.vardiya_tipi_id} value={v.vardiya_tipi_id}>
-                      {v.ad}
-                    </option>
-                  ))}
-              </select>
             </div>
             <div className="flex flex-col gap-1">
               <label htmlFor="personel-aktif-baslangic" className="text-sm text-ink-muted">
@@ -1478,28 +1408,6 @@ function EkleFormu({
                   </option>
                 ))}
               </select>
-            </div>
-          </>
-        )}
-        {sekme === 'Vardiya Tipi' && (
-          <>
-            <div className="flex flex-col gap-1">
-              <label className="text-sm text-ink-muted">Başlangıç</label>
-              <Input
-                type="time"
-                value={ikinciAlan}
-                onChange={(e) => setIkinciAlan(e.target.value)}
-                className="w-28 rounded-sm border-rule font-mono"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-sm text-ink-muted">Bitiş</label>
-              <Input
-                type="time"
-                value={ucuncuAlan}
-                onChange={(e) => setUcuncuAlan(e.target.value)}
-                className="w-28 rounded-sm border-rule font-mono"
-              />
             </div>
           </>
         )}

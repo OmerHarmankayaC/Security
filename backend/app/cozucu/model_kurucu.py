@@ -111,10 +111,22 @@ def model_kur(
     # BU GOSTERGE OLMADAN gun basina toplamlar DUVAR SAATINE duser ve iki
     # kural birden bozulur: H9 on iki saatlik bir blogu 4 + 8 diye gorup
     # gecirir, H1'in asgari suresi ise aksam baslangiclarini yasaklar.
+    #
+    # GOSTERGE GUNUN TAMAMI ICIN URETILMEZ (SDD 5.3). Bir blok
+    # `azami_gunluk_saat`ten uzun olamaz (H9), dolayisiyla ertesi gune de en
+    # fazla o kadar tasabilir; gunun geri kalan saatleri icin gosterge
+    # tanimsizdir ve sifir sayilir. Model AYNI COZUM KUMESINI uretir: daha
+    # uzun bir tasma denendiginde, tasan kismin ilk `azami` saati zaten
+    # baslangic gunune yazilir ve blok_saat tavani asar.
+    #
+    # Bedeli, eksenin kurulumunun bir kural parametresine baglanmasidir; bag
+    # SDD 5.3'te yazili. H9 PASIFSE daraltma yapilmaz - tavan yoksa tasmanin
+    # siniri da yoktur ve daraltma o durumda modeli yanlis kurardi.
+    azami_gunluk_saat = _azami_gunluk_saat(kurallar)
     devir: dict[tuple[int, int], cp_model.IntVar] = {}
     for p in baglam.personel:
         for s in baglam.saat_ekseni:
-            if (p, s) not in z:
+            if (p, s) not in z or baglam.gun_saati(s) >= azami_gunluk_saat:
                 continue
             gosterge = model.new_bool_var(f"devir_p{p}_s{s}")
             if baglam.gun_saati(s) == 0:
@@ -233,6 +245,24 @@ def model_kur(
     model.minimize(sum(ceza_terimleri) if ceza_terimleri else 0)
 
     return model, x, baglam, ham_terimler
+
+
+# Gunun saat sayisi; H9 pasifken tasma gostergesi daraltilmaz (SDD 5.3).
+_GUNUN_SAATI = 24
+
+
+def _azami_gunluk_saat(kurallar: list[Kural]) -> int:
+    """H9'un gunluk tavani; kural pasif ya da parametresizse gun uzunlugu.
+
+    Tasma gostergesinin penceresi buradan gelir. Deger KURAL KAYDINDAN
+    okunur, koda gomulmez: parametre Kural ekranindan degistirilebilir ve
+    model her cozumde yeniden kuruldugu icin degisiklik kendiliginden
+    yansir (SDD 5.3).
+    """
+    for kural in kurallar:
+        if kural.kimlik == "H9":
+            return int(kural.parametreler.get("azami_gunluk_saat", _GUNUN_SAATI))
+    return _GUNUN_SAATI
 
 
 def atamalari_bloklara_topla(

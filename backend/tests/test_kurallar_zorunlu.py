@@ -408,6 +408,132 @@ def test_h1_modele_ekle_gunde_iki_blogu_engeller() -> None:
     assert cozucu.solve(model) == cp_model.INFEASIBLE
 
 
+def test_h1_nokta_sabitligi_talep_bitince_de_uygulanir() -> None:
+    """DEGISKEN ELEME BU KISITI BIR KEZ SESSIZCE IPTAL ETTI (SDD 5.3).
+
+    Kisit geriye donuk yaziliyor ve `x[p,s,n]` bulunamadiginda atlaniyordu.
+    Talebi biten bir noktanin o saatteki degiskeni elendigi icin (talep
+    sifirsa degisken uretilmez) kisit hic kurulmuyor ve personel CALISMAYI
+    KESMEDEN nokta degistirebiliyordu; cozucu bunu buldu ve uyum testi
+    yakaladi.
+
+    Senaryo tam o deseni kurar: A noktasinin talebi 16.00'da biter,
+    B noktasininki 16.00'da baslar. Kesintisiz 14.00-20.00 calisip 16.00'da
+    nokta degistirmek IMKANSIZ olmalidir.
+    """
+    from ortools.sat.python import cp_model
+
+    from app.cozucu import model_kur
+
+    nokta_a, nokta_b = 1, 2
+    baglam = Baglam(
+        gorev_noktalari={
+            nokta_a: GorevNoktasiBilgisi(nokta_a),
+            nokta_b: GorevNoktasiBilgisi(nokta_b),
+        },
+        personel={1: PersonelBilgisi(1, date(2026, 1, 1), None, frozenset())},
+        talep_saat=(
+            {(_BIR_GUN, saat, nokta_a): 1 for saat in range(8, 16)}
+            | {(_BIR_GUN, saat, nokta_b): 1 for saat in range(16, 24)}
+        ),
+        donem_baslangic=_BIR_GUN,
+        donem_bitis=_BIR_GUN,
+    )
+    model, x, baglam, _ = model_kur(baglam, [_BIR_GUN], [])
+
+    # 14.00-16.00 A noktasinda, 16.00-20.00 B noktasinda; arada bosluk yok.
+    for saat in (14, 15):
+        model.add(x[(1, saat, nokta_a)] == 1)
+    for saat in (16, 17, 18, 19):
+        model.add(x[(1, saat, nokta_b)] == 1)
+
+    cozucu = cp_model.CpSolver()
+    assert cozucu.solve(model) == cp_model.INFEASIBLE, (
+        "Blok icinde nokta degisimi mumkun olmamali; kisit talebin bittigi "
+        "saatte de uygulanmali."
+    )
+
+
+def test_h1_ara_verip_baska_noktada_calismak_serbesttir() -> None:
+    """Yukaridaki kisitin fazla siki OLMADIGININ kontrolu.
+
+    Nokta sabitligi BLOK ICINDE gecerlidir; calisma kesilip yeni bir blok
+    baslarsa nokta degisebilir. (H1'in gunde tek baslangic kurali bu ornegi
+    ayrica disliyor ama burada H1 modele EKLENMEDI - olculen sey yalnizca
+    nokta sabitligi.)
+    """
+    from ortools.sat.python import cp_model
+
+    from app.cozucu import model_kur
+
+    nokta_a, nokta_b = 1, 2
+    baglam = Baglam(
+        gorev_noktalari={
+            nokta_a: GorevNoktasiBilgisi(nokta_a),
+            nokta_b: GorevNoktasiBilgisi(nokta_b),
+        },
+        personel={1: PersonelBilgisi(1, date(2026, 1, 1), None, frozenset())},
+        talep_saat=(
+            {(_BIR_GUN, saat, nokta_a): 1 for saat in range(8, 16)}
+            | {(_BIR_GUN, saat, nokta_b): 1 for saat in range(16, 24)}
+        ),
+        donem_baslangic=_BIR_GUN,
+        donem_bitis=_BIR_GUN,
+    )
+    model, x, baglam, _ = model_kur(baglam, [_BIR_GUN], [])
+
+    for saat in (10, 11, 12, 13):
+        model.add(x[(1, saat, nokta_a)] == 1)
+    model.add(baglam.zv(1, 14) == 0)  # ARA
+    model.add(baglam.zv(1, 15) == 0)
+    for saat in (16, 17, 18, 19):
+        model.add(x[(1, saat, nokta_b)] == 1)
+
+    cozucu = cp_model.CpSolver()
+    assert cozucu.solve(model) in (cp_model.OPTIMAL, cp_model.FEASIBLE)
+
+
+def test_isitma_penceresi_gercekten_sabitlenir() -> None:
+    """SDD 5.3: pencere icindeki saatler karar degiskeni DEGIL sabit girdidir.
+
+    Sabitleme atlandiginda cozucu gecmise ait calisma "icat eder" ve bu
+    uydurma gecmis H2, H3 ve H4'u besler: donem basindaki dinlenme ve
+    ardisiklik kurallari fiilen devre disi kalir. Belirti sessizdir - model
+    cozulur, cizelge uretilir, kurallar saglanmis gorunur.
+    """
+    from ortools.sat.python import cp_model
+
+    from app.cozucu import model_kur
+
+    isitma = _BIR_GUN
+    donem = _BIR_GUN + timedelta(days=1)
+    baglam = Baglam(
+        gorev_noktalari={GUVENLIK: GorevNoktasiBilgisi(GUVENLIK)},
+        personel={1: PersonelBilgisi(1, date(2026, 1, 1), None, frozenset())},
+        talep_saat={
+            (g, saat, GUVENLIK): 1 for g in (isitma, donem) for saat in range(24)
+        },
+        donem_baslangic=donem,
+        donem_bitis=donem,
+    )
+    model, x, baglam, _ = model_kur(
+        baglam,
+        [isitma, donem],
+        [],
+        # Gecmiste YALNIZ bu blok var.
+        isitma_penceresi_atamalari=[blok(1, isitma, 8, 8, GUVENLIK)],
+    )
+
+    # Isitma penceresinde 08.00-16.00 disinda bir saat calisilmis olamaz.
+    model.add(baglam.zv(1, 0) == 1)
+
+    cozucu = cp_model.CpSolver()
+    assert cozucu.solve(model) == cp_model.INFEASIBLE, (
+        "Isitma penceresinin bos saatleri de sabittir; cozucu gecmise calisma "
+        "ekleyememeli."
+    )
+
+
 def test_h9_modele_ekle_gece_yarisini_asan_uzun_blogu_engeller() -> None:
     """Modelde de blok uzunlugu tavana takilir; duvar saatine bolunmez."""
     from ortools.sat.python import cp_model

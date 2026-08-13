@@ -8,12 +8,12 @@ import type {
   Musaitlik,
   Personel,
   Tercih,
-  VardiyaTipi,
 } from '../api/types'
 import { AppShell, type NavOgesi } from '../components/AppShell'
 import { Kart, KartEtiketi, Rozet, Sayi } from '../components/app-ui'
 import { bugunIso, gunKisaltmasiVeNumarasi, isoAyristir } from '../lib/tarih'
 import { sayiBicimle } from '../lib/sayi'
+import { araligiYaz } from '../lib/talepAraligi'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -39,7 +39,6 @@ export function OzetEkrani({ ekranSec }: Props) {
   const [analiz, setAnaliz] = useState<Analiz | null>(null)
   const [personelListesi, setPersonelListesi] = useState<Personel[]>([])
   const [noktalar, setNoktalar] = useState<GorevNoktasi[]>([])
-  const [vardiyaTipleri, setVardiyaTipleri] = useState<VardiyaTipi[]>([])
   const [musaitlikler, setMusaitlikler] = useState<Musaitlik[]>([])
   const [tercihler, setTercihler] = useState<Tercih[]>([])
   const [hata, setHata] = useState<string | null>(null)
@@ -49,14 +48,12 @@ export function OzetEkrani({ ekranSec }: Props) {
       api.donemler(),
       api.personelListele(),
       api.noktaListele(),
-      api.vardiyaTipiListele(),
       api.musaitlikListele(),
       api.tercihListele(),
     ])
-      .then(([d, p, n, v, m, t]) => {
+      .then(([d, p, n, m, t]) => {
         setPersonelListesi(p)
         setNoktalar(n)
-        setVardiyaTipleri(v)
         setMusaitlikler(m)
         setTercihler(t)
         if (d[0]) return api.surumler(d[0].donem_id)
@@ -87,10 +84,6 @@ export function OzetEkrani({ ekranSec }: Props) {
     [personelListesi],
   )
   const noktaMap = useMemo(() => new Map(noktalar.map((n) => [n.nokta_id, n])), [noktalar])
-  const vardiyaMap = useMemo(
-    () => new Map(vardiyaTipleri.map((v) => [v.vardiya_tipi_id, v])),
-    [vardiyaTipleri],
-  )
 
   const toplamEksik = kapsamaAcigi.reduce((toplam, k) => toplam + k.eksik_sayi, 0)
   const kapsamaOrani = analiz ? Math.round(analiz.kapsama_orani * 100) : null
@@ -161,7 +154,7 @@ export function OzetEkrani({ ekranSec }: Props) {
                   {noktaMap.get(k.nokta_id)?.ad ?? `Nokta ${k.nokta_id}`}
                 </Rozet>
                 <span className="text-sm text-ink-muted">
-                  {k.eksik_sayi} eksik ({vardiyaMap.get(k.vardiya_tipi_id)?.ad ?? 'vardiya'})
+                  {k.eksik_sayi} eksik ({araligiYaz(k.baslangic, k.bitis)})
                 </span>
               </li>
             ))}

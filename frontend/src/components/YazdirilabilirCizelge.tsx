@@ -1,6 +1,8 @@
 import { useMemo } from 'react'
 import type { Personel } from '@/api/types'
+import { blokKisaEtiketi, geceSaati } from '@/lib/blok'
 import type { CizelgeVerisi } from '@/lib/disaAktarma'
+import { araligiYaz } from '@/lib/talepAraligi'
 import { buyukHarf, kisalt } from '@/lib/metin'
 import {
   donemAraligiBicimle,
@@ -39,7 +41,6 @@ export function YazdirilabilirCizelge({
   kapsamaAcigi,
   fazlaKadro,
   personelMap,
-  vardiyaMap,
   noktaMap,
   uretimTarihi,
 }: Props) {
@@ -126,20 +127,24 @@ export function YazdirilabilirCizelge({
               </td>
               {gunler.map((gun) => {
                 const atama = atamaIndeksi.get(`${p.personel_id}|${gun}`)
-                const vardiya = atama ? vardiyaMap.get(atama.vardiya_tipi_id) : undefined
                 const nokta = atama ? noktaMap.get(atama.nokta_id) : undefined
+                // Gece HESAPLANIR, işaretlenmez (SRS TD-2): blok üzerinde
+                // taşınan bir bayrak yok, ölçü bloğun gece dönemiyle
+                // kesişiminin uzunluğu.
+                const geceli =
+                  atama !== undefined && geceSaati(atama.baslangic_zamani, atama.sure_saat) > 0
                 return (
                   <td
                     key={gun}
                     className={cn(
                       'border border-neutral-400 px-0.5 py-0.5 text-center font-mono text-[6.5pt] leading-tight',
                       haftaSonuMu(gun) && 'bg-neutral-100',
-                      vardiya?.gece_mi && 'font-semibold',
+                      geceli && 'font-semibold',
                     )}
                   >
                     {atama && (
                       <>
-                        {kisalt(vardiya?.ad ?? '')}
+                        {blokKisaEtiketi(atama.baslangic_zamani, atama.bitis_zamani)}
                         <br />
                         {kisalt(nokta?.ad ?? '')}
                       </>
@@ -184,7 +189,7 @@ export function YazdirilabilirCizelge({
                       {tarihBicimle(k.tarih)}
                     </td>
                     <td className="border border-neutral-400 px-2 py-0.5 text-[8pt]">
-                      {vardiyaMap.get(k.vardiya_tipi_id)?.ad ?? '—'}
+                      {araligiYaz(k.baslangic, k.bitis)}
                     </td>
                     <td className="border border-neutral-400 px-2 py-0.5 text-[8pt]">
                       {noktaMap.get(k.nokta_id)?.ad ?? '—'}
@@ -234,7 +239,7 @@ export function YazdirilabilirCizelge({
                     {tarihBicimle(f.tarih)}
                   </td>
                   <td className="border border-neutral-400 px-2 py-0.5 text-[8pt]">
-                    {vardiyaMap.get(f.vardiya_tipi_id)?.ad ?? '—'}
+                    {araligiYaz(f.baslangic, f.bitis)}
                   </td>
                   <td className="border border-neutral-400 px-2 py-0.5 text-[8pt]">
                     {noktaMap.get(f.nokta_id)?.ad ?? '—'}

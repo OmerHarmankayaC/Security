@@ -102,10 +102,10 @@ export function DonemOzetimEkrani({ veri }: Props) {
   // yanıltıcı olur — o metrik hiç gösterilmez.
   const cumleler = [
     ozet.gece_havuzunda
-      ? `gecede ${karsilastirmaMetni(ozet.gece_sayisi, ozet.ekip_ortalama_gece, 'gece')}`
+      ? `gece saatinde ${karsilastirmaMetni(ozet.gece_saati, ozet.ekip_ortalama_gece, 'saat')}`
       : null,
     ozet.hafta_sonu_havuzunda
-      ? `hafta sonunda ${karsilastirmaMetni(ozet.hafta_sonu_sayisi, ozet.ekip_ortalama_hafta_sonu, 'vardiya')}`
+      ? `hafta sonunda ${karsilastirmaMetni(ozet.hafta_sonu_saati, ozet.ekip_ortalama_hafta_sonu, 'saat')}`
       : null,
     `toplam saatte ${karsilastirmaMetni(ozet.toplam_saat, ozet.ekip_ortalama_saat, 'saat')}`,
   ].filter(Boolean)
@@ -120,10 +120,10 @@ export function DonemOzetimEkrani({ veri }: Props) {
       </div>
 
       {ozet.gece_havuzunda && (
-        <MetrikKarti etiket="Gece Vardiyası" birim="vardiya" sen={ozet.gece_sayisi} ekip={ozet.ekip_ortalama_gece} ondalik={1} />
+        <MetrikKarti etiket="Gece Saati" birim="saat" sen={ozet.gece_saati} ekip={ozet.ekip_ortalama_gece} ondalik={1} />
       )}
       {ozet.hafta_sonu_havuzunda && (
-        <MetrikKarti etiket="Hafta Sonu" birim="vardiya" sen={ozet.hafta_sonu_sayisi} ekip={ozet.ekip_ortalama_hafta_sonu} ondalik={1} />
+        <MetrikKarti etiket="Hafta Sonu" birim="saat" sen={ozet.hafta_sonu_saati} ekip={ozet.ekip_ortalama_hafta_sonu} ondalik={1} />
       )}
       <MetrikKarti etiket="Toplam Saat" birim="saat" sen={ozet.toplam_saat} ekip={ozet.ekip_ortalama_saat} ondalik={1} />
 

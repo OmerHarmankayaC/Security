@@ -302,9 +302,6 @@ class S3HaftaSonuAdaleti(EsnekHedef):
         )
 
 
-S4_OLCEK = 10  # SDD Ek A "Kesirli hedeflerin tamsayiya olceklenmesi": onda bir saat
-
-
 @kayitli("S4")
 class S4ToplamSaatDengesi(EsnekHedef):
     """Kisi basina toplam saatin, kisisel dagilim payindan mutlak sapmasi.
@@ -323,12 +320,32 @@ class S4ToplamSaatDengesi(EsnekHedef):
     doner. Paya gore hesaplanan sapma iki yonlu olabildiginden dengesizligi
     gercekten olcer.
 
-    Olcekleme (SDD Ek A): `pay[p]` kesirli cikabildigi ve dogrudan bir
-    mutlak sapma hesabina girdigi icin (S2/S3'un taban/tavan hilesi burada
-    calismaz) hem pay hem calisma saati S4_OLCEK ile olceklenip tamsayiya
-    cevrilir. Bu yalnizca modelin IC temsilidir: donen terim dogal birime
-    (saat) geri cevrilir, aksi halde ceza dokumu yanlis birimde raporlanir
-    ve agirligindan bagimsiz olarak on kat onemliymis gibi gorunur.
+    SAPMA TABAN/TAVAN YONTEMIYLE OLCULUR (SRS 1.20):
+
+    ```
+    ∀p :  sapma[p] ≥ toplam_saat[p] − ⌊pay[p]⌋
+          sapma[p] ≥ ⌈pay[p]⌉ − toplam_saat[p]
+    ```
+
+    Bandin icindeki fark cezasizdir. Kural once kesirli payi DOGRUDAN
+    kisitliyordu: hem pay hem calisma saati onda bir saate olceklenip
+    tamsayiya cevriliyor, sapma mutlak deger kisitiyla aliniyor ve donen
+    terim bir BOLME kisitiyla dogal birime geri cevriliyordu. Iki nedenle
+    degisti:
+
+    - **Tutarlilik.** S2 ve S3 zaten taban/tavan kullaniyordu; uc adalet
+      hedefinden birinin ayri davranmasi savunulabilir degildi.
+    - **Sure.** Bolme kisiti (`add_division_equality`) cozum suresini
+      belirgin bicimde artiriyordu; olculdu (30 personel x 28 gun): S4
+      eklenince ilk uygun cozum 3,8 saniyeden 19,6 saniyeye cikiyordu -
+      tek basina en pahali kural.
+
+    Kayip, bandin icindeki bir saatlik farktir ve olcunun birimi saat
+    oldugu icin kucuktur.
+
+    `S4_OLCEK` yine kullaniliyor ama YALNIZCA PAY HESABINDA: pay kesirlidir
+    ve onda bir saat hassasiyetinde tutulur (analiz ekrani da o degeri
+    gosterir). Modele giren sey payin tabani ve tavanidir.
 
     SDD 5.5 (surum 1.3): donem geneli kapsamli.
     """
@@ -345,55 +362,48 @@ class S4ToplamSaatDengesi(EsnekHedef):
         self, model: cp_model.CpModel, degiskenler: dict[XAnahtari, cp_model.IntVar], baglam: Baglam
     ) -> cp_model.LinearExprT:
         gunler = baglam.donem_gunleri
-        paylar_x10 = s4_hedef_paylari_x10(baglam, len(gunler))
-        if not paylar_x10:
+        paylar = s4_hedef_paylari(baglam, len(gunler))
+        if not paylar:
             return 0
-        ust_sinir_x10 = len(gunler) * _GUNUN_SAATI * S4_OLCEK + max(paylar_x10.values(), default=0)
-        terimler_x10: list[cp_model.IntVar] = []
+        ust_sinir = len(gunler) * _GUNUN_SAATI
+        terimler: list[cp_model.IntVar] = []
         for p in baglam.personel:
-            toplam_saat_x10 = S4_OLCEK * sum(baglam.blok_saati(p, g) for g in gunler)
-            fark_x10 = model.new_int_var(-ust_sinir_x10, ust_sinir_x10, f"s4_fark_p{p}")
-            model.add(fark_x10 == toplam_saat_x10 - paylar_x10[p])
-            mutlak_x10 = model.new_int_var(0, ust_sinir_x10, f"s4_abs_p{p}")
-            model.add_abs_equality(mutlak_x10, fark_x10)
-            terimler_x10.append(mutlak_x10)
-        if not terimler_x10:
-            return 0
-
-        toplam_x10_ust_sinir = ust_sinir_x10 * len(terimler_x10)
-        toplam_x10 = model.new_int_var(0, toplam_x10_ust_sinir, "s4_toplam_x10")
-        model.add(toplam_x10 == sum(terimler_x10))
-        # yarim birimi yukari yuvarlayan tamsayi bolme: (toplam + olcek//2) // olcek
-        yuvarlanmis_x10 = model.new_int_var(
-            0, toplam_x10_ust_sinir + S4_OLCEK, "s4_yuvarlanmis_x10"
-        )
-        model.add(yuvarlanmis_x10 == toplam_x10 + S4_OLCEK // 2)
-        toplam_saat = model.new_int_var(0, toplam_x10_ust_sinir // S4_OLCEK + 1, "s4_toplam_saat")
-        model.add_division_equality(toplam_saat, yuvarlanmis_x10, S4_OLCEK)
-        return toplam_saat
+            toplam_saat = sum(baglam.blok_saati(p, g) for g in gunler)
+            if isinstance(toplam_saat, int):
+                continue
+            taban, tavan = floor(paylar.get(p, 0.0)), ceil(paylar.get(p, 0.0))
+            # UST SINIR PAYI DA KAPSAMALI (S2/S3 ile ayni gerekce): kadro
+            # yetersizken pay bir kisinin tasiyabilecegi azami yuku asabilir
+            # ve `sapma >= tavan − saat` kisiti degiskenin ust sinirini
+            # asarak modeli COZULEMEZ yapardi.
+            sapma = model.new_int_var(0, max(ust_sinir, tavan), f"s4_sapma_p{p}")
+            model.add(sapma >= toplam_saat - taban)
+            model.add(sapma >= tavan - toplam_saat)
+            terimler.append(sapma)
+        return sum(terimler) if terimler else 0
 
     def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
-        paylar_x10 = s4_hedef_paylari_x10(baglam, _donem_gun_sayisi(baglam))
-        saatler_x10: dict[int, int] = defaultdict(int)
+        paylar = s4_hedef_paylari(baglam, _donem_gun_sayisi(baglam))
+        saatler: dict[int, int] = defaultdict(int)
         for a in atamalar:
             if baglam.donem_icinde(a.tarih):
-                saatler_x10[a.personel_id] += a.sure_saat * S4_OLCEK
+                saatler[a.personel_id] += a.sure_saat
 
         ihlaller: list[Ihlal] = []
         for personel_id in baglam.personel:
-            pay_x10 = paylar_x10.get(personel_id, 0)
-            sapma_x10 = abs(saatler_x10.get(personel_id, 0) - pay_x10)
-            if sapma_x10 > 0:
-                saat = saatler_x10.get(personel_id, 0) / S4_OLCEK
-                pay = pay_x10 / S4_OLCEK
+            pay = paylar.get(personel_id, 0.0)
+            saat = saatler.get(personel_id, 0)
+            taban, tavan = floor(pay), ceil(pay)
+            sapma = max(saat - taban, tavan - saat, 0)
+            if sapma > 0:
                 ihlaller.append(
                     Ihlal(
                         kural_kimlik=self.kimlik,
                         personel_id=personel_id,
-                        ceza=sapma_x10 / S4_OLCEK,
+                        ceza=sapma,
                         aciklama=(
-                            f"Toplam saat {saat:.1f}, dagilim payi {pay:.1f} saatten "
-                            f"{sapma_x10 / S4_OLCEK:.1f} saat sapiyor"
+                            f"Toplam saat {saat}, dagilim payi {pay:.1f} saatten "
+                            f"{sapma} saat sapiyor"
                         ),
                     )
                 )
@@ -844,16 +854,22 @@ def _donem_gun_sayisi(baglam: Baglam) -> float:
     return 7.0  # donem bilgisi yoksa (testlerde) haftalik hedefi degistirmeyen notr deger
 
 
-def s4_hedef_paylari_x10(baglam: Baglam, donem_gun_sayisi: float) -> dict[int, int]:
+def s4_hedef_paylari(baglam: Baglam, donem_gun_sayisi: float) -> dict[int, float]:
     """S4'un adil payi: donemin toplam talep saatinden kisiye, kisisel donemlik
-    hedef saatiyle orantili dusen pay - S4_OLCEK (onda bir saat) ile olceklenmis
-    tamsayi olarak (modele_ekle ve dogrula'nin ortak hesabi).
+    hedef saatiyle orantili dusen pay — SAAT cinsinden (modele_ekle, dogrula ve
+    Analiz servisinin ortak hesabi).
+
+    DEGER KESIRLIDIR ve oyle kalir. Once onda bir saate olceklenip tamsayiya
+    cevriliyordu cunku modele dogrudan giriyordu; S4 taban/tavan yontemine
+    gectikten sonra (SRS 1.20) modele giren sey payin TABANI ve TAVANIDIR,
+    payin kendisi degil. Olcekleme boylece gereksizlesti ve Analiz ekrani da
+    hedefi dogal biriminde okuyor.
 
     toplam_talep_saat yalnizca `donem_icinde` olan anahtarlari sayar: talep,
     isitma penceresini de kapsayan tam zaman ekseni icin cozulur (TD-5) ve
     donem filtresi olmadan toplam yaklasik iki katina cikardi.
     """
-    toplam_talep_saat_x10 = S4_OLCEK * sum(
+    toplam_talep_saat = sum(
         gereken
         for (tarih, _saat, _nokta_id), gereken in baglam.talep_saat.items()
         if baglam.donem_icinde(tarih)
@@ -864,9 +880,9 @@ def s4_hedef_paylari_x10(baglam: Baglam, donem_gun_sayisi: float) -> dict[int, i
     }
     toplam_hedef = sum(hedef_saatler.values())
     if toplam_hedef <= 0:
-        return dict.fromkeys(hedef_saatler, 0)
+        return dict.fromkeys(hedef_saatler, 0.0)
     return {
-        p: round(hedef_saat / toplam_hedef * toplam_talep_saat_x10)
+        p: hedef_saat / toplam_hedef * toplam_talep_saat
         for p, hedef_saat in hedef_saatler.items()
     }
 
@@ -976,8 +992,7 @@ def _adalet_sapmasi_ihlalleri(
 
 __all__ = [
     # Analiz servisi (SDD 5.7) saat dagilimi tabanini S4'un adil payindan
-    # almak zorunda oldugu icin bu ikisi paylasilan hesaptir.
-    "S4_OLCEK",
+    # almak zorunda oldugu icin bu hesap paylasilir.
     "S1TalepKarsilama",
     "S1fFazlaKadro",
     "S2GeceAdaleti",
@@ -988,5 +1003,5 @@ __all__ = [
     "S6bBinaTutarliligi",
     "S7IzoleGun",
     "S8DegisimMinimizasyonu",
-    "s4_hedef_paylari_x10",
+    "s4_hedef_paylari",
 ]

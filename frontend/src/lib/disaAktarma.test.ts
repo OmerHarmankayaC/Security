@@ -7,7 +7,6 @@ import type {
   FazlaKadro,
   KapsamaAcigi,
   Personel,
-  VardiyaTipi,
 } from '@/api/types'
 import {
   CSV_AYRACI,
@@ -45,7 +44,6 @@ function personel(id: number, sicil: string, ad: string): Personel {
     ad_soyad: ad,
     sicil_no: sicil,
     haftalik_hedef_saat: 40,
-    sabit_vardiya_tipi_id: null,
     aktif_baslangic: '2026-01-01',
     aktif_bitis: null,
     yetkinlik_idleri: [],
@@ -54,28 +52,20 @@ function personel(id: number, sicil: string, ad: string): Personel {
   }
 }
 
-function vardiya(id: number, ad: string, geceMi: boolean): VardiyaTipi {
-  return {
-    vardiya_tipi_id: id,
-    ad,
-    baslangic_saati: geceMi ? '00:00:00' : '08:00:00',
-    bitis_saati: geceMi ? '08:00:00' : '16:00:00',
-    sure_saat: '8.00',
-    gece_mi: geceMi,
-    aktif: true,
-  }
-}
-
 function nokta(id: number, ad: string): GorevNoktasi {
   return { nokta_id: id, ad, bina_id: null, onkosul_yetkinlik_id: null, aktif: true }
 }
 
+// `vId` artık vardiya tipi değil BAŞLANGIÇ SAATİ; süre sekiz saat.
 function atama(id: number, personelId: number, tarih: string, vId: number, nId: number): Atama {
+  const bas = vId === 11 ? 0 : 8
   return {
     atama_id: id,
     personel_id: personelId,
+    baslangic_zamani: `${tarih}T${String(bas).padStart(2, '0')}:00:00+03:00`,
+    bitis_zamani: `${tarih}T${String((bas + 8) % 24).padStart(2, '0')}:00:00+03:00`,
     tarih,
-    vardiya_tipi_id: vId,
+    sure_saat: 8,
     nokta_id: nId,
     kilitli: false,
     kaynak: 'cozucu',
@@ -83,11 +73,27 @@ function atama(id: number, personelId: number, tarih: string, vId: number, nId: 
 }
 
 function acik(id: number, tarih: string, vId: number, nId: number, eksik: number): KapsamaAcigi {
-  return { acik_id: id, tarih, vardiya_tipi_id: vId, nokta_id: nId, eksik_sayi: eksik }
+  const bas = vId === 11 ? 0 : 8
+  return {
+    acik_id: id,
+    tarih,
+    baslangic: `${String(bas).padStart(2, '0')}:00:00`,
+    bitis: `${String((bas + 8) % 24).padStart(2, '0')}:00:00`,
+    nokta_id: nId,
+    eksik_sayi: eksik,
+  }
 }
 
 function fazla(id: number, tarih: string, vId: number, nId: number, sayi: number): FazlaKadro {
-  return { fazla_id: id, tarih, vardiya_tipi_id: vId, nokta_id: nId, fazla_sayi: sayi }
+  const bas = vId === 11 ? 0 : 8
+  return {
+    fazla_id: id,
+    tarih,
+    baslangic: `${String(bas).padStart(2, '0')}:00:00`,
+    bitis: `${String((bas + 8) % 24).padStart(2, '0')}:00:00`,
+    nokta_id: nId,
+    fazla_sayi: sayi,
+  }
 }
 
 function veriKur(
@@ -108,9 +114,6 @@ function veriKur(
         personel(2, 'GG-002', 'Mehmet Çınar'),
         ...ekPersonel,
       ].map((p) => [p.personel_id, p]),
-    ),
-    vardiyaMap: new Map(
-      [vardiya(10, 'Gündüz', false), vardiya(11, 'Gece', true)].map((v) => [v.vardiya_tipi_id, v]),
     ),
     noktaMap: new Map(
       [nokta(20, 'Güvenlik'), nokta(21, 'Vardiya Şefliği')].map((n) => [n.nokta_id, n]),
@@ -172,11 +175,20 @@ describe('cizelgeCsvOlustur — uzun biçim', () => {
     expect(satirlar(cizelgeCsvOlustur(veriKur([])))).toHaveLength(1)
   })
 
-  it('SRS 7.2 sütunlarının tamamını taşır, üzerine görev noktasını ekler', () => {
+  it('SRS 7.2 sütunlarını taşır; iki sütun saat modeline uyarlandı', () => {
     const basliklar = satirlar(cizelgeCsvOlustur(veriKur([])))[0]!.split(';')
-    for (const srs of ['sicil', 'ad', 'tarih', 'vardiya_tipi', 'gece_mi', 'hafta_sonu_mu', 'sure_saat']) {
+    for (const srs of ['sicil', 'ad', 'tarih', 'hafta_sonu_mu', 'sure_saat']) {
       expect(basliklar).toContain(srs)
     }
+    // `vardiya_tipi` → `baslangic`/`bitis`: taşınacak bir tip adı yok, blok
+    // bir zaman aralığı (SRS TD-13).
+    expect(basliklar).toContain('baslangic')
+    expect(basliklar).toContain('bitis')
+    expect(basliklar).not.toContain('vardiya_tipi')
+    // `gece_mi` → `gece_saat`: gece HESAPLANIR, işaretlenmez (TD-2) ve
+    // ölçünün birimi saattir.
+    expect(basliklar).toContain('gece_saat')
+    expect(basliklar).not.toContain('gece_mi')
     expect(basliklar).toContain('gorev_noktasi')
   })
 
@@ -184,13 +196,15 @@ describe('cizelgeCsvOlustur — uzun biçim', () => {
     const csv = cizelgeCsvOlustur(veriKur([atama(1, 2, '2026-02-07', 11, 21)]))
     // 2026-02-07 cumartesi; vardiya gece.
     expect(satirlar(csv)[1]).toBe(
-      '2026-02-07;GG-002;Mehmet Çınar;Gece;Vardiya Şefliği;evet;evet;8.00',
+      // `gece_mi` bayrağı yerine GECE SAATİ (SRS TD-2): 00.00–08.00 bloğunun
+      // altı saati gece penceresinde (00–06); 06 ve 07 gece değildir.
+      '2026-02-07;GG-002;Mehmet Çınar;00.00;08.00;Vardiya Şefliği;6;evet;8',
     )
   })
 
   it('hafta içi gündüz atamasında iki bayrak da hayır', () => {
     const csv = cizelgeCsvOlustur(veriKur([atama(1, 1, '2026-02-02', 10, 20)]))
-    expect(satirlar(csv)[1]).toBe('2026-02-02;GG-001;Ayşe Şahin;Gündüz;Güvenlik;hayir;hayir;8.00')
+    expect(satirlar(csv)[1]).toBe('2026-02-02;GG-001;Ayşe Şahin;08.00;16.00;Güvenlik;0;hayir;8')
   })
 
   it('tarihe, sonra personele göre sıralar', () => {
@@ -227,8 +241,8 @@ describe('kapsamaAcigiCsvOlustur', () => {
     const acikSatirlari = [acik(1, '2026-02-02', 11, 20, 2), acik(2, '2026-02-05', 10, 21, 1)]
     const veri = satirlar(kapsamaAcigiCsvOlustur(veriKur([], acikSatirlari)))
     expect(veri).toHaveLength(acikSatirlari.length + 1)
-    expect(veri[0]).toBe('tarih;vardiya_tipi;gorev_noktasi;tur;kisi_sayisi')
-    expect(veri[1]).toBe('2026-02-02;Gece;Güvenlik;eksik;2')
+    expect(veri[0]).toBe('tarih;baslangic;bitis;gorev_noktasi;tur;kisi_sayisi')
+    expect(veri[1]).toBe('2026-02-02;00.00;08.00;Güvenlik;eksik;2')
   })
 
   it('açık yokken başlık satırı kalır — sıfır satır "açık yok" demektir', () => {
@@ -236,13 +250,13 @@ describe('kapsamaAcigiCsvOlustur', () => {
     // çıktıyla açığı olmayan bir çizelgeyi ayırt edilemez kılardı.
     const veri = satirlar(kapsamaAcigiCsvOlustur(veriKur([], [])))
     expect(veri).toHaveLength(1)
-    expect(veri[0]).toBe('tarih;vardiya_tipi;gorev_noktasi;tur;kisi_sayisi')
+    expect(veri[0]).toBe('tarih;baslangic;bitis;gorev_noktasi;tur;kisi_sayisi')
   })
 
   it('açık dosyası da BOM ve noktalı virgül taşır', () => {
     const csv = kapsamaAcigiCsvOlustur(veriKur([], [acik(1, '2026-02-02', 11, 20, 2)]))
     expect(csv.startsWith(UTF8_BOM)).toBe(true)
-    expect(satirlar(csv)[1]!.split(';')).toHaveLength(5)
+    expect(satirlar(csv)[1]!.split(';')).toHaveLength(6)
   })
 
   it('tarihe göre sıralar', () => {
@@ -288,16 +302,16 @@ describe('talep sapması dosyası — iki yön tek dosyada', () => {
       veriKur([], [acik(1, '2026-02-02', 11, 20, 2)], [], [fazla(1, '2026-02-03', 10, 21, 1)]),
     )
     const veri = satirlar(csv)
-    expect(veri[0]).toBe('tarih;vardiya_tipi;gorev_noktasi;tur;kisi_sayisi')
-    expect(veri).toContain('2026-02-02;Gece;Güvenlik;eksik;2')
-    expect(veri).toContain('2026-02-03;Gündüz;Vardiya Şefliği;fazla;1')
+    expect(veri[0]).toBe('tarih;baslangic;bitis;gorev_noktasi;tur;kisi_sayisi')
+    expect(veri).toContain('2026-02-02;00.00;08.00;Güvenlik;eksik;2')
+    expect(veri).toContain('2026-02-03;08.00;16.00;Vardiya Şefliği;fazla;1')
   })
 
   it('kişi sayısı her iki yönde de POZİTİF kalır', () => {
     // "eksik_sayi = 2, tur = fazla" okunamayan bir satır olurdu; sütun adı
     // yönü değil büyüklüğü taşır, yönü `tur` söyler.
     const csv = kapsamaAcigiCsvOlustur(veriKur([], [], [], [fazla(1, '2026-02-02', 11, 20, 3)]))
-    expect(satirlar(csv)[1]).toBe('2026-02-02;Gece;Güvenlik;fazla;3')
+    expect(satirlar(csv)[1]).toBe('2026-02-02;00.00;08.00;Güvenlik;fazla;3')
   })
 
   it('yalnızca fazla kadro varken de dosya üretilir', () => {

@@ -6,7 +6,6 @@ import type {
   OzelGun,
   Personel,
   TalepAraligi,
-  VardiyaTipi,
   Yetkinlik,
 } from '@/api/types'
 import { AktifIsSaglayici } from '@/components/AktifIsBaglami'
@@ -37,18 +36,6 @@ const YETKINLIKLER: Yetkinlik[] = [
   { yetkinlik_id: 3, ad: 'Müracaat Görevlisi', aciklama: null, aktif: true },
 ]
 
-const VARDIYA_TIPLERI: VardiyaTipi[] = [
-  {
-    vardiya_tipi_id: 10,
-    ad: 'Gece',
-    baslangic_saati: '00:00:00',
-    bitis_saati: '08:00:00',
-    sure_saat: '8.00',
-    gece_mi: true,
-    aktif: true,
-  },
-]
-
 // SRS 3.3.2: Vardiya Şefi, Güvenlik Görevi yetkinliğini DE taşır. Kaybın
 // gerçek hayattaki hâli tam olarak budur.
 const SEF: Personel = {
@@ -56,7 +43,6 @@ const SEF: Personel = {
   ad_soyad: 'Demo Şef',
   sicil_no: 'VS-001',
   haftalik_hedef_saat: 40,
-  sabit_vardiya_tipi_id: null,
   aktif_baslangic: '2026-01-01',
   aktif_bitis: null,
   yetkinlik_idleri: [1, 2],
@@ -123,7 +109,6 @@ function fetchTaklidi() {
       json: async () => {
         if (yol === '/api/personel') return yontem === 'GET' ? [SEF] : SEF
         if (yol === '/api/yetkinlik') return YETKINLIKLER
-        if (yol === '/api/vardiya-tipi') return VARDIYA_TIPLERI
         if (yol === '/api/nokta') return NOKTALAR
         if (yol === '/api/ozel-gun') return OZEL_GUNLER
         if (yol.startsWith('/api/talep')) {
@@ -214,8 +199,8 @@ describe('Personel formu — yetkinlik kümesi', () => {
   })
 })
 
-describe('Personel formu — aktiflik ve sabit vardiya (madde 6)', () => {
-  it('aktiflik tarihleri ve sabit vardiya gönderilir', async () => {
+describe('Personel formu — aktiflik (madde 6)', () => {
+  it('aktiflik tarihleri gönderilir', async () => {
     await sefiDuzenlemeyeAc()
 
     // aktif_baslangic artık forma giriyor ve düzenlenebilir; eskiden ekleme
@@ -224,14 +209,19 @@ describe('Personel formu — aktiflik ve sabit vardiya (madde 6)', () => {
     expect(baslangic.value).toBe('2026-01-01')
     fireEvent.change(baslangic, { target: { value: '2026-02-01' } })
 
-    fireEvent.change(screen.getByLabelText('Sabit Vardiya'), { target: { value: '10' } })
     fireEvent.click(screen.getByRole('button', { name: 'Kaydet' }))
 
     await waitFor(() => expect(gonderilenler.some((g) => g.yontem === 'PUT')).toBe(true))
     const govde = gonderilenler.find((g) => g.yontem === 'PUT')!.govde as Record<string, unknown>
     expect(govde.aktif_baslangic).toBe('2026-02-01')
-    expect(govde.sabit_vardiya_tipi_id).toBe(10)
     expect(govde.aktif_bitis).toBeNull()
+  })
+
+  it('SABİT VARDİYA ALANI YOKTUR', async () => {
+    // Alan blok kataloğuyla birlikte kalktı (SRS TD-13): seçilecek bir
+    // vardiya tipi yok, blok uzunlukları çözümün çıktısı.
+    await sefiDuzenlemeyeAc()
+    expect(screen.queryByLabelText('Sabit Vardiya')).toBeNull()
   })
 
   it('personelde yanıltıcı "Aktif" kutusu YOKTUR', async () => {

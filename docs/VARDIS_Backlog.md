@@ -2,7 +2,7 @@
 
 **CMPE 399 — Yaz Stajı**
 
-BOTAŞ Boru Hatları ile Petrol Taşıma A.Ş.
+kurum Boru Hatları ile Petrol Taşıma A.Ş.
 
 **VARDİYA ÇİZELGELEME KARAR DESTEK ARACI**
 
@@ -39,6 +39,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 13.08.2026 | K3 ölçümünün gösterdiği iki sorun karara bağlandı: adalet hedefinin kişiye özel paya çevrilmesi (SRS 1.17) ve kabul kriteri eşiğinin gece bloğu uzunluğuna bağlanması (Charter 1.3) | 1.14 |
 | Ömer HARMANKAYA | 13.08.2026 | Ceza değişkenlerine üst sınır konulmaması kuralı işlendi; Tur 8 kalibrasyonu için gözlenen ağırlık kayması kaydedildi | 1.15 |
 | Ömer HARMANKAYA | 13.08.2026 | Gerçek saatlik modele geçiş kararları işlendi: blok kataloğunun kaldırılması, mutlak saat ekseni, atamanın blok kaydına dönüşmesi, müracaat noktasının kapsamdan çıkarılması, çizelgenin iki görünüme ayrılması | 1.16 |
+| Ömer HARMANKAYA | 13.08.2026 | Saat modelinin ölçüm sonrası üç kararı işlendi: taşma göstergelerinin daraltılması, S4'ün taban/tavan yöntemine geçmesi, nokta sürekliliğinin korunması | 1.17 |
 
 
 
@@ -157,6 +158,9 @@ Aşağıdaki tablo, tasarım sürecinde alınan ve sonradan değiştirilen karar
 | 11.08.2026 | Çözücü ipucu, `gecici_sonuc`'ta taşınmak yerine ayrı bir `cozum_ipucu` sütununa alındı; boşaltma anı model kurulumundan iş sonuna çekildi | Aynı alanda taşınmaları hâlinde tek sütun iki sözleşmeye bağlanırdı: aynı değer bir işte "kullanıcı kararı bekliyor", başka bir işte "modele verilecek ipucu" anlamına gelirdi ve alanın doluluğuna bakan bir sorgu henüz başlamamış bir işi karar bekliyor sanabilirdi. Boşaltmanın öne alınması ise işçi yeniden başladığında işin ipucusuz devam etmesine yol açardı — sonuç sessizce kötüleşir, iz kalmaz |
 | 11.08.2026 | Arama başlamadan gelen durdurma (iş kuyrukta veya ön kontrolde) karar noktası doğurmaz, doğrudan iptaldir | Henüz saklanacak bir sonuç yok. Böyle bir işte karar paneli açmak üç seçenekten ikisini anlamsız, birini de zaten var olan bir eylemin uzun yolu hâline getirir. Arama başlamış fakat çözüm bulunamamışsa karar sorulur — orada "devam" ipucusuz da olsa anlamlıdır, kullanıcı yeni bir zaman limiti veriyordur |
 | 11.08.2026 | Test takımı geliştirme veritabanından ayrıldı (B-20) | Aynı kökten üç ayrı belirti çıktı: çözüm işçisi arka planda çalışırken test kuyruğundan iş kapıyor, test takımı kullanıcı hesaplarını siliyor, kabul ölçümü ile testler birbirinin verisini bozuyor. Not düşmek üçünü de tekrar ettirirdi; bağlantı adresinde test veritabanı görülmediğinde takımın yüksek sesle durması, sessiz veri kaybının yerine geçer |
+| 13.08.2026 | Gün sınırını aşan blok göstergeleri günlük tavanla sınırlanır | Bir blok `azami_gunluk_saat`ten uzun olamayacağı için ertesi güne taşması da o kadar olabilir; göstergelerin günün tamamı için oluşturulması gereksizdi. Model aynı çözüm kümesini üretir, gösterge sayısı belirgin azalır. Bedel, eksen kurulumunun bir kural parametresine bağlanmasıdır — dokümana yazıldı |
+| 13.08.2026 | S4'ün sapma ölçüsü taban/tavan yöntemine çevrildi | Karar performans gerekçesiyle değil tutarlılık gerekçesiyle alındı: S2 ve S3 zaten bu yöntemi kullanıyordu, S4'ün kesirli payı doğrudan kısıtlaması bir tutarsızlıktı. Üç adalet hedefinin aynı biçimde ölçülmesi savunulabilir; bandın içindeki bir saatlik fark saat biriminde küçüktür. Bölme kısıtının çözüm süresine maliyeti ayrıca ölçülmüştür (+16 sn) |
+| 13.08.2026 | Nokta sürekliliği kısıtı korunur | Saat modelinin ölçümünde gevşetilebilecek üçüncü aday olarak belirlenmişti. Blok içinde nokta değiştirmenin sahada karşılığı yoktur; ürün kararını çözüm süresi için bozmak son çaredir ve önceki iki gevşetme henüz ölçülmemiştir. Kısıtın gerçekten uygulandığı ayrıca doğrulanmalıdır — değişken eleme onu bir kez sessizce iptal etmişti |
 | 13.08.2026 | Çalışma zamanı blok kataloğundan seçilmez; saat düzeyinde karar verilir | Katalog yolu, kullanıcının Tanımlar ekranında vardiya tipi tanımlamaya devam etmesi ve çizelgenin o tiplerin dizilimi olarak kalması demekti — istenen, çizelgenin saatin kendisinden kurulmasıydı. Sayısal gerekçe de tersine döndü: yeterince ince taneli bir katalog (192 blok) saat modelinden yaklaşık sekiz kat fazla karar değişkeni üretiyor. Kataloğun sadeliği yalnızca katalog kaba kaldığı sürece geçerliydi, ki kaba katalog zaten istenen şey değildi |
 | 13.08.2026 | Karar değişkeninin zaman ekseni mutlaktır, gün başına sıfırlanmaz | Gün × saat kurgusunda gece yarısını aşan bir çalışma günün sonunda kesilir, ertesi günün başında yeniden başlar ve kesintisizlik kısıtı onu iki ayrı blok sayar; kural tam da izin verilmesi gereken çalışmayı yasaklamış olur. Mutlak eksende blok gün sınırını doğal olarak aşar, gün yalnızca sayım birimi kalır |
 | 13.08.2026 | Atama saat başına değil blok başına kaydedilir | Saat başına satır otuz personelin yedi günü için yaklaşık bin altı yüz kayıt eder ve her okuma yüzeyi satırları yeniden bloklara toplamak zorunda kalır. Çözücü çıktısı saat düzeyindedir ve yazma anında toplanır — kapsama açığı kayıtlarındaki birleştirmenin aynısı, aynı yardımcıyla |

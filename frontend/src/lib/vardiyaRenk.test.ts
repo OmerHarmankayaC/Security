@@ -31,19 +31,20 @@ describe('hücre rengi başlangıç saati bandından gelir', () => {
     expect(baslangicBandi('16:00:00')).toBe('aksam')
   })
 
-  it('renk BLOK KİMLİĞİNDEN değil saatten gelir', () => {
-    // 08.00'da başlayan sekiz ve on iki saatlik bloklar aynı bandı
-    // paylaşır — aynı saatte başlıyorlar; ayrımı saat aralığı metni
-    // taşır, renk değil.
-    expect(vardiyaHucreSinifi(false, '08:00:00')).toBe(vardiyaHucreSinifi(false, '08:00:00'))
+  it('renk yalnızca BAŞLANGIÇ SAATİNDEN gelir', () => {
+    // 08.00'da başlayan bloklar aynı bandı paylaşır — süreleri farklı
+    // olsa bile; ayrımı saat aralığı metni taşır, renk değil.
+    expect(vardiyaHucreSinifi('08:00:00')).toBe(vardiyaHucreSinifi('08:00:00'))
     // 06.00'da başlayan uzun blok gündüzden AYRILIR: aynı renkte olsalardı
     // ızgarada 06–16 ile 08–16 ayırt edilemezdi.
-    expect(vardiyaHucreSinifi(false, '06:00:00')).not.toBe(vardiyaHucreSinifi(false, '08:00:00'))
+    expect(vardiyaHucreSinifi('06:00:00')).not.toBe(vardiyaHucreSinifi('08:00:00'))
   })
 
-  it('gece_mi bayrağı rengi belirlemez — saat belirler', () => {
-    // 20.00'da başlayan uzun gece bloğu gece bandındadır; bayrak
-    // okunmadan da doğru renge düşer.
-    expect(vardiyaHucreSinifi(false, '20:00:00')).toBe(vardiyaHucreSinifi(true, '20:00:00'))
+  it('gece bandı da saatten okunur', () => {
+    // `gece_mi` BAYRAĞI KALKTI (SRS TD-2): işaretlenecek bir nesne yok,
+    // fonksiyon zaten yalnızca saate bakıyordu ve imzasından bayrak
+    // düştüğünde davranışı değişmedi.
+    expect(vardiyaHucreSinifi('20:00:00')).toBe(vardiyaHucreSinifi('22:00:00'))
+    expect(vardiyaHucreSinifi('20:00:00')).not.toBe(vardiyaHucreSinifi('08:00:00'))
   })
 })

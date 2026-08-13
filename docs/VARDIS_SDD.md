@@ -2,7 +2,7 @@
 
 **CMPE 399 — Yaz Stajı**
 
-BOTAŞ Boru Hatları ile Petrol Taşıma A.Ş.
+kurum Boru Hatları ile Petrol Taşıma A.Ş.
 
 **VARDİYA ÇİZELGELEME KARAR DESTEK ARACI**
 
@@ -49,6 +49,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 12.08.2026 | Tur 3 uygulamasının doğurduğu borçlar kapatıldı: gün sonunun kodlanışı (24.00 yerine bitiş ≤ başlangıç sözleşmesi) 4.2.2'ye, `cozum_isi.on_kontrol_bulgulari` 4.2.4'e, aynı kısıtı üreten saatlerin tek değişkende toplanması 5.3'e, talep uç noktalarının kayıt tabanlı hâli Ek B'ye yazıldı | 1.24 |
 | Ömer HARMANKAYA | 12.08.2026 | Gün sonunun arayüzde 24.00 olarak gösterilmesi ve saatlerin saat başında sınırlanması 6.3.1'e yazıldı | 1.25 |
 | Ömer HARMANKAYA | 13.08.2026 | Gerçek saatlik modele geçiş tasarlandı: `vardiya_tipi` tablosu kaldırıldı, `atama` blok kaydına çevrildi (başlangıç ve bitiş zamanı), model kurma mutlak saat ekseni üzerine yeniden yazıldı (5.3), Tanımlar'dan Vardiya Tipi sekmesi kaldırıldı ve Çizelge ekranı gün ızgarası ile hafta şeridine ayrıldı (6.3.1, 6.3.3) | 1.27 |
+| Ömer HARMANKAYA | 13.08.2026 | Ölçüm sonrası üç madde 5.3'e yazıldı: taşma göstergelerinin günlük tavanla sınırlanması, değişken elemenin kural kısıtlarını sessizce iptal edebilmesi ve ısıtma penceresinin gerçekten sabitlenmesinin doğrulanması | 1.28 |
 | Ömer HARMANKAYA | 13.08.2026 | Kural kataloğunun saatlik düzene taşınması tasarlandı: takvim haftası kümelerinin kayan pencereden ayrı hesaplanması ve blok görünümü türevinin kaldırılması 5.3'e, kota ve devir bakiyesi bulguları 5.2'ye, çizelge ızgarasının blok gösterimi 6.3.3'e yazıldı; kural parametreleri 4.2.3'e eklendi | 1.26 |
 
 
@@ -775,6 +776,18 @@ FONKSİYON model_kur(donem, tanimlar, kurallar, isitma_penceresi):
 
 Değişken oluşturmadaki üç atlama koşulu bir ön eleme uygular. Talebi sıfır olan noktalar, ön koşul yetkinliğini taşımayan personel ve müsait olmayan günler için değişken hiç üretilmez. Bu, H7 ve H8 kısıtlarının modele ayrıca eklenmesine gerek bırakmaz ve arama uzayını belirgin biçimde daraltır. Sözü geçen iki kural, kural kataloğunda yine tanımlıdır; oradaki tanımları doğrulayıcı yorumlayıcı tarafından manuel düzenlemede kullanılır.
 
+**Gün sınırını aşan blok göstergeleri günlük tavanla sınırlanır.** Bir bloğun
+ertesi güne taşabileceği süre `azami_gunluk_saat` ile sınırlıdır (H9); bir blok
+günlük tavandan uzun olamayacağı için taşma da o kadar olabilir. Taşma
+göstergeleri bu nedenle günün tamamı için değil yalnızca ilk `azami_gunluk_saat`
+saati için oluşturulur. Model aynı çözüm kümesini üretir; gösterge değişkeni sayısı
+belirgin biçimde azalır.
+
+Bunun bedeli, zaman ekseninin kurulumunun bir kural parametresine bağlanmasıdır.
+Bağ dokümana yazılıdır ve model her çözümde yeniden kurulduğu için parametre
+değişikliği kendiliğinden yansır; yine de `azami_gunluk_saat` değiştirildiğinde
+eksen kurulumunun da değiştiği akılda tutulmalıdır.
+
 **Karar değişkeni mutlak saat eksenindedir.** Eksen dönemin başından itibaren
 saat sayar ve gün başına sıfırlanmaz; gün kavramı yalnızca sayım için kullanılır
 (SRS TD-13). Eksenin gün × saat biçiminde kurulması hâlinde gece yarısını aşan bir
@@ -786,6 +799,22 @@ müsait değilse o saat için hiç değişken oluşturulmaz; bir noktanın ön k
 taşımayan personel için o noktanın değişkeni oluşturulmaz; talebin sıfır olduğu
 saat-nokta çiftleri atlanır. Değişkeni oluşturup sonra sıfıra sabitlemek aynı
 sonucu verir fakat modeli gereksiz büyütür.
+
+**Eleme, kural kısıtlarını sessizce iptal edebilir.** Bir kısıt, elenmiş bir
+değişkene atıfta bulunduğunda o kısıt hiç kurulmaz — hata vermez, yalnızca
+uygulanmaz. Bu bir kez yaşanmıştır: talebin sıfır olduğu saat-nokta çiftleri
+elenince H1'in nokta sabitliği kısıtı zincirin ortasında kopmuş ve blok içinde
+nokta değişimi serbest kalmıştır. Kural sınıfları, dayandıkları değişkenlerin
+varlığını varsaymak yerine kontrol etmeli; eksikse kısıtı atlamak ile modeli
+yanlış kurmak arasındaki farkı kural sınıfı bilmelidir. Çözücü–doğrulayıcı uyum
+testi bu sınıfı hatanın yakalandığı yerdir.
+
+**Isıtma penceresinin sabitlendiği doğrulanmalıdır.** Pencere içindeki saatler
+karar değişkeni değil sabit girdidir (TD-5). Sabitleme atlandığında çözücü geçmişe
+ait çalışma "icat eder" ve bu uydurma geçmiş H2, H3 ve H4'ü besler: dönem başındaki
+dinlenme ve ardışıklık kuralları fiilen devre dışı kalır. Belirti sessizdir —
+model çözülür, çizelge üretilir, kurallar sağlanmış görünür. Sabitlemenin gerçekten
+uygulandığını ölçen bir test bulunmalıdır.
 
 **Nokta sabitliği** H1'in parçasıdır ve kural sınıfı tarafından eklenir; model
 kurucu yalnızca `x` ile `z` arasındaki toplam bağını kurar.

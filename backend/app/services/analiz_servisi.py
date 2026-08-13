@@ -14,7 +14,7 @@ from collections.abc import Sequence
 from sqlalchemy.orm import Session
 
 from app.kurallar.baglam import AtamaKaydi, TercihKaydi
-from app.kurallar.esnek import S4_OLCEK, S6bBinaTutarliligi, s4_hedef_paylari_x10
+from app.kurallar.esnek import S6bBinaTutarliligi, s4_hedef_paylari
 from app.kurallar.zaman_araligi import gece_saati_mi, saat_kumesi
 from app.models.girdi import TercihTipi
 from app.models.tanim import Personel
@@ -182,10 +182,10 @@ class AnalizServisi:
         # Hesap S4'un kendi fonksiyonundan gelir - kural iki ayri yerde
         # kodlanmaz (SDD 2.4); S4_OLCEK onda bir saat oldugundan dogal birime
         # geri cevrilir (SDD Ek A, "Kesirli hedeflerin tamsayiya olceklenmesi").
-        paylar_x10 = s4_hedef_paylari_x10(baglam, donem_gun_sayisi)
+        paylar = s4_hedef_paylari(baglam, donem_gun_sayisi)
         saat_dagilimi: list[SaatDengesiOku] = []
         for p in personel_satirlari:
-            hedef = paylar_x10.get(p.personel_id, 0) / S4_OLCEK
+            hedef = paylar.get(p.personel_id, 0.0)
             toplam = saat_toplam.get(p.personel_id, 0.0)
             saat_dagilimi.append(
                 SaatDengesiOku(

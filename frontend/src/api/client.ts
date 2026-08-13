@@ -5,7 +5,6 @@ import type {
   Ben,
   Bina,
   CalisanTercihListesi,
-  CalisanVardiyaTipi,
   CizelgeSurumu,
   CozumIsi,
   CozumKarari,
@@ -32,7 +31,6 @@ import type {
   TercihDurumu,
   TercihTipi,
   Vardiyalarim,
-  VardiyaTipi,
   Yetkinlik,
 } from './types'
 
@@ -42,7 +40,6 @@ interface PersonelYazma {
   haftalik_hedef_saat: number
   aktif_baslangic: string
   aktif_bitis?: string | null
-  sabit_vardiya_tipi_id?: number | null
   yetkinlik_idleri?: number[]
   // Devir bakiyesi (FR-1.1). Boş bırakılan alan 0 gönderir; sütun NOT NULL
   // ve "bilinmiyor" diye bir hâli yok.
@@ -112,7 +109,6 @@ export const api = {
     istek<FazlaKadro[]>(`/api/surum/${surumId}/fazla-kadro`),
 
   personelListele: () => istek<Personel[]>('/api/personel'),
-  vardiyaTipiListele: () => istek<VardiyaTipi[]>('/api/vardiya-tipi'),
   noktaListele: () => istek<GorevNoktasi[]>('/api/nokta'),
 
   onKontrolCalistir: (donemId: number) =>
@@ -220,16 +216,6 @@ export const api = {
     veri: Partial<Pick<GorevNoktasi, 'ad' | 'bina_id' | 'onkosul_yetkinlik_id' | 'aktif'>>,
   ) => gonder<GorevNoktasi>(`/api/nokta/${id}`, veri, 'PUT'),
 
-  vardiyaTipiOlustur: (ad: string, baslangicSaati: string, bitisSaati: string) =>
-    gonder<VardiyaTipi>('/api/vardiya-tipi', {
-      ad,
-      baslangic_saati: baslangicSaati,
-      bitis_saati: bitisSaati,
-    }),
-  vardiyaTipiGuncelle: (
-    id: number,
-    veri: Partial<Pick<VardiyaTipi, 'ad' | 'baslangic_saati' | 'bitis_saati' | 'gece_mi' | 'aktif'>>,
-  ) => gonder<VardiyaTipi>(`/api/vardiya-tipi/${id}`, veri, 'PUT'),
 
   // --- Müsaitlik (FR-2.x) --------------------------------------------------
   musaitlikListele: () => istek<Musaitlik[]>('/api/musaitlik'),
@@ -243,7 +229,8 @@ export const api = {
     donem_id: number
     tarih: string
     tip: TercihTipi
-    vardiya_tipi_id?: number | null
+    tercih_baslangic?: string | null
+    tercih_bitis?: string | null
   }) => gonder<Tercih>('/api/tercih', govde),
   tercihDurumGuncelle: (tercihId: number, durum: TercihDurumu, retGerekcesi?: string) =>
     gonder<Tercih>(
@@ -279,13 +266,10 @@ export const api = {
   calisanTercihBildir: (govde: {
     tarih: string
     tip: TercihTipi
-    vardiya_tipi_id?: number | null
+    tercih_baslangic?: string | null
+    tercih_bitis?: string | null
     calisan_notu?: string | null
   }) => gonder('/api/calisan/tercih', govde),
-  // Tanımlar yönlendiricisindeki `/api/vardiya-tipi` çalışan rolüne kapalı
-  // (SRS 5.10); tercih formunun ihtiyacı olan liste çalışan yüzeyinin
-  // kendi ucundan gelir.
-  calisanVardiyaTipleri: () => istek<CalisanVardiyaTipi[]>('/api/calisan/vardiya-tipi'),
 
   // --- Kimlik (SRS FR-10.1, FR-10.3, FR-10.7) -----------------------------
   // Belirteç HttpOnly çerezde taşınır; JavaScript onu ne okur ne yazar.

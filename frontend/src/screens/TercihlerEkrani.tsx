@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api/client'
-import type { Personel, Tercih, TercihDurumu, VardiyaTipi } from '../api/types'
+import type { Personel, Tercih, TercihDurumu } from '../api/types'
 import { AppShell, type NavOgesi } from '../components/AppShell'
 import { Buton, Kart } from '../components/app-ui'
 import { Input } from '@/components/ui/input'
 import { cn } from '../lib/utils'
+import { araligiYaz } from '../lib/talepAraligi'
 import { gunKisaltmasiVeNumarasi } from '../lib/tarih'
 
 interface Props {
@@ -17,27 +18,27 @@ const SEKMELER: { durum: TercihDurumu; baslik: string }[] = [
   { durum: 'reddedildi', baslik: 'Reddedildi' },
 ]
 
-function tercihAciklamasi(t: Tercih, vardiyaMap: Map<number, VardiyaTipi>): string {
+function tercihAciklamasi(t: Tercih): string {
   if (t.tip === 'calismama') return 'Çalışmama tercihi'
-  const vardiya = t.vardiya_tipi_id ? vardiyaMap.get(t.vardiya_tipi_id) : undefined
-  return vardiya ? `${vardiya.ad} tercihi` : 'Vardiya tipi tercihi'
+  // Tercih artık bir vardiya TİPİ değil bir ZAMAN ARALIĞI (SRS FR-3.2).
+  return t.tercih_baslangic && t.tercih_bitis
+    ? `${araligiYaz(t.tercih_baslangic, t.tercih_bitis)} tercihi`
+    : 'Zaman aralığı tercihi'
 }
 
 export function TercihlerEkrani({ ekranSec }: Props) {
   const [tercihler, setTercihler] = useState<Tercih[]>([])
   const [personelListesi, setPersonelListesi] = useState<Personel[]>([])
-  const [vardiyaTipleri, setVardiyaTipleri] = useState<VardiyaTipi[]>([])
   const [sekme, setSekme] = useState<TercihDurumu>('beklemede')
   const [hata, setHata] = useState<string | null>(null)
   const [islenenId, setIslenenId] = useState<number | null>(null)
   const [retGerekceler, setRetGerekceler] = useState<Record<number, string>>({})
 
   const yukle = () => {
-    Promise.all([api.tercihListele(), api.personelListele(), api.vardiyaTipiListele()])
-      .then(([t, p, v]) => {
+    Promise.all([api.tercihListele(), api.personelListele()])
+      .then(([t, p]) => {
         setTercihler(t)
         setPersonelListesi(p)
-        setVardiyaTipleri(v)
       })
       .catch((e) => setHata(e instanceof Error ? e.message : 'Tercihler yüklenemedi'))
   }
@@ -47,10 +48,6 @@ export function TercihlerEkrani({ ekranSec }: Props) {
   const personelMap = useMemo(
     () => new Map(personelListesi.map((p) => [p.personel_id, p])),
     [personelListesi],
-  )
-  const vardiyaMap = useMemo(
-    () => new Map(vardiyaTipleri.map((v) => [v.vardiya_tipi_id, v])),
-    [vardiyaTipleri],
   )
 
   const durumGuncelle = async (tercihId: number, durum: TercihDurumu) => {
@@ -124,7 +121,7 @@ export function TercihlerEkrani({ ekranSec }: Props) {
                   <span className="w-20 shrink-0 font-mono text-sm font-semibold text-ink">
                     {gunKisaltmasiVeNumarasi(t.tarih).toUpperCase()}
                   </span>
-                  <p className="m-0 flex-1 text-sm text-ink">{tercihAciklamasi(t, vardiyaMap)}</p>
+                  <p className="m-0 flex-1 text-sm text-ink">{tercihAciklamasi(t)}</p>
                   {sekme === 'beklemede' && (
                     <div className="flex shrink-0 items-center gap-2">
                       <Input
