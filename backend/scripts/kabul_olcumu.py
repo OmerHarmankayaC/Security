@@ -67,6 +67,7 @@ from app.kurallar.baglam import AtamaKaydi  # noqa: E402
 from app.kurallar.kayit_defteri import bul  # noqa: E402
 from app.kurallar.zaman_araligi import (  # noqa: E402
     aralik_metni,
+    gece_saati_mi,
     saatleri_araliklara_birlestir,
 )
 from app.models.girdi import Musaitlik, MusaitlikDilimi, MusaitlikTipi  # noqa: E402
@@ -122,9 +123,24 @@ _REFERANS_GRUPLARI: tuple[tuple[tuple[str, ...], int, str], ...] = (
 # SRS 3.3.1'deki tablo birebir: (baslangic, bitis, gece_mi). Bayrak TANIMLI
 # bir degerdir, gece_mi_oner()'in onerisi degil (TD-2; bkz. demo_veri_uret.py).
 _VARDIYA_TANIMLARI: dict[str, tuple[time, time, bool]] = {
+    # SRS 3.3.1 birebir (K16). BAYRAK TANIMLI BIR DEGERDIR, `gece_mi_oner`in
+    # onerisi degil (TD-2): oneri yalnizca yeni blok olustururken
+    # on-doldurur ve tanimli bir degeri ASLA ezmez. Bu kural bir kez
+    # cignendi ve gece talebi uc katina cikti.
+    #
+    # Ilk uc blok mevcut isleyisteki ucluk sekiz saatlik duzendir; kalan
+    # dordu on ve on iki saatlik seceneklerdir. On iki saatlik bloklar
+    # haftalik fazla calisma esigini (45) gercekten asabildigi icin H10'un
+    # isledigini gosterebilen tek yapidir: yalnizca sekiz saatlik bloklarla
+    # haftada alti gun calisan bir personel 48 saate ulasir ve esigi ancak
+    # uc saat asar.
     "Gece": (time(0, 0), time(8, 0), True),
     "Gündüz": (time(8, 0), time(16, 0), False),
     "Akşam": (time(16, 0), time(0, 0), False),
+    "Uzun gece": (time(20, 0), time(8, 0), True),
+    "Uzun gündüz": (time(8, 0), time(20, 0), False),
+    "Erken uzun": (time(6, 0), time(16, 0), False),
+    "Geç uzun": (time(14, 0), time(0, 0), False),
 }
 
 # demo_veri_uret.py ile ayni kural katalogu; kalibre edilmis agirliklar dahil
@@ -419,23 +435,25 @@ def _k3(olcum: CozumOlcumu, baglam: Any) -> Kriter:
     Hedef, S2'nin tanimiyla BIREBIR ayni kaynaktan gelir (SRS 1.5): donem ici
     gece talebi / |P_gece| - payda butun personel DEGIL, uygun havuzdur ve
     olcum de yalniz o havuz uzerinde yapilir. Havuz tanimi Baglam'da tek
-    yerde durur; olcum betigi kendi tanimini uydurmaz."""
+    yerde durur; olcum betigi kendi tanimini uydurmaz.
+
+    OLCU SAAT (K12). Kriter "gece SAYISI" diyor ama S2 saat birimine
+    gectiginden olcumun de ayni birimde olmasi gerekir: yoksa on iki
+    saatlik bir gece blogu ile sekiz saatliki ayni sayilir ve kriter
+    cozucunun optimize ettiginden BASKA bir seyi olcer. Esik de ayni
+    olcekte okunur - "bir birim sapma" artik bir gece saati."""
     gece_talebi = sum(
         gereken
-        for (tarih, vardiya_tipi_id, _nokta), gereken in baglam.talep.items()
-        if baglam.gece_mi(vardiya_tipi_id) and baglam.donem_icinde(tarih)
+        for (tarih, saat, _nokta), gereken in baglam.talep_saat.items()
+        if gece_saati_mi(saat) and baglam.donem_icinde(tarih)
     )
-    havuz = baglam.uygun_havuz(lambda anahtar: baglam.gece_mi(anahtar[1]))
+    havuz = baglam.uygun_havuz(lambda anahtar: gece_saati_mi(anahtar[1]))
     hedef = gece_talebi / len(havuz) if havuz else 0.0
 
     sayilar = dict.fromkeys(havuz, 0)
     for a in olcum.atamalar:
-        if (
-            a.personel_id in havuz
-            and baglam.donem_icinde(a.tarih)
-            and baglam.gece_mi(a.vardiya_tipi_id)
-        ):
-            sayilar[a.personel_id] += 1
+        if a.personel_id in havuz and baglam.donem_icinde(a.tarih):
+            sayilar[a.personel_id] += baglam.gece_saat(a.vardiya_tipi_id)
 
     sapmalar = {p: abs(s - hedef) for p, s in sayilar.items()}
     en_buyuk = max(sapmalar.values()) if sapmalar else 0.0
@@ -443,12 +461,12 @@ def _k3(olcum: CozumOlcumu, baglam: Any) -> Kriter:
 
     havuz_disi = len(baglam.personel) - len(havuz)
     ayrinti = [
-        f"donem ici gece talebi   : {gece_talebi} kisi-vardiya",
+        f"donem ici gece talebi   : {gece_talebi} kisi-saat",
         f"uygun havuz |P_gece|    : {len(havuz)} kisi "
         f"({havuz_disi} kisi olcum disi - gece talebi olan noktada calisamiyor)",
-        f"hedef (talep / P_gece)  : {hedef:.2f} gece",
+        f"hedef (talep / P_gece)  : {hedef:.2f} gece saati",
         f"gozlenen aralik         : {min(sayilar.values(), default=0)} - "
-        f"{max(sayilar.values(), default=0)} gece",
+        f"{max(sayilar.values(), default=0)} gece saati",
         f"1'den fazla sapan kisi  : {len(asanlar)}",
     ]
     ayrinti.extend(_k3_ulasilabilirlik_teshisi(baglam, hedef))
@@ -476,7 +494,7 @@ def _k3_ulasilabilirlik_teshisi(baglam: Any, hedef: float) -> list[str]:
     # Yalniz UYGUN HAVUZDAKI personel gruplanir: havuz disindakiler zaten
     # olcume girmiyor (SRS 1.5), onlari "ulasilamaz" diye raporlamak yanlis
     # alarm olurdu.
-    havuz = baglam.uygun_havuz(lambda anahtar: baglam.gece_mi(anahtar[1]))
+    havuz = baglam.uygun_havuz(lambda anahtar: gece_saati_mi(anahtar[1]))
     gruplar: dict[frozenset[int], list[int]] = {}
     for personel_id, bilgi in baglam.personel.items():
         if personel_id in havuz:
@@ -487,9 +505,9 @@ def _k3_ulasilabilirlik_teshisi(baglam: Any, hedef: float) -> list[str]:
         # Bu yetkinlik kumesinin girebildigi noktalardaki gece-isaretli talep.
         ulasilabilir = sum(
             gereken
-            for (tarih, vardiya_tipi_id, nokta_id), gereken in baglam.talep.items()
+            for (tarih, saat, nokta_id), gereken in baglam.talep_saat.items()
             if baglam.donem_icinde(tarih)
-            and baglam.gece_mi(vardiya_tipi_id)
+            and gece_saati_mi(saat)
             and _nokta_uygun(baglam, nokta_id, yetkinlikler)
         )
         tavan = ulasilabilir / len(kisiler)

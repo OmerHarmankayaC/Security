@@ -90,9 +90,24 @@ from app.veri_temizligi import (
 # toplamin %60'ina cikiyor, S2'nin hedefi bozuluyordu (bkz. PROGRESS.md,
 # Gun 14 K3 bulgusu).
 _VARDIYA_TANIMLARI: dict[str, tuple[time, time, bool]] = {
+    # SRS 3.3.1 birebir (K16). BAYRAK TANIMLI BIR DEGERDIR, `gece_mi_oner`in
+    # onerisi degil (TD-2): oneri yalnizca yeni blok olustururken
+    # on-doldurur ve tanimli bir degeri ASLA ezmez. Bu kural bir kez
+    # cignendi ve gece talebi uc katina cikti.
+    #
+    # Ilk uc blok mevcut isleyisteki ucluk sekiz saatlik duzendir; kalan
+    # dordu on ve on iki saatlik seceneklerdir. On iki saatlik bloklar
+    # haftalik fazla calisma esigini (45) gercekten asabildigi icin H10'un
+    # isledigini gosterebilen tek yapidir: yalnizca sekiz saatlik bloklarla
+    # haftada alti gun calisan bir personel 48 saate ulasir ve esigi ancak
+    # uc saat asar.
     "Gece": (time(0, 0), time(8, 0), True),
     "Gündüz": (time(8, 0), time(16, 0), False),
     "Akşam": (time(16, 0), time(0, 0), False),
+    "Uzun gece": (time(20, 0), time(8, 0), True),
+    "Uzun gündüz": (time(8, 0), time(20, 0), False),
+    "Erken uzun": (time(6, 0), time(16, 0), False),
+    "Geç uzun": (time(14, 0), time(0, 0), False),
 }
 
 _KURAL_TANIMLARI: list[dict] = [
