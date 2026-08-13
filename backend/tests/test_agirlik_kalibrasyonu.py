@@ -60,14 +60,9 @@ def test_s1_agirligi_diger_hedeflerin_agirlikli_toplamindan_buyuk() -> None:
         w1 = oturum.execute(select(Kural.agirlik).where(Kural.kimlik == "S1")).scalar_one()
 
         servis = CozumServisi(oturum)
-        # SURE LIMITLERI TUR 5'TE YUKSELTILDI ve nedeni testin konusu DEGIL:
-        # saat ekseninde yirmi sekiz gunluk sikisik donem ilk uygun cozume
-        # ancak kirk bes saniye civarinda ulasiyor (olcum PROGRESS_V2'de,
-        # "K1 tehlikede" basligi altinda). Bu test agirlik dengesini olcer;
-        # cozumun ne kadar surdugunu K1 olcer ve o olcum ayri durur.
-        is_kaydi_rahat = servis.baslat(rahat_id, zaman_limiti_saniye=90)
+        is_kaydi_rahat = servis.baslat(rahat_id, zaman_limiti_saniye=60)
         oturum.commit()
-        is_kaydi_sikisik = servis.baslat(sikisik_id, zaman_limiti_saniye=180)
+        is_kaydi_sikisik = servis.baslat(sikisik_id, zaman_limiti_saniye=90)
         oturum.commit()
         assert is_kaydi_rahat is not None
         assert is_kaydi_sikisik is not None

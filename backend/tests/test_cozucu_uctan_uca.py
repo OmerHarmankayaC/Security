@@ -28,7 +28,6 @@ from app.kurallar import (
     PersonelBilgisi,
     TercihKaydi,
 )
-from app.kurallar.esnek import S4_OLCEK
 from app.kurallar.kayit_defteri import bul
 from app.models.girdi import TercihTipi
 from app.models.sonuc import Atama, AtamaKaynagi, CizelgeSurumu, Donem
@@ -300,16 +299,10 @@ def test_esnek_hedefler_cozucu_dogrulayici_uyumu() -> None:
     urettigi ham ceza (cozucunun kendi hesabi) ile dogrula'nin bagimsizca
     urettigi ceza toplami her esnek hedef icin birebir esit olmalidir.
 
-    S4 istisnasi: modele_ekle CP-SAT'in tamsayi kisiti geregi S4_OLCEK (onda
-    bir saat) ile olcup son adimda dogal birime (saat) yarim-yukari yuvarlayarak
-    geri cevirir (SDD Ek A "Kesirli hedeflerin tamsayiya olceklenmesi"); dogrula
-    ise kesirli cezayi hic yuvarlamadan (onda bir saat hassasiyetinde) dondurur -
-    bu ikisi ancak ayni yuvarlama uygulandiginda birebir esitlenir, cunku ozetin
-    (7 vs 6.7 gibi) tam sayiya yuvarlanmasi dogrula'nin PAYLASTIRILMAMIS toplamiyla
-    aritmetik olarak ayni sey degildir. Bu yuzden S4 icin dogrula_toplami'nin
-    S4_OLCEK ile yeniden tam sayiya cevrilip aynen modele_ekle'deki gibi
-    yarim-yukari yuvarlanmasi gerekir - test bu donusumu yeniden uygulayarak
-    hem yuvarlamanin yapildigini hem DOGRU yapildigini kanitlar."""
+    S4'UN ISTISNASI KALKTI. Kural taban/tavan yontemine gecti (SRS 1.20) ve
+    iki taraf da artik TAM SAYI uretiyor; once modele_ekle onda bir saate
+    olceklenip bir bolme kisitiyla dogal birime geri donuyordu ve testin
+    ayni yuvarlamayi yeniden uygulamasi gerekiyordu. O donusum yok."""
     baglam, gunler, _ = _esnek_uyum_baglami()
     kurallar = _tum_kurallari_yukle()
 
@@ -337,12 +330,6 @@ def test_esnek_hedefler_cozucu_dogrulayici_uyumu() -> None:
         dogrula_toplami = sum(
             ihlal.ceza for ihlal in kural.dogrula(atamalar, baglam) if ihlal.ceza is not None
         )
-        if kimlik == "S4":
-            # dogrula'nin onda-bir-saat hassasiyetli (kesirli) toplamini
-            # modele_ekle'nin kendi ic olceginde (S4_OLCEK) yeniden tam sayiya
-            # cevirip ayni yarim-yukari kuraliyla yuvarla (bkz. yukaridaki not).
-            toplam_x10 = round(dogrula_toplami * S4_OLCEK)
-            dogrula_toplami = (toplam_x10 + S4_OLCEK // 2) // S4_OLCEK
         assert sonuc.ceza_dokumu[kimlik] == dogrula_toplami, (
             f"{kimlik}: cozucunun ham cezasi ({sonuc.ceza_dokumu[kimlik]}) "
             f"dogrulayicinin hesapladigi toplamdan ({dogrula_toplami}) farkli"
