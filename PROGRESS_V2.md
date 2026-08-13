@@ -9,10 +9,16 @@ başlar.
 
 ---
 
-## 2026-08-13 — Tur 5: Gerçek Saatlik Model — **YARIDA, KARAR BEKLİYOR**
+## 2026-08-13 — Tur 5: Gerçek Saatlik Model — **BİTTİ**
 
-Kaynak: `docs/turlar/CLAUDE_CODE_PROMPTU_TUR5.md`. Yedi iş. Çalışma
-`tur5-saatlik-model` dalında yürüyor.
+Kaynak: `docs/turlar/CLAUDE_CODE_PROMPTU_TUR5.md` ve devamı
+`docs/turlar/TUR5_DEVAM.md`. Yedi iş. Çalışma `tur5-saatlik-model` dalında
+yürüdü, sonunda `main`e alındı.
+
+Tur ortasında bir kez **durdu**: İş 1'in sondajı yanıltıcı çıkmıştı ve karar
+istendi. Devam belgesi üç seçenekten ikisini onayladı, ölçüm yeniden koşuldu
+ve tur tamamlandı. Aşağıda önce turun ilk yarısı, sonra "Durma noktası ve
+sonrası" başlığı altında devamı yazılı.
 
 Doküman sürümleri turun başında doğrulandı: Charter **1.4**, SRS **1.19**,
 SDD **1.27**, Backlog **1.16** — dördü de taşıyor.
@@ -141,9 +147,9 @@ yakaladı:
    pencerelerini dönemin ilk günlerinde yanlış besliyordu. TD-5 açık: o
    atamalar karar değişkeni değildir.
 
-### K1 TEHLİKEDE — İş 1'in sondajı yanıltıcı çıktı
+### Durma noktası — İş 1'in sondajı yanıltıcı çıktı
 
-**Bu turun asıl bulgusu bu ve karar noktası burada.**
+**Turun asıl bulgusu bu ve karar burada istendi.**
 
 İş 1'in sondajı üç kuralla (H1, H9, S1) ölçtü ve 40 × 28'de ilk uygun çözümü
 **5,0 saniyede** buldu. Tam model **on dokuz kural** taşıyor ve ölçüm
@@ -174,12 +180,10 @@ Yük **birikimli**.
 2. **Isıtma penceresi sabitlendi** (yukarıdaki 2 numaralı hata). Arama
    uzayının beşte biri.
 
-**Ne kaldı:** 40 × 28 ölçeğinde K1 ölçümü **henüz koşulmadı** (kabul ölçümü
-betiği saat modeline uyarlanmadı). 30 × 28'de ilk uygun çözüm 45,6 saniye
-olduğuna göre 40 × 28'in 60 saniyenin altında kalması **muhtemel değil**.
-
-**Kararı sana bırakıyorum.** Formülasyonda gevşetilebilecek üç yer var,
-maliyeti artan sırayla:
+Bu noktada 40 × 28 ölçeğinde K1 ölçümü **koşulmamıştı**; 30 × 28'de ilk uygun
+çözüm 45,6 saniye olduğuna göre 40 × 28'in 60 saniyenin altında kalması
+muhtemel görünmüyordu. **Karar istendi.** Formülasyonda gevşetilebilecek üç
+yer sıralandı, maliyeti artan sırayla:
 
 - **`devir` göstergesinin penceresi.** Bugün her saat için üretiliyor
   (22.680 ikili değişken). Bir blok günlük tavanı (11 saat) aşamadığına
@@ -194,21 +198,106 @@ maliyeti artan sırayla:
   gevşetilecek yer" dediği kısıt). Kaldırılırsa blok içinde nokta
   değişebilir; sahada anlamsız ama model belirgin biçimde ucuzlar.
 
-Ölçmeden hangisinin ne kazandıracağını söyleyemem; üçünü de denemeden önce
-senin kararını istiyorum, çünkü ikisi tanımı değiştiriyor.
+Ölçmeden hangisinin ne kazandıracağı söylenemezdi ve ikisi tanımı
+değiştiriyordu; bu yüzden denenmeden karar istendi.
 
-### Bu turda BİTMEYENLER
+---
 
-- **İş 7 — arayüz uyarlaması yapılmadı.** Frontend `vardiya_tipi`ne bağlı
-  ve derlenmiyor. Backend'in API sözleşmesi değişti (atama artık
-  `baslangic_zamani`/`bitis_zamani`, tercih zaman aralığı, analiz
-  metrikleri saat).
-- **Kabul ölçümü koşulmadı**; `scripts/kabul_olcumu.py` saat modeline
-  uyarlanmadı. K1, K3 (yeni 8 gece saati eşiği) ve K4 ölçülmedi.
-- `EK_B_UC_NOKTALAR.md` yeniden üretilmedi (vardiya tipi uçları düştü).
-- **Bir test kırık:** `test_agirlik_kalibrasyonu` — sıkışık dönem 180
-  saniyede de sonuçlanmıyor. Kırıklığın nedeni ağırlık dengesi değil, yukarıdaki
-  K1 sorunu. Takımın geri kalanı **336 geçiyor**.
+### Devam kararı ve uygulanan iki seçenek
+
+`docs/turlar/TUR5_DEVAM.md`: **1 ve 2 uygulanacak, 3'e dokunulmayacak.**
+
+**Seçenek 1 — `devir` göstergesinin penceresi daraltıldı.** Gösterge artık
+günün yalnızca ilk `azami_gunluk_saat` saati için üretiliyor. Bu bir tanım
+değişikliği değil: bir blok H9'un tavanını aşamadığına göre ertesi güne o
+tavandan fazla taşamaz, dolayısıyla eksik bırakılan göstergeler zaten her
+çözümde sıfırdır — **çözüm kümesi aynı**. Eşik kuralın kendi parametresinden
+okunuyor (`_azami_gunluk_saat`), sabit yazılmadı; H9 kapalıysa 24'e düşüyor,
+yani gevşetme kuralın varlığına bağlı. SDD 5.3'e işlendi.
+
+**Seçenek 2 — S4 taban/tavan yöntemine geçti.** `add_division_equality` ve
+`S4_OLCEK` kalktı; sapma artık `sapma ≥ toplam − ⌊pay⌋` ve
+`sapma ≥ ⌈pay⌉ − toplam` ile kuruluyor, S2/S3 ile **aynı yöntem**. Onay
+başarım gerekçesiyle değil **tutarlılık** gerekçesiyle verildi: kesirli
+payların arasında ceza sıfıra düşer, bu S4'ün tanımını değiştirir ve
+değişiklik SRS 1.20'ye yazıldı. `s4_hedef_paylari_x10` → `s4_hedef_paylari`
+(doğal saat birimi).
+
+**Seçenek 3 — nokta sürekliliği: dokunulmadı.** Ürün kararı. Devam belgesi
+ayrıca kısıtın *gerçekten uygulandığının* doğrulanmasını istedi — değişken
+eleme onu bir kez sessizce iptal etmişti (yukarıdaki 1 numaralı hata). İki
+test bunu kilitliyor: biri talebi dönem ortasında biten bir nokta kurup
+değişkenin elendiği yerde kısıtın hâlâ kurulduğunu, diğeri ısıtma
+penceresinin boş saatlerinin sıfıra sabitlendiğini ölçüyor.
+
+### Ölçüm — devam belgesinin istediği üç ölçek
+
+Arama işçisi 3 (SDD 3.4.3), macOS arm64, 180 sn limit:
+
+| Ölçek | Değişken | Kısıt | **İlk uygun** | Not |
+|---|---|---|---|---|
+| **30 × 7** | 39.622 | 84.130 | **1,0 sn** | Gerçek kullanım — dönem varsayılanı bir hafta (Charter 2.5) |
+| **30 × 28** | 94.284 | 192.278 | **5,0 sn** | Karşılaştırma noktası — durma anında 45,6 sn |
+| **40 × 28** | 126.674 | 260.808 | **16,3 sn** | K1'in stres ölçeği |
+
+Durdurma eşiği 60 saniyeydi; **aşılmadı**, tur devam etti. Asıl kullanım
+ölçeğinde (30 × 7) çözüm bir saniyede geliyor.
+
+### Kabul ölçümü — `scripts/kabul_olcumu.py` saat modelinde
+
+Betik yeniden yazıldı. K3'ün eşiği artık katalogdan türetilmiyor,
+**Charter 1.4'ün sekiz gece saati** doğrudan yazılı; referans havuzlar
+Müracaat'sız kadroya göre 9 şef + 31 güvenlik.
+
+| Çözücü limiti | K1 | K2 | K3 | K4 | K5 | Sonuç |
+|---|---|---|---|---|---|---|
+| 60 sn | 8,68 sn ✔ | 0 ✔ | **30,00** ✘ | 167 açık ✔ | 0,099 sn ✔ | 4/5 |
+| 300 sn | 8,33 sn ✔ | 0 ✔ | **12,00** ✘ | 49 açık ✔ | 0,064 sn ✔ | 4/5 |
+| **900 sn** | 8,72 sn ✔ | 0 ✔ | **7,00** ✔ | 47 açık ✔ | 0,070 sn ✔ | **5/5** |
+
+**K1 limitten bağımsız geçiyor** — kendi ölçtüğü şey ilk uygun çözüme ulaşma
+süresi ve o üç koşuda da 8–9 saniye. Limit yalnızca çözümün **kalitesini**
+etkiliyor, ki K3 tam olarak kalite ölçüyor.
+
+**K3 yakınsama sınırlı, yapısal değil.** 30 → 12 → 7: sapma çözücü süresiyle
+tekdüze düşüyor ve 900 saniyede eşiğin altına iniyor. Betiğin ulaşılabilirlik
+teşhisi de bunu söylüyor — her havuz hedefine erişebiliyor (31 kişilik havuz
+kişi başı 42,6 gece saatine kadar, 9 kişilik havuz 177,8'e kadar), yani engel
+kadro değil arama. Bu, **Tur 9'un ağırlık kalibrasyonuna** giden bir gözlem:
+S3'ün ağırlığı gece dengesini daha erken sıkıştırırsa 60 saniyede de inebilir.
+Ağırlıklara bu turda dokunulmadı (devam belgesinin açık talimatı).
+
+**K4 senaryosu düzeltildi.** Saat modelinde beş şefin izinli olması açık
+üretmiyordu — çözücü blokları uzatarak kapatıyordu. Senaryo dokuz şefin
+**yedisini** izne çıkarıyor ve aritmetiği docstring'e yazılı: nokta haftada
+168 kişi-saat istiyor, kalan iki kişi H5/H6 altında en çok 132 saat verebiliyor,
+yani açık **kaçınılmaz**.
+
+### İş 7 — arayüz
+
+`frontend/src/lib/blok.ts` tek okuma yeri: blok ISO damgasından okunuyor,
+`new Date` kullanılmıyor — tarayıcının saat dilimi ızgarayı kaydıramaz.
+Çizelge ızgarası `baslangic_zamani`/`bitis_zamani` okuyor, düzenleme formunda
+vardiya tipi seçicisi yerine **başlangıç ve bitiş saati** seçicileri var,
+nokta görünümünde vardiya tipi ekseni kalktı. Tanımlar ekranından Vardiya
+Tipi sekmesi ve Sabit Vardiya alanı silindi.
+
+`EK_B_UC_NOKTALAR.md` yeniden üretildi: altı `vardiya-tipi` ucu düştü,
+**74 → 68**; `uc_noktalari_listele.py --denetle` 68 = 68 diyor.
+
+### Turun kapanış durumu
+
+- Backend **341 test geçiyor** (316 + 24 örnekli uyum testi + ağırlık
+  kalibrasyonu). `test_agirlik_kalibrasyonu`'nun çözücü limitleri geçici
+  olarak 90/180'e çıkarılmıştı, **60/90'a geri alındı** ve o hâliyle geçiyor.
+- Frontend `tsc -b` temiz, **162/162** vitest, oxlint'te yalnızca önceden
+  var olan uyarılar.
+- Uyum testi (SDD 3.2.1) `optimal` yerine `optimal | uygun` kabul ediyor:
+  test **mutabakat** ölçüyor, optimallik değil, ve saat modelinde optimallik
+  kanıtı belirgin biçimde pahalı.
+- Kanonik belgeler `BOTAS_Vardiya_Cizelgeleme_*` → **`VARDIS_*`** olarak
+  `git mv` ile yeniden adlandırıldı, atıflar güncellendi.
+- Sunucuya dağıtım **yok**; `push`/`remote` **çalıştırılmadı**.
 
 ### DOKÜMAN BORCU — iki madde
 
