@@ -1356,3 +1356,192 @@ ssh -o IdentitiesOnly=yes -i "$HOME/.ssh/vera_hetzner" root@46.225.109.40 'set -
 
 Kod zaten sunucuda olduğu için rsync adımı tekrarlanmaz; tekrarlanması da
 zararsızdır.
+
+---
+
+## 16. Tur 4 — kural kataloğu (13.08.2026) — ÇIKIŞ HAZIR
+
+Öncekinden **daha düşük riskli**: göç şemaya dokunmaz, kullanıcı verisi
+dönüştürmez. Yalnızca `kural` tablosunu günceller.
+
+**Yeni bağımlılık yok, yeni sır yok, `.env` değişmiyor.**
+
+### 16.0 Göç: `d1f83a6c40b2` → `e7b2c4915d80`
+
+Tek göç, üç iş yapar:
+
+1. **H5'in parametresi taşınır:** `azami_haftalik_saat` →
+   `haftalik_mutlak_tavan`, değer 45 → **66**. Kırk beş saat artık tavan
+   değil, fazla çalışmanın başladığı **eşik** (H10'un parametresi).
+2. **H9 ve H10 eklenir.** Katalogda satırı bulunmayan bir kural hiç
+   kurulmaz — sınıf kayıtlı olsa bile modele girmez; yeni kurallar veri
+   olarak da eklenmelidir.
+3. **S1f eklenir** (fazla kadro cezası, ağırlık 2).
+
+Var olan bir kaydı **ezmez**: `INSERT ... WHERE NOT EXISTS` kullanır,
+dolayısıyla kullanıcının arayüzden değiştirdiği bir ağırlığı geri almaz ve
+göç iki kez koşulabilir.
+
+`alembic current` çıktısı **`e7b2c4915d80 (head)`** olmalıdır.
+
+### 16.1 ⚠ Kod ve göç BİRLİKTE gitmeli
+
+Bu sürümün tek gerçek riski budur. Kod yeni parametre adını okuyor, göç ise
+onu yazıyor:
+
+| Durum | Sonuç |
+|---|---|
+| Göç koştu, servis yeniden başlamadı | Eski kod `azami_haftalik_saat` arar, bulamaz → **çözüm işi `KeyError` ile düşer** |
+| Kod yüklendi, göç koşmadı | Yeni kod `haftalik_mutlak_tavan` arar, bulamaz → aynı hata |
+
+İkisi de çizelge verisini bozmaz — çözüm işi başarısız olur, o kadar — ama
+kullanıcı için sistem çalışmıyor demektir. Aşağıdaki zincir ikisini tek
+komutta yapar.
+
+### 16.2 Sunucuda ne DEĞİŞMEZ
+
+Bunları söylemek gerekir, çünkü sürüm notunu okuyan kişi aksini bekleyebilir:
+
+- **Blok kataloğu üç blokta kalır.** Yedi bloklu katalog (SRS 3.3.1) veridir
+  (FR-1.3), kod değil; göç `vardiya_tipi` tablosuna dokunmaz. On ve on iki
+  saatlik bloklar Tanımlar → Vardiya Tipi ekranından **elle eklenir**.
+  Eklenmediği sürece H10 pratikte hiç tetiklenmez: yalnızca sekiz saatlik
+  bloklarla haftada altı gün çalışmak 48 saat eder ve eşiği ancak üç saat
+  aşar.
+- **Personel kadrosu değişmez.** Otuz kişilik kadro yalnızca gösterim
+  verisidir ve `demo_veri_uret.py` sunucuda **çalıştırılmaz** (bölüm 8'deki
+  yasak listesi).
+- **Devir bakiyeleri sıfır kalır.** Alan Tur 3'te eklendi ve sunucudaki
+  bütün personelde 0; H10 kimseyi bağlamaz ve kota bulguları görünmez.
+  Bakiye Personel formundan girilir.
+- **Yayınlanmış çizelgeler yeniden çözülmez.** Eski kurallarla üretilmiş
+  sürümler olduğu gibi kalır.
+
+### 16.3 Çözüm sonuçları DEĞİŞECEK
+
+Yeni bir çözüm başlatıldığında sonuç öncekinden farklı çıkar ve bu
+beklenendir:
+
+- S2 ve S3'ün birimi vardiya sayısından **saate** döndü; ağırlıkları
+  (10 ve 8) değişmedi, dolayısıyla adalet hedeflerinin amaç
+  fonksiyonundaki ağırlığı fiilen arttı. Kalibrasyon Tur 8'in işi.
+- S1'in üst sınırı **esnedi**: çözücü artık talebin üzerine çıkabilir ve
+  bunun küçük bir cezası var (S1f). Üç bloklu hizalı katalogda fazla kadro
+  beklenmez, ama artık yapısal olarak mümkün.
+- Adalet hedefi kişiye özel **adil paya** döndü (SRS 1.17): erişilebilirliği
+  kısıtlı havuzlar artık kalıcı olarak sapmalı görünmüyor.
+
+### 16.4 Sıra
+
+Göç **kod yüklendikten SONRA** uygulanır: `alembic` sunucudaki depodan
+okunur, dolayısıyla göç dosyası önce oraya varmalıdır.
+
+```bash
+export RSYNC_RSH="ssh -o IdentitiesOnly=yes -i $HOME/.ssh/vera_hetzner"
+```
+
+```bash
+# 1) Yerelde derle ve testleri geçir (sunucuda Node yok — ve pytest de yok)
+cd frontend && npm ci && npm run build && npm test   # 161 test
+cd ../backend && .venv/bin/python -m pytest -q       # 338 test
+
+# 2) Kodu yükle
+cd ..
+rsync -az --delete frontend/dist/ root@46.225.109.40:/opt/vardiya/web/
+rsync -az --delete --exclude '.venv/' --exclude '__pycache__/' \
+      --exclude '.pytest_cache/' --exclude '.ruff_cache/' --exclude '.env' \
+      backend/ root@46.225.109.40:/opt/vardiya/backend/
+```
+
+```bash
+# 3) Yedek + göç + yeniden başlatma, HEPSİ && İLE BAĞLI
+ssh -o IdentitiesOnly=yes -i "$HOME/.ssh/vera_hetzner" root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
+  mkdir -p /opt/vardiya/yedek &&
+  PGURL=$(printf %s "$VERITABANI_URL" | sed "s|+psycopg||") &&
+  pg_dump "$PGURL" -Fc -f /opt/vardiya/yedek/vardiya-$(date +%Y%m%d-%H%M).dump &&
+  ls -lh /opt/vardiya/yedek/ | tail -3 &&
+  cd /opt/vardiya/backend &&
+  sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic upgrade head &&
+  sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic current &&
+  chown -R vardiya:vardiya /opt/vardiya/backend &&
+  systemctl restart vardiya-api vardiya-cozucu'
+```
+
+**Yedeğin boyutunu gözle doğrulayın.** Sıfır baytsa yedek YOKTUR (bkz.
+15.8: `VERITABANI_URL` doğrudan `pg_dump`a verilemez, `+psycopg`
+ayıklanmalıdır — zincirde ayıklanıyor).
+
+### 16.5 Doğrulama
+
+```bash
+ssh -o IdentitiesOnly=yes -i "$HOME/.ssh/vera_hetzner" root@46.225.109.40 'systemctl is-active vardiya-api vardiya-cozucu; journalctl -u vardiya-api -u vardiya-cozucu --since "5 min ago" -p warning'
+```
+
+Kural kayıtları — asıl doğrulama budur:
+
+```bash
+ssh -o IdentitiesOnly=yes -i "$HOME/.ssh/vera_hetzner" root@46.225.109.40 'set -a; . /opt/vardiya/.env; set +a
+  PGURL=$(printf %s "$VERITABANI_URL" | sed "s|+psycopg||") &&
+  psql "$PGURL" -c "select kimlik, parametreler, agirlik, aktif from kural
+                     where kimlik in ('"'"'H5'"'"','"'"'H9'"'"','"'"'H10'"'"','"'"'S1f'"'"')
+                     order by kimlik;"'
+```
+
+Beklenen dört satır:
+
+| kimlik | parametreler | ağırlık |
+|---|---|---|
+| `H10` | `{"fazla_calisma_esigi": 45, "yillik_fazla_kotasi": 270}` | — |
+| `H5` | `{"haftalik_mutlak_tavan": 66}` | — |
+| `H9` | `{"azami_gunluk_saat": 11}` | — |
+| `S1f` | `{}` | 2 |
+
+`H5` hâlâ `azami_haftalik_saat` taşıyorsa göç koşmamıştır.
+
+Uç noktalar değişmedi (74); yine de servisin ayakta olduğu görülsün:
+
+```bash
+curl -s -o /dev/null -w 'GET / -> %{http_code}\n' https://vardiya.omerharmankaya.com/
+curl -s -o /dev/null -w 'POST /api/talep -> %{http_code}\n' -X POST https://vardiya.omerharmankaya.com/api/talep
+```
+
+Arayüzde gözle bakılacaklar (oturum açmayı gerektirir):
+
+- **Tanımlar → Kural**: listede **H9 (Günlük azami çalışma süresi)**,
+  **H10 (Yıllık fazla çalışma kotası)** ve **S1f (Fazla kadro)** görünmeli;
+  H5'in adı **"Kayan yedi günlük mutlak tavan"** ve parametresi **66** olmalı.
+- **Tanımlar → Personel**: formda **Devir Fazla Çalışma** ve **Kota Yılı**
+  alanları (Tur 3'te geldi, sunucuda ilk kez görünüyor olabilir).
+- **Çizelge**: hücreler blok kısaltması yerine **saat aralığı** göstermeli
+  (`08–16 · GÜV`).
+- **Tanımlar → Vardiya Tipi**: var olan bir bloğun saatlerinin aynısıyla
+  ikinci bir blok açmak reddedilmeli; 12 saatlik blok "günlük azami 11 saat"
+  diyerek reddedilmeli — H9'un parametresi artık buradan okunuyor.
+
+### 16.6 Geri alma
+
+Önce eski kod sürümüne dönülür, sonra göç geri alınır (16.1'deki aynı
+gerekçe: ikisi birlikte gider):
+
+```bash
+ssh -o IdentitiesOnly=yes -i "$HOME/.ssh/vera_hetzner" root@46.225.109.40 'cd /opt/vardiya/backend
+  sudo -u vardiya --preserve-env=VERITABANI_URL .venv/bin/alembic downgrade d1f83a6c40b2'
+```
+
+Geri alma H5'in parametresini eski adıyla ve **eski değeriyle (45)** geri
+yazar, H9/H10/S1f satırlarını siler. **Veri kaybı yoktur** — çizelge, tanım
+ve girdi verisi etkilenmez. Kaybolan tek şey, bu üç kuralın ağırlık veya
+parametresinde arayüzden yapılmış değişikliklerdir.
+
+### 16.7 Çıkış kaydı
+
+_Dağıtım yapıldığında doldurulacak._
+
+| | |
+|---|---|
+| Kod sürümü | `a65ce6d` |
+| Göç | `d1f83a6c40b2` → `e7b2c4915d80` |
+| Yedek dosyası | — |
+| Kural satırları (H5/H9/H10/S1f) | — |
+| Servisler | — |
+| Uyarı/hata günlüğü | — |
