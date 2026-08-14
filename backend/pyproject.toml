@@ -35,6 +35,15 @@ dependencies = [
     # 3.14'unde de kaynaktan derleme gerektirmez - yukaridaki uc paketin
     # yasadigi sorun burada yok, surum yukseltmesi gerekmiyor.
     "argon2-cffi==25.1.0",
+    # Resmi tatil takvimi (FR-1.10). Dini bayramlarin tarihi hicri takvime
+    # baglidir ve her yil kayar; sabit tarihli bir liste yazmak, dogru
+    # sanilan yanlis bir veri uretirdi. Kutuphane Turkiye'yi Turkce adlarla
+    # ve cok gunlu bayram araliklariyla veriyor (bkz. app/services/
+    # tatil_takvimi.py). Surum sabitlemesi diger bagimliliklarla ayni
+    # sozlesmede; takvim verisi surumle birlikte degistigi icin kendiliginden
+    # guncellenmesi ISTENMEZ - tatil listesinin ne zaman degistigi
+    # izlenebilir olmali.
+    "holidays==0.102",
 ]
 
 [project.optional-dependencies]
