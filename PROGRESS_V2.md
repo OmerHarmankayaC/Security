@@ -9,6 +9,137 @@ başlar.
 
 ---
 
+## 2026-08-14 — Tur 8: Dışa Aktarma — **BİTTİ**
+
+Kaynak: `docs/turlar/CLAUDE_CODE_PROMPTU_TUR8.md`. Dört iş, hepsi bitti.
+Çalışma `tur8-disa-aktarma` dalında yürüdü.
+
+Doküman sürümleri turun başında doğrulandı: Charter **1.4**, SRS **1.24**,
+SDD **1.31**, Backlog **1.21** — dördü de taşıyor.
+
+### İş 1 — B-23: sapma kayıtları zaman damgasına
+
+`kapsama_acigi` ve `fazla_kadro` `tarih` (DATE) + `baslangic`/`bitis` (TIME)
+yerine `baslangic_zamani`/`bitis_zamani` (TIMESTAMPTZ) taşıyor. Göç
+**`b8d21f6a90c3`**; sıfırdan koştu, geri alma yazıldı ve **denendi**.
+
+**Mevcut kayıtlar dönüştürülmedi, silindi.** Bu iki tablo bir çözümün
+çıktısıdır, kullanıcının girdiği veri değil; `sapmalari_yenile` bir sonraki
+çözümde ya da elle düzenlemede doğru biçimde yeniden yazar. Aynı karar Tur
+3'te talep göçünde de verildi.
+
+**Asıl kazanç birleştiricide.** `saatleri_araliklara_birlestir` artık gün
+sınırında **kesmiyor**. O kesme doğru olduğu için değil, depolama
+22.00–02.00'yi ifade edemediği için vardı; damga sınırı kendisi taşıdığı
+için bir açık artık bir kayıt.
+
+Sapma kaydının gün/aralık okuması `blok.ts`te **tek yere** toplandı
+(`sapmaGunu`, `sapmaEtiketi`, `sapmaSuresi`) — beş ayrı yerde `k.tarih`
+ayıklamak yerine. Sapma CSV'si ISO damgasına geçti ve `tarih` sütunu düştü
+(SRS 7.2).
+
+### İş 4 — DisaAktarmaServisi: ikinci hesap yok
+
+Veri mevcut okuma yüzeylerinden: kapsama oranı, toplam saat, adil pay ve
+sapma `AnalizServisi`'nden; açıklar kapsama kayıtlarından; fazla çalışma
+**H10'un kendi fonksiyonundan**.
+
+O fonksiyon kuralın `dogrula`sının içinde gömülüydü; paylaşılabilmesi için
+`h10_fazla_calisma_saatleri` olarak dışarı çıkarıldı — `s4_hedef_paylari`
+ile aynı kalıp. Dışa aktarma kendi toplamını hesaplasaydı dosyada,
+sistemin başka hiçbir yerinde bulunmayan ve doğruluğu denetlenemeyen bir
+sayı olurdu.
+
+Uç noktalar dosyayı **doğrudan** döndürüyor; iş kuyruğu kurulmadı.
+
+### İş 2 — Çizelgenin Excel çıktısı
+
+Üç sayfa: **Çizelge** (personel × gün), **Özet** (kişi başına toplam/gece/
+hafta sonu/fazla çalışma/kalan kota), **Ham veri** (blok başına satır, ISO
+damgası — CSV ile aynı içerik). Başlıkta dönem, sürüm, üretim tarihi,
+kapsama oranı ve toplam açık.
+
+**Hücre dolgusu bilgiyi tek başına taşımıyor.** Saat aralığı hücrede metin
+olarak da yazılı ve bir açıklama satırı dolgunun ne demek olduğunu
+söylüyor; renksiz basılan çıktı bilgi kaybetmiyor. Dolgu üç basamağa
+indirgendi (gece / kısmen gece / gündüz) — Excel hücresi sürekli bir
+gradient taşıyamaz, ve basamak sayısı zaten bilgi taşımıyor.
+
+### İş 3 — Analizin Excel çıktısı
+
+Dört sayfa: **Özet** (kapsama, toplam ceza, hedef bazında döküm),
+**Adalet** (kişi başına gece/hafta sonu/toplam saat + adil pay + sapma, üç
+grafik), **Kapsama açıkları**, **Ham veri**.
+
+**Grafiklerin referans çizgisi kişiye düşen ADİL PAY.** openpyxl'de
+"referans çizgisi" diye bir nesne yok; çubuk grafiğin üzerine ikinci bir
+çizgi grafik bindiriliyor. Çizgi kişiden kişiye değiştiği için düz yatay
+bir çizgi DEĞİL — zaten öyle olması yanlış olurdu (S2: hedef kişiye
+özeldir). Havuz ortalamasını dosyaya taşımak, ekranda bir kez yapılıp Tur
+6'da düzeltilen hatayı geri getirmek olurdu.
+
+### Kabul testleri
+
+`test_disa_aktarma.py`, **11 test**:
+
+- **Dosya ile ekran birebir aynı.** Toplam saat, adil pay, sapma, gece
+  saati ve gece adil payı `AnalizServisi`'nin döndürdüğüyle alan alan
+  karşılaştırılıyor; kapsama oranı başlık bloğunda aynı değerde.
+- **Gece yarısını aşan açık tek satırda okunuyor** — `22.00–02.00`, bölünmüş
+  değil.
+- Açık yokken sayfa bunu açıkça söylüyor (boş sayfa "açık yok" ile "rapor
+  üretilmedi" arasındaki farkı söylemez).
+- Uç noktalar gerçekten açılabilir bir çalışma kitabı döndürüyor.
+
+### Yeni bağımlılık
+
+`openpyxl==3.1.5`. Saf Python, derleme gerektirmez ve grafik üretebilir.
+Sürüm sabitlemesi diğerleriyle aynı sözleşmede.
+
+### DOKÜMAN BORCU — bir madde
+
+**SRS 7.2 — çizelge CSV'sinde `tarih` sütunu.** Sütun listesi `tarih`
+içermiyor ve gerekçesi yazılı ("blok başladığı gün başlangıç damgasından
+türetilir"), ama hemen altındaki paragraf "tarih sütunu … başa alınmıştır"
+diyor. İkisi aynı bölümde çelişiyor. Tur CSV'ye dokunmayı istemediği için
+çizelge CSV'si olduğu gibi bırakıldı (`tarih` duruyor). Sapma CSV'sinde
+çelişki yoktu; orada `tarih` kalktı.
+
+### Yerel veriye dokunuldu
+
+Göç sapma kayıtlarını sildiği için `sapmalari_yenile` bütün sürümlerde
+koşturuldu ve kayıtlar atamalardan yeniden hesaplandı (çözücü gerekmedi).
+Dar hafta yine 10 açık aralığı / 36 kişi-saat gösteriyor; sürüm 34'te 12
+aralık / 1.152 kişi-saat.
+
+### Turun bitiş kontrolü
+
+- [x] `pytest` tam takım **371 test geçiyor**
+- [x] `ruff`, `tsc -b`, `oxlint` temiz; **284 frontend testi** geçiyor
+- [x] Göç sıfırdan çalışıyor, geri alma yazılmış ve denenmiş
+- [x] Ekran ile dosyanın aynı sayıyı verdiğini gösteren test
+- [x] Gece yarısını aşan açık aralığının dosyada okunabildiğini gösteren test
+- [x] `EK_B_UC_NOKTALAR.md` yeniden üretildi — **70 uç nokta**, denetim temiz
+- [ ] `git status` temiz — dört kanonik doküman proje yürütücüsünde açık
+
+**Bir koşum yanılttı.** Tam takımın bir önceki koşumunda
+`test_kullanici_api`'de bir hata görünmüştü; testleri veritabanına dokunan
+başka işlerle **aynı anda** koşturmaktan geliyordu. Tek başına koşan takım
+371/371 geçiyor.
+
+### Örnek çıktılar
+
+`ornek-ciktilar/cizelge.xlsx` ve `ornek-ciktilar/analiz.xlsx` (dizin
+`.gitignore`'da — üretilebilir çıktı). Dar haftadan (20–26 Tem, sürüm 29)
+üretildi; kapsama sayfasında on açık aralığı var ve ilki gece yarısını
+aşıyor.
+
+**Gözle bakılacaklar:** hücre dolgusunun okunabilirliği, sütun
+genişliklerinin saat metnini kesip kesmediği (`08.00–16.00` iki satıra
+sarıyor; sütun 13 birim), grafiklerin referans çizgisinin görünürlüğü.
+
+---
+
 ## 2026-08-14 — Tur 7: Düzenleme Sistemi — **BİTTİ**
 
 Kaynak: bu turun promptu. **Altı iş de bitti.** Çalışma
