@@ -19,6 +19,16 @@ export interface CizelgeSurumu {
   yayin_zamani: string | null
   olusturma_zamani: string
   guncelleme_zamani: string
+  /**
+   * Sürüm damgası — eş zamanlı düzenlemeyi yakalar (SRS TD-16, SDD 5.5.1).
+   *
+   * Kullanıcı düzenlemeye başlarken bu değeri alır, kaydederken geri
+   * gönderir. Damga değişmişse başka bir oturum aynı sürümü değiştirmiştir
+   * ve kayıt reddedilir; sessizce üzerine yazmak diğerinin işini iz
+   * bırakmadan yok ederdi. İstemci için ANLAMSIZ bir dizedir — yorumlanmaz,
+   * yalnızca taşınır.
+   */
+  damga: string
   // SDD 6.3.5 — Sürümler ekranının liste satırı bu ikisini de gösterir.
   // Hiç çözülmemiş bir taslakta toplam_ceza null olur.
   toplam_ceza: number | null

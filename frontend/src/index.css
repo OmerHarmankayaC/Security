@@ -243,21 +243,26 @@ select {
 
 @media print {
   body {
-    visibility: hidden;
     background: white;
   }
 
-  .yazdirma-alani,
-  .yazdirma-alani * {
-    visibility: visible;
+  /* Uygulama ağacı TÜMÜYLE düşer. Önceki hâli `visibility: hidden` ile
+     gizliyordu; gizli öğe yer kaplamaya devam ettiği için yazdırma alanı
+     mutlak konumlandırmayla en üste çekilmek zorundaydı ve AKIŞ DIŞINA
+     çıkan içerik sayfalanmıyordu. `display: none` yeri de kaldırır,
+     dolayısıyla mutlak konumlandırmaya gerek kalmaz. Önizleme gövdeye
+     portal ile bağlandığı için `#root`un kardeşidir (bkz.
+     YazdirmaOnizlemesi). */
+  #root {
+    display: none !important;
   }
 
-  .yazdirma-alani {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    overflow: visible;
+  /* Ekranda tam ekran bir katman; kâğıtta sıradan bir blok. Üçü de akışı
+     bozduğu için üçü de geri alınır. */
+  .yazdirma-kok {
+    position: static !important;
+    overflow: visible !important;
+    padding: 0 !important;
   }
 
   /* Ekranda görünen ama kâğıtta işi olmayan öğeler (kapat/yazdır butonları). */

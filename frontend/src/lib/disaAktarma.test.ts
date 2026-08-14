@@ -33,6 +33,7 @@ const SURUM: CizelgeSurumu = {
   yayin_zamani: null,
   olusturma_zamani: '2026-02-01T09:00:00Z',
   guncelleme_zamani: '2026-02-01T09:00:00Z',
+  damga: 'd1',
   toplam_ceza: 912,
   kapsama_acigi_sayisi: 2,
   fazla_kadro_sayisi: 0,
