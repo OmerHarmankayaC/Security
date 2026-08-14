@@ -45,6 +45,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 13.08.2026 | S4'ün sapma ölçüsü, S2 ve S3'ün kullandığı taban/tavan yöntemine çevrildi; üç adalet hedefi artık aynı yöntemi kullanıyor | 1.20 |
 | Ömer HARMANKAYA | 13.08.2026 | H1 ve H9'daki "gün d" ifadesi bloğun başlangıç gününe bağlandı; takvim günü sayımı gece yarısını aşan blokta günlük tavanı hiç tetiklemiyordu. 3.3.6'daki müracaat satırı ve blok sayısına dayalı toplam kaldırıldı | 1.21 |
 | Ömer HARMANKAYA | 13.08.2026 | 7.2'deki çizelge dışa aktarma biçimi saat modeline göre yeniden yazıldı; vardiya tipi ve gece bayrağı alanları kaldırıldı, başlangıç ve bitiş ISO damgasına çevrildi | 1.22 |
+| Ömer HARMANKAYA | 14.08.2026 | Manuel düzenleme taslak oturum modeline geçirildi (5.6): değişiklikler anında görünür ve geri alınabilir, sunucuya yalnızca kaydetmeyle yazılır; blok taşıma ve yayınlanmış sürümün salt okunurluğu gereksinim olarak yazıldı; TD-16 eklendi | 1.23 |
 
 
 
@@ -848,14 +849,33 @@ seçenek kullanıcıya yeni bir zaman limiti sorularak sunulur ve arayüzde
 
 | Kimlik | Gereksinim | Öncelik |
 | --- | --- | --- |
-| FR-6.1 | Sistem, taslak durumdaki bir çizelge üzerinde atamaların elle değiştirilmesine imkân vermelidir. | Zorunlu |
-| FR-6.2 | Sistem, her manuel değişiklikten sonra tüm zorunlu kısıtları yeniden değerlendirmeli ve ihlal edilen kuralları listelemelidir. | Zorunlu |
+| FR-6.1 | Sistem, taslak durumdaki bir çizelge üzerinde çalışma bloklarının doğrudan çizelge üzerinde oluşturulmasına, süresinin değiştirilmesine, kaldırılmasına ve başka bir personele taşınmasına imkân vermelidir. | Zorunlu |
+| FR-6.2 | Sistem, her değişiklikten sonra tüm zorunlu kısıtları yeniden değerlendirmeli ve ihlal edilen kuralları listelemelidir. Değerlendirme, o ana kadar biriken bütün değişikliklerin birlikte uygulandığı durum üzerinden yapılır. | Zorunlu |
 | FR-6.3 | Sistem, ihlal bildiriminde kuralın kimliğini, ilgili personeli, tarihi ve ihlalin gerekçesini anlaşılır bir cümleyle vermelidir. | Zorunlu |
-| FR-6.4 | Sistem, manuel değişikliğin esnek hedef cezalarına etkisini de göstermelidir. | Yüksek |
-| FR-6.5 | Sistem, belirli atamaların kilitlenmesine imkân vermeli; kilitli atamalar yeniden çözümde değiştirilmemelidir. | Zorunlu |
+| FR-6.4 | Sistem, değişikliğin sonucunu önce gündelik dille bildirmeli, sayısal ceza dökümünü isteğe bağlı ayrıntı olarak sunmalıdır. | Yüksek |
+| FR-6.5 | Sistem, belirli blokların kilitlenmesine imkân vermeli; kilitli bloklar yeniden çözümde değiştirilmemelidir. | Zorunlu |
 | FR-6.6 | Manuel doğrulama, çözücü modeliyle aynı kural tanımından beslenmelidir. | Zorunlu |
+| FR-6.7 | Sistem, yapılan değişikliklerin sırayla geri alınmasına ve yeniden uygulanmasına imkân vermelidir. | Zorunlu |
+| FR-6.8 | Değişiklikler çizelge sürümüne yalnızca kullanıcı kaydettiğinde yazılmalıdır. Kaydedilmeden bırakılan bir düzenleme oturumu sürümü değiştirmez; kullanıcı kaydedilmemiş değişikliklerle ekrandan ayrılmadan önce uyarılır. | Zorunlu |
+| FR-6.9 | Yayınlanmış bir çizelge sürümü üzerinde değişiklik yapılamaz. Değişiklik gerektiğinde yayınlanmış sürümden yeni bir taslak türetilir (FR-7.3). | Zorunlu |
 
+**Düzenleme çizelgenin üzerinde yapılır.** Blok, ızgarada sürükleyerek oluşturulur; kenarından tutularak uzatılır veya kısaltılır, gövdesinden tutularak gün içinde kaydırılır ya da başka bir personelin satırına taşınır. Ayrı bir form üzerinden saat girişi, tam değer yazmak isteyen kullanıcı için ikincil bir yol olarak bulunur; birincil yol değildir.
 
+Değişiklik bırakıldığı anda ızgarada görünür. Zorunlu kısıt ihlali doğuran bir değişiklik **uygulanmaz**: blok eski hâline döner ve hangi kuralın neden bozulduğu bloğun yanında bildirilir. Esnek hedef etkisi değişikliği engellemez.
+
+**Blok taşıma**, hedef personelin görev noktasının ön koşulunu taşımasını (H8) ve o saatlerde müsait olmasını (H7) gerektirir; taşıma bu iki kuralın ihlaline yol açıyorsa uygulanmaz.
+
+### TD-16 — Taslak düzenleme oturumu
+
+Düzenleme, sürüme her değişiklikte yazan bir işlem dizisi değil, **kaydedilene kadar biriken bir oturumdur**.
+
+Değişiklikler istemcide tutulur ve ızgarada anında görünür; geri alma ve yeniden uygulama bu birikimi ileri geri sürer. Sunucuya yazma tek bir noktada olur: kullanıcı kaydettiğinde, biriken bütün değişiklikler tek işlemde uygulanır. Kaydedilmeden kapatılan bir oturum sürümü hiç değiştirmez.
+
+**Doğrulama yine sunucuda kalır.** Her değişiklikte sunucuya bir doğrulama isteği gider ve istek, o ana kadar biriken değişikliklerin tamamını taşır; sunucu bunları sürümün üzerine düşünsel olarak uygular ve sonucu döndürür, hiçbir şey yazmaz. Kural değerlendirmesinin istemciye taşınması, kuralın ikinci bir yerde tanımlanması anlamına gelirdi — bu projede birkaç kez bedeli ödenmiş bir kalıptır (FR-6.6).
+
+Değerlendirmenin biriken değişikliklerin **tamamı** üzerinden yapılması zorunludur. Tek tek değişiklikler ayrı ayrı geçerli olsa da birlikte bir kuralı bozabilirler: iki ayrı gün için yapılan iki değişiklik, tek başına haftalık tavanı aşmazken birlikte aşar.
+
+Kaydetme, sürümün kullanıcı düzenlemeye başladığından beri değişmediğini doğrular. Değişmişse kayıt reddedilir ve kullanıcıya durum bildirilir; sessizce üzerine yazmak, başka bir kullanıcının işini iz bırakmadan yok eder.
 
 ## 5.7 Sürüm ve Yayın Yönetimi
 

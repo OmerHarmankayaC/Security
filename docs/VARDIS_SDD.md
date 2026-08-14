@@ -52,6 +52,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 13.08.2026 | Gerçek saatlik modele geçiş tasarlandı: `vardiya_tipi` tablosu kaldırıldı, `atama` blok kaydına çevrildi (başlangıç ve bitiş zamanı), model kurma mutlak saat ekseni üzerine yeniden yazıldı (5.3), Tanımlar'dan Vardiya Tipi sekmesi kaldırıldı ve Çizelge ekranı gün ızgarası ile hafta şeridine ayrıldı (6.3.1, 6.3.3) | 1.27 |
 | Ömer HARMANKAYA | 13.08.2026 | Ölçüm sonrası üç madde 5.3'e yazıldı: taşma göstergelerinin günlük tavanla sınırlanması, değişken elemenin kural kısıtlarını sessizce iptal edebilmesi ve ısıtma penceresinin gerçekten sabitlenmesinin doğrulanması | 1.28 |
 | Ömer HARMANKAYA | 13.08.2026 | Çizelge ekranının görünüm anahtarı ve nokta süzgeci 6.3.3'e, analiz yanıtındaki adil pay alanı Ek B'ye yazıldı; revizyon tablosunun sıralaması düzeltildi | 1.29 |
+| Ömer HARMANKAYA | 14.08.2026 | Manuel düzenleme taslak oturum modeline göre yeniden tasarlandı: doğrulamanın biriken değişikliklerin tamamı üzerinden yapılması ve kaydetmenin tek işlemde koşullu uygulanması 5.5'e, düzenleme etkileşimi 6.3.3'e, uç nokta değişiklikleri Ek B'ye yazıldı | 1.30 |
 
 
 
@@ -1015,42 +1016,86 @@ bırakılmaz, biri seçilir.
 
 ## 5.5 Manuel Düzenleme Doğrulaması
 
-Manuel düzenleme yalnızca bir doğrulama işlemi değildir: değişiklik kabul edildiğinde sürüme bağlı sapma tabloları da yeniden hesaplanır. Kapsama açığı ve fazla kadro kayıtları yalnızca çözücü tarafından yazılırsa, elle düzenlenmiş her sürümde analiz oranları, sürüm raporu ve dışa aktarılan dosya çözüm anındaki duruma göre bayat kalır. Yenileme, çözücünün kullandığı dönem sınırıyla aynı sınırı kullanır; ısıtma penceresine düşen günler hesaba katılmaz (SRS TD-5).
-
-Yönetici bir atamayı değiştirdiğinde, sistemin bir saniyenin altında kural ihlali bildirmesi beklenir. Bütün kuralların bütün dönem için sıfırdan yeniden değerlendirilmesi bu hedefi karşılamaz; bu nedenle doğrulama iki farklı kapsamda yürütülür ve kuralın kendi tanımına göre doğru kapsam seçilir.
-
-Zorunlu kısıtların (H1–H8) tamamı doğası gereği yereldir — en geniş kapsamlısı olan kayan yedi günlük saat tavanı bile yalnızca yedi günlük bir pencereye bakar. Bu kurallar için değiştirilen günün yedi gün öncesi ve yedi gün sonrasından oluşan pencere yeterlidir; pencere dışındaki atamalar kuralın sonucunu hiçbir zaman etkilemez.
-
-Esnek hedeflerin (S1–S8) bir kısmı ise dönem geneline yayılan bir toplam veya bir agregasyon üzerine kuruludur ve pencereyle sınırlandırılamaz. S1'in kapsama açığı her (gün, vardiya, nokta) hücresini kendi talebine göre değerlendirir; bir hücrelik değişikliğin S1 cezasına etkisi yalnızca o hücreye bakılarak hesaplanabilir ve bu doğası gereği zaten yereldir. S2, S3 ve S4 ise dönem genelindeki en yüksek ve en düşük değere (adalet) veya kişinin dönem toplamına (saat dengesi) bakar; bir kişinin tek bir gününün değişmesi bu agregatı kaydırabileceğinden, doğru bir ceza farkı ancak ilgili kişi veya dönem genelindeki mevcut değerle karşılaştırılarak hesaplanabilir. Bu nedenle S2–S4'ün ceza_degisimi hesabı, pencere yerine dönem genelindeki atama kümesi üzerinden, değişiklik öncesi ve sonrası olmak üzere iki kez çalıştırılır.
+Düzenleme, kaydedilene kadar biriken bir oturumdur (SRS TD-16). Sunucu iki uç
+nokta sunar ve ikisi de aynı kural uygulamasından beslenir:
 
 ```
-FONKSİYON degisikligi_dogrula(surum_id, degisiklik):
-    kurallar ← kurallari_yukle()
-    pencere ← etkilenen_pencere(degisiklik, kurallar)
-    atamalar_pencere ← AtamaDeposu.getir(surum_id, pencere)
-                       UYGULA degisiklik
-    atamalar_donem ← AtamaDeposu.getir(surum_id, TÜM_DÖNEM)
-                     UYGULA degisiklik
+FONKSİYON dogrula(surum_id, bekleyen_degisiklikler):
+    baglam ← BaglamKurucu.kur(surum.donem)          # ısıtma penceresi dahil
+    atamalar ← CizelgeDeposu.atamalar(surum_id)
+    aday ← atamalari_uygula(atamalar, bekleyen_degisiklikler)   # bellekte
 
     ihlaller ← []
-    HER kural İÇİN kurallar:
-        atamalar ← EĞER kural.kapsam = DÖNEM_GENELİ
-                   İSE atamalar_donem DEĞİLSE atamalar_pencere
-        ihlaller.EKLE_HEPSİNİ(kural.dogrula(atamalar, baglam))
+    HER kural İÇİN KuralKayitDefteri.zorunlu_kurallar():
+        ihlaller += kural.dogrula(aday, baglam)
 
-    zorunlu ← ihlaller.SÜZ(tip = ZORUNLU)
-    esnek   ← ihlaller.SÜZ(tip = ESNEK)
-    DÖNDÜR DogrulamaSonucu(
-        kabul_edilebilir = zorunlu.BOŞ_MU(),
-        zorunlu_ihlaller = zorunlu,
-        ceza_degisimi    = esnek.ceza_farki())
+    cezalar ← {}
+    HER hedef İÇİN KuralKayitDefteri.esnek_hedefler():
+        cezalar[hedef] ← hedef.dogrula(aday, baglam)
+
+    DÖNDÜR (ihlaller, cezalar, sapma_ozeti(aday, baglam))
 ```
 
+**Hiçbir şey yazılmaz.** Aday çizelge bellekte kurulur; işlem açılmaz, sapma
+tabloları tazelenmez. Bu, "kaydedilmezse değişiklik olmaz" kuralının uygulama
+karşılığıdır.
 
+**Değerlendirme biriken değişikliklerin tamamı üzerinden yapılır.** Tek tek
+geçerli olan iki değişiklik birlikte bir kuralı bozabilir: iki ayrı güne yapılan
+uzatma, ayrı ayrı haftalık tavanı aşmazken birlikte aşar. İstek bu nedenle son
+değişikliği değil, oturumun tamamını taşır. Yükü sınırlıdır — bir dönemdeki
+atama sayısı birkaç yüzdür.
 
-Kural sınıfının kapsam alanı sabittir ve kural tanımından gelir; çalışma zamanında hesaplanmaz. H1–H8 ile S1, S5, S6, S6b, S7 ve S8 pencere kapsamındadır — S1 ve S8'in kendisi dönem genelinde tanımlı olsa da, bir tek hücrelik değişikliğin bu iki kural üzerindeki etkisi yalnızca o hücreye bakılarak hesaplanabildiğinden pencere yeterlidir. S2, S3 ve S4 dönem geneli kapsamındadır. Dönem genelindeki atama sayısı tipik bir örnekte (kırk personel, yirmi sekiz gün) bin iki yüz satır civarındadır; bu ölçekte iki kez tarama milisaniyeler sürer ve hedeflenen sürenin belirgin altında kalır.
+Doğrulamanın istemciye taşınması reddedilmiştir: kural o durumda ikinci bir
+yerde tanımlanmış olurdu ve çözücü ile doğrulayıcının aynı tanımdan beslenmesi
+(SDD 3.2.1) bozulurdu.
 
-Zorunlu kısıt ihlali değişikliği reddeder; esnek hedef ihlali ise yalnızca ceza değişimi olarak bildirilir ve karar kullanıcıya bırakılır. Bu ayrım, sistemin kararı devralmayıp destekleme ilkesinin doğrudan uygulamasıdır.
+### 5.5.1 Kaydetme
+
+```
+YORDAM kaydet(surum_id, bekleyen_degisiklikler, surum_damgasi):
+    İŞLEM BAŞLAT:
+        surum ← CizelgeDeposu.kilitle(surum_id)      # SELECT … FOR UPDATE
+        EĞER surum.durum ≠ taslak:
+            HATA VER 'Yayınlanmış sürüm değiştirilemez'
+        EĞER surum.damga ≠ surum_damgasi:
+            HATA VER 'Sürüm düzenleme başladığından beri değişti'
+
+        ihlaller ← dogrula(surum_id, bekleyen_degisiklikler).ihlaller
+        EĞER ihlaller BOŞ DEĞİL: HATA VER ihlaller
+
+        atamalari_uygula_ve_yaz(surum_id, bekleyen_degisiklikler)
+        sapmalari_yenile(surum_id)
+        surum.damga ← YENİ_DAMGA()
+    İŞLEM BİTİR
+```
+
+**Kaydetme tek işlemdir.** Değişikliklerin bir kısmının yazılıp bir kısmının
+yazılamaması, kullanıcının ekranda gördüğüyle veritabanındaki durumun ayrışması
+demektir; kısmi kayıt yoktur.
+
+**Sürüm damgası** eş zamanlı düzenlemeyi yakalar. Kullanıcı düzenlemeye
+başladığında sürümün damgasını alır, kaydederken geri gönderir. Damga
+değişmişse başka bir oturum aynı sürümü değiştirmiştir ve kayıt reddedilir.
+Sessizce üzerine yazmak, diğer kullanıcının işini iz bırakmadan yok eder.
+
+**Doğrulama kaydetme anında tekrarlanır.** İstemciden gelen "geçerliydi"
+bilgisine güvenilmez; arada tanımlar değişmiş, kural parametresi güncellenmiş
+veya müsaitlik kaydı girilmiş olabilir.
+
+Kaydetme sonrası sapma tabloları tazelenir — kapsama açığı ve fazla kadro
+kayıtları yeniden hesaplanır ve aralık birleştirmesinden geçer (4.2.4).
+
+### 5.5.2 Yayınlanmış sürüm
+
+Yayınlanmış sürümler salt okunurdur (SRS FR-6.9). Kilit hem uç nokta düzeyinde
+hem yordamın içinde uygulanır: arayüzün düzenleme araçlarını gizlemesi tek
+başına yeterli değildir, çünkü istek doğrudan da gönderilebilir.
+
+Değişiklik gerektiğinde yayınlanmış sürümden yeni bir taslak türetilir (FR-7.3).
+Bu, yayınlanmış çizelgenin sahada dağıtılmış olmasının doğal sonucudur: dağıtılan
+bir çizelgenin sessizce değişmesi, elindeki kâğıdın artık geçerli olmadığını
+kimsenin bilmemesi demektir.
 
 ## 5.6 Değişim Odaklı Yeniden Çözme
 
@@ -1235,9 +1280,23 @@ düzendedir. İki sunum kuralı vardır:
 
 - Hücre Rengi: Renk, saatin kendisinden hesaplanır — gece saatleri koyu, gündüz açık, aradaki geçiş süreklidir. Sabit üç kategori (gündüz, akşam, gece) çalışma zamanının kataloglu olduğu sürümlere aitti; blok kalmadığı için kategorik renk de kalkmıştır.
 
-- Hücre Düzenleme: Bir personelin gün satırında sürükleyerek veya başlangıç ve bitiş saati seçilerek blok tanımlanır. Görev noktası blok boyunca tektir (SRS H1). Seçim yapıldığında doğrulama isteği gönderilir.
+- Blok Düzenleme: Düzenleme ızgaranın üzerinde yapılır. Boş bir satırda sürükleyerek blok oluşturulur; bloğun kenarından tutularak uzatılır veya kısaltılır, gövdesinden tutularak gün içinde kaydırılır ya da başka bir personelin satırına taşınır. Bloğa tıklandığında görev noktası değiştirme, kilitleme ve silme eylemlerini taşıyan küçük bir menü açılır.
 
-- İhlal Bildirimi: Doğrulama sonucu zorunlu kısıt ihlali içeriyorsa değişiklik uygulanmaz; hangi kuralın hangi gerekçeyle bozulduğu bloğun yanında gösterilir. Esnek hedef ihlalinde değişiklik uygulanır ve ceza değişimi bilgilendirme olarak gösterilir.
+  Sürükleme sırasında oluşan aralık blok üzerinde yazılıdır ve asgari blok süresi ile günlük tavan sınırlarına dayanınca sürükleme durur; kullanıcı geçersiz bir seçim yapıp reddedilmek yerine sınırı hisseder. Değerler kural kataloğundan okunur.
+
+  Ayrı bir form üzerinden başlangıç ve bitiş saati girmek **ikincil** bir yoldur; tam değer yazmak isteyen kullanıcı içindir ve ızgaranın yerini almaz.
+
+- Anında Uygulama ve Geri Alma: Değişiklik bırakıldığı anda ızgarada görünür. Geri alma ve yeniden uygulama, oturumdaki değişiklik yığınını ileri geri sürer (SRS FR-6.7).
+
+- İhlal Bildirimi: Zorunlu kısıt ihlali doğuran değişiklik **uygulanmaz**; blok eski hâline döner ve hangi kuralın neden bozulduğu bloğun yanında gösterilir. Esnek hedef etkisi değişikliği engellemez.
+
+- Sonuç Şeridi: Uygulanan değişikliğin etkisi gündelik dille bildirilir — "Vardiya Şefliği'ndeki açık kapandı, toplam saat dengesi bir saat bozuldu" gibi. Sayısal ceza dökümü bu şeridin altındaki bir ayrıntı bağlantısının arkasındadır (SRS FR-6.4).
+
+  Ağırlıklı ceza toplamı kullanıcının okumak zorunda olduğu bir sayı değildir. "Ceza değişimi −9999" ifadesi tek başına yönünü bile söylemez; aynı ekranda hem "kabul edilebilir" hem kırmızı bir uyarı bulunması üç ayrı işaretin üç yöne bakması demektir.
+
+- Kaydetme: Değişiklikler sürüme yalnızca kaydetmeyle yazılır (SRS FR-6.8). Kaydedilmemiş değişiklik bulunduğu ekranın üstünde görünür ve kullanıcı ekrandan ayrılmadan önce uyarılır.
+
+- Yayınlanmış Sürüm: Salt okunurdur (SRS FR-6.9). Düzenleme araçları görünmez ve ekranda değişiklik için yeni bir taslak türetilmesi gerektiği belirtilir.
 
 - Kilitleme Anahtarı: Bir bloğu kilitler. Kilitli bloklar yeniden çözümde sabit girdi olarak korunur ve ızgarada ayırt edici biçimde işaretlenir.
 
@@ -1441,8 +1500,8 @@ Aşağıdaki tablo başlıca uç noktaların işlevsel bir özetidir. Uç noktal
 | /api/cozum/aktif | GET | Devam eden veya karar bekleyen iş; kabuktaki gösterge bunu yoklar |
 | /api/cozum/{id}/durdur | POST | Aramanın sonlandırılması. Arama sürüyorsa iş karar bekleyen duruma geçer, henüz kuyrukta veya ön kontroldeyse doğrudan iptal edilir (5.4.1). Durdurulamayacak bir durumdaki iş için istek reddedilir |
 | /api/cozum/{id}/karar | POST | Durdurulan işte kullanıcı kararı (kullan / at / devam) |
-| /api/atama/dogrula | POST | Manuel değişikliğin kural doğrulaması |
-| /api/atama | PUT | Doğrulanmış manuel değişikliğin uygulanması |
+| /api/atama/dogrula | POST | Düzenleme oturumundaki bütün bekleyen değişikliklerin kural doğrulaması; hiçbir şey yazmaz |
+| /api/atama/kaydet | POST | Düzenleme oturumundaki değişikliklerin tek işlemde uygulanması; sürüm damgası çakışmasında ve yayınlanmış sürümde reddedilir |
 | /api/analiz/{surum_id} | GET | Analiz metriklerinin hesaplanması; kişiye düşen adil pay değerleri dahil |
 | /api/calisan/vardiyalarim | GET | Çalışanın yayınlanmış çizelgedeki atamaları |
 | /api/calisan/tercih | GET, POST | Çalışanın tercih bildirimi |
