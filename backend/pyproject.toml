@@ -44,6 +44,11 @@ dependencies = [
     # guncellenmesi ISTENMEZ - tatil listesinin ne zaman degistigi
     # izlenebilir olmali.
     "holidays==0.102",
+    # Excel ciktisi (SRS FR-8.5, FR-8.9; SDD 5.8). Saf Python, derleme
+    # gerektirmez ve grafik (BarChart + LineChart birlesimi) uretebilir -
+    # adalet grafiginin referans cizgisi bu birlesimle ciziliyor. Surum
+    # sabitlemesi digerleriyle ayni sozlesmede.
+    "openpyxl==3.1.5",
 ]
 
 [project.optional-dependencies]

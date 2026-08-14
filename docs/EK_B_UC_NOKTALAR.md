@@ -113,6 +113,8 @@ listeliyordu ve kimlik doğrulama turunu hiç içermiyordu.
 | `/api/surum` | POST | yonetici + yonetim | Yayinlanmis surumden taslak turetme (FR-7.3) |
 | `/api/surum/karsilastir` | GET | yonetici + yonetim | Iki surum arasindaki fark (FR-7.5) |
 | `/api/surum/{surum_id}/atama` | GET | yonetici + yonetim | Surumun atamalari |
+| `/api/surum/{surum_id}/cizelge.xlsx` | GET | yonetici + yonetim | Cizelgenin uc sayfali Excel ciktisi: Cizelge, Ozet, Ham veri (FR-8.5) |
+| `/api/surum/{surum_id}/analiz.xlsx` | GET | yonetici + yonetim | Analizin dort sayfali, grafikli Excel ciktisi (FR-8.9) |
 | `/api/surum/{surum_id}/fazla-kadro` | GET | yonetici + yonetim | Talepten fazla kadro yazilmis hucreler (SRS 4.3 S1 ust siniri) |
 | `/api/surum/{surum_id}/kapsama-acigi` | GET | yonetici + yonetim | Surumun kapsama aciklari (FR-5.3) |
 | `/api/surum/{surum_id}/kopyala` | POST | yonetici + yonetim | Arsivden taslak kopyalama (FR-7.6) |

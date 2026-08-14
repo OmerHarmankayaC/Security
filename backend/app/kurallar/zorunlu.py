@@ -630,18 +630,10 @@ class H10YillikFazlaCalismaKotasi(ZorunluKural):
     def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
         esik = float(self.parametreler["fazla_calisma_esigi"])
         kota = float(self.parametreler["yillik_fazla_kotasi"])
-        saatler = gunluk_saat(atamalar)
+        fazlalar = h10_fazla_calisma_saatleri(atamalar, baglam, esik)
         ihlaller: list[Ihlal] = []
         for personel_id in sorted(baglam.personel):
-            gunluk = saatler.get(personel_id, {})
-            # modele_ekle ile AYNI hafta kumesi: donemin dokundugu haftalar.
-            # Iki yorumlayicinin ayni sayiyi uretmesi zorunludur (SDD 3.2.1).
-            toplam_fazla = 0.0
-            for gunler in takvim_haftalari(gunluk).values():
-                if not any(baglam.donem_icinde(g) for g in gunler):
-                    continue
-                haftalik = sum(gunluk[g] for g in gunler)
-                toplam_fazla += max(haftalik - esik, 0.0)
+            toplam_fazla = fazlalar.get(personel_id, 0.0)
             devir = baglam.devir_fazla_calisma_saat(personel_id)
             if devir + toplam_fazla > kota:
                 ihlaller.append(
@@ -657,7 +649,35 @@ class H10YillikFazlaCalismaKotasi(ZorunluKural):
         return ihlaller
 
 
+def h10_fazla_calisma_saatleri(
+    atamalar: list[AtamaKaydi], baglam: Baglam, esik: float
+) -> dict[int, float]:
+    """Kisi basina DONEM ICINDEKI fazla calisma saati (SRS 4.2 H10).
+
+    Haftalik toplamin esigi astigi kadari, donemin dokundugu her takvim
+    haftasi icin toplanir. Tumuyle isitma penceresinde kalan hafta W'ye
+    girmez: orasi gecmistir ve `devir[p]` ile temsil edilir; iki kez
+    sayilmasi kotayi olmadigi kadar dolu gosterirdi.
+
+    H10'un `dogrula`si ve DISA AKTARMA ayni fonksiyondan beslenir. Disa
+    aktarmanin kendi toplamini hesaplamasi, dosyada ekranda hic bulunmayan
+    bir sayi olusturmasi demekti (SDD 5.8: "ikinci bir hesap yapmaz").
+    """
+    saatler = gunluk_saat(atamalar)
+    sonuc: dict[int, float] = {}
+    for personel_id in sorted(baglam.personel):
+        gunluk = saatler.get(personel_id, {})
+        toplam = 0.0
+        for gunler in takvim_haftalari(gunluk).values():
+            if not any(baglam.donem_icinde(g) for g in gunler):
+                continue
+            toplam += max(sum(gunluk[g] for g in gunler) - esik, 0.0)
+        sonuc[personel_id] = toplam
+    return sonuc
+
+
 __all__ = [
+    "h10_fazla_calisma_saatleri",
     "H1GundeTekKesintisizCalisma",
     "H2AsgariDinlenme",
     "H3ArdisikGeceUstSiniri",
