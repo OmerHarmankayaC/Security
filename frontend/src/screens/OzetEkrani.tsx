@@ -13,7 +13,7 @@ import { AppShell, type NavOgesi } from '../components/AppShell'
 import { Kart, KartEtiketi, Rozet, Sayi } from '../components/app-ui'
 import { bugunIso, gunKisaltmasiVeNumarasi, isoAyristir } from '../lib/tarih'
 import { sayiBicimle } from '../lib/sayi'
-import { araligiYaz } from '../lib/talepAraligi'
+import { sapmaEtiketi, sapmaGunu } from '@/lib/blok'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -148,13 +148,13 @@ export function OzetEkrani({ ekranSec }: Props) {
               <li key={k.acik_id} className="flex items-center gap-3 border-b border-rule pb-3 last:border-none">
                 <span className="size-1.5 shrink-0 rounded-full bg-signal" />
                 <span className="w-16 shrink-0 font-mono text-sm font-semibold text-ink">
-                  {gunKisaltmasiVeNumarasi(k.tarih).toUpperCase()}
+                  {gunKisaltmasiVeNumarasi(sapmaGunu(k)).toUpperCase()}
                 </span>
                 <Rozet varyant="notr" genislik={110}>
                   {noktaMap.get(k.nokta_id)?.ad ?? `Nokta ${k.nokta_id}`}
                 </Rozet>
                 <span className="text-sm text-ink-muted">
-                  {k.eksik_sayi} eksik ({araligiYaz(k.baslangic, k.bitis)})
+                  {k.eksik_sayi} eksik ({sapmaEtiketi(k)})
                 </span>
               </li>
             ))}

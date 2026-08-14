@@ -141,17 +141,15 @@ def senaryo() -> dict[str, int]:
             [
                 KapsamaAcigi(
                     surum_id=s2.surum_id,
-                    tarih=gun0,
-                    baslangic=time(8, 0),
-                    bitis=time(16, 0),
+                    baslangic_zamani=datetime.combine(gun0, time(8, 0)),
+                    bitis_zamani=datetime.combine(gun0, time(16, 0)),
                     nokta_id=nokta.nokta_id,
                     eksik_sayi=2,
                 ),
                 KapsamaAcigi(
                     surum_id=s2.surum_id,
-                    tarih=gun1,
-                    baslangic=time(8, 0),
-                    bitis=time(16, 0),
+                    baslangic_zamani=datetime.combine(gun1, time(8, 0)),
+                    bitis_zamani=datetime.combine(gun1, time(16, 0)),
                     nokta_id=nokta.nokta_id,
                     eksik_sayi=1,
                 ),

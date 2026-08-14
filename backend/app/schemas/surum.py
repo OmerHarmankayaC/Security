@@ -1,6 +1,6 @@
 """/api/donem, /api/surum, /api/surum/{id}/atama+kapsama-acigi semalari (SDD Ek B)."""
 
-from datetime import date, datetime, time
+from datetime import date, datetime
 from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, computed_field, model_validator
@@ -92,9 +92,10 @@ class KapsamaAcigiOku(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     acik_id: int
-    tarih: date
-    baslangic: time
-    bitis: time
+    # ZAMAN DAMGASI (B-23): gece yarisini asan aralik tek kayitta durur ve
+    # disa aktarmada ISO damgasi olarak yazilir (SRS 7.2).
+    baslangic_zamani: datetime
+    bitis_zamani: datetime
     nokta_id: int
     eksik_sayi: int
 
@@ -109,9 +110,8 @@ class FazlaKadroOku(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     fazla_id: int
-    tarih: date
-    baslangic: time
-    bitis: time
+    baslangic_zamani: datetime
+    bitis_zamani: datetime
     nokta_id: int
     fazla_sayi: int
 

@@ -134,9 +134,8 @@ describe('kapsama açığı gün başlığında toplanır', () => {
         kapsamaAcigi={[
           {
             acik_id: 1,
-            tarih: '2026-02-05',
-            baslangic: '06:00:00',
-            bitis: '08:00:00',
+            baslangic_zamani: '2026-02-05T06:00:00+03:00',
+            bitis_zamani: '2026-02-05T08:00:00+03:00',
             nokta_id: 1,
             eksik_sayi: 3,
           },

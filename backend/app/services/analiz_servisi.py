@@ -120,9 +120,8 @@ class AnalizServisi:
         fazla_satirlari = self.fazla_kadro.surume_gore_getir(surum_id)
         fazla_kadro = [
             FazlaKadroKalemi(
-                tarih=f.tarih,
-                baslangic=f.baslangic,
-                bitis=f.bitis,
+                baslangic_zamani=f.baslangic_zamani,
+                bitis_zamani=f.bitis_zamani,
                 nokta_id=f.nokta_id,
                 nokta_ad=_ad(baglam.gorev_noktalari.get(f.nokta_id)),
                 fazla_sayi=f.fazla_sayi,

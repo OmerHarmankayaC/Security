@@ -22,7 +22,7 @@ elindeki en iyi cozumu ATAMALARA degil `gecici_sonuc` alanina yazar; is
 import enum
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -74,7 +74,7 @@ _DURDURMADA_COZUM_YOK_MESAJI = (
 
 def _araliklara_cevir(
     saat_eksikleri: dict[tuple[date, int, int], int],
-) -> tuple[tuple[date, time, time, int, int], ...]:
+) -> tuple[tuple[datetime, datetime, int, int], ...]:
     """Cozucunun `(gun, saat, nokta) -> eksik` ciktisini ARALIGA cevirir.
 
     Birlestirme YAZMA aninda yapilir (SDD 4.2.4) ve `dogrula` yolunun
@@ -85,10 +85,10 @@ def _araliklara_cevir(
     for (tarih, saat, nokta_id), sayi in saat_eksikleri.items():
         if sayi > 0:
             nokta_saatleri.setdefault(nokta_id, {})[(tarih, saat)] = sayi
-    cikti: list[tuple[date, time, time, int, int]] = []
+    cikti: list[tuple[datetime, datetime, int, int]] = []
     for nokta_id, saatler in sorted(nokta_saatleri.items()):
-        for tarih, bas, bit, sayi in saatleri_araliklara_birlestir(saatler):
-            cikti.append((tarih, bas, bit, nokta_id, sayi))
+        for bas, bit, sayi in saatleri_araliklara_birlestir(saatler):
+            cikti.append((bas, bit, nokta_id, sayi))
     return tuple(cikti)
 
 
@@ -155,13 +155,13 @@ class CozumYazmaVerisi:
     # (personel_id, baslangic, bitis, nokta_id) — BLOK (SDD 4.2.1).
     atamalar: tuple[tuple[int, datetime, datetime, int], ...]
     # (tarih, baslangic, bitis, nokta_id, sayi) — ARALIK (SDD 4.2.4).
-    kapsama_eksikleri: tuple[tuple[date, time, time, int, int], ...]
+    kapsama_eksikleri: tuple[tuple[datetime, datetime, int, int], ...]
     # Cozucu fazla kadro URETEMEZ (S1'in ust siniri modele zorunlu kisit
     # olarak giriyor), bu yuzden cozum sonucundan gelen deger her zaman
     # bostur. Alan yine de tasinir: SDD 4.2.4 gecici sonucun icerigini
     # boyle tanimlar ve yazma blogu ucuncu tabloyu da temizledigi icin
     # sozlesme eksiksiz kalir.
-    fazla_kadro: tuple[tuple[date, time, time, int, int], ...] = ()
+    fazla_kadro: tuple[tuple[datetime, datetime, int, int], ...] = ()
     ceza_dokumu: dict[str, float] = field(default_factory=dict)
     toplam_ceza: float | None = None
     sure_saniye: float | None = None
@@ -199,12 +199,12 @@ class CozumYazmaVerisi:
                 for personel_id, baslangic, bitis, nokta_id in self.atamalar
             ],
             "kapsama_eksikleri": [
-                [tarih.isoformat(), bas.isoformat(), bit.isoformat(), nokta_id, sayi]
-                for tarih, bas, bit, nokta_id, sayi in self.kapsama_eksikleri
+                [bas.isoformat(), bit.isoformat(), nokta_id, sayi]
+                for bas, bit, nokta_id, sayi in self.kapsama_eksikleri
             ],
             "fazla_kadro": [
-                [tarih.isoformat(), bas.isoformat(), bit.isoformat(), nokta_id, sayi]
-                for tarih, bas, bit, nokta_id, sayi in self.fazla_kadro
+                [bas.isoformat(), bit.isoformat(), nokta_id, sayi]
+                for bas, bit, nokta_id, sayi in self.fazla_kadro
             ],
             "ceza_dokumu": self.ceza_dokumu,
             "toplam_ceza": self.toplam_ceza,
@@ -219,24 +219,12 @@ class CozumYazmaVerisi:
                 for p, b, s, n in veri["atamalar"]
             ),
             kapsama_eksikleri=tuple(
-                (
-                    date.fromisoformat(g),
-                    time.fromisoformat(b),
-                    time.fromisoformat(s),
-                    int(n),
-                    int(k),
-                )
-                for g, b, s, n, k in veri.get("kapsama_eksikleri", [])
+                (datetime.fromisoformat(b), datetime.fromisoformat(s), int(n), int(k))
+                for b, s, n, k in veri.get("kapsama_eksikleri", [])
             ),
             fazla_kadro=tuple(
-                (
-                    date.fromisoformat(g),
-                    time.fromisoformat(b),
-                    time.fromisoformat(s),
-                    int(n),
-                    int(k),
-                )
-                for g, b, s, n, k in veri.get("fazla_kadro", [])
+                (datetime.fromisoformat(b), datetime.fromisoformat(s), int(n), int(k))
+                for b, s, n, k in veri.get("fazla_kadro", [])
             ),
             ceza_dokumu=dict(veri.get("ceza_dokumu") or {}),
             toplam_ceza=veri.get("toplam_ceza"),
@@ -457,21 +445,19 @@ def _sonucu_yaz(
                 kaynak=AtamaKaynagi.COZUCU,
             )
         )
-    for tarih, bas, bit, nokta_id, eksik_sayi in veri.kapsama_eksikleri:
+    for bas, bit, nokta_id, eksik_sayi in veri.kapsama_eksikleri:
         kapsama_depo.olustur(
             surum_id=surum.surum_id,
-            tarih=tarih,
-            baslangic=bas,
-            bitis=bit,
+            baslangic_zamani=bas,
+            bitis_zamani=bit,
             nokta_id=nokta_id,
             eksik_sayi=eksik_sayi,
         )
-    for tarih, bas, bit, nokta_id, fazla_sayi in veri.fazla_kadro:
+    for bas, bit, nokta_id, fazla_sayi in veri.fazla_kadro:
         fazla_depo.olustur(
             surum_id=surum.surum_id,
-            tarih=tarih,
-            baslangic=bas,
-            bitis=bit,
+            baslangic_zamani=bas,
+            bitis_zamani=bit,
             nokta_id=nokta_id,
             fazla_sayi=fazla_sayi,
         )

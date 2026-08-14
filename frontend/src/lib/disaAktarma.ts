@@ -7,8 +7,7 @@ import type {
   KapsamaAcigi,
   Personel,
 } from '@/api/types'
-import { geceSaati, saatEtiketi } from './blok'
-import { saatiCoz } from './talepAraligi'
+import { geceSaati } from './blok'
 import { haftaSonuMu } from './tarih'
 
 /**
@@ -102,7 +101,6 @@ const CIZELGE_BASLIKLARI = [
  * talepten nerede saptı" sorusunun yanıtını ikiye bölerdi.
  */
 const SAPMA_BASLIKLARI = [
-  'tarih',
   'baslangic',
   'bitis',
   'gorev_noktasi',
@@ -186,7 +184,6 @@ export function cizelgeCsvOlustur(veri: CizelgeVerisi): string {
  */
 export function kapsamaAcigiCsvOlustur(veri: CizelgeVerisi): string {
   type SapmaSatiri = {
-    tarih: string
     baslangic: string
     bitis: string
     nokta_id: number
@@ -196,17 +193,15 @@ export function kapsamaAcigiCsvOlustur(veri: CizelgeVerisi): string {
 
   const sapmalar: SapmaSatiri[] = [
     ...veri.kapsamaAcigi.map((k) => ({
-      tarih: k.tarih,
-      baslangic: k.baslangic,
-      bitis: k.bitis,
+      baslangic: k.baslangic_zamani,
+      bitis: k.bitis_zamani,
       nokta_id: k.nokta_id,
       tur: 'eksik' as const,
       kisi_sayisi: k.eksik_sayi,
     })),
     ...veri.fazlaKadro.map((f) => ({
-      tarih: f.tarih,
-      baslangic: f.baslangic,
-      bitis: f.bitis,
+      baslangic: f.baslangic_zamani,
+      bitis: f.bitis_zamani,
       nokta_id: f.nokta_id,
       tur: 'fazla' as const,
       kisi_sayisi: f.fazla_sayi,
@@ -216,16 +211,16 @@ export function kapsamaAcigiCsvOlustur(veri: CizelgeVerisi): string {
   const satirlar = sapmalar
     .sort(
       (a, b) =>
-        a.tarih.localeCompare(b.tarih) ||
         a.baslangic.localeCompare(b.baslangic) ||
         a.nokta_id - b.nokta_id ||
         a.tur.localeCompare(b.tur),
     )
     .map((s) =>
       satir([
-        s.tarih,
-        saatEtiketi(saatiCoz(s.baslangic)),
-        saatEtiketi(saatiCoz(s.bitis, true)),
+        // TAM ISO DAMGASI (B-23, SRS 7.2). Tarih + saat metni gece yarısını
+        // aşan bir açık aralığını makineye söyleyemiyordu.
+        s.baslangic,
+        s.bitis,
         veri.noktaMap.get(s.nokta_id)?.ad ?? '',
         s.tur,
         s.kisi_sayisi,

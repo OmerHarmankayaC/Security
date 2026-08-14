@@ -5,12 +5,14 @@ import {
   blokEtiketi,
   gununParcalari,
   saatEtiketi,
+  sapmaGunu,
+  sapmaSuresi,
   type GunParcasi,
 } from '@/lib/blok'
 import { sinirUyarisi, type BlokSinirlari } from '@/lib/kuralParametre'
+import { gunEkle } from '@/lib/tarih'
 import { kisalt } from '@/lib/metin'
 import { sayiBicimle } from '@/lib/sayi'
-import { araligiSure } from '@/lib/talepAraligi'
 import { ETIKET_ZEMINI, KILIT_DOKUSU, aralikGradyani, saatRengi } from '@/lib/saatRengi'
 import { cn } from '@/lib/utils'
 
@@ -188,11 +190,15 @@ export function GunIzgarasi({
   const acikSaatler = useMemo(() => {
     const indeks = new Map<number, Map<number, number>>()
     for (const k of kapsamaAcigi) {
-      if (k.tarih !== gun) continue
-      const bas = Number(k.baslangic.slice(0, 2))
-      const sure = araligiSure(bas, Number(k.bitis.slice(0, 2)))
+      // Aralık gün sınırını aşabilir (B-23): 22.00–02.00 tek kayıttır ve
+      // İKİ günün ızgarasında da işaretlenmelidir. Bu yüzden filtre kaydın
+      // gününe değil, açılan SAATLERİN gününe bakar.
+      const bas = Number(k.baslangic_zamani.slice(11, 13))
+      const sure = sapmaSuresi(k)
       for (let i = 0; i < sure; i += 1) {
-        const saat = (bas + i) % 24
+        const mutlak = bas + i
+        if (gunEkle(sapmaGunu(k), Math.floor(mutlak / 24)) !== gun) continue
+        const saat = mutlak % 24
         let noktalar = indeks.get(saat)
         if (!noktalar) {
           noktalar = new Map()

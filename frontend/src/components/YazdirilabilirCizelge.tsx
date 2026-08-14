@@ -1,9 +1,8 @@
 import { useMemo } from 'react'
 import type { Atama, GorevNoktasi, Personel } from '@/api/types'
-import { blokEtiketi, gununParcalari } from '@/lib/blok'
+import { blokEtiketi, gununParcalari, sapmaEtiketi, sapmaGunu } from '@/lib/blok'
 import type { CizelgeVerisi } from '@/lib/disaAktarma'
 import { aralikGradyani } from '@/lib/saatRengi'
-import { araligiYaz } from '@/lib/talepAraligi'
 import { buyukHarf, kisalt } from '@/lib/metin'
 import {
   donemAraligiBicimle,
@@ -79,7 +78,7 @@ export function YazdirilabilirCizelge({
     () =>
       kapsamaAcigi
         .slice()
-        .sort((a, b) => a.tarih.localeCompare(b.tarih) || a.nokta_id - b.nokta_id),
+        .sort((a, b) => sapmaGunu(a).localeCompare(sapmaGunu(b)) || a.nokta_id - b.nokta_id),
     [kapsamaAcigi],
   )
   const toplamEksik = acikSatirlari.reduce((toplam, k) => toplam + k.eksik_sayi, 0)
@@ -88,7 +87,7 @@ export function YazdirilabilirCizelge({
     () =>
       fazlaKadro
         .slice()
-        .sort((a, b) => a.tarih.localeCompare(b.tarih) || a.nokta_id - b.nokta_id),
+        .sort((a, b) => sapmaGunu(a).localeCompare(sapmaGunu(b)) || a.nokta_id - b.nokta_id),
     [fazlaKadro],
   )
   const toplamFazla = fazlaSatirlari.reduce((toplam, f) => toplam + f.fazla_sayi, 0)
@@ -150,10 +149,10 @@ export function YazdirilabilirCizelge({
                 {acikSatirlari.map((k) => (
                   <tr key={k.acik_id}>
                     <td className="border border-neutral-400 px-2 py-0.5 text-[8pt]">
-                      {tarihBicimle(k.tarih)}
+                      {tarihBicimle(sapmaGunu(k))}
                     </td>
                     <td className="border border-neutral-400 px-2 py-0.5 text-[8pt]">
-                      {araligiYaz(k.baslangic, k.bitis)}
+                      {sapmaEtiketi(k)}
                     </td>
                     <td className="border border-neutral-400 px-2 py-0.5 text-[8pt]">
                       {noktaMap.get(k.nokta_id)?.ad ?? '—'}
@@ -197,10 +196,10 @@ export function YazdirilabilirCizelge({
               {fazlaSatirlari.map((f) => (
                 <tr key={f.fazla_id}>
                   <td className="border border-neutral-400 px-2 py-0.5 text-[8pt]">
-                    {tarihBicimle(f.tarih)}
+                    {tarihBicimle(sapmaGunu(f))}
                   </td>
                   <td className="border border-neutral-400 px-2 py-0.5 text-[8pt]">
-                    {araligiYaz(f.baslangic, f.bitis)}
+                    {sapmaEtiketi(f)}
                   </td>
                   <td className="border border-neutral-400 px-2 py-0.5 text-[8pt]">
                     {noktaMap.get(f.nokta_id)?.ad ?? '—'}

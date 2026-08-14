@@ -1,7 +1,7 @@
 """Analiz uc noktasinin yanit semasi (SDD 3.2: analiz_router; SDD 5.7, Ek B;
 SRS FR-8.x)."""
 
-from datetime import date, time
+from datetime import datetime
 
 from pydantic import BaseModel, Field
 
@@ -43,11 +43,9 @@ class FazlaKadroKalemi(BaseModel):
     burada cozmek, her tuketicinin ayri ayri eslestirme yapmasini onler.
     """
 
-    tarih: date
-    # Fazla kadro artik bir bloga degil bir ZAMAN ARALIGINA baglidir
-    # (SDD 4.2.4); gun sonu 00.00 ile gosterilir.
-    baslangic: time
-    bitis: time
+    # ZAMAN DAMGASI (B-23): aralik gun sinirini kendisi tasir.
+    baslangic_zamani: datetime
+    bitis_zamani: datetime
     nokta_id: int
     nokta_ad: str
     fazla_sayi: int

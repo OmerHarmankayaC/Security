@@ -10,7 +10,7 @@ dogrudan karsilastirilabilir.
 
 from collections import defaultdict
 from collections.abc import Callable
-from datetime import date, time, timedelta
+from datetime import date, datetime, timedelta
 from math import ceil, floor
 from typing import Any
 
@@ -22,12 +22,12 @@ from app.kurallar.temel import EsnekHedef, Ihlal, KuralKapsami, ParametreTanimi,
 from app.kurallar.yardimcilar import calisilan_gunler
 from app.kurallar.zaman_araligi import (
     aralik_metni,
+    aralik_sure_saat_damga,
     baslangic_kaymasi,
     gece_saati_mi,
     saat_kumesi,
     saatleri_araliklara_birlestir,
 )
-from app.kurallar.zaman_araligi import aralik_sure_saat as _aralik_sure_saat
 from app.models.girdi import TercihTipi
 
 # SRS 3.3.5. Kural kaydinda parametre bulunmadiginda kullanilir; katalog
@@ -130,25 +130,27 @@ class S1TalepKarsilama(EsnekHedef):
 
         ihlaller: list[Ihlal] = []
         for nokta_id, saatler in sorted(eksik_saatler.items()):
-            for tarih, bas, bit, sayi in saatleri_araliklara_birlestir(saatler):
+            for bas, bit, sayi in saatleri_araliklara_birlestir(saatler):
                 ihlaller.append(
                     Ihlal(
                         kural_kimlik=self.kimlik,
-                        tarih=tarih,
-                        ceza=sayi * _aralik_sure_saat(bas, bit),
+                        # Acik BASLADIGI gune sayilir (TD-1 ile ayni sozlesme);
+                        # aralik gun sinirini kendisi tasiyabilir (B-23).
+                        tarih=bas.date(),
+                        ceza=sayi * aralik_sure_saat_damga(bas, bit),
                         aciklama=(
-                            f"{self._yer_metni(baglam, tarih, bas, bit, nokta_id)} — "
-                            f"{sayi} kişi eksik"
+                            f"{self._yer_metni(baglam, bas, bit, nokta_id)} — " f"{sayi} kişi eksik"
                         ),
                     )
                 )
         return ihlaller
 
     @staticmethod
-    def _yer_metni(baglam: Baglam, tarih: date, baslangic: time, bitis: time, nokta_id: int) -> str:
+    def _yer_metni(baglam: Baglam, baslangic: datetime, bitis: datetime, nokta_id: int) -> str:
         """ "2026-02-02 · 00.00–08.00 · Vardiya Şefliği" — kimlik degil AD (NFR-5)."""
         return (
-            f"{tarih.isoformat()} · {aralik_metni(baslangic, bitis)} · "
+            f"{baslangic.date().isoformat()} · "
+            f"{aralik_metni(baslangic.time(), bitis.time())} · "
             f"{baglam.nokta_adi(nokta_id)}"
         )
 
@@ -192,14 +194,15 @@ class S1fFazlaKadro(EsnekHedef):
         _eksik_saatler, fazla_saatler = baglam.sapma_saatleri(atamalar)
         ihlaller: list[Ihlal] = []
         for nokta_id, saatler in sorted(fazla_saatler.items()):
-            for tarih, bas, bit, sayi in saatleri_araliklara_birlestir(saatler):
+            for bas, bit, sayi in saatleri_araliklara_birlestir(saatler):
                 ihlaller.append(
                     Ihlal(
                         kural_kimlik=self.kimlik,
-                        tarih=tarih,
+                        tarih=bas.date(),
                         ceza=None,
                         aciklama=(
-                            f"{tarih.isoformat()} · {aralik_metni(bas, bit)} · "
+                            f"{bas.date().isoformat()} · "
+                            f"{aralik_metni(bas.time(), bit.time())} · "
                             f"{baglam.nokta_adi(nokta_id)} — talepten {sayi} kişi fazla"
                         ),
                     )

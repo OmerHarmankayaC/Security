@@ -1,9 +1,9 @@
 import enum
-from datetime import date, datetime, time
+from datetime import date, datetime
 from decimal import Decimal
 from uuid import uuid4
 
-from sqlalchemy import Date, ForeignKey, Numeric, String, Time, UniqueConstraint
+from sqlalchemy import Date, ForeignKey, Numeric, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -168,9 +168,13 @@ class KapsamaAcigi(Base, ZamanDamgasiKarisimi):
 
     acik_id: Mapped[int] = mapped_column(primary_key=True)
     surum_id: Mapped[int] = mapped_column(ForeignKey("cizelge_surumu.surum_id"))
-    tarih: Mapped[date] = mapped_column(Date)
-    baslangic: Mapped[time] = mapped_column(Time)
-    bitis: Mapped[time] = mapped_column(Time)
+    # ZAMAN DAMGASI, tarih + ofsetsiz saat DEGIL (Tur 8, B-23). Eski
+    # gosterimde 22.00-02.00 gibi bir aralik tek satirda durmuyor, gun
+    # basina bolunuyordu; disa aktarmada da ISO damgasi kurulamiyordu
+    # cunku saklanmayan bir ofsetin uydurulmasi gerekirdi. `atama` tablosu
+    # Tur 5'te bu bicime gecmisti, bu iki tablo geride kalmisti.
+    baslangic_zamani: Mapped[datetime] = mapped_column(ZamanDamgasi)
+    bitis_zamani: Mapped[datetime] = mapped_column(ZamanDamgasi)
     nokta_id: Mapped[int] = mapped_column(ForeignKey("gorev_noktasi.nokta_id"))
     eksik_sayi: Mapped[int]
 
@@ -189,9 +193,13 @@ class FazlaKadro(Base, ZamanDamgasiKarisimi):
 
     fazla_id: Mapped[int] = mapped_column(primary_key=True)
     surum_id: Mapped[int] = mapped_column(ForeignKey("cizelge_surumu.surum_id"), index=True)
-    tarih: Mapped[date] = mapped_column(Date)
-    baslangic: Mapped[time] = mapped_column(Time)
-    bitis: Mapped[time] = mapped_column(Time)
+    # ZAMAN DAMGASI, tarih + ofsetsiz saat DEGIL (Tur 8, B-23). Eski
+    # gosterimde 22.00-02.00 gibi bir aralik tek satirda durmuyor, gun
+    # basina bolunuyordu; disa aktarmada da ISO damgasi kurulamiyordu
+    # cunku saklanmayan bir ofsetin uydurulmasi gerekirdi. `atama` tablosu
+    # Tur 5'te bu bicime gecmisti, bu iki tablo geride kalmisti.
+    baslangic_zamani: Mapped[datetime] = mapped_column(ZamanDamgasi)
+    bitis_zamani: Mapped[datetime] = mapped_column(ZamanDamgasi)
     nokta_id: Mapped[int] = mapped_column(ForeignKey("gorev_noktasi.nokta_id"))
     fazla_sayi: Mapped[int]
 

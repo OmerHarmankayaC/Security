@@ -41,7 +41,7 @@ import {
 import { sonucuOzetle } from '../lib/sonucDili'
 import { saatRengi } from '../lib/saatRengi'
 import { BASLANGIC_SAATLERI, BITIS_SAATLERI } from '../lib/talepAraligi'
-import { saatEtiketi } from '../lib/blok'
+import { saatEtiketi, sapmaGunu } from '../lib/blok'
 import {
   bugunIso,
   donemAraligiBicimle,
@@ -247,10 +247,13 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
   const acikNoktalar = useMemo(() => {
     const indeks = new Map<string, Map<number, number>>()
     for (const k of kapsamaAcigi) {
-      let gun = indeks.get(k.tarih)
+      // Açık başladığı güne sayılır (B-23 sonrası: gün, başlangıç
+      // damgasından türetilir).
+      const tarih = sapmaGunu(k)
+      let gun = indeks.get(tarih)
       if (!gun) {
         gun = new Map()
-        indeks.set(k.tarih, gun)
+        indeks.set(tarih, gun)
       }
       gun.set(k.nokta_id, (gun.get(k.nokta_id) ?? 0) + k.eksik_sayi)
     }

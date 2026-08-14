@@ -100,9 +100,8 @@ const ATAMALAR: Atama[] = [
 function acik(id: number, tarih: string, bas: number, nokta: number, eksik: number): KapsamaAcigi {
   return {
     acik_id: id,
-    tarih,
-    baslangic: `${String(bas).padStart(2, '0')}:00:00`,
-    bitis: `${String((bas + 8) % 24).padStart(2, '0')}:00:00`,
+    baslangic_zamani: `${tarih}T${String(bas).padStart(2, '0')}:00:00+03:00`,
+    bitis_zamani: `${tarih}T${String((bas + 8) % 24).padStart(2, '0')}:00:00+03:00`,
     nokta_id: nokta,
     eksik_sayi: eksik,
   }

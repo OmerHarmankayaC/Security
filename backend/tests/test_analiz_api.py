@@ -136,9 +136,8 @@ def test_analiz_metrikleri_dogru_hesaplanir(istemci: TestClient) -> None:
         oturum.add(
             KapsamaAcigi(
                 surum_id=surum.surum_id,
-                tarih=date(2026, 9, 13),
-                baslangic=time(0, 0),
-                bitis=time(8, 0),
+                baslangic_zamani=datetime.combine(date(2026, 9, 13), time(0, 0)),
+                bitis_zamani=datetime.combine(date(2026, 9, 13), time(8, 0)),
                 nokta_id=nokta.nokta_id,
                 eksik_sayi=1,
             )

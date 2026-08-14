@@ -34,7 +34,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
-from app.kurallar.zaman_araligi import aralik_sure_saat, saatleri_araliklara_birlestir
+from app.kurallar.zaman_araligi import aralik_sure_saat_damga, saatleri_araliklara_birlestir
 from app.models.sonuc import FazlaKadro, KapsamaAcigi
 from app.repositories.sonuc import (
     AtamaDeposu,
@@ -97,29 +97,27 @@ def sapmalari_yenile(oturum: Session, surum_id: int) -> SapmaOzeti | None:
 
     eksik_hucre = eksik_kisi = fazla_hucre = fazla_kisi = 0
     for nokta_id, saatler in sorted(eksik_saatler.items()):
-        for tarih, bas, bit, sayi in saatleri_araliklara_birlestir(saatler):
+        for bas, bit, sayi in saatleri_araliklara_birlestir(saatler):
             eksik_hucre += 1
-            eksik_kisi += sayi * aralik_sure_saat(bas, bit)
+            eksik_kisi += sayi * aralik_sure_saat_damga(bas, bit)
             oturum.add(
                 KapsamaAcigi(
                     surum_id=surum_id,
-                    tarih=tarih,
-                    baslangic=bas,
-                    bitis=bit,
+                    baslangic_zamani=bas,
+                    bitis_zamani=bit,
                     nokta_id=nokta_id,
                     eksik_sayi=sayi,
                 )
             )
     for nokta_id, saatler in sorted(fazla_saatler.items()):
-        for tarih, bas, bit, sayi in saatleri_araliklara_birlestir(saatler):
+        for bas, bit, sayi in saatleri_araliklara_birlestir(saatler):
             fazla_hucre += 1
-            fazla_kisi += sayi * aralik_sure_saat(bas, bit)
+            fazla_kisi += sayi * aralik_sure_saat_damga(bas, bit)
             oturum.add(
                 FazlaKadro(
                     surum_id=surum_id,
-                    tarih=tarih,
-                    baslangic=bas,
-                    bitis=bit,
+                    baslangic_zamani=bas,
+                    bitis_zamani=bit,
                     nokta_id=nokta_id,
                     fazla_sayi=sayi,
                 )

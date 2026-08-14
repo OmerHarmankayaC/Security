@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import type { Atama, GorevNoktasi, KapsamaAcigi, Personel } from '@/api/types'
-import { blokEtiketi, blokKisaEtiketi, gununParcalari } from '@/lib/blok'
+import { blokEtiketi, blokKisaEtiketi, gununParcalari, sapmaGunu } from '@/lib/blok'
 import { kisalt } from '@/lib/metin'
 import { sayiBicimle } from '@/lib/sayi'
 import { gunBasligiParcalari, haftaSonuMu, tarihBicimle } from '@/lib/tarih'
@@ -60,7 +60,9 @@ export function HaftaSeridi({
   const gunlukAcik = useMemo(() => {
     const indeks = new Map<string, number>()
     for (const k of kapsamaAcigi) {
-      indeks.set(k.tarih, (indeks.get(k.tarih) ?? 0) + k.eksik_sayi)
+      // Açık başladığı güne sayılır (SRS TD-1 ile aynı sözleşme).
+      const gun = sapmaGunu(k)
+      indeks.set(gun, (indeks.get(gun) ?? 0) + k.eksik_sayi)
     }
     return indeks
   }, [kapsamaAcigi])

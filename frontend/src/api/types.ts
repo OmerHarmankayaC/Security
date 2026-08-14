@@ -93,9 +93,14 @@ export interface Atama {
 
 export interface KapsamaAcigi {
   acik_id: number
-  tarih: string
-  baslangic: string
-  bitis: string
+  /**
+   * ZAMAN DAMGASI (B-23). Önceki hâli `tarih` + ofsetsiz `baslangic`/`bitis`
+   * taşıyordu; o gösterimde 22.00–02.00 gibi bir aralık tek kayıtta duramıyor
+   * ve dosyaya ISO damgası olarak yazılamıyordu. Aralık artık gün sınırını
+   * kendisi taşır; kaydın hangi güne ait olduğu başlangıç damgasından okunur.
+   */
+  baslangic_zamani: string
+  bitis_zamani: string
   nokta_id: number
   eksik_sayi: number
 }
@@ -103,9 +108,8 @@ export interface KapsamaAcigi {
 /** Bir noktaya talepten fazla kişi atanmış olması (SRS 4.3 S1 üst sınırı). */
 export interface FazlaKadro {
   fazla_id: number
-  tarih: string
-  baslangic: string
-  bitis: string
+  baslangic_zamani: string
+  bitis_zamani: string
   nokta_id: number
   fazla_sayi: number
 }
@@ -447,9 +451,8 @@ export interface SaatDengesi {
 
 /** Analiz ekranının fazla kadro satırı — adlarıyla birlikte (NFR-5). */
 export interface FazlaKadroKalemi {
-  tarih: string
-  baslangic: string
-  bitis: string
+  baslangic_zamani: string
+  bitis_zamani: string
   nokta_id: number
   nokta_ad: string
   fazla_sayi: number
