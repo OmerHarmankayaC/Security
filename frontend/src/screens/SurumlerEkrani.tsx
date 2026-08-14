@@ -310,21 +310,27 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
               <div className="ml-auto flex shrink-0 gap-2">
                 {s.durum === 'yayinlandi' || s.durum === 'arsiv' ? (
                   <>
+                    {/* İKİ EYLEM, İKİ AYRI İŞ — ve ayrım DÜĞMENİN ÜZERİNDE
+                        okunmalı. Önceki adları ("Taslak Olarak Kopyala" /
+                        "Taslak Türet") yan yana duruyordu, farkları yalnızca
+                        ipucu metnindeydi ve kullanıcı yayınlanmış bir
+                        çizelgeyi düzenlemek isterken boş taslağı açıyordu.
+                        Düzenleme yolu FR-7.3'e göre KOPYADIR. */}
                     <Buton
-                      varyant="ikincil"
+                      varyant="birincil"
                       disabled={islenenId === s.surum_id}
-                      title="Atamalarıyla birlikte kopyalar; kaynak sürüm değişmez"
+                      title="Bu sürümün çizelgesini olduğu gibi taşıyan bir taslak açar; kaynak sürüm değişmez"
                       onClick={() => kopyaOnayiniAc(s)}
                     >
-                      Taslak Olarak Kopyala
+                      Düzenlemek İçin Kopyala
                     </Buton>
                     <Buton
                       varyant="ikincil"
                       disabled={islenenId === s.surum_id}
-                      title="Boş taslak açar; atamaları çözücü yazar"
+                      title="Atamasız bir taslak açar; çizelgeyi çözücü sıfırdan yazar"
                       onClick={() => taslakTuret(s)}
                     >
-                      Taslak Türet
+                      Boş Taslak Aç
                     </Buton>
                   </>
                 ) : (

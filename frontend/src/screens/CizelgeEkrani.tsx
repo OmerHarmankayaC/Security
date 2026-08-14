@@ -707,7 +707,10 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
           <strong className="font-medium">
             {SURUM_DURUM_METNI[surum.durum] ?? surum.durum} durumundaki sürüm salt okunur.
           </strong>{' '}
-          Değişiklik için Sürümler ekranından bu sürümden yeni bir taslak türetin (FR-7.3).
+          Değişiklik için Sürümler ekranında bu sürümün{' '}
+          <strong className="font-medium">“Düzenlemek İçin Kopyala”</strong> düğmesini kullanın —
+          çizelge olduğu gibi yeni taslağa taşınır. “Boş Taslak Aç” atamasız bir sürüm üretir ve
+          çizelgeyi çözücü sıfırdan yazar (FR-7.3).
         </p>
       )}
 
