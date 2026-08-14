@@ -46,6 +46,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 13.08.2026 | H1 ve H9'daki "gün d" ifadesi bloğun başlangıç gününe bağlandı; takvim günü sayımı gece yarısını aşan blokta günlük tavanı hiç tetiklemiyordu. 3.3.6'daki müracaat satırı ve blok sayısına dayalı toplam kaldırıldı | 1.21 |
 | Ömer HARMANKAYA | 13.08.2026 | 7.2'deki çizelge dışa aktarma biçimi saat modeline göre yeniden yazıldı; vardiya tipi ve gece bayrağı alanları kaldırıldı, başlangıç ve bitiş ISO damgasına çevrildi | 1.22 |
 | Ömer HARMANKAYA | 14.08.2026 | Manuel düzenleme taslak oturum modeline geçirildi (5.6): değişiklikler anında görünür ve geri alınabilir, sunucuya yalnızca kaydetmeyle yazılır; blok taşıma ve yayınlanmış sürümün salt okunurluğu gereksinim olarak yazıldı; TD-16 eklendi | 1.23 |
+| Ömer HARMANKAYA | 14.08.2026 | Çizelgenin ve analizin Excel çıktısı gereksinim olarak tanımlandı (FR-8.5, FR-8.9); dosya yapısı ve biçimlendirme kuralları 7.2'ye yazıldı | 1.24 |
 
 
 
@@ -898,10 +899,11 @@ Kaydetme, sürümün kullanıcı düzenlemeye başladığından beri değişmedi
 | FR-8.2 | Sistem, kişi başına gece, hafta sonu ve toplam saat sayılarını tablo halinde raporlamalıdır. | Zorunlu |
 | FR-8.3 | Sistem, iş yükü dağılımını en yüklü ve en az yüklü personel arasındaki fark üzerinden ölçmelidir. | Yüksek |
 | FR-8.4 | Sistem, onaylanmış tercihlerin karşılanma oranını raporlamalıdır. | Yüksek |
-| FR-8.5 | Sistem, çizelgeyi CSV veya Excel formatında dışa aktarabilmelidir. | Zorunlu |
+| FR-8.5 | Sistem, çizelgeyi hem makine okunur (CSV) hem insan okunur (Excel) biçimde dışa aktarabilmelidir. Excel çıktısı çizelgenin kendisini taşır: personel × gün düzeninde, hücrede çalışma saatleri ve görev noktası, saatin gün içindeki konumunu gösteren biçimlendirmeyle. | Zorunlu |
 | FR-8.6 | Sistem, kural bazlı ihlal ve ceza dökümünü raporlamalıdır. | Yüksek |
 | FR-8.7 | Sistem, çizelgenin kapsama açıklarını ayrı bir dosya olarak dışa aktarabilmelidir. Talep karşılama esnek hedef olarak tanımlandığından (S1) açıkları içermeyen bir çıktı çizelgeyi olduğundan tam gösterir. | Zorunlu |
 | FR-8.8 | Sistem, çizelgenin yazdırılabilir bir görünümünü üretebilmelidir. Görünüm personel × gün matrisi biçiminde olmalı, başlığında dönem, sürüm ve üretim tarihi bulunmalı, kapsama açıkları tablonun altında listelenmelidir. | Yüksek |
+| FR-8.9 | Sistem, analiz sonuçlarını tek bir dosyada dışa aktarabilmelidir. Dosya hem okunmaya hazır bir özet (tablolar ve grafikler) hem de üzerinde çalışılabilir ham veri içermelidir. | Yüksek |
 
 
 
@@ -1145,3 +1147,36 @@ Aşağıdaki tablo, proje tanım dokümanındaki hedefleri bu dokümandaki gerek
 ## 9.1 Kapsam Dışı Gereksinimler
 
 Aşağıdaki işlevler bu sürümün kapsamı dışındadır ve gereksinim olarak tanımlanmamıştır: izin talebi ve onay iş akışı, bordro ve puantaj, vardiya takası, personel bildirimleri, mobil uygulama, kurum sistemlerine entegrasyon, eş zamanlı düzenleme, geçmiş dönemlerden devreden kümülatif adalet, çelişen zorunlu kısıtlarda otomatik çakışma teşhisi.
+
+**Çizelge dışa aktarma (Excel):**
+
+CSV makine okunur çıktıdır ve olduğu gibi kalır; Excel çıktısı insan okunur
+olandır. İkisi birbirinin yerine geçmez — biri başka bir sisteme veri taşır,
+diğeri masaya konur ve bakılır.
+
+Dosya üç sayfa taşır:
+
+| Sayfa | İçerik |
+| --- | --- |
+| Çizelge | Personel × gün. Hücrede çalışma saatleri ve görev noktası kısaltması; hücre dolgusu saatin gün içindeki konumunu gösterir (gece koyu, gündüz açık). Kapsama açığı bulunan günler işaretlidir |
+| Özet | Personel başına toplam saat, gece saati, hafta sonu saati, fazla çalışma saati ve kalan yıllık kota |
+| Ham veri | Blok başına bir satır, başlangıç ve bitiş tam ISO zaman damgasıyla — CSV çıktısının aynısı |
+
+Başlık bölümünde dönem, sürüm numarası, üretim tarihi, kapsama oranı ve toplam
+açık bulunur. Renklendirme tek başına bilgi taşımaz: saat aralığı hücrede metin
+olarak da yazılıdır ve bir açıklama satırı dolgunun ne anlama geldiğini söyler.
+Çıktının renksiz yazdırılması bilgi kaybettirmez.
+
+**Analiz dışa aktarma (Excel):**
+
+| Sayfa | İçerik |
+| --- | --- |
+| Özet | Kapsama oranı, toplam ceza ve hedef bazında ceza dökümü |
+| Adalet | Personel başına gece saati, hafta sonu saati ve toplam saat; her biri için kişiye düşen adil pay ve sapma. Grafikler bu sayfada yer alır |
+| Kapsama açıkları | Gün, saat aralığı, görev noktası, eksik kişi sayısı |
+| Ham veri | Yukarıdaki tabloların biçimlendirilmemiş hâli |
+
+Grafiklerin referans çizgisi kişiye düşen adil paydır, havuz ortalaması değil
+(bölüm 4.3, S2). İki ölçü karışık uzunluklu bir çizelgede farklı sonuç verir ve
+ortalamayı göstermek S2'nin açıkça reddettiği ölçüyü ekrana taşımak olur.
+

@@ -53,6 +53,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 13.08.2026 | Ölçüm sonrası üç madde 5.3'e yazıldı: taşma göstergelerinin günlük tavanla sınırlanması, değişken elemenin kural kısıtlarını sessizce iptal edebilmesi ve ısıtma penceresinin gerçekten sabitlenmesinin doğrulanması | 1.28 |
 | Ömer HARMANKAYA | 13.08.2026 | Çizelge ekranının görünüm anahtarı ve nokta süzgeci 6.3.3'e, analiz yanıtındaki adil pay alanı Ek B'ye yazıldı; revizyon tablosunun sıralaması düzeltildi | 1.29 |
 | Ömer HARMANKAYA | 14.08.2026 | Manuel düzenleme taslak oturum modeline göre yeniden tasarlandı: doğrulamanın biriken değişikliklerin tamamı üzerinden yapılması ve kaydetmenin tek işlemde koşullu uygulanması 5.5'e, düzenleme etkileşimi 6.3.3'e, uç nokta değişiklikleri Ek B'ye yazıldı | 1.30 |
+| Ömer HARMANKAYA | 14.08.2026 | Dışa aktarma servisi ve kapsama kayıtlarının zaman damgasına taşınması tasarlandı (4.2.4, yeni 5.8); Ek B'ye Excel uç noktaları eklendi | 1.31 |
 
 
 
@@ -582,11 +583,16 @@ sürümün önceki hâlinin ayrıca saklanmasını gerektirirdi.
 | --- | --- | --- |
 | acik_id | INT (PK) | Kaydın benzersiz kimliği |
 | surum_id | INT (FK → cizelge_surumu) | Açığın tespit edildiği çizelge sürümü |
-| tarih | DATE | Açığın oluştuğu gün |
-| baslangic | TIME | Açığın başladığı saat |
-| bitis | TIME | Açığın bittiği saat; gün sonu `00.00` ile gösterilir (4.2.2) |
+| baslangic_zamani | TIMESTAMPTZ | Açığın başladığı an |
+| bitis_zamani | TIMESTAMPTZ | Açığın bittiği an; gece yarısını aşan aralıklarda ertesi güne düşer |
 | nokta_id | INT (FK → gorev_noktasi) | Açığın oluştuğu görev noktası |
 | eksik_sayi | INT | Talebe göre eksik kalan personel sayısı |
+
+**Kayıt zaman damgası taşır, tarih ve ofsetsiz saat değil.** Atama tablosu saatlik
+modele geçerken zaman damgasına taşınmıştı; bu iki tablo geride kalmıştı. Sonucu
+dışa aktarmada görülür: tarih ile ofsetsiz saatten ISO damgası kurmak, saklanmayan
+bir ofseti uydurmak anlamına gelir ve gece yarısını aşan bir açık aralığı dosyada
+okunamaz kalır. Üç tablo da aynı biçimi kullanır.
 
 Kayıt saat saat değil aralık olarak tutulur: ardışık ve eksik sayısı eşit olan saatler tek bir satırda birleştirilir. Yirmi dört satırlık bir liste kullanıcıya hiçbir şey anlatmaz; "00.00–08.00 arası bir kişi eksik" anlatır. Birleştirme yazma anında yapılır, okuma anında değil — aksi hâlde her tüketici kendi birleştirme mantığını yazar ve ikisi ayrışır.
 
@@ -598,9 +604,8 @@ Bu tablo, S1 formülasyonundaki eksik değişkenlerinin sıfırdan büyük oldu�
 | --- | --- | --- |
 | fazla_id | INT (PK) | Kaydın benzersiz kimliği |
 | surum_id | INT (FK → cizelge_surumu) | Kaydın ait olduğu çizelge sürümü |
-| tarih | DATE | Fazlalığın oluştuğu gün |
-| baslangic | TIME | Fazlalığın başladığı saat |
-| bitis | TIME | Fazlalığın bittiği saat; gün sonu `00.00` ile gösterilir (4.2.2) |
+| baslangic_zamani | TIMESTAMPTZ | Fazlalığın başladığı an |
+| bitis_zamani | TIMESTAMPTZ | Fazlalığın bittiği an; gece yarısını aşan aralıklarda ertesi güne düşer |
 | nokta_id | INT (FK → gorev_noktasi) | Fazlalığın oluştuğu görev noktası |
 | fazla_sayi | INT | Talebin üzerine çıkılan personel sayısı |
 
@@ -1154,6 +1159,42 @@ Saat dağılımı metriğinin tabanı, personelin sözleşmesindeki haftalık he
 
 Gece ve hafta sonu metriklerinde kişi başına düşen değerin ekip ortalamasından sapması ayrıca hesaplanır ve kabul kriterindeki bir birimlik sapma sınırıyla karşılaştırılır. Bu iki metrikte ortalama ve sapma, SRS S2 ve S3'te tanımlanan uygun havuz (P_gece, P_hs) üzerinden hesaplanır; yetkinliği gereği gece veya hafta sonu talebi bulunan hiçbir noktada çalışamayan personel ölçüme dahil edilmez. Aksi hâlde bu personel kalıcı olarak ortalamanın altında görünür ve kabul kriteri hiçbir çizelgeyle sağlanamaz.
 
+## 5.8 Dışa Aktarma
+
+Dışa aktarma tek bir serviste toplanır (`DisaAktarmaServisi`) ve verisini mevcut
+okuma yüzeylerinden alır: çizelge atamalardan, analiz `AnalizServisi`'nden,
+açıklar kapsama açığı kayıtlarından. **İkinci bir hesap yapmaz.** Dışa aktarmanın
+kendi toplamlarını hesaplaması, aynı sayının ekranda ve dosyada farklı çıkması
+demektir; bu projede aynı hesabın iki yerde durmasının bedeli birkaç kez
+ödenmiştir.
+
+Blok geometrisi ve saat biçimlemesi arayüzdeki `blok.ts` ile aynı sözleşmeyi
+izler; sunucu tarafındaki karşılığı `zaman_araligi` yardımcısıdır. Saat metni
+biçimleyicisinin üç ayrı kopyası bir kez hataya yol açmıştır.
+
+```
+FONKSİYON cizelge_excel(surum_id):
+    surum, atamalar ← CizelgeDeposu.oku(surum_id)
+    aciklar ← CizelgeDeposu.kapsama_aciklari(surum_id)
+    ozet ← AnalizServisi.metrikler(surum_id)
+
+    kitap ← YeniCalismaKitabi()
+    sayfa_cizelge(kitap, atamalar, aciklar)      # personel × gün
+    sayfa_ozet(kitap, ozet)
+    sayfa_ham(kitap, atamalar)                   # CSV ile aynı içerik
+    DÖNDÜR kitap
+```
+
+**Hücre dolgusu bilgiyi tek başına taşımaz.** Saat aralığı hücrede metin olarak da
+yazılıdır ve bir açıklama satırı dolgunun anlamını söyler; renksiz basılan bir
+çıktı okunabilir kalır. Aynı ilke ekrandaki renk bandı için de geçerlidir (6.3.3).
+
+Analiz çıktısındaki grafikler kişiye düşen adil payı referans alır. Havuz
+ortalaması kullanmak, S2'nin açıkça reddettiği ölçüyü dosyaya taşımak olurdu.
+
+Uç noktalar dosyayı doğrudan döndürür; ayrı bir iş kuyruğu kurulmaz. Bir
+dönemdeki atama sayısı birkaç yüzdür ve ölçek bunu gerektirmez.
+
 # 6. Kullanıcı Arayüzü Tasarımı
 
 ## 6.1 Arayüzün Genel Görünümü
@@ -1503,6 +1544,8 @@ Aşağıdaki tablo başlıca uç noktaların işlevsel bir özetidir. Uç noktal
 | /api/atama/dogrula | POST | Düzenleme oturumundaki bütün bekleyen değişikliklerin kural doğrulaması; hiçbir şey yazmaz |
 | /api/atama/kaydet | POST | Düzenleme oturumundaki değişikliklerin tek işlemde uygulanması; sürüm damgası çakışmasında ve yayınlanmış sürümde reddedilir |
 | /api/analiz/{surum_id} | GET | Analiz metriklerinin hesaplanması; kişiye düşen adil pay değerleri dahil |
+| /api/disa-aktar/cizelge/{surum_id} | GET | Çizelgenin Excel çıktısı (FR-8.5) |
+| /api/disa-aktar/analiz/{surum_id} | GET | Analiz sonuçlarının Excel çıktısı (FR-8.9) |
 | /api/calisan/vardiyalarim | GET | Çalışanın yayınlanmış çizelgedeki atamaları |
 | /api/calisan/tercih | GET, POST | Çalışanın tercih bildirimi |
 
