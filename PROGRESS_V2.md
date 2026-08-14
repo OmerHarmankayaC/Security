@@ -138,6 +138,52 @@ aşıyor.
 genişliklerinin saat metnini kesip kesmediği (`08.00–16.00` iki satıra
 sarıyor; sütun 13 birim), grafiklerin referans çizgisinin görünürlüğü.
 
+### Ek iş — çıktılar örnek dosyalara göre düzenlendi
+
+Proje yürütücüsü `ornek-ciktilar/`e iki **hedef** dosya bıraktı
+(`cizelge_ornek.xlsx`, `analiz_ornek.xlsx`). Çıktı bunlara göre yeniden
+biçimlendi; farklar hücre hücre karşılaştırılarak kapatıldı.
+
+**Renk artık tek bir ölçüden geliyor.** Dolgu, bloğun **başladığı saatten**
+türeyen 13 adımlı bir bant: 13.00 en açık, 01.00 en koyu, arası sürekli.
+Önceki sürüm "gece / kısmen gece / gündüz" diye üç kovaya bölen **ayrı** bir
+ölçü kullanıyordu — yani aynı bilgi ekranda (SDD 6.3.3 renk bandı) ve
+dosyada iki farklı biçimde tanımlıydı. Artık ikisi aynı şeyi söylüyor.
+
+**Ceza dökümünün kaynağı düzeltildi.** Ham değerleri kuralların `dogrula`sını
+yeniden çağırarak üretmeyi denedim; S2/S3/S4'te ekrandakinden **farklı**
+sayılar çıktı (269/119/443 yerine 148/54/209). `dogrula` çözüm anının
+bağlamını bilmiyor. Döküm `analiz.ceza_dokumu`ya alındı — modülün başındaki
+"ikinci hesap yapılmaz" kuralının tam da uyardığı hataydı. Yeni bir test
+Σ(ham × ağırlık) = `toplam_ceza` eşitliğini kilitliyor.
+
+**Ölçü ayrımı dosyaya yazıldı.** "10 aralık" ile "36 kişi-saat" farklı
+şeylerdir (ardışık saatler tek kayıtta birleşir); ikisi de ayrı ayrı
+gösteriliyor ve aralarındaki fark bir not satırıyla söyleniyor. Kapsama
+sayfasına `Kişi-saat` sütunu eklendi.
+
+**Toplam satırları canlı formül** (`=SUM(...)`, `=C10*D10`): okuyucu satır
+süzdüğünde ya da ağırlık değiştirdiğinde sonucu dosyada görür.
+
+Ayrıca: Türkçe tarih (`20.07.2026`) ve ondalık virgül (`%96,9`) — ham veri
+sayfaları ISO kalır, orası makine için; nokta adı hücrede üç harfe kısaldı;
+adalet grafikleri üçten ikiye indi ve ölçülen değer ile adil pay **yan yana
+iki çubuk** oldu (önceki çizgi bindirmesi, adil pay kişiye özel olduğu için
+yanıltıcı bir "eğilim" görüntüsü veriyordu).
+
+**Örnekten bilerek sapılan iki nokta:**
+
+1. **Açık olan günün başlığı turuncu kalıyor**, örnekteki gibi düz yeşil
+   değil. Örnek başlık bandını baştan biçimlendirirken bu işareti düşürmüş
+   ama altındaki açıklama satırı ondan söz etmeyi sürdürüyor; işaret
+   kalkarsa açıklama yalan söyler.
+2. **S6/S8 adları ve S6 ağırlığı** örnektekinden farklı (`Çalışma deseni
+   tutarlılığı` / `Değişim minimizasyonu`, ağırlık 4). Ad kuralın kendi
+   `ad` alanından, ağırlık veritabanından geliyor — ekranda da aynısı
+   görünüyor. Excel'e özel kısa adlar yazmak tanımı ikiye bölerdi. Ağırlık
+   farkı örneğin üretildiği katalog durumundan; buradaki 4 değeri
+   `toplam_ceza` ile tutarlı.
+
 ---
 
 ## 2026-08-14 — Tur 7: Düzenleme Sistemi — **BİTTİ**

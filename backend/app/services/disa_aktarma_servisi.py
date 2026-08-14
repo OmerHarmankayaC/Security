@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
 from openpyxl import Workbook
-from openpyxl.chart import BarChart, LineChart, Reference
+from openpyxl.chart import BarChart, Reference
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
@@ -46,38 +46,125 @@ from app.services.atama_donusumu import atama_kayitlarina_cevir
 from app.services.baglam_kurucu import baglam_olustur
 
 # --- Bicimleme sabitleri --------------------------------------------------
-#
-# Renkler ekrandaki saat bandinin (SDD 6.3.3) kaba karsiligidir: gece koyu,
-# gunduz acik. Excel hucre dolgusu surekli bir gradient tasiyamaz, bu yuzden
-# band UC basamaga indirgenmistir. Basamak sayisi bilgi tasimaz - metin
-# tasir; dolgu yalniz goze tarama kolayligi verir.
-_GECE_DOLGU = PatternFill("solid", fgColor="2F3A38")
-_SABAH_DOLGU = PatternFill("solid", fgColor="A4A79D")
-_GUNDUZ_DOLGU = PatternFill("solid", fgColor="E9E7D9")
-_ACIK_DOLGU = PatternFill("solid", fgColor="F7E2D6")
-_BASLIK_DOLGU = PatternFill("solid", fgColor="E4E7E1")
 
-_BASLIK_YAZI = Font(bold=True)
-_GECE_YAZI = Font(color="E8EBE5")
-_INCE = Side(style="thin", color="D2D7CE")
+# Renkler 8 HANELI (alfa + RGB) yazilir. openpyxl 6 haneli bir deger
+# aldiginda alfayi 00 kabul ediyor ve Excel dolguyu saydam gosteriyor.
+_MARKA = "FF1F4E45"  # baslik bandi ve sayfa basligi
+_SESSIZ = "FF6B6B60"  # ikincil metin
+_VURGU = "FFC1502E"  # karsilanmayan talep gibi DIKKAT isteyen sayilar
+_BEYAZ = "FFFFFFFF"
+_KOYU_METIN = "FF1A1A16"
+_BANT = "FFF7F6F0"  # satir bantlamasinin koyu adimi
+
+# SAAT BANDI: dolgu blogun BASLADIGI saatten gelir; 13.00 en acik, 01.00 en
+# koyu ve arasi surekli gecer. Ekrandaki renk bandinin (SDD 6.3.3) hucreye
+# indirgenmis halidir - orada bir gradient, burada 13 adim. Onceki surum
+# "gece / kismen gece / gunduz" diye UC kovaya bolen AYRI bir olcu
+# kullaniyordu; ayni bilgi iki yerde iki farkli bicimde tanimlanmis oluyordu.
+# Liste 13.00'ten uzaklik (0-12) ile indislenir.
+_SAAT_BANDI = (
+    "FFE9E7D9",
+    "FFE5E4D6",
+    "FFDCDBCE",
+    "FFCDCDC1",
+    "FFBABBB0",
+    "FFA4A69D",
+    "FF8C9088",
+    "FF737A73",
+    "FF5D6560",
+    "FF4A534F",
+    "FF3B4542",
+    "FF323C3A",
+    "FF2F3A38",
+)
+_EN_ACIK_SAAT = 13
+_KOYU_ESIK = 7  # bu adimdan itibaren dolgu koyu, yazi beyaza doner
+
+_ACIK_DOLGU = PatternFill("solid", fgColor="FFF7E2D6")  # kapsama acigi olan gun
+_BASLIK_DOLGU = PatternFill("solid", fgColor=_MARKA)
+_BANT_DOLGU = PatternFill("solid", fgColor=_BANT)
+_DUZ_DOLGU = PatternFill("solid", fgColor=_BEYAZ)
+
+_BASLIK_YAZI = Font(bold=True, size=10, color=_BEYAZ)
+_SAYFA_BASLIGI = Font(bold=True, size=16, color=_MARKA)
+_ALT_BASLIK = Font(size=9, color=_SESSIZ)
+_OLCU_YAZI = Font(bold=True, size=10, color=_VURGU)
+_ETIKET_YAZI = Font(size=10, color=_SESSIZ)
+_NOT_YAZI = Font(size=8, color=_SESSIZ)
+_BUYUK_SAYI = Font(bold=True, size=20, color=_MARKA)
+_BUYUK_VURGU = Font(bold=True, size=20, color=_VURGU)
+_VERI_YAZI = Font(size=10)
+_KOYU_VERI = Font(bold=True, size=10)
+_HAM_YAZI = Font(size=9)
+
+_INCE = Side(style="thin", color="FFD2D7CE")
 _KENARLIK = Border(left=_INCE, right=_INCE, top=_INCE, bottom=_INCE)
 _ORTALI = Alignment(horizontal="center", vertical="center", wrap_text=True)
+_SOLA = Alignment(vertical="center")
 
 
-def _blok_dolgusu(baslangic: datetime, bitis: datetime) -> tuple[PatternFill, Font | None]:
-    """Blogun gun icindeki KONUMUNU gosteren dolgu.
+def _tarih_tr(gun: date) -> str:
+    """`20.07.2026` - dosyanin okuyucusu INSANDIR.
 
-    Olcut blogun gece saati oranidir (SRS TD-2): tamamen gece olan blok koyu,
-    hic gece saati olmayan blok acik, karisik olan ara ton. Renk BILGI TASIMAZ
-    - hucrede saat araligi zaten yazili - yalnizca goz gezdirmeyi kolaylastirir.
+    Ham veri sayfasi ISO kalir (SRS 7.2): orasi makine icindir ve ISO
+    sozluksel siralamada takvim sirasiyla aynidir. Ikisinin ayni dosyada
+    farkli bicimde durmasi bilinclidir.
     """
-    sure = round((bitis - baslangic).total_seconds() / 3600)
-    gece = gece_saat_sayisi(baslangic.time(), bitis.time())
-    if gece == 0:
-        return _GUNDUZ_DOLGU, None
-    if gece >= sure:
-        return _GECE_DOLGU, _GECE_YAZI
-    return _SABAH_DOLGU, None
+    return gun.strftime("%d.%m.%Y")
+
+
+def _yuzde_tr(oran: float | None) -> str:
+    """`%96,9` - ondalik ayraci VIRGUL (Turkce yerel)."""
+    return "—" if oran is None else f"%{oran * 100:.1f}".replace(".", ",")
+
+
+def _nokta_kisaltmasi(ad: str) -> str:
+    """`Guvenlik` -> `GÜV`. Tam ad hucreye sigmaz; kisaltma ayirt edicidir."""
+    return ad[:3].upper() if ad else ""
+
+
+def _kisi_saat(baslangic: datetime, bitis: datetime, sayi: int) -> int:
+    """Sapmanin KISI-SAAT olcusu: eksik kisi x aralik uzunlugu.
+
+    Aralik sayisi ile kisi-saat FARKLI olculerdir ve ikisi de raporda durur:
+    ardisik saatler tek kayitta birlestigi icin (SDD 4.2.4) "10 aralik"
+    kaydin sayisini, "36 kisi-saat" gercek eksigin buyuklugunu soyler.
+    """
+    return sayi * round((bitis - baslangic).total_seconds() / 3600)
+
+
+def _blok_dolgusu(baslangic: datetime) -> tuple[PatternFill, Font]:
+    """Blogun BASLADIGI saate gore dolgu ve okunur yazi rengi.
+
+    Renk BILGI TASIMAZ - saat araligi hucrede zaten yazili - yalnizca goz
+    gezdirmeyi kolaylastirir. Koyu adimlarda yazi beyaza doner; yoksa metin
+    kaybolur ve "renksiz de okunur" sozu bozulur.
+    """
+    saat = baslangic.hour
+    uzaklik = min((saat - _EN_ACIK_SAAT) % 24, (_EN_ACIK_SAAT - saat) % 24)
+    dolgu = PatternFill("solid", fgColor=_SAAT_BANDI[uzaklik])
+    renk = _BEYAZ if uzaklik >= _KOYU_ESIK else _KOYU_METIN
+    return dolgu, Font(bold=True, size=9, color=renk)
+
+
+def _baslik_satiri(sayfa: Worksheet, satir: int, basliklar: list[str]) -> None:
+    """Koyu yesil sutun basligi bandi - HER SAYFADA AYNI."""
+    for sutun, metin in enumerate(basliklar, start=1):
+        hucre = sayfa.cell(satir, sutun, metin)
+        hucre.font = _BASLIK_YAZI
+        hucre.fill = _BASLIK_DOLGU
+        hucre.alignment = _ORTALI
+    sayfa.row_dimensions[satir].height = 30
+
+
+def _bantla(sayfa: Worksheet, satir: int, sutun_sayisi: int, tek: bool) -> None:
+    """Satir bantlamasi: uzun listede goz satiri kaybetmesin."""
+    dolgu = _BANT_DOLGU if tek else _DUZ_DOLGU
+    for sutun in range(1, sutun_sayisi + 1):
+        hucre = sayfa.cell(satir, sutun)
+        hucre.fill = dolgu
+        hucre.font = _VERI_YAZI
+    sayfa.row_dimensions[satir].height = 15
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,6 +184,9 @@ class _Baglam:
     nokta_adi: dict[int, str]
     fazla_calisma: dict[int, float]
     kalan_kota: dict[int, float]
+    # ARALIK SAYISI ile KISI-SAAT ayri olculerdir; ikisi de raporda durur.
+    karsilanmayan_kisi_saat: int
+    ceza_kalemleri: list[tuple[str, str, float, float]]
 
 
 class DisaAktarmaServisi:
@@ -142,13 +232,31 @@ class DisaAktarmaServisi:
             for p in baglam.personel
         }
 
+        aciklar = list(self.kapsama.surume_gore_getir(surum_id))
+        karsilanmayan = sum(
+            _kisi_saat(a.baslangic_zamani, a.bitis_zamani, a.eksik_sayi) for a in aciklar
+        )
+
+        # HAM CEZA `analiz.ceza_dokumu`DAN, kurallari burada yeniden
+        # calistirmaktan DEGIL. Ikisi ayni sayiyi vermiyor: `dogrula` cozum
+        # aninin baglamini bilmedigi icin S2/S3/S4'te farkli degerler uretiyor
+        # ve dosya ekranla celisiyordu. Dokum zaten cozucunun kendi kaydidir
+        # ve `agirlik` ile carpimi `toplam_ceza`yi verir - dosyadaki formul de
+        # tam bunu gosterir, yani okuyucu iliskiyi dosyada dogrulayabilir.
+        agirliklar = {k.kimlik: float(k.agirlik or 0) for k in kurallar}
+        adlar = {k.kimlik: (k.ad or k.kimlik) for k in kurallar}
+        kalemler = [
+            (kimlik, adlar.get(kimlik, kimlik), float(deger), agirliklar.get(kimlik, 0.0))
+            for kimlik, deger in sorted((analiz.ceza_dokumu or {}).items())
+        ]
+
         return _Baglam(
             surum=surum,
             donem_baslangic=donem.baslangic_tarihi,
             donem_bitis=donem.bitis_tarihi,
             gunler=gunler,
             atamalar=atamalar,
-            aciklar=list(self.kapsama.surume_gore_getir(surum_id)),
+            aciklar=aciklar,
             fazlalar=list(self.fazla.surume_gore_getir(surum_id)),
             analiz=analiz,
             personel_adi={p.personel_id: p.ad_soyad for p in self.personel.tumunu_getir()},
@@ -156,6 +264,8 @@ class DisaAktarmaServisi:
             nokta_adi={n.nokta_id: n.ad for n in self.nokta.tumunu_getir()},
             fazla_calisma=fazla_calisma,
             kalan_kota=kalan,
+            karsilanmayan_kisi_saat=karsilanmayan,
+            ceza_kalemleri=kalemler,
         )
 
     # --- Cizelge calisma kitabi (FR-8.5) ---------------------------------
@@ -170,41 +280,57 @@ class DisaAktarmaServisi:
         self._sayfa_ham_cizelge(kitap.create_sheet("Ham veri"), b)
         return kitap
 
-    def _basligi_yaz(self, sayfa: Worksheet, b: _Baglam, baslik: str) -> int:
-        """Ortak baslik blogu; ilk bos satirin numarasini dondurur."""
-        oran = b.analiz.kapsama_orani
-        toplam_acik = sum(a.eksik_sayi for a in b.aciklar)
+    def _basligi_yaz(
+        self, sayfa: Worksheet, b: _Baglam, baslik: str, *, olcu_satiri: bool, uretim: bool = True
+    ) -> int:
+        """Ortak baslik blogu; ilk bos satirin numarasini dondurur.
+
+        `olcu_satiri` yalnizca CIZELGE sayfasinda acilir: kapsama ve acik
+        ozeti oraya aittir. Ozet sayfasinda tekrar edilmesi ayni sayiyi iki
+        yerde tutmak olurdu ve okuyucuya hicbir sey eklemezdi.
+        """
         sayfa["A1"] = baslik
-        sayfa["A1"].font = Font(bold=True, size=14)
-        sayfa["A2"] = (
-            f"Dönem {b.donem_baslangic.isoformat()} – {b.donem_bitis.isoformat()} · "
-            f"Sürüm {b.surum.surum_no} ({b.surum.durum.value}) · "
-            f"Üretim {date.today().isoformat()}"
-        )
+        sayfa["A1"].font = _SAYFA_BASLIGI
+        sayfa.row_dimensions[1].height = 25.5
+        parcalar = [
+            f"Dönem {_tarih_tr(b.donem_baslangic)} – {_tarih_tr(b.donem_bitis)}",
+            f"Sürüm {b.surum.surum_no}",
+        ]
+        if uretim:
+            parcalar.append(f"Üretim {_tarih_tr(date.today())}")
+        sayfa["A2"] = " · ".join(parcalar)
+        sayfa["A2"].font = _ALT_BASLIK
+        if not olcu_satiri:
+            sayfa.row_dimensions[2].height = 15
+            return 4
+        sayfa.row_dimensions[2].height = 13.5
         sayfa["A3"] = (
-            f"Kapsama {'—' if oran is None else f'%{oran * 100:.1f}'} · "
-            f"Toplam açık {toplam_acik} kişi-saat · "
+            f"Kapsama {_yuzde_tr(b.analiz.kapsama_orani)} · "
+            f"Karşılanmayan {b.karsilanmayan_kisi_saat} kişi-saat "
+            f"({len(b.aciklar)} aralık) · "
             f"Talepten fazla {b.analiz.toplam_fazla_kadro}"
         )
+        sayfa["A3"].font = _OLCU_YAZI
+        sayfa.row_dimensions[3].height = 15
         return 5
 
     def _sayfa_cizelge(self, sayfa: Worksheet, b: _Baglam) -> None:
         sayfa.title = "Çizelge"
-        satir = self._basligi_yaz(sayfa, b, "Vardiya Çizelgesi")
+        satir = self._basligi_yaz(sayfa, b, "Vardiya Çizelgesi", olcu_satiri=True)
 
         # Aciklarin gunleri: gun basligi isaretlenir. Acik SAAT duzeyinde
         # tutulur ama sutun basligi gun duzeyindedir; ayrinti kendi
         # sayfasinda durur.
         acik_gunleri = {a.baslangic_zamani.date() for a in b.aciklar}
 
-        sayfa.cell(satir, 1, "Personel").font = _BASLIK_YAZI
-        sayfa.cell(satir, 1).fill = _BASLIK_DOLGU
+        _baslik_satiri(sayfa, satir, ["Personel", *(g.strftime("%d.%m") for g in b.gunler)])
+        # ACIK OLAN GUN BASLIGI TURUNCU KALIR. Ortak baslik bandi yesil ama
+        # bu isaret bilgi tasiyor ve alttaki aciklama satiri ondan soz ediyor;
+        # gorsel butunluk ugruna kaldirilsaydi aciklama yalan soylerdi.
         for sutun, gun in enumerate(b.gunler, start=2):
-            hucre = sayfa.cell(satir, sutun, gun.strftime("%d.%m"))
-            hucre.font = _BASLIK_YAZI
-            hucre.alignment = _ORTALI
-            hucre.fill = _ACIK_DOLGU if gun in acik_gunleri else _BASLIK_DOLGU
-            hucre.border = _KENARLIK
+            if gun in acik_gunleri:
+                sayfa.cell(satir, sutun).fill = _ACIK_DOLGU
+                sayfa.cell(satir, sutun).font = Font(bold=True, size=10, color=_KOYU_METIN)
 
         # Blogun SAYILDIGI gun (SRS TD-1) baslangic damgasindan turetilir.
         indeks: dict[tuple[int, date], object] = {
@@ -216,7 +342,11 @@ class DisaAktarmaServisi:
         )
         for i, personel_id in enumerate(personeller, start=1):
             r = satir + i
+            _bantla(sayfa, r, len(b.gunler) + 1, i % 2 == 0)
+            sayfa.row_dimensions[r].height = 30
             ad = sayfa.cell(r, 1, b.personel_adi.get(personel_id, str(personel_id)))
+            ad.font = _KOYU_VERI
+            ad.alignment = _SOLA
             ad.border = _KENARLIK
             for sutun, gun in enumerate(b.gunler, start=2):
                 hucre = sayfa.cell(r, sutun)
@@ -228,14 +358,11 @@ class DisaAktarmaServisi:
                 # METIN HER ZAMAN VAR: dolgu basilmasa da hucre okunur.
                 hucre.value = (
                     f"{aralik_metni(atama.baslangic_zamani.time(), atama.bitis_zamani.time())}\n"
-                    f"{b.nokta_adi.get(atama.nokta_id, '')}"
+                    f"{_nokta_kisaltmasi(b.nokta_adi.get(atama.nokta_id, ''))}"
                 )
-                dolgu, yazi = _blok_dolgusu(atama.baslangic_zamani, atama.bitis_zamani)
-                hucre.fill = dolgu
-                if yazi is not None:
-                    hucre.font = yazi
+                hucre.fill, hucre.font = _blok_dolgusu(atama.baslangic_zamani)
 
-        aciklama = satir + len(personeller) + 2
+        aciklama = satir + len(personeller) + 1
         sayfa.cell(
             aciklama,
             1,
@@ -243,14 +370,24 @@ class DisaAktarmaServisi:
             "(20.00–06.00), ara ton = kısmen gece, açık = gündüz. Renk tek başına "
             "bilgi taşımaz; saat aralığı hücrede metin olarak da yazılıdır. "
             "Turuncu gün başlığı o günde kapsama açığı bulunduğunu belirtir.",
-        )
-        sayfa.column_dimensions["A"].width = 26
+        ).font = _NOT_YAZI
+        # Ikinci not RENGIN NE ANLATTIGINI degil, renk OLMADAN da okunabildigini
+        # soyler. Cizelge sahada siyah-beyaz basiliyor; dolgu kaybolunca
+        # hucrede yazan saat araligi bilginin TAMAMINI tasimaya devam eder.
+        sayfa.cell(
+            aciklama + 2,
+            1,
+            "Renk, çalışmanın günün hangi saatinde başladığını gösterir: koyu gece, "
+            "açık gündüz. Saat aralığı hücrede yazılıdır; çıktı renksiz basıldığında "
+            "bilgi kaybolmaz.",
+        ).font = _NOT_YAZI
+        sayfa.column_dimensions["A"].width = 30
         for sutun in range(2, len(b.gunler) + 2):
-            sayfa.column_dimensions[get_column_letter(sutun)].width = 13
+            sayfa.column_dimensions[get_column_letter(sutun)].width = 16
         sayfa.freeze_panes = sayfa.cell(satir + 1, 2)
 
     def _sayfa_ozet(self, sayfa: Worksheet, b: _Baglam) -> None:
-        satir = self._basligi_yaz(sayfa, b, "Personel Özeti")
+        satir = self._basligi_yaz(sayfa, b, "Personel Özeti", olcu_satiri=False, uretim=False)
         basliklar = [
             "Sicil",
             "Personel",
@@ -260,11 +397,7 @@ class DisaAktarmaServisi:
             "Fazla çalışma",
             "Kalan yıllık kota",
         ]
-        for sutun, metin in enumerate(basliklar, start=1):
-            hucre = sayfa.cell(satir, sutun, metin)
-            hucre.font = _BASLIK_YAZI
-            hucre.fill = _BASLIK_DOLGU
-            hucre.border = _KENARLIK
+        _baslik_satiri(sayfa, satir, basliklar)
 
         # UCU DE ANALIZ SERVISINDEN. Ayni sayilar ekranda da bunlardan
         # okunuyor; burada yeniden toplanmasi iki yuzey arasinda sessiz bir
@@ -273,6 +406,7 @@ class DisaAktarmaServisi:
         hafta_sonu = {k.personel_id: k.sayi for k in b.analiz.kisi_basina_hafta_sonu}
         for i, denge in enumerate(b.analiz.saat_dagilimi, start=1):
             r = satir + i
+            _bantla(sayfa, r, len(basliklar), i % 2 == 0)
             sayfa.cell(r, 1, b.personel_sicil.get(denge.personel_id, ""))
             sayfa.cell(r, 2, denge.ad_soyad)
             sayfa.cell(r, 3, round(denge.toplam_saat, 1))
@@ -280,9 +414,21 @@ class DisaAktarmaServisi:
             sayfa.cell(r, 5, round(hafta_sonu.get(denge.personel_id, 0.0), 1))
             sayfa.cell(r, 6, round(b.fazla_calisma.get(denge.personel_id, 0.0), 1))
             sayfa.cell(r, 7, round(b.kalan_kota.get(denge.personel_id, 0.0), 1))
-            for sutun in range(1, 8):
-                sayfa.cell(r, sutun).border = _KENARLIK
-        _genislikleri_ayarla(sayfa, [12, 26, 13, 12, 17, 14, 18])
+
+        # TOPLAM satiri CANLI FORMUL. Sabit bir sayi yazsaydik, okuyucu bir
+        # satiri silip suzdugunde toplam sessizce yanlis kalirdi. Kalan kota
+        # (7. sutun) toplanmaz: kisi basina tavan kalintisidir, toplaminin
+        # anlami yok.
+        if b.analiz.saat_dagilimi:
+            son = satir + len(b.analiz.saat_dagilimi) + 1
+            sayfa.cell(son, 2, "TOPLAM").font = _KOYU_VERI
+            for sutun in range(3, 7):
+                harf = get_column_letter(sutun)
+                hucre = sayfa.cell(son, sutun, f"=SUM({harf}{satir + 1}:{harf}{son - 1})")
+                hucre.font = _KOYU_VERI
+            sayfa.cell(son, 1).font = _KOYU_VERI
+        sayfa.freeze_panes = sayfa.cell(satir + 1, 1)
+        _genislikleri_ayarla(sayfa, [12, 28, 14, 13, 17, 15, 18])
 
     def _sayfa_ham_cizelge(self, sayfa: Worksheet, b: _Baglam) -> None:
         """CSV ciktisiyla AYNI icerik (SRS 7.2): blok basina bir satir."""
@@ -297,10 +443,7 @@ class DisaAktarmaServisi:
             "hafta_sonu_mu",
             "sure_saat",
         ]
-        for sutun, metin in enumerate(basliklar, start=1):
-            hucre = sayfa.cell(1, sutun, metin)
-            hucre.font = _BASLIK_YAZI
-            hucre.fill = _BASLIK_DOLGU
+        _baslik_satiri(sayfa, 1, basliklar)
         for i, a in enumerate(
             sorted(b.atamalar, key=lambda x: (x.baslangic_zamani, x.personel_id)), start=2
         ):
@@ -317,7 +460,12 @@ class DisaAktarmaServisi:
             sayfa.cell(i, 7, gece_saat_sayisi(a.baslangic_zamani.time(), a.bitis_zamani.time()))
             sayfa.cell(i, 8, "evet" if gun.weekday() >= 5 else "hayir")
             sayfa.cell(i, 9, sure)
-        _genislikleri_ayarla(sayfa, [12, 12, 24, 26, 26, 18, 11, 15, 11])
+            # HAM VERI KUCUK PUNTOYLA: burasi okunmaz, suzulur ve kopyalanir.
+            for sutun in range(1, len(basliklar) + 1):
+                sayfa.cell(i, sutun).font = _HAM_YAZI
+            sayfa.row_dimensions[i].height = 15
+        sayfa.freeze_panes = "A2"
+        _genislikleri_ayarla(sayfa, [12, 11, 26, 24, 26, 17, 11, 15, 11])
 
     # --- Analiz calisma kitabi (FR-8.9) ----------------------------------
 
@@ -334,21 +482,56 @@ class DisaAktarmaServisi:
 
     def _sayfa_analiz_ozet(self, sayfa: Worksheet, b: _Baglam) -> None:
         sayfa.title = "Özet"
-        satir = self._basligi_yaz(sayfa, b, "Çizelge Analizi")
-        sayfa.cell(satir, 1, "Hedef").font = _BASLIK_YAZI
-        sayfa.cell(satir, 2, "Ceza").font = _BASLIK_YAZI
-        for sutun in (1, 2):
-            sayfa.cell(satir, sutun).fill = _BASLIK_DOLGU
-        dokum = b.analiz.ceza_dokumu or {}
-        for i, (kimlik, deger) in enumerate(sorted(dokum.items()), start=1):
-            sayfa.cell(satir + i, 1, kimlik)
-            sayfa.cell(satir + i, 2, round(float(deger), 1))
-        son = satir + len(dokum) + 1
-        sayfa.cell(son, 1, "TOPLAM").font = _BASLIK_YAZI
+        satir = self._basligi_yaz(sayfa, b, "Çizelge Analizi", olcu_satiri=False)
+
+        # Kapsama SAYI olarak yazilir, "%96,9" metni olarak degil: okuyucu
+        # dosyada uzerine hesap yapabilsin. Bicimlendirme hucrenin isi.
+        # IKI SAYI BUYUK PUNTOYLA: kapsama ve karsilanmayan. Rapora bakan
+        # kisinin ilk aradigi ikisi bunlar; geri kalani tabloda.
+        sayfa.cell(satir, 1, "Kapsama").font = _ETIKET_YAZI
+        oran = sayfa.cell(satir, 2, round(b.analiz.kapsama_orani or 0.0, 3))
+        oran.number_format = "0.0%"
+        oran.font = _BUYUK_SAYI
+        sayfa.row_dimensions[satir].height = 24.45
+        sayfa.cell(satir + 1, 1, "Karşılanmayan").font = _ETIKET_YAZI
+        sayfa.cell(satir + 1, 2, b.karsilanmayan_kisi_saat).font = _BUYUK_VURGU
+        sayfa.row_dimensions[satir + 1].height = 24.45
+        sayfa.cell(satir + 2, 1, "Açık aralık sayısı").font = _ETIKET_YAZI
+        sayfa.cell(satir + 2, 2, len(b.aciklar)).font = _KOYU_VERI
         sayfa.cell(
-            son, 2, round(float(b.analiz.toplam_ceza), 1) if b.analiz.toplam_ceza else 0
-        ).font = _BASLIK_YAZI
-        _genislikleri_ayarla(sayfa, [16, 14])
+            satir + 3,
+            1,
+            "Karşılanmayan kişi-saat ile açık aralık sayısı farklı ölçülerdir: "
+            "ardışık saatler tek kayıtta birleştirilir.",
+        ).font = _NOT_YAZI
+
+        # HAM DEGER ve AGIRLIK AYRI SUTUNLARDA, carpim ise CANLI FORMUL.
+        # Ikisini tek sutunda toplamak okuyucuya "36 mi 360000 mi" sorusunu
+        # birakirdi; birimleri de farkli (kisi-saat / saat / gun karsisinda
+        # amac fonksiyonu puani). Formul birakmak agirligi degistirip
+        # sonucu dosyada gormeyi de mumkun kilar.
+        bas = satir + 5
+        _baslik_satiri(sayfa, bas, ["Hedef", "Açıklama", "Ham değer", "Ağırlık", "Ağırlıklı ceza"])
+        for i, (kimlik, ad, ham, agirlik) in enumerate(b.ceza_kalemleri, start=1):
+            r = bas + i
+            _bantla(sayfa, r, 5, i % 2 == 0)
+            sayfa.cell(r, 1, kimlik).font = _KOYU_VERI
+            sayfa.cell(r, 2, ad)
+            sayfa.cell(r, 3, round(ham, 1))
+            sayfa.cell(r, 4, agirlik)
+            sayfa.cell(r, 5, f"=C{r}*D{r}")
+        son = bas + len(b.ceza_kalemleri) + 1
+        sayfa.cell(son, 2, "TOPLAM").font = _KOYU_VERI
+        if b.ceza_kalemleri:
+            sayfa.cell(son, 5, f"=SUM(E{bas + 1}:E{son - 1})").font = _KOYU_VERI
+        sayfa.cell(
+            son + 2,
+            1,
+            "Ham değer kuralın kendi biriminde ölçülür (kişi-saat, saat, gün); "
+            "ağırlıklı ceza amaç fonksiyonuna giren değerdir. "
+            "İkisi aynı sütunda gösterilemez.",
+        ).font = _NOT_YAZI
+        _genislikleri_ayarla(sayfa, [10, 26, 14, 11, 16])
 
     def _sayfa_adalet(self, sayfa: Worksheet, b: _Baglam) -> None:
         """Kisi basina gece / hafta sonu / toplam saat, ADIL PAY ve sapma.
@@ -359,6 +542,9 @@ class DisaAktarmaServisi:
         sapmali gorunur. Ayni hata ekranda bir kez yapildi ve Tur 6'da
         duzeltildi; dosyanin onu geri getirmemesi gerekir.
         """
+        satir = self._basligi_yaz(sayfa, b, "Adalet Dağılımı", olcu_satiri=False, uretim=False)
+        sayfa["A2"] = "Referans çizgi kişiye düşen adil paydır; havuz ortalaması değil (SRS S2)."
+        sayfa["A2"].font = _ALT_BASLIK
         basliklar = [
             "Personel",
             "Gece saati",
@@ -367,16 +553,15 @@ class DisaAktarmaServisi:
             "Hafta sonu adil pay",
             "Toplam saat",
             "Toplam adil pay",
-            "Toplam sapma",
+            "Sapma",
         ]
-        for sutun, metin in enumerate(basliklar, start=1):
-            hucre = sayfa.cell(1, sutun, metin)
-            hucre.font = _BASLIK_YAZI
-            hucre.fill = _BASLIK_DOLGU
+        _baslik_satiri(sayfa, satir, basliklar)
 
         gece = {k.personel_id: k for k in b.analiz.kisi_basina_gece}
         hafta_sonu = {k.personel_id: k for k in b.analiz.kisi_basina_hafta_sonu}
-        for i, denge in enumerate(b.analiz.saat_dagilimi, start=2):
+        for sira, denge in enumerate(b.analiz.saat_dagilimi, start=1):
+            i = satir + sira
+            _bantla(sayfa, i, len(basliklar), sira % 2 == 0)
             g = gece.get(denge.personel_id)
             h = hafta_sonu.get(denge.personel_id)
             sayfa.cell(i, 1, denge.ad_soyad)
@@ -388,24 +573,35 @@ class DisaAktarmaServisi:
             sayfa.cell(i, 7, round(denge.hedef_saat, 1))
             sayfa.cell(i, 8, round(denge.sapma, 1))
 
-        son_satir = len(b.analiz.saat_dagilimi) + 1
-        if son_satir > 1:
-            _adalet_grafigi(sayfa, "Gece saati", 2, 3, son_satir, "J2")
-            _adalet_grafigi(sayfa, "Hafta sonu saati", 4, 5, son_satir, "J20")
-            _adalet_grafigi(sayfa, "Toplam saat", 6, 7, son_satir, "J38")
-        _genislikleri_ayarla(sayfa, [26, 12, 15, 17, 20, 13, 16, 14])
+        son_satir = len(b.analiz.saat_dagilimi) + satir
+        if son_satir > satir:
+            # IKI grafik, ucu degil: TOPLAM SAAT ile GECE adaletin iki ayri
+            # sorusudur. Hafta sonu saati tabloda durur ama kendi grafigini
+            # hak etmez - ucuncu grafik sayfayi uzatir, okuyucunun karsilastirdigi
+            # sey azalmaz. Ikisi de TABLONUN ALTINA, A sutununa yerlesir:
+            # yanda duran grafik tablo genisleyince veriyi ortuyordu.
+            _adalet_grafigi(
+                sayfa, "Toplam saat ve adil pay", 6, 7, satir, son_satir, son_satir + 12
+            )
+            _adalet_grafigi(sayfa, "Gece saati ve adil pay", 2, 3, satir, son_satir, son_satir + 32)
+        sayfa.freeze_panes = sayfa.cell(satir + 1, 2)
+        _genislikleri_ayarla(sayfa, [26, 13, 15, 17, 19, 13, 16, 12])
 
     def _sayfa_aciklar(self, sayfa: Worksheet, b: _Baglam) -> None:
-        basliklar = ["Gün", "Saat aralığı", "Görev noktası", "Eksik kişi"]
-        for sutun, metin in enumerate(basliklar, start=1):
-            hucre = sayfa.cell(1, sutun, metin)
-            hucre.font = _BASLIK_YAZI
-            hucre.fill = _BASLIK_DOLGU
+        satir = self._basligi_yaz(sayfa, b, "Kapsama Açıkları", olcu_satiri=False, uretim=False)
+        sayfa["A2"] = f"{len(b.aciklar)} aralık · toplam {b.karsilanmayan_kisi_saat} kişi-saat"
+        sayfa["A2"].font = _ALT_BASLIK
+        basliklar = ["Gün", "Saat aralığı", "Görev noktası", "Eksik kişi", "Kişi-saat"]
+        _baslik_satiri(sayfa, satir, basliklar)
         if not b.aciklar:
             # Aciklarin YOKLUGU da bildirilir; bos bir sayfa "acik yok" ile
             # "rapor uretilmedi" arasindaki farki soylemez.
-            sayfa.cell(2, 1, "Bu sürümde kapsama açığı yok.")
-        for i, a in enumerate(b.aciklar, start=2):
+            sayfa.cell(satir + 1, 1, "Bu sürümde kapsama açığı yok.")
+        for sira, a in enumerate(b.aciklar, start=1):
+            i = satir + sira
+            _bantla(sayfa, i, len(basliklar) - 1, sira % 2 == 0)
+            # Gun ISO: bu sayfa filtrelenip siralanan bir KAYIT listesidir,
+            # okunan bir cizelge degil; ISO siralamasi takvim sirasiyla ortusur.
             sayfa.cell(i, 1, a.baslangic_zamani.date().isoformat())
             # Aralik gun sinirini asabilir (B-23); metin iki damgadan kurulur.
             sayfa.cell(
@@ -413,13 +609,24 @@ class DisaAktarmaServisi:
             )
             sayfa.cell(i, 3, b.nokta_adi.get(a.nokta_id, ""))
             sayfa.cell(i, 4, a.eksik_sayi)
-        _genislikleri_ayarla(sayfa, [14, 18, 22, 13])
+            # Eksik KISI ile eksik KISI-SAAT ayri sayilardir: 3 kisilik bir
+            # saatlik acik ile 1 kisilik uc saatlik acik ayni degildir.
+            # KISI-SAAT sutunu vurgulu: sayfanin asil olcusu bu, "eksik kisi"
+            # degil. Bantlamanin disinda birakilir ki goz once oraya gitsin.
+            sayfa.cell(
+                i, 5, _kisi_saat(a.baslangic_zamani, a.bitis_zamani, a.eksik_sayi)
+            ).font = _OLCU_YAZI
+        if b.aciklar:
+            son = satir + len(b.aciklar) + 1
+            sayfa.cell(son, 3, "TOPLAM").font = _KOYU_VERI
+            sayfa.cell(son, 5, f"=SUM(E{satir + 1}:E{son - 1})").font = _OLCU_YAZI
+        sayfa.freeze_panes = sayfa.cell(satir + 1, 1)
+        _genislikleri_ayarla(sayfa, [14, 18, 22, 13, 13])
 
     def _sayfa_ham_analiz(self, sayfa: Worksheet, b: _Baglam) -> None:
         """Yukaridaki tablolarin BICIMLENDIRILMEMIS hali."""
         basliklar = ["olcu", "personel_id", "ad", "deger", "adil_pay"]
-        for sutun, metin in enumerate(basliklar, start=1):
-            sayfa.cell(1, sutun, metin).font = _BASLIK_YAZI
+        _baslik_satiri(sayfa, 1, basliklar)
         r = 2
         for olcu, kalemler in (
             ("gece_saati", b.analiz.kisi_basina_gece),
@@ -439,35 +646,54 @@ class DisaAktarmaServisi:
             sayfa.cell(r, 4, d.toplam_saat)
             sayfa.cell(r, 5, d.hedef_saat)
             r += 1
-        _genislikleri_ayarla(sayfa, [20, 14, 26, 12, 12])
+        # HAM VERI KUCUK PUNTOYLA: burasi okunmaz, suzulur ve kopyalanir.
+        for satir in range(2, r):
+            for sutun in range(1, len(basliklar) + 1):
+                sayfa.cell(satir, sutun).font = _HAM_YAZI
+            sayfa.row_dimensions[satir].height = 15
+        sayfa.freeze_panes = "A2"
+        _genislikleri_ayarla(sayfa, [18, 14, 26, 12, 12])
 
 
 def _adalet_grafigi(
-    sayfa: Worksheet, baslik: str, deger_sutunu: int, pay_sutunu: int, son_satir: int, konum: str
+    sayfa: Worksheet,
+    baslik: str,
+    deger_sutunu: int,
+    pay_sutunu: int,
+    baslik_satir: int,
+    son_satir: int,
+    hedef_satir: int,
 ) -> None:
-    """Olculen deger CUBUK, adil pay CIZGI olarak ustune biner.
+    """Olculen deger ve ADIL PAY yan yana iki cubuk.
 
-    openpyxl'de "referans cizgisi" diye bir nesne yok; bir cubuk grafigin
-    uzerine ikinci bir cizgi grafik bindirilerek elde edilir. Cizgi kisiden
-    kisiye degistigi icin duz bir yatay cizgi DEGILDIR - zaten oyle olmasi
-    da yanlis olurdu (S2: hedef kisiye ozeldir).
+    Onceki surum adil payi cubuklarin uzerine CIZGI olarak bindiriyordu.
+    Cizgi kisiden kisiye zipladigi icin - adil pay kisiye ozeldir (SRS S2),
+    sabit bir esik degil - okuyucuyu yaniltan bir "trend" gorunumu veriyordu.
+    Yan yana iki cubuk karsilastirmayi kisi bazinda birakir: her personelde
+    hangi cubugun uzun oldugu dogrudan gorunur.
+
+    Referans OLCUSU degismedi ve degismemeli: kiyas havuz ortalamasina degil
+    kisiye dusen adil paya gore yapilir. Ortalamayi gostermek S2'nin acikca
+    reddettigi olcuyu dosyaya tasimak olurdu; erisilebilirligi kisitli bir
+    havuz ona gore kalici olarak sapmali gorunur. Ayni hata ekranda bir kez
+    yapildi ve Tur 6'da duzeltildi.
     """
     cubuk = BarChart()
+    cubuk.type = "col"
+    cubuk.grouping = "clustered"
     cubuk.title = baslik
     cubuk.y_axis.title = "saat"
-    cubuk.add_data(
-        Reference(sayfa, min_col=deger_sutunu, min_row=1, max_row=son_satir), titles_from_data=True
-    )
-    cubuk.set_categories(Reference(sayfa, min_col=1, min_row=2, max_row=son_satir))
-
-    cizgi = LineChart()
-    cizgi.add_data(
-        Reference(sayfa, min_col=pay_sutunu, min_row=1, max_row=son_satir), titles_from_data=True
-    )
-    cubuk += cizgi
-    cubuk.height = 8
-    cubuk.width = 18
-    sayfa.add_chart(cubuk, konum)
+    for sutun in (deger_sutunu, pay_sutunu):
+        cubuk.add_data(
+            Reference(sayfa, min_col=sutun, min_row=baslik_satir, max_row=son_satir),
+            titles_from_data=True,
+        )
+    cubuk.set_categories(Reference(sayfa, min_col=1, min_row=baslik_satir + 1, max_row=son_satir))
+    cubuk.height = 9
+    cubuk.width = 20
+    # Tablonun ALTINA, A sutununa. Yanda duran grafik personel sayisi
+    # buyudukce tablonun uzerine biniyordu.
+    sayfa.add_chart(cubuk, f"A{hedef_satir}")
 
 
 def _genislikleri_ayarla(sayfa: Worksheet, genislikler: list[int]) -> None:

@@ -11,6 +11,7 @@ Bu dosyanin kilitledigi iki sozlesme:
 
 import uuid
 from datetime import date, datetime, time, timedelta
+from decimal import Decimal
 from io import BytesIO
 
 import pytest
@@ -24,6 +25,8 @@ from app.models.sonuc import (
     AtamaKaynagi,
     CizelgeSurumu,
     CizelgeSurumuDurumu,
+    CozumIsi,
+    CozumIsiDurumu,
     Donem,
     KapsamaAcigi,
 )
@@ -222,9 +225,17 @@ def test_dosyadaki_sayilar_analiz_ekraniyla_birebir_ayni(senaryo: dict) -> None:
             assert satir[2].value == pytest.approx(round(g.pay or 0.0, 1))
 
     # Kapsama orani baslik blogunda, analizle ayni degerde.
-    ozet_metni = " ".join(_hucreler(kitap["Özet"]))
+    # Analiz ozetinde kapsama SAYI olarak durur (uzerine hesap yapilabilsin),
+    # cizelge basliginda ise okunacak METIN olarak. Ikisi de ayni degeri
+    # ekrandan alir.
     assert analiz.kapsama_orani is not None
-    assert f"%{analiz.kapsama_orani * 100:.1f}" in ozet_metni
+    ozet = kitap["Özet"]
+    sayisal = {satir[0].value: satir[1].value for satir in ozet.iter_rows(min_row=1, max_col=2)}
+    assert sayisal["Kapsama"] == pytest.approx(analiz.kapsama_orani)
+
+    cizelge_metni = " ".join(_hucreler(_kitap(senaryo["surum_id"], "cizelge")["Çizelge"]))
+    beklenen = f"%{analiz.kapsama_orani * 100:.1f}".replace(".", ",")
+    assert beklenen in cizelge_metni, "Kapsama yuzdesi Turkce ondalik ayraciyla yazilmali"
 
 
 def test_cizelge_ozeti_de_ayni_toplam_saati_tasir(senaryo: dict) -> None:
@@ -253,13 +264,21 @@ def test_gece_yarisini_asan_acik_tek_satirda_ve_okunur(senaryo: dict) -> None:
     acik gibi gorunuyordu; hangi gune ait oldugu da belirsiz kaliyordu.
     """
     sayfa = _kitap(senaryo["surum_id"], "analiz")["Kapsama açıkları"]
-    satirlar = [[h.value for h in satir] for satir in sayfa.iter_rows(min_row=2) if satir[0].value]
+    # Baslik blogu 1-3, sutun basliklari 4. satirda; veri 5'ten baslar.
+    satirlar = [
+        [h.value for h in satir]
+        for satir in sayfa.iter_rows(min_row=5)
+        if satir[0].value and satir[0].value != "TOPLAM"
+    ]
     assert len(satirlar) == 1, "Aralik BOLUNMEMELI"
-    gun, aralik, nokta, eksik = satirlar[0][:4]
+    gun, aralik, nokta, eksik, kisi_saat = satirlar[0][:5]
+    # Bu sayfa filtrelenip siralanan bir KAYIT listesidir; gun ISO kalir.
     assert gun == BASLANGIC.isoformat()
     assert aralik == "22.00–02.00"
     assert nokta == senaryo["nokta_ad"]
     assert eksik == 2
+    # 2 kisi x 4 saat: eksik KISI ile eksik KISI-SAAT ayri sayilardir.
+    assert kisi_saat == 8
 
 
 def test_acik_yokken_sayfa_bunu_acikca_soyler(senaryo: dict) -> None:
@@ -282,8 +301,13 @@ def test_acik_yokken_sayfa_bunu_acikca_soyler(senaryo: dict) -> None:
 def test_analiz_kitabi_dort_sayfa_ve_grafik_tasir(senaryo: dict) -> None:
     kitap = _kitap(senaryo["surum_id"], "analiz")
     assert kitap.sheetnames == ["Özet", "Adalet", "Kapsama açıkları", "Ham veri"]
-    # Grafiklerin referans cizgisi ADIL PAYDIR; uc olcu icin uc grafik.
-    assert len(kitap["Adalet"]._charts) == 3
+    # Adalet iki soruda olculur: TOPLAM saat ve GECE. Her grafikte olculen
+    # deger ile ADIL PAY yan yana iki cubuktur; kiyas havuz ortalamasina degil
+    # kisiye dusen paya goredir (SRS S2).
+    grafikler = kitap["Adalet"]._charts
+    assert len(grafikler) == 2
+    for grafik in grafikler:
+        assert len(grafik.series) == 2
 
 
 # --- Uc noktalar ----------------------------------------------------------
@@ -314,3 +338,86 @@ def test_dosya_adi_donem_ve_surumu_tasir(senaryo: dict) -> None:
         assert dosya_adi(surum, "cizelge") == f"cizelge_surum{surum.surum_no}.xlsx"
     finally:
         oturum.close()
+
+
+def test_ceza_tablosu_ham_carpi_agirlik_toplam_cezayi_verir(senaryo: dict) -> None:
+    """Dosyadaki formul sutunu SUS PAYI DEGIL, gercek iliskiyi gosterir.
+
+    Ham deger ve agirlik ayri sutunlarda durur; carpimlarinin toplami
+    `toplam_ceza`ya esit olmalidir. Esit degilse ham degerler cozucunun
+    dokumunden degil baska bir yerden geliyor demektir - bir kez tam da bu
+    oldu ve dosya ekranla celisen sayilar tasidi.
+    """
+    dokum = {"S1": 36.0, "S2": 148.0, "S4": 209.0}
+    agirliklar = {"S1": 10000.0, "S2": 10.0, "S4": 1.0}
+    # Kurallar KURULUP SONUNDA SILINIR. Kural katalogu global; birakilan bir
+    # satir sonraki testlerin gordugu kural kumesini degistirir. Bu tuzaga bir
+    # kez dusuldu ve basarisiz test kumesi kosudan kosuya degisti.
+    eklenen: list[int] = []
+    oturum = OturumYerel()
+    try:
+        mevcut = {
+            k.kimlik: k for k in oturum.execute(select(Kural)).scalars() if k.kimlik in agirliklar
+        }
+        for kimlik, agirlik in agirliklar.items():
+            kural = mevcut.get(kimlik)
+            if kural is None:
+                kural = Kural(kimlik=kimlik, tip=KuralTipi.ESNEK, parametreler={}, aktif=True)
+                oturum.add(kural)
+                oturum.flush()
+                eklenen.append(kural.kural_id)
+            kural.agirlik = Decimal(agirlik)
+        oturum.add(
+            CozumIsi(
+                surum_id=senaryo["surum_id"],
+                durum=CozumIsiDurumu.TAMAMLANDI,
+                baslangic_zamani=datetime(2026, 4, 6, 9, 0),
+                bitis_zamani=datetime(2026, 4, 6, 9, 1),
+                zaman_limiti_saniye=60,
+                en_iyi_ceza=Decimal(sum(dokum[k] * agirliklar[k] for k in dokum)),
+                ceza_dokumu=dokum,
+                kural_anlik_goruntu={},
+            )
+        )
+        oturum.commit()
+        analiz = AnalizServisi(oturum).hesapla(senaryo["surum_id"])
+        assert analiz is not None
+
+        sayfa = DisaAktarmaServisi(oturum).analiz_calisma_kitabi(senaryo["surum_id"])["Özet"]
+        satirlar = [
+            satir
+            for satir in sayfa.iter_rows(min_row=10, max_col=5)
+            # Agirlik sutunu dolu olan satirlar tablodur; TOPLAM ve kapanis notu degil.
+            if satir[3].value is not None
+        ]
+        assert satirlar, "Ceza tablosu bos"
+
+        toplam = 0.0
+        for satir in satirlar:
+            kimlik, _ad, ham, agirlik, carpim = (h.value for h in satir)
+            assert ham == pytest.approx(analiz.ceza_dokumu[kimlik]), f"{kimlik} dokumden gelmiyor"
+            # Carpim SABIT SAYI DEGIL: agirligi degistiren okuyucu sonucu dosyada gorur.
+            assert carpim == f"=C{satir[0].row}*D{satir[0].row}"
+            toplam += float(ham) * float(agirlik)
+        assert toplam == pytest.approx(float(analiz.toplam_ceza or 0.0))
+    finally:
+        for kural_id in eklenen:
+            oturum.delete(oturum.get(Kural, kural_id))
+        oturum.commit()
+        oturum.close()
+
+
+def test_cizelge_hucresi_saat_araligi_ve_nokta_kisaltmasi_tasir(senaryo: dict) -> None:
+    """Tam nokta adi hucreye sigmiyor; kisaltma ayirt edici ve TURKCE buyutulmus."""
+    sayfa = _kitap(senaryo["surum_id"], "cizelge")["Çizelge"]
+    kisaltma = senaryo["nokta_ad"][:3].upper()
+    dolu = [
+        h.value
+        for satir in sayfa.iter_rows(min_row=6, min_col=2)
+        for h in satir
+        if h.value is not None
+    ]
+    assert dolu, "Cizelge bos"
+    for metin in dolu:
+        aralik, nokta = metin.split("\n")
+        assert "–" in aralik and nokta == kisaltma
