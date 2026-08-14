@@ -115,7 +115,8 @@ fikstür, ölçtüğü şeyi de bozar.
 
 ### Turun bitiş kontrolü — sunucu tarafı
 
-- [x] `pytest` tam takım **360 test geçiyor**
+- [x] `pytest` tam takım **360 test geçiyor** — **ters dosya sırasında da**
+      (`ls tests/test_*.py | sort -r`), aynı 360. Sıra bağımlılığı yok
 - [x] `ruff check` ve `ruff format` temiz
 - [x] Taslak oturumun dört testi de yerinde
 - [x] Biriken değişikliklerin **birlikte** doğrulandığı test yazıldı
