@@ -9,7 +9,143 @@ başlar.
 
 ---
 
-## 2026-08-14 — Tur 7: Gösterim Verisi ve Tatil Takvimi — **BİTTİ, DAĞITILDI**
+## 2026-08-14 — Tur 7: Düzenleme Sistemi — **YARIM: sunucu bitti, arayüz bekliyor**
+
+Kaynak: bu turun promptu. Altı iş; **üçü bitti, üçü açık.** Çalışma
+`tur7-duzenleme-sistemi` dalında; dal yeşil bırakıldı.
+
+Doküman sürümleri turun başında doğrulandı: Charter **1.4**, SRS **1.23**,
+SDD **1.30**, Backlog **1.20** — dördü de taşıyor.
+
+> **İSİM ÇAKIŞMASI.** Bu dosyada bir alttaki kayıt da "Tur 7" adını
+> taşıyordu (gösterim verisi ve tatil takvimi). O iş bir tur promptundan
+> değil doğrudan istekten doğdu; karışmasın diye **"Ara iş"** olarak
+> yeniden adlandırıldı. Numaralı Tur 7 budur.
+
+### İş 5 — yazdırma yalnızca ilk günü basıyordu · **BİTTİ**
+
+Teşhis doğrulandı, tahmin edilenden başkaydı. Önizleme `position: fixed` +
+`overflow: auto` bir kabın içinde duruyor, baskı CSS'i de yazdırma alanına
+`position: absolute` veriyordu. Üçü de öğeyi normal akıştan çıkarır ve **akış
+dışı içerik sayfalanmaz** — tarayıcı ilk sayfayı çizip durur. Tek tablolu
+çıktıda görünmüyordu (zaten bir sayfaya sığıyordu); Tur 6'da gün başına ayrı
+ızgaraya geçilince yedi günlük dönem tek sayfa basmaya başladı.
+
+Önizleme artık `document.body`'ye **portal** ile bağlanıyor, yani `#root`un
+kardeşi; baskıda `#root` tümüyle gizleniyor. Uygulama yerleşimden düştüğü
+için konumlandıracak bir şey kalmadı ve görünürlük hilesi de mutlak
+konumlandırma da kaldırıldı.
+
+jsdom sayfalama yapmaz, **"yedi sayfa çıktı" TEST EDİLEMEZ.** Test asıl
+bozulan şeyi kilitliyor: önizleme gövdenin çocuğu olmalı, çünkü baskı kuralı
+`#root`u gizleyerek çalışıyor.
+
+### İş 6 — haftalık görünüm okunmuyordu · **BİTTİ**
+
+Hücre artık saat aralığını **metin** olarak yazıyor ("08–16 GÜV"), altındaki
+üç piksellik **düz** çubuk bloğun günün neresinde durduğunu gösteriyor.
+
+Çubuk gradient değil: okunması gereken şey tam olarak **sınırdır**, gradient
+sürekli olduğu için onu belirsizleştirir — sürekliliğin bant için erdem
+olduğu yerde burada kusur. Çubuk saat rengini de taşımıyor; gündüz tonu
+(#E9E7D9) hücre zemininden (#E4E7E1) ayırt edilemiyor ve üç piksellik bir
+çubukta o fark tümüyle kayboluyor. "Gece mi gündüz mü" bilgisi zaten metinde.
+
+Düğüm sayısı hücre başına sabit kaldı; performans testinin sınırı 1.000'den
+**2.000**'e çıkarıldı (30 × 7 ölçümü ~1.400). Testin koruduğu şey bugünkü
+sayı değil, sayının **dilim sayısından bağımsız** kalmasıdır.
+
+### İş 2a + İş 3'ün sunucu tarafı — taslak oturum · **BİTTİ**
+
+`dogrula(surum_id, degisiklikler)` oturumun **tamamını** alıp aday çizelgeyi
+bellekte kuruyor ve **hiçbir şey yazmıyor** — işlem açmıyor, sapma
+tablolarına dokunmuyor.
+
+`kaydet(surum_id, degisiklikler, damga)` tek işlemde: `SELECT … FOR UPDATE`
+→ durum → damga → **yeniden doğrula** → uygula → sapmaları tazele → yeni
+damga. Kısmi kayıt yok; istemcinin "geçerliydi" bilgisine güvenilmiyor.
+
+`PUT /api/atama` kalktı, `POST /api/atama/kaydet` geldi.
+`EK_B_UC_NOKTALAR.md` yeniden üretildi — **68 uç nokta, denetim temiz.**
+
+**Göç `a3f5d81c7e42`** — `cizelge_surumu.damga`. Şema değişikliği, veri
+dönüştürmez, geri alınabilir. Var olan satırlara `gen_random_uuid()` ile
+**satır başına farklı** değer yazılır; tek adımda `server_default` verilseydi
+hepsi aynı değeri alır ve damga hiçbir şey ayırt etmezdi.
+
+**On bir yeni test** (`test_duzenleme_oturumu.py`) — turun istediği dördü:
+kaydetmeden çıkınca sürüm değişmiyor, damga çakışması ikinci kaydı
+reddediyor, yayınlanmış sürüm hem yordamda hem uç noktada korunuyor, ve
+**biriken değişikliklerin birlikte doğrulandığı** test.
+
+### Tasarımdan iki sapma — ikisi de gerekçeli
+
+1. **±7 günlük doğrulama penceresi kalktı.** O kısayol TEK değişiklik
+   varsayımına dayanıyordu; birden fazla değişiklikte kuralların göreceği
+   küme yanlış çıkardı. SDD 5.5'in kendi sözde kodu zaten dönem geneli
+   atamalar üzerinde çalışıyor.
+2. **Damga `guncelleme_zamani` değil ayrı bir sütun.** O alan satırın her
+   dokunuluşunda değişir (yayınlama, arşivleme) ve mikrosaniye duyarlılığıyla
+   JSON üzerinden gidip gelir; eşitlik karşılaştırması biçimlendirmeye
+   bağımlı hale gelirdi.
+
+### DOKÜMAN BORCU — **bir madde**
+
+**SDD 4.2.4 — `cizelge_surumu.damga`.** 5.5.1 `surum.damga`'dan ve
+`YENİ_DAMGA()`'dan söz ediyor, ama 4.2.4'teki alan listesinde böyle bir
+sütun yok. Sütun eklendi (göç `a3f5d81c7e42`), dokümana işlenmeli.
+
+### Yol boyunca iki tuzak
+
+**Test veritabanı göç görmemişti.** İlk koşumdaki 41 başarısızlığın tamamı
+bundandı. Şema bilinçli olarak `create_all` ile değil **göçle** kuruluyor
+(göçlerin kendisi de sınansın diye, conftest bunu belgeliyor); yeni bir göç
+eklendiğinde `VERITABANI_URL=$TEST_VERITABANI_URL alembic upgrade head` de
+koşturulmalı.
+
+**Kendi fikstürüm test kirliliği üretti ve yanlış teşhise yol açtı.** Yeni
+fikstür bütün kuralları global pasifleştirip commit ediyordu; `kural` tablosu
+bütün testlerce paylaşıldığı için sonraki testler kuralsız katalogla kalıyor
+ve **başarısızlık kümesi koşumdan koşuma değişiyordu**. Bu kirlilik varken
+`test_kimlik_api` ve `test_calisan_api` tek başlarına koşturulduğunda dokuz
+test düşüyordu ve bu, "önceden var olan bir sıra bağımlılığı" diye
+kaydedilmeye çok yakındı. Fikstür düzeltildikten sonra **ikisi de izolasyonda
+geçiyor** — böyle bir bağımlılık yok. Ders: paylaşılan tabloyu değiştiren bir
+fikstür, ölçtüğü şeyi de bozar.
+
+### Turun bitiş kontrolü — sunucu tarafı
+
+- [x] `pytest` tam takım **360 test geçiyor**
+- [x] `ruff check` ve `ruff format` temiz
+- [x] Taslak oturumun dört testi de yerinde
+- [x] Biriken değişikliklerin **birlikte** doğrulandığı test yazıldı
+- [x] `EK_B_UC_NOKTALAR.md` yeniden üretildi
+- [ ] Frontend testleri ve `tsc`/`oxlint` — arayüz işi yapılmadı
+
+### KALAN — bir sonraki oturumun işi
+
+Dört iş açık ve hepsi **aynı ekranda** birleşiyor (`CizelgeEkrani` +
+`GunIzgarasi`); yarım bırakılırsa düzenleme hiç çalışmayacağı için hiç
+başlanmadı:
+
+- **İş 1** — düzenleme ızgaranın üzerine: sürükle → blok, kenardan tut →
+  uzat/kısalt, gövdeden tut → gün içinde kaydır **veya başka personele taşı**,
+  tıkla → menü (nokta değiştir / kilitle / sil). Form paneli ikincil olarak
+  yanda kalır.
+- **İş 2b** — istemcide biriken oturum, geri al / yeniden uygula, kaydedilmemiş
+  değişiklikle ayrılma uyarısı, damga çakışmasının anlaşılır hatası.
+- **İş 3'ün arayüz tarafı** — yayınlanmış sürümde araçları gizle ve taslak
+  türetme gerektiğini söyle. Sunucu tarafı hazır.
+- **İş 4** — sonuç dili: önce gündelik cümle, sayısal döküm ayrıntı arkasında.
+
+Sunucu sözleşmesi hazır ve testlerle kilitli; arayüz sıfırdan kurulacak.
+`Atama` bloğunu başka personele taşımak **iki değişikliktir** (kaynaktan
+kaldır + hedefe yaz) ve bu, `test_blogu_baska_personele_tasima_iki_degisikliktir`
+ile örneklenmiştir — arayüz taşımayı böyle üretmeli.
+
+---
+
+## 2026-08-14 — Ara iş: Gösterim Verisi ve Tatil Takvimi — **BİTTİ, DAĞITILDI**
 
 Sunucudaki demo verisi Tur 4 öncesindendi ("Demo Personel GG-001", 44 kişi,
 Müracaat noktası); göç onu olduğu gibi taşımıştı. İstenen yenileme sırasında
