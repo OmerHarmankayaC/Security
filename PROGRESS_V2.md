@@ -9,10 +9,10 @@ başlar.
 
 ---
 
-## 2026-08-14 — Tur 7: Düzenleme Sistemi — **YARIM: sunucu bitti, arayüz bekliyor**
+## 2026-08-14 — Tur 7: Düzenleme Sistemi — **BİTTİ**
 
-Kaynak: bu turun promptu. Altı iş; **üçü bitti, üçü açık.** Çalışma
-`tur7-duzenleme-sistemi` dalında; dal yeşil bırakıldı.
+Kaynak: bu turun promptu. **Altı iş de bitti.** Çalışma
+`tur7-duzenleme-sistemi` dalında yürüdü.
 
 Doküman sürümleri turun başında doğrulandı: Charter **1.4**, SRS **1.23**,
 SDD **1.30**, Backlog **1.20** — dördü de taşıyor.
@@ -123,26 +123,103 @@ fikstür, ölçtüğü şeyi de bozar.
 - [x] `EK_B_UC_NOKTALAR.md` yeniden üretildi
 - [ ] Frontend testleri ve `tsc`/`oxlint` — arayüz işi yapılmadı
 
-### KALAN — bir sonraki oturumun işi
+### İş 1 — düzenleme ızgaranın üzerine taşındı · **BİTTİ**
 
-Dört iş açık ve hepsi **aynı ekranda** birleşiyor (`CizelgeEkrani` +
-`GunIzgarasi`); yarım bırakılırsa düzenleme hiç çalışmayacağı için hiç
-başlanmadı:
+Boş satırda sürükle → blok; kenardan tut → uzat/kısalt; gövdeden tut → gün
+içinde kaydır **ya da başka personelin satırına bırak**; tıkla → menü (görev
+noktası, kilitle, sil).
 
-- **İş 1** — düzenleme ızgaranın üzerine: sürükle → blok, kenardan tut →
-  uzat/kısalt, gövdeden tut → gün içinde kaydır **veya başka personele taşı**,
-  tıkla → menü (nokta değiştir / kilitle / sil). Form paneli ikincil olarak
-  yanda kalır.
-- **İş 2b** — istemcide biriken oturum, geri al / yeniden uygula, kaydedilmemiş
-  değişiklikle ayrılma uyarısı, damga çakışmasının anlaşılır hatası.
-- **İş 3'ün arayüz tarafı** — yayınlanmış sürümde araçları gizle ve taslak
-  türetme gerektiğini söyle. Sunucu tarafı hazır.
-- **İş 4** — sonuç dili: önce gündelik cümle, sayısal döküm ayrıntı arkasında.
+**SÜRÜKLEME SINIRA DAYANINCA DURUR.** Aralık artık uyarıyla işaretlenmiyor,
+**kırpılıyor**: asgarinin altına inen sürükleme asgaride, azaminin üstüne
+çıkan azamide duruyor. Değerler kural kataloğundan; kural pasifse kırpma da
+yok. Kullanıcı geçersiz bir seçimi tamamlayıp sonradan reddedilmiyor.
 
-Sunucu sözleşmesi hazır ve testlerle kilitli; arayüz sıfırdan kurulacak.
-`Atama` bloğunu başka personele taşımak **iki değişikliktir** (kaynaktan
-kaldır + hedefe yaz) ve bu, `test_blogu_baska_personele_tasima_iki_degisikliktir`
-ile örneklenmiştir — arayüz taşımayı böyle üretmeli.
+**Silme menüde ve görünür.** Eski ekranda bir açılır listenin "— Boşalt —"
+seçeneğinin içine saklıydı; bir işlemi başka bir işlemin seçeneği yapmak onu
+bulunmaz kılar.
+
+Form paneli **ikincil yol** olarak yanda kaldı (SRS 5.6): tam saat değeri
+yazmak isteyen için, ızgaranın altında değil yanında.
+
+### İş 2b — oturum arayüzü · **BİTTİ**
+
+Değişiklikler istemcide birikiyor ve ızgarada anında görünüyor; her adımdan
+sonra sunucuya **oturumun tamamı** doğrulatılıyor ve sunucu hiçbir şey
+yazmıyor. Geri al / yinele birikimi ileri geri sürüyor. Kaydet tek istek
+gönderiyor ve damgayı taşıyor; yanıttaki yeni damga saklanıyor.
+
+Kirli oturumda **dönem ve sürüm seçicileri, Yeniden Çöz düğmesi kilitli** ve
+sekme kapatma `beforeunload` ile uyarılıyor (FR-6.8).
+
+**Kilit bilinçli olarak oturumun DIŞINDA** ve anında yazılıyor: kilit atamayı
+değiştirmez, yalnızca yeniden çözümde sabit girdi sayılıp sayılmayacağını
+belirler (FR-6.5). Oturuma alınsaydı kaydedilmemiş bir kilit "bu blok
+korunuyor" diye görünür ama yeniden çözüm onu görmezdi.
+
+### İş 3'ün arayüz tarafı · **BİTTİ**
+
+Yayınlanmış/arşiv sürümde ızgara salt okunur, düzenleme araçları çalışmıyor
+ve ekranın başında **nedenini söyleyen** bir şerit duruyor: yeni taslak
+türetilmesi gerektiği (FR-7.3). Sunucu tarafı zaten reddediyordu; araçların
+gizlenmesi tek başına yeterli değil, ama kullanıcının NEDEN
+düzenleyemediğini okuması gerekiyor — yoksa ızgaranın tepkisizliği hataya
+benziyor.
+
+### İş 4 — sonuç dili · **BİTTİ**
+
+Şerit önce cümleyi yazıyor: "Kapsama açığı 1 kişi azaldı; toplam saat dengesi
+1 saat bozuldu." Sayısal ceza dökümü **ayrıntı bağlantısının arkasında**.
+
+**Zorunlu ihlal varken başka hiçbir şey gösterilmiyor** — değişiklik
+uygulanmadığı için ceza dökümü gerçekleşmemiş bir durumu anlatır ve ikisini
+birlikte göstermek kullanıcıya iki farklı gerçeklik sunardı. "Kabul
+edilebilir" ile kırmızı uyarı artık aynı anda görünemiyor.
+
+### Bir dayanıklılık açığı — testte yakalandı
+
+Gövde sürüklemesinde imlecin hangi saatin üzerinde olduğu, şeridin kabına
+göre oranla bulunuyor. Kap **sıfır genişlikteyken** bölme `NaN` üretiyordu ve
+`NaN === NaN` **false** olduğu için "kıpırdamadı" kontrolü sessizce çöküyor,
+tek tık taşımaya dönüşüyordu. jsdom düzen hesaplamadığı için test bunu ilk
+denemede gösterdi; tarayıcıda da henüz yerleşmemiş bir kapta aynı şey olurdu.
+
+### Testte OLMAYAN davranışlar — gözle bakılmalı
+
+jsdom düzen (layout) hesaplamaz. Aşağıdakiler **test edilmedi**:
+
+- **Sürükleme akıcılığı.** Testler hücrelere doğrudan olay göndererek jestin
+  mantığını doğruluyor; imlecin gerçekten o hücrenin üzerinde olup olmadığını
+  doğrulamıyor.
+- **Taşımada tutulan saatin korunması.** Şeridin neresinden tutulduğu oranla
+  hesaplanıyor ve jsdom'da o oran hep sıfır; testler yalnızca SATIR
+  değişikliğini ölçüyor.
+- **Menünün konumu.** Şeridin altında açılıyor; dar sütunda ya da ızgaranın
+  sağ kenarında ekrandan taşabilir.
+
+### Turun bitiş kontrolü
+
+- [x] `pytest` tam takım **360 test geçiyor** — **ters dosya sırasında da**
+      (`ls tests/test_*.py | sort -r`), aynı 360. Sıra bağımlılığı yok
+- [x] `ruff check` ve `ruff format` temiz
+- [x] `tsc -b` ve `oxlint` temiz (4 uyarı, turdan önce de vardı)
+- [x] **284 frontend testi** geçiyor — karışık sırada da (`--sequence.shuffle`)
+- [x] Taslak oturumun dört testi de yerinde
+- [x] Biriken değişikliklerin **birlikte** doğrulandığı test yazıldı
+- [x] `EK_B_UC_NOKTALAR.md` yeniden üretildi
+- [ ] `git status` temiz — dört kanonik doküman proje yürütücüsünde açık
+
+### Sen ne göreceksin — şu üç ekranı kendi gözünle aç
+
+1. **Çizelge → Gün, boş bir satırda sürükle.** Asgariye dayandığında
+   sürüklemenin durduğunu hisset; önizleme "Asgari blok 4 saat (H1)" yazmalı.
+2. **Bir bloğu gövdesinden tutup başka personelin satırına bırak.** Kaynak
+   şerit sürükleme boyunca soluklaşıyor, önizleme hedef satırda çiziliyor.
+   Tuttuğun saatin korunup korunmadığına bak — bu testte ölçülemedi.
+3. **Bloğa tıkla.** Menü şeridin altında açılmalı; dar sütunda ya da
+   ızgaranın sağ kenarında ekrandan taşıyorsa söyle.
+
+Ayrıca **kaydetmeden dönem değiştirmeyi dene**: seçici kilitli olmalı ve
+"Önce değişiklikleri kaydedin ya da vazgeçin" demeli.
 
 ---
 
