@@ -236,6 +236,9 @@ export interface DogrulamaSonucu {
    *  (kapsama açığı, fazla kadro). Zorunlu ihlal DEĞİLDİR — değişiklik
    *  uygulanır, karar kullanıcıya bırakılır (SDD 5.5). */
   uyarilar: Ihlal[]
+  /** Kaydetme yanıtında YENİ damga; doğrulama yanıtında null (hiçbir şey
+   *  yazılmadığı için damga da değişmez). */
+  damga?: string | null
 }
 
 /**
@@ -246,13 +249,29 @@ export interface DogrulamaSonucu {
  * edemez (SDD 6.3.1). Bitiş başlangıçtan küçük ya da eşitse blok gece yarısını
  * aşar.
  */
-export interface AtamaDegisikligiIstek {
-  surum_id: number
+export interface BlokDegisikligi {
   personel_id: number
   tarih: string
   baslangic_saati: string | null
   bitis_saati: string | null
   nokta_id: number | null
+}
+
+/**
+ * Doğrulama isteği: oturumun O ANA KADAR biriken TAMAMI (SRS TD-16).
+ *
+ * Son değişikliği değil bütün birikimi taşır. Tek tek geçerli olan iki
+ * değişiklik birlikte bir kuralı bozabilir: iki ayrı güne yapılan uzatma,
+ * ayrı ayrı haftalık tavanı aşmazken birlikte aşar.
+ */
+export interface DogrulamaIstegi {
+  surum_id: number
+  degisiklikler: BlokDegisikligi[]
+}
+
+/** Kaydetme: doğrulama isteği + sürüm damgası (SDD 5.5.1). */
+export interface KaydetIstegi extends DogrulamaIstegi {
+  damga: string
 }
 
 // --- Tanımlar (Sprint 3 Ara İş) --------------------------------------------

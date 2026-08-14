@@ -1,7 +1,8 @@
 import type {
   Analiz,
   Atama,
-  AtamaDegisikligiIstek,
+  DogrulamaIstegi,
+  KaydetIstegi,
   Ben,
   Bina,
   CalisanTercihListesi,
@@ -134,10 +135,13 @@ export const api = {
       ...(karar === 'devam' && zamanLimitiSaniye ? { zaman_limiti_saniye: zamanLimitiSaniye } : {}),
     }),
 
-  atamaDogrula: (istekGovdesi: AtamaDegisikligiIstek) =>
+  // Oturumun TAMAMINI gönderir ve hiçbir şey yazmaz (SDD 5.5).
+  atamaDogrula: (istekGovdesi: DogrulamaIstegi) =>
     gonder<DogrulamaSonucu>('/api/atama/dogrula', istekGovdesi),
-  atamaGuncelle: (istekGovdesi: AtamaDegisikligiIstek) =>
-    gonder<DogrulamaSonucu>('/api/atama', istekGovdesi, 'PUT'),
+  // Biriken değişikliklerin tek işlemde uygulanması (SDD 5.5.1). Yanıt YENİ
+  // damgayı taşır; istemci bir sonraki kayıt için onu saklar.
+  atamaKaydet: (istekGovdesi: KaydetIstegi) =>
+    gonder<DogrulamaSonucu>('/api/atama/kaydet', istekGovdesi),
   atamaKilitAyarla: (
     surumId: number,
     personelId: number,
