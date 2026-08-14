@@ -1,34 +1,46 @@
-"""SDD 5.5 (surum 1.3): degisikligi_dogrula - manuel duzenleme dogrulamasi.
+"""SDD 5.5: manuel duzenleme dogrulamasi ve kaydetme (SRS TD-16).
 
-Iki ayri atama kumesi uzerinde calisir: pencere (degistirilen gunun +-7
-gunu - H1-H8 dogasi geregi, S1/S5/S6/S6b/S7/S8 tek hucrelik degisiklik
-etkisi acisindan yeterlidir) ve donem geneli (S2/S3/S4 - donem genelindeki
-bir agregata baktiklari icin pencereyle sinirlandirilamaz). Zorunlu
-kurallar yalnizca degisiklik SONRASI durumda degerlendirilir (kabul/red
-karari icin bu yeterlidir); esnek hedefler ise degisiklik ONCESI ve
-SONRASI iki kez degerlendirilip farki raporlanir - bu, pencere disindaki
-gunler icin baglamdan (talep, tercihler, donem sinirlari) kaynaklanan
-sabit/degismeyen sapmalarin farkta iptal olmasini saglar.
+DUZENLEME BIR OTURUMDUR, islem dizisi degil. Degisiklikler istemcide
+birikir; sunucu iki uc nokta sunar ve ikisi de AYNI kural uygulamasindan
+beslenir (FR-6.6):
+
+  dogrula()  aday cizelgeyi BELLEKTE kurar, kurallari degerlendirir,
+             hicbir sey yazmaz - "kaydedilmezse degisiklik olmaz"in
+             uygulama karsiligi budur.
+  kaydet()   tek islemde: kilitle, durumu ve damgayi dogrula, yeniden
+             degerlendir, uygula, sapmalari tazele, yeni damga yaz.
+
+DEGERLENDIRME BIRIKENIN TAMAMI UZERINDEN YAPILIR. Tek tek gecerli olan iki
+degisiklik birlikte bir kurali bozabilir: iki ayri gune yapilan uzatma,
+ayri ayri haftalik tavani asmazken birlikte asar. Bu yuzden istek son
+degisikligi degil oturumun tamamini tasir ve degerlendirme DONEM GENELI
+atamalar uzerinde kosar - eski surumdeki "degisen gunun +-7 gunu"
+penceresi tek bir degisiklik varsayimina dayaniyordu ve birden fazla
+degisiklikte yanlis kume uretirdi.
+
+Zorunlu kurallar yalnizca degisiklik SONRASI durumda degerlendirilir
+(kabul/red karari icin bu yeterlidir); esnek hedefler ONCESI ve SONRASI
+iki kez degerlendirilip farki raporlanir - boylece degisiklikten bagimsiz
+sabit sapmalar farkta iptal olur.
 """
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
+from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
 from app.kurallar.baglam import AtamaKaydi
 from app.kurallar.kayit_defteri import kurallari_yukle
-from app.kurallar.temel import Ihlal, KuralKapsami
+from app.kurallar.temel import Ihlal
 from app.models.kural import KuralTipi
-from app.models.sonuc import Atama, AtamaKaynagi, CizelgeSurumuDurumu
+from app.models.sonuc import Atama, AtamaKaynagi, CizelgeSurumu, CizelgeSurumuDurumu
 from app.repositories.kural import KuralDeposu
 from app.repositories.sonuc import AtamaDeposu, CizelgeSurumuDeposu, DonemDeposu
 from app.services.atama_donusumu import atama_kayitlarina_cevir
 from app.services.baglam_kurucu import baglam_olustur
 from app.services.talep_sapmasi import sapmalari_yenile
-
-_PENCERE_GUN = 7
 
 
 class SurumTaslakDegilError(Exception):
@@ -36,6 +48,28 @@ class SurumTaslakDegilError(Exception):
     engellenir. TD-8'e gore yalnizca 'yayinlandi' salt okunurdur - 'taslak' ve
     'cozuldu' ikisi de duzenlenebilir (bir cozum isi bitince surum otomatik
     'cozuldu' olur; kullanici bunun uzerinde elle degisiklik yapabilmelidir)."""
+
+
+class DamgaCakismasiError(Exception):
+    """SRS TD-16: surum, kullanici duzenlemeye basladigindan beri degismis.
+
+    Baska bir oturum ayni surumu kaydetmis demektir. Sessizce uzerine yazmak
+    onun isini iz birakmadan yok ederdi; kayit reddedilir ve kullaniciya
+    durum bildirilir.
+    """
+
+
+class ZorunluIhlalError(Exception):
+    """Kaydetme aninda zorunlu kisit ihlali bulundu (SDD 5.5.1).
+
+    Istemcinin "gecerliydi" bilgisine guvenilmez: arada kural parametresi
+    degismis, musaitlik kaydi girilmis olabilir. Dogrulama kaydetme aninda
+    TEKRARLANIR ve ihlal varsa hicbir sey yazilmaz.
+    """
+
+    def __init__(self, ihlaller: list[Ihlal]) -> None:
+        super().__init__("Zorunlu kisit ihlali")
+        self.ihlaller = ihlaller
 
 
 _DUZENLENEBILIR_DURUMLAR = (CizelgeSurumuDurumu.TASLAK, CizelgeSurumuDurumu.COZULDU)
@@ -53,7 +87,6 @@ class AtamaDegisikligi:
     ertesi gune tasar - `zaman_araligi` modulundeki sozlesmenin aynisi.
     """
 
-    surum_id: int
     personel_id: int
     tarih: date
     baslangic_saati: time | None = None
@@ -116,32 +149,46 @@ class DogrulamaServisi:
         self.kural = KuralDeposu(oturum)
         self.atama = AtamaDeposu(oturum)
 
-    def dogrula(self, degisiklik: AtamaDegisikligi) -> DogrulamaSonucu | None:
-        """Surum bulunamazsa None doner (404); duzenlenebilir durumda degilse
-        (yayinlandi/arsiv) SurumTaslakDegilError firlatir (409)."""
-        surum = self.surum.getir(degisiklik.surum_id)
+    def dogrula(
+        self, surum_id: int, degisiklikler: Iterable[AtamaDegisikligi]
+    ) -> DogrulamaSonucu | None:
+        """Aday cizelgeyi BELLEKTE kurar ve degerlendirir; HICBIR SEY YAZMAZ.
+
+        Surum bulunamazsa None doner (404); duzenlenebilir durumda degilse
+        (yayinlandi/arsiv) SurumTaslakDegilError firlatir (409).
+        """
+        surum = self.surum.getir(surum_id)
         if surum is None:
             return None
+        self._duzenlenebilir_mi(surum)
+        return self._degerlendir(surum_id, surum.donem_id, list(degisiklikler))
+
+    def _duzenlenebilir_mi(self, surum: CizelgeSurumu) -> None:
+        """FR-6.9: yayinlanmis surum salt okunurdur.
+
+        Kontrol YORDAMIN ICINDE durur, yalnizca uc noktada degil: arayuzun
+        duzenleme araclarini gizlemesi tek basina yeterli degildir, cunku
+        istek dogrudan da gonderilebilir (SDD 5.5.2).
+        """
         if surum.durum not in _DUZENLENEBILIR_DURUMLAR:
             raise SurumTaslakDegilError(
                 f"Surum {surum.surum_id} duzenlenebilir durumda degil (durum={surum.durum})"
             )
-        donem = self.donem.getir(surum.donem_id)
+
+    def _degerlendir(
+        self, surum_id: int, donem_id: int, degisiklikler: list[AtamaDegisikligi]
+    ) -> DogrulamaSonucu:
+        donem = self.donem.getir(donem_id)
         # yalniz_aktif=False: dogrulama var olan bir taslak uzerinde calisir;
         # o taslaktaki atamalarin tanimlari sonradan pasiflestirilmis olabilir.
         baglam = baglam_olustur(self.oturum, donem, yalniz_aktif=False)
         kurallar = kurallari_yukle(self.kural.aktif_kurallari_getir())
 
-        pencere_baslangic = degisiklik.tarih - timedelta(days=_PENCERE_GUN)
-        pencere_bitis = degisiklik.tarih + timedelta(days=_PENCERE_GUN)
-        once_pencere = atama_kayitlarina_cevir(
-            self.atama.surume_ve_araliga_gore_getir(
-                surum.surum_id, pencere_baslangic, pencere_bitis
-            )
-        )
-        once_donem = atama_kayitlarina_cevir(self.atama.surume_gore_getir(surum.surum_id))
-        sonra_pencere = _degisikligi_uygula(once_pencere, degisiklik)
-        sonra_donem = _degisikligi_uygula(once_donem, degisiklik)
+        # DONEM GENELI. Eski surum degisen gunun +-7 gunluk penceresini
+        # kullaniyordu; o kisayol TEK degisiklik varsayimina dayaniyordu ve
+        # birden fazla degisiklikte kurallarin gorecegi kume yanlis cikardi.
+        once = atama_kayitlarina_cevir(self.atama.surume_gore_getir(surum_id))
+        sonra = _degisiklikleri_uygula(once, degisiklikler)
 
         zorunlu_ihlaller: list[Ihlal] = []
         dokum: list[CezaKalemi] = []
@@ -150,21 +197,15 @@ class DogrulamaServisi:
         agirlikli_toplam = 0.0
 
         for kural in kurallar:
-            atamalar_once = (
-                once_donem if kural.kapsam == KuralKapsami.DONEM_GENELI else once_pencere
-            )
-            atamalar_sonra = (
-                sonra_donem if kural.kapsam == KuralKapsami.DONEM_GENELI else sonra_pencere
-            )
             if kural.tip == KuralTipi.ZORUNLU:
-                zorunlu_ihlaller.extend(kural.dogrula(atamalar_sonra, baglam))
+                zorunlu_ihlaller.extend(kural.dogrula(sonra, baglam))
                 continue
 
-            once = kural.dogrula(atamalar_once, baglam)
-            sonra = kural.dogrula(atamalar_sonra, baglam)
-            uyarilar.extend(_yeni_bulgular(once, sonra))
+            oncekiler = kural.dogrula(once, baglam)
+            sonrakiler = kural.dogrula(sonra, baglam)
+            uyarilar.extend(_yeni_bulgular(oncekiler, sonrakiler))
 
-            fark = _ceza_toplami(sonra) - _ceza_toplami(once)
+            fark = _ceza_toplami(sonrakiler) - _ceza_toplami(oncekiler)
             ham_toplam += fark
             agirlik = float(kural.agirlik or 0)
             agirlikli_toplam += fark * agirlik
@@ -191,28 +232,63 @@ class DogrulamaServisi:
             uyarilar=uyarilar,
         )
 
-    def uygula(self, degisiklik: AtamaDegisikligi) -> DogrulamaSonucu | None:
-        """Once dogrula(); zorunlu ihlal yoksa degisikligi kalici olarak yazar.
+    def kaydet(
+        self, surum_id: int, degisiklikler: Iterable[AtamaDegisikligi], damga: str
+    ) -> tuple[DogrulamaSonucu, str] | None:
+        """Oturumun tamamini TEK ISLEMDE yazar (SDD 5.5.1).
 
-        Yazmadan SONRA surumun talep sapmalari (kapsama acigi + fazla
-        kadro) yeniden hesaplanir. Once bu yapilmiyordu ve iki sonucu
-        vardi: elle bir atamayi kaldirmak gercek bir acik dogurdugu halde
-        `kapsama_acigi` bos kaliyor (Analiz'deki kapsama orani, surum
-        raporu ve disa aktarma bayat kaliyor), fazla kadronun ise hicbir
-        kalici izi olmuyordu. Bkz. app/services/talep_sapmasi.py.
+        Kismi kayit YOKTUR: degisikliklerin bir kisminin yazilip bir kisminin
+        yazilamamasi, kullanicinin ekranda gordugu ile veritabanindaki durumun
+        ayrismasi demektir.
+
+        Sirasiyla: satiri kilitle, durumu dogrula, damgayi dogrula, YENIDEN
+        degerlendir, uygula, sapmalari tazele, yeni damga yaz. Doner deger
+        (sonuc, yeni damga); surum yoksa None.
         """
-        sonuc = self.dogrula(degisiklik)
-        if sonuc is None or not sonuc.kabul_edilebilir:
-            return sonuc
+        bekleyenler = list(degisiklikler)
+        # SELECT ... FOR UPDATE: iki oturum ayni anda kaydetmeye kalkarsa
+        # ikincisi birincinin islemi bitene kadar bekler ve damgayi
+        # GUNCELLENMIS haliyle okur. Kilitsiz okumada ikisi de eski damgayi
+        # dogru bulur ve ikinci kayit birincisini sessizce ezerdi.
+        surum = self.surum.kilitle(surum_id)
+        if surum is None:
+            return None
+        self._duzenlenebilir_mi(surum)
+        if surum.damga != damga:
+            raise DamgaCakismasiError(
+                "Surum, duzenleme baslandigindan beri degisti; degisiklikler kaydedilmedi"
+            )
 
-        # GUNDE TEK BLOK BURADA GARANTI EDILIR. Eski benzersizlik kisiti
-        # `(surum_id, personel_id, tarih)` idi ve ikinci blogu veritabani
-        # duruyordu; yeni anahtar baslangic ZAMANINI tasidigi icin ayni
-        # gunde farkli saatte baslayan ikinci bir blogu yakalamaz (SDD
-        # 4.2.1). O gunun butun bloklari once silinip yerine tek blok
-        # yazilir - yol yapisal olarak ikinci bir blok birakmaz.
+        # DOGRULAMA KAYDETME ANINDA TEKRARLANIR. Istemcinin "gecerliydi"
+        # bilgisine guvenilmez; arada kural parametresi degismis, musaitlik
+        # kaydi girilmis olabilir.
+        sonuc = self._degerlendir(surum_id, surum.donem_id, bekleyenler)
+        if sonuc.zorunlu_ihlaller:
+            raise ZorunluIhlalError(sonuc.zorunlu_ihlaller)
+
+        for degisiklik in bekleyenler:
+            self._blogu_yaz(surum_id, degisiklik)
+
+        # Atamalar yazildiktan SONRA: sapma tablolari bu surumun yeni haline
+        # gore bastan hesaplanir. `flush` sart - yenileme atamalari
+        # veritabanindan okur.
+        self.oturum.flush()
+        sapmalari_yenile(self.oturum, surum_id)
+        surum.damga = str(uuid4())
+        return sonuc, surum.damga
+
+    def _blogu_yaz(self, surum_id: int, degisiklik: AtamaDegisikligi) -> None:
+        """O gunun blogunu YERINE KOYAR.
+
+        GUNDE TEK BLOK BURADA GARANTI EDILIR. Eski benzersizlik kisiti
+        `(surum_id, personel_id, tarih)` idi ve ikinci blogu veritabani
+        duruyordu; yeni anahtar baslangic ZAMANINI tasidigi icin ayni gunde
+        farkli saatte baslayan ikinci bir blogu yakalamaz (SDD 4.2.1). O gunun
+        butun bloklari once silinip yerine tek blok yazilir - yol yapisal
+        olarak ikinci bir blok birakmaz.
+        """
         for mevcut in self.atama.gune_gore_getir(
-            degisiklik.surum_id, degisiklik.personel_id, degisiklik.tarih
+            surum_id, degisiklik.personel_id, degisiklik.tarih
         ):
             self.oturum.delete(mevcut)
         # SILME once BOSALTILIR. SQLAlchemy'nin is birimi ayni tablo icin
@@ -220,24 +296,20 @@ class DogrulamaServisi:
         # blogun yerine yenisini yazmak benzersizlik kisitina takilirdi.
         self.oturum.flush()
         blok = degisiklik.blok
-        if blok is not None:
-            baslangic, bitis = blok
-            self.oturum.add(
-                Atama(
-                    surum_id=degisiklik.surum_id,
-                    personel_id=degisiklik.personel_id,
-                    baslangic_zamani=baslangic,
-                    bitis_zamani=bitis,
-                    nokta_id=degisiklik.nokta_id,
-                    kaynak=AtamaKaynagi.MANUEL,
-                )
+        if blok is None:
+            return
+        baslangic, bitis = blok
+        self.oturum.add(
+            Atama(
+                surum_id=surum_id,
+                personel_id=degisiklik.personel_id,
+                baslangic_zamani=baslangic,
+                bitis_zamani=bitis,
+                nokta_id=degisiklik.nokta_id,
+                kaynak=AtamaKaynagi.MANUEL,
             )
-        # Atama yazildiktan SONRA: sapma tablolari bu surumun yeni haline
-        # gore bastan hesaplanir. `flush` sart - yenileme atamalari
-        # veritabanindan okur.
+        )
         self.oturum.flush()
-        sapmalari_yenile(self.oturum, degisiklik.surum_id)
-        return sonuc
 
     def kilit_ayarla(
         self, surum_id: int, personel_id: int, tarih: date, kilitli: bool
@@ -289,39 +361,49 @@ def _yeni_bulgular(once: Sequence[Ihlal], sonra: Sequence[Ihlal]) -> list[Ihlal]
     ]
 
 
-def _degisikligi_uygula(
-    atamalar: list[AtamaKaydi], degisiklik: AtamaDegisikligi
+def _degisiklikleri_uygula(
+    atamalar: list[AtamaKaydi], degisiklikler: Sequence[AtamaDegisikligi]
 ) -> list[AtamaKaydi]:
-    """O gune ait blogu YERINE KOYAR.
+    """Biriken degisikliklerin TAMAMINI sirayla uygular.
 
-    Ayni gunun butun bloklari once dusurulur; boylece dogrulanan kume
-    "gunde tek blok" varsayimini yapisal olarak tasir (H1). Filtre blogun
-    BASLADIGI gune bakar (TD-1) - gece yarisini asip bugune tasan dunku
-    blok, dunun blogudur ve el degmeden kalir.
+    Her degisiklik o (personel, gun) hucresinin blogunu YERINE KOYAR: ayni
+    gunun butun bloklari once dusurulur, boylece aday kume "gunde tek blok"
+    varsayimini yapisal olarak tasir (H1). Filtre blogun BASLADIGI gune bakar
+    (TD-1) - gece yarisini asip bugune tasan dunku blok, dunun blogudur ve el
+    degmeden kalir.
+
+    SIRA ONEMLIDIR: ayni hucre birden cok kez duzenlenmis olabilir (once
+    olustur, sonra uzat) ve son soz sonuncunundur. Blogu baska bir personele
+    TASIMAK iki degisiklik demektir - kaynaktan kaldirma ve hedefe yazma - ve
+    ikisi de bu listede durur.
     """
-    kalanlar = [
-        a
-        for a in atamalar
-        if not (a.personel_id == degisiklik.personel_id and a.tarih == degisiklik.tarih)
-    ]
-    blok = degisiklik.blok
-    if blok is not None:
-        baslangic, bitis = blok
-        kalanlar.append(
-            AtamaKaydi(
-                personel_id=degisiklik.personel_id,
-                baslangic=baslangic,
-                bitis=bitis,
-                nokta_id=degisiklik.nokta_id,
+    kalanlar = list(atamalar)
+    for degisiklik in degisiklikler:
+        kalanlar = [
+            a
+            for a in kalanlar
+            if not (a.personel_id == degisiklik.personel_id and a.tarih == degisiklik.tarih)
+        ]
+        blok = degisiklik.blok
+        if blok is not None:
+            baslangic, bitis = blok
+            kalanlar.append(
+                AtamaKaydi(
+                    personel_id=degisiklik.personel_id,
+                    baslangic=baslangic,
+                    bitis=bitis,
+                    nokta_id=degisiklik.nokta_id,
+                )
             )
-        )
     return kalanlar
 
 
 __all__ = [
     "AtamaDegisikligi",
+    "DamgaCakismasiError",
     "CezaKalemi",
     "DogrulamaServisi",
     "DogrulamaSonucu",
     "SurumTaslakDegilError",
+    "ZorunluIhlalError",
 ]

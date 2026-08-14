@@ -83,6 +83,16 @@ class CizelgeSurumuDeposu(TabanDepo[CizelgeSurumu]):
     def __init__(self, oturum: Session) -> None:
         super().__init__(oturum, CizelgeSurumu)
 
+    def kilitle(self, surum_id: int) -> CizelgeSurumu | None:
+        """Satiri SELECT ... FOR UPDATE ile kilitleyerek getirir (SDD 5.5.1).
+
+        Kaydetme yolunun ilk adimi. Kilitsiz okumada iki es zamanli oturum da
+        damgayi ESKI haliyle dogru bulur ve ikinci kayit birincisini sessizce
+        ezer; damga kontrolu ancak okuma kilitliyken bir sey ifade eder.
+        """
+        stmt = select(CizelgeSurumu).where(CizelgeSurumu.surum_id == surum_id).with_for_update()
+        return self.oturum.execute(stmt).scalar_one_or_none()
+
     def donem_icin_sonraki_surum_no(self, donem_id: int) -> int:
         stmt = select(func.max(CizelgeSurumu.surum_no)).where(CizelgeSurumu.donem_id == donem_id)
         mevcut_en_buyuk = self.oturum.execute(stmt).scalar_one_or_none()

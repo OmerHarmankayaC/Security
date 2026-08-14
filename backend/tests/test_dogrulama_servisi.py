@@ -25,7 +25,12 @@ from app.kurallar.temel import KuralKapsami
 from app.models.kural import Kural, KuralTipi
 from app.models.sonuc import Atama, AtamaKaynagi, CizelgeSurumu, CizelgeSurumuDurumu, Donem
 from app.models.tanim import GorevNoktasi, GunTipi, Personel, Talep
-from app.services.dogrulama_servisi import AtamaDegisikligi, DogrulamaServisi, SurumTaslakDegilError
+from app.services.dogrulama_servisi import (
+    AtamaDegisikligi,
+    DogrulamaServisi,
+    SurumTaslakDegilError,
+    ZorunluIhlalError,
+)
 from tests.conftest import blok, pg_yoksa_atla
 
 GECE = 0  # 00.00 baslangicli sekiz saatlik blok
@@ -174,6 +179,14 @@ def _kurali_garantile(
     oturum.flush()
 
 
+def _damga(surum_id: int) -> str:
+    oturum = OturumYerel()
+    try:
+        return oturum.get(CizelgeSurumu, surum_id).damga
+    finally:
+        oturum.close()
+
+
 def _taslak_surum_olustur(on_ek: str, baslangic: date, bitis: date) -> tuple[int, int]:
     oturum = OturumYerel()
     try:
@@ -233,21 +246,22 @@ def test_dogrula_zorunlu_kisit_ihlalini_reddeder(istemci_kurulum: dict) -> None:
     try:
         servis = DogrulamaServisi(oturum)
         degisiklik = AtamaDegisikligi(
-            surum_id=surum_id,
             personel_id=personel_id,
             tarih=baslangic + timedelta(days=1),
             baslangic_saati=time(8, 0),
             bitis_saati=time(16, 0),
             nokta_id=nokta_id,
         )
-        sonuc = servis.dogrula(degisiklik)
+        sonuc = servis.dogrula(surum_id, [degisiklik])
         assert sonuc is not None
         assert sonuc.kabul_edilebilir is False
         assert any(i.kural_kimlik == "H2" for i in sonuc.zorunlu_ihlaller)
 
-        uygulama_sonucu = servis.uygula(degisiklik)
-        assert uygulama_sonucu is not None
-        assert uygulama_sonucu.kabul_edilebilir is False
+        # Zorunlu ihlalde kaydetme ZorunluIhlalError firlatir - eski API
+        # sonucu dondurup yazmiyordu, yenisi hic yazmadigini istisnayla soyler.
+        with pytest.raises(ZorunluIhlalError):
+            servis.kaydet(surum_id, [degisiklik], _damga(surum_id))
+        oturum.rollback()
     finally:
         oturum.close()
 
@@ -298,7 +312,6 @@ def test_dogrula_yayinlanmis_surumde_409(istemci_kurulum: dict) -> None:
     try:
         servis = DogrulamaServisi(oturum)
         degisiklik = AtamaDegisikligi(
-            surum_id=surum_id,
             personel_id=personel_id,
             tarih=baslangic,
             baslangic_saati=time(8, 0),
@@ -306,7 +319,7 @@ def test_dogrula_yayinlanmis_surumde_409(istemci_kurulum: dict) -> None:
             nokta_id=nokta_id,
         )
         with pytest.raises(SurumTaslakDegilError):
-            servis.dogrula(degisiklik)
+            servis.dogrula(surum_id, [degisiklik])
     finally:
         oturum.close()
 
@@ -344,15 +357,15 @@ def test_dogrula_cozuldu_surumde_duzenlenebilir(istemci_kurulum: dict) -> None:
     try:
         servis = DogrulamaServisi(oturum)
         degisiklik = AtamaDegisikligi(
-            surum_id=surum_id,
             personel_id=personel_id,
             tarih=baslangic,
             baslangic_saati=time(8, 0),
             bitis_saati=time(16, 0),
             nokta_id=nokta_id,
         )
-        sonuc = servis.uygula(degisiklik)
-        assert sonuc is not None
+        yanit = servis.kaydet(surum_id, [degisiklik], _damga(surum_id))
+        assert yanit is not None
+        sonuc, _yeni_damga = yanit
         assert sonuc.kabul_edilebilir is True
         oturum.commit()
     finally:
@@ -483,14 +496,16 @@ def test_dogrula_ustan_uca_bir_noktayi_bosaltip_digerini_tasirsa_uyari_verir(
     oturum = OturumYerel()
     try:
         sonuc = DogrulamaServisi(oturum).dogrula(
-            AtamaDegisikligi(
-                surum_id=surum_id,
-                personel_id=sef_id,
-                tarih=baslangic,
-                baslangic_saati=time(16, 0),
-                bitis_saati=time(0, 0),
-                nokta_id=nokta_id,
-            )
+            surum_id,
+            [
+                AtamaDegisikligi(
+                    personel_id=sef_id,
+                    tarih=baslangic,
+                    baslangic_saati=time(16, 0),
+                    bitis_saati=time(0, 0),
+                    nokta_id=nokta_id,
+                )
+            ],
         )
     finally:
         oturum.close()
@@ -518,14 +533,13 @@ def test_dogrula_bulunamayan_surumde_none_doner() -> None:
     try:
         servis = DogrulamaServisi(oturum)
         degisiklik = AtamaDegisikligi(
-            surum_id=999999,
             personel_id=1,
             tarih=date(2026, 1, 1),
             baslangic_saati=time(8, 0),
             bitis_saati=time(16, 0),
             nokta_id=1,
         )
-        assert servis.dogrula(degisiklik) is None
+        assert servis.dogrula(999999, [degisiklik]) is None
     finally:
         oturum.close()
 

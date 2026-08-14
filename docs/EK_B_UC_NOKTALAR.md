@@ -133,8 +133,8 @@ listeliyordu ve kimlik doğrulama turunu hiç içermiyordu.
 
 | Uç Nokta | Yöntem | Gereken Rol | İşlev |
 | --- | --- | --- | --- |
-| `/api/atama` | PUT | yonetici + yonetim | Dogrulanmis manuel degisikligin uygulanmasi (FR-6.1); sapma tablolarini tazeler |
-| `/api/atama/dogrula` | POST | yonetici + yonetim | Manuel degisikligin kural dogrulamasi (FR-6.2); ceza dokumu ve uyarilarla |
+| `/api/atama/dogrula` | POST | yonetici + yonetim | Duzenleme oturumunun TAMAMININ kural dogrulamasi (FR-6.2, TD-16); hicbir sey yazmaz |
+| `/api/atama/kaydet` | POST | yonetici + yonetim | Oturumdaki degisikliklerin TEK ISLEMDE uygulanmasi (FR-6.8); surum damgasi cakismasinda ve yayinlanmis surumde reddedilir |
 | `/api/atama/kilit` | POST | yonetici + yonetim | Atamanin kilitlenmesi (FR-6.5) |
 
 ## Analiz (FR-8.x)
