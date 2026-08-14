@@ -71,12 +71,16 @@ describe('İş 2 kabul — yedi gün, otuz personel akıcı açılıyor', () => 
     )
 
     const dugumSayisi = container.querySelectorAll('*').length
-    // 30 × 7 = 210 hücre. Her dilim ayrı düğüm olsaydı yalnız dilimler
-    // 210 × 24 = 5.040 düğüm ederdi; ölçülen sayı onun onda birinin
-    // altında kalmalı. Sınır gevşek tutuldu: testin işi bir üst sınır
-    // koymak, bugünkü sayıyı çivilemek değil.
-    expect(dugumSayisi).toBeLessThan(1000)
-    // Şeritler gerçekten çizilmiş olmalı — boş bir tablo da testi geçerdi.
+    // 30 × 7 = 210 hücre. Hücre başına düşen düğüm SABİTTİR: metin, ray ve
+    // en çok iki çubuk. Her dilim ayrı düğüm olsaydı yalnız dilimler
+    // 210 × 24 = 5.040 düğüm ederdi.
+    //
+    // Sınır Tur 7'de 1.000'den 2.000'e çıkarıldı: hücre artık tek bir
+    // gradient öğesi değil, metin + ray + çubuk taşıyor (ölçülen ~1.400).
+    // Testin koruduğu şey bugünkü sayı değil, sayının DİLİM SAYISINDAN
+    // BAĞIMSIZ kalmasıdır; dilim başına düğüme dönülürse sınır aşılır.
+    expect(dugumSayisi).toBeLessThan(2000)
+    // Hücreler gerçekten çizilmiş olmalı — boş bir tablo da testi geçerdi.
     expect(container.querySelectorAll('td button')).toHaveLength(210)
   })
 
@@ -154,5 +158,72 @@ describe('satır toplamı', () => {
       />,
     )
     expect(screen.getByText(/P-001 · 10 sa/)).toBeTruthy()
+  })
+})
+
+describe('İş 6 — hücre OKUNUR: saat aralığı metni + konum çubuğu', () => {
+  it('saat aralığını ve nokta kısaltmasını METİN olarak yazar', () => {
+    render(
+      <HaftaSeridi
+        {...VARSAYILAN}
+        personeller={[personel(1)]}
+        atamalar={[blok(1, 1, '2026-02-03', 8, 8)]}
+      />,
+    )
+    // Gradient tek başına okunmuyordu; bilgiyi taşıyan şey sayının kendisi.
+    expect(screen.getByText('08–16')).toBeTruthy()
+    expect(screen.getByText('GÜV')).toBeTruthy()
+  })
+
+  it('çubuk bloğun günün neresinde durduğunu gösterir', () => {
+    const { container } = render(
+      <HaftaSeridi
+        {...VARSAYILAN}
+        personeller={[personel(1)]}
+        atamalar={[blok(1, 1, '2026-02-03', 8, 8)]}
+      />,
+    )
+    const cubuk = [...container.querySelectorAll<HTMLElement>('td span[style*="left"]')]
+    expect(cubuk).toHaveLength(1)
+    expect(cubuk[0]!.style.left).toBe(`${(8 / 24) * 100}%`)
+    expect(cubuk[0]!.style.width).toBe(`${(8 / 24) * 100}%`)
+  })
+
+  it('gece yarısını aşan blokta iki günün çubukları kenarlara dayanır', () => {
+    const { container } = render(
+      <HaftaSeridi
+        {...VARSAYILAN}
+        personeller={[personel(1)]}
+        atamalar={[blok(1, 1, '2026-02-03', 20, 10)]}
+      />,
+    )
+    const cubuklar = [...container.querySelectorAll<HTMLElement>('td span[style*="left"]')]
+    expect(cubuklar).toHaveLength(2)
+    // Başladığı gün: 20.00'den gün sonuna. Ertesi gün: sol kenardan 06.00'ya.
+    expect(cubuklar[0]!.style.left).toBe(`${(20 / 24) * 100}%`)
+    expect(cubuklar[1]!.style.left).toBe('0%')
+    expect(cubuklar[1]!.style.width).toBe(`${(6 / 24) * 100}%`)
+  })
+
+  it('önceki günden gelen parçanın metni ‹ ile işaretlenir', () => {
+    render(
+      <HaftaSeridi
+        {...VARSAYILAN}
+        personeller={[personel(1)]}
+        atamalar={[blok(1, 1, '2026-02-03', 20, 10)]}
+      />,
+    )
+    // İki günde de bloğun TAMAMI yazılır (SRS TD-13); ertesi günde nereden
+    // geldiği `‹` ile belirtilir.
+    expect(screen.getByText('20–06')).toBeTruthy()
+    expect(screen.getByText('‹20–06')).toBeTruthy()
+  })
+
+  it('boş günde tire yazar ve çubuk çizmez', () => {
+    const { container } = render(
+      <HaftaSeridi {...VARSAYILAN} personeller={[personel(1)]} atamalar={[]} />,
+    )
+    expect(screen.getAllByText('–')).toHaveLength(7)
+    expect(container.querySelectorAll('td span[style*="left"]')).toHaveLength(0)
   })
 })
