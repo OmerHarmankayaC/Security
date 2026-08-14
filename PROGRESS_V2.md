@@ -9,6 +9,99 @@ başlar.
 
 ---
 
+## 2026-08-14 — Tur 7: Gösterim Verisi ve Tatil Takvimi — **YEREL BİTTİ, DAĞITIM BEKLİYOR**
+
+Sunucudaki demo verisi Tur 4 öncesindendi ("Demo Personel GG-001", 44 kişi,
+Müracaat noktası); göç onu olduğu gibi taşımıştı. İstenen yenileme sırasında
+üretecin kendisi de gözden geçirildi.
+
+### Önce tespit: istenenlerin çoğu zaten yazılıydı
+
+Gerçekçi adlar, izin ve talep demo verisi, resmi tatil üretimi, üretilmiş
+çizelgeler, pasif personel, devir bakiyeleri ve Özel Gün ekranındaki
+Ekle/Değiştir/Sil üçlüsü Tur 4/5'te yapılmıştı. Sunucu bunları hiç görmemişti.
+Gerçek eksik üç maddeydi ve üçü de karar gerektirdi.
+
+### Üç karar
+
+1. **Müracaat kapsam dışı kalır.** SRS 1.19 noktayı ve yetkinliği kaldırmış,
+   yükünü Güvenlik'e taşımıştı (3.3.3: "tek noktaya kapalı bir personel havuzu
+   kalmamıştır"). Geri getirmek SRS 3.3.2/3.3.3/3.3.4 ve Charter kadro
+   analizini değiştirirdi. **Doküman borcu doğmadı.**
+2. **Beş haftalık geçmiş, senaryo dönemlerinin YERİNE geçer.**
+3. **Dini bayramlar kütüphaneden gelir.**
+
+### Yeni dönem takvimi — geçmişe bakar
+
+Eskiden ileriye bakıyordu (dört haftalık sıkışık dönem, sonraki bayram
+haftası) ve ürün çoğunlukla yaşanmamış bir takvim gösteriyordu. Artık bugünü
+içeren hafta + önceki dördü, hepsi gerçek çözücüyle **60 sn** limitle
+çözülüyor. Yerel koşumun sonucu (bugün 14.08.2026):
+
+| Hafta | Tarih | Durum | Atama | Eksik kişi |
+|---|---|---|---|---|
+| H-4 | 13–19 Tem | yayınlandı | 151 | 0 |
+| H-3 | 20–26 Tem | **çözüldü** (yayınlanmadı) | 137 | **12** |
+| H-2 | 27 Tem–2 Ağu | yayınlandı | 163 | 0 |
+| H-1 | 3–9 Ağu | yayınlandı | 158 | 0 |
+| H-0 | 10–16 Ağu | arşiv + yayınlandı | 163 | 0 |
+
+**Kaldırılan senaryolardan ikisi bedelsiz korundu.** Kapsama açığı senaryosu
+dar haftaya (H-3) taşındı: yedi şeften beşi izinde, nokta kesintisiz dolu ve
+haftada 168 kişi-saat istiyor; kalan iki kişi günlük tavan ve haftalık izin
+günü altında en çok 132 verebiliyor. Eksik olan **saat değil kişi** — hiçbir
+blok uzunluğu kapatamaz (SRS TD-13). Ölçülen açık **12 kişi, tamamı Vardiya
+Şefliği'nde**. TD-8'in "çözüldü" durumu da o haftanın yayınlanmamasından
+geliyor. Kota senaryosu personel kaydındaki devir bakiyelerinde duruyor.
+
+**Kaybedilen:** fazla çalışma ve kota dönemleri ayrı dönem olarak yok; resmi
+tatilin çözüme etkisi artık üretim gününe bağlı (bugün 15 Temmuz H-4'e
+düşüyor, başka bir gün hiçbir haftaya düşmeyebilir).
+
+**Tercih penceresi.** Beş dönemin hepsi bugün veya geçmiş olunca açık pencere
+kalmıyordu ve Tercihler ekranı boş açılacaktı. Bugünü içeren haftanın
+penceresi açık bırakıldı (son tarih 16 Ağu). Devam eden bir hafta için tercih
+toplamak alışıldık değil; alternatifi özelliği hiç gösterememekti.
+
+### Resmi tatil takvimi — `holidays` kütüphanesi
+
+`app/services/tatil_takvimi.py` tek kaynak; `holidays==0.102` bağımlılık
+olarak eklendi. Üretilen: **27 gün / iki yıl**, Ramazan (3 gün) ve Kurban
+(4 gün) dahil, Türkçe adlarla.
+
+Eski üreteç dini bayramları bilinçli dışarıda bırakıyordu ve gerekçesi
+yazılıydı: "tahmini bir tarih yazmak, doğru sanılan yanlış bir veri
+üretirdi". İtiraz doğruydu, çözümü eksikti — tarihleri **elle yazmamak** ile
+**hiç yazmamak** aynı şey değil.
+
+Sekiz test kilitliyor. Tarihler teste GÖMÜLMEDİ (kütüphanenin bilgisi, sürümle
+düzelebilir); sınanan şey takvimin özellikleri: dini bayramın yıl içinde
+geriye kayması, çok günlü bayramın gün gün dönmesi, adların Türkçe olması,
+aynı günün iki kez dönmemesi (`ozel_gun` anahtarı tarihtir).
+
+### Üretecin sabit tarihleri kalktı
+
+`aktif_baslangic` 1 Ocak 2026'ya, pasif personelin kapanışı 31 Ocak 2026'ya
+sabitti. İkisi de bugüne göre hesaplanıyor — dosyanın zaten uyguladığı
+"BUGUNE GORE, sabit tarihlerle DEGIL" ilkesi bu iki satırda atlanmıştı.
+
+### Baskı çıktısındaki kırpma kusuru düzeltildi
+
+Tur 6'nın çıktısı gerçek kâğıtta denendi (PDF). Dar şeritlerde etiket
+kırpılıyordu — "22.00–05.00 G…" — ve gece yarısını aşan bloğun `›` işareti
+tam o kırpmanın içinde kayboluyordu. Ekranda ipucu metni kaybı telafi eder,
+kâğıtta edecek bir şey yok. Dört saatten dar şeritlerin etiketi artık şeridin
+yanına, gün sonuna dayananlarda soluna yazılıyor. Dört test eklendi.
+
+### Bekleyen — sunucuya dağıtım
+
+Yeni üreteç sunucuda **koşturulmadı**. Gereken sıra: rsync → `pip install -e .`
+(kütüphane) → çözücüyü durdur → `VERI_TEMIZLIGINE_IZIN` geçici aç →
+`demo_veri_uret.py --reset` (~6 dk çözüm) → kilidi kapat → çözücüyü başlat.
+Yönetim hesabı silinmez (`HesapKapsami.PERSONELE_BAGLI`), sunucuda doğrulanacak.
+
+---
+
 ## 2026-08-13 — Dağıtım: Tur 1–6 birikimi — **TAMAMLANDI**
 
 Gösterim sunucusuna (46.225.109.40) çıkıldı. Kesinti penceresi
