@@ -9,7 +9,7 @@ başlar.
 
 ---
 
-## 2026-08-14 — Tur 7: Gösterim Verisi ve Tatil Takvimi — **YEREL BİTTİ, DAĞITIM BEKLİYOR**
+## 2026-08-14 — Tur 7: Gösterim Verisi ve Tatil Takvimi — **BİTTİ, DAĞITILDI**
 
 Sunucudaki demo verisi Tur 4 öncesindendi ("Demo Personel GG-001", 44 kişi,
 Müracaat noktası); göç onu olduğu gibi taşımıştı. İstenen yenileme sırasında
@@ -93,12 +93,53 @@ tam o kırpmanın içinde kayboluyordu. Ekranda ipucu metni kaybı telafi eder,
 kâğıtta edecek bir şey yok. Dört saatten dar şeritlerin etiketi artık şeridin
 yanına, gün sonuna dayananlarda soluna yazılıyor. Dört test eklendi.
 
-### Bekleyen — sunucuya dağıtım
+### Dağıtım — **YAPILDI** (14.08.2026, kesinti ~14 dk)
 
-Yeni üreteç sunucuda **koşturulmadı**. Gereken sıra: rsync → `pip install -e .`
-(kütüphane) → çözücüyü durdur → `VERI_TEMIZLIGINE_IZIN` geçici aç →
-`demo_veri_uret.py --reset` (~6 dk çözüm) → kilidi kapat → çözücüyü başlat.
-Yönetim hesabı silinmez (`HesapKapsami.PERSONELE_BAGLI`), sunucuda doğrulanacak.
+Yedek: `/opt/vardiya/yedek/vardiya-20260814-0620-demo-oncesi.dump` (88K,
+155 nesne). Sıra: yedek → servisleri durdur → rsync → `chown` →
+`pip install -e .` → üreteç → başlat. Göç yok, şema değişmedi.
+
+**`VERI_TEMIZLIGINE_IZIN` `.env`'e HİÇ yazılmadı.** Değer tek seferlik
+komutun önüne konuldu (`app/veri_temizligi.py`'nin belgelediği kalıp), yani
+açılıp kapatılan bir kilit olmadı; sunucu bir sonraki kazara çalıştırmaya
+karşı korumasını hiçbir an kaybetmedi. `.env`'de satır yok, doğrulandı.
+
+Sunucudaki sonuç (yerel koşumla aynı yapı, çözücü sayıları farklı — 60 sn
+limitte arama belirlenimci değil):
+
+| Hafta | Durum | Atama | Eksik |
+|---|---|---|---|
+| H-4 13–19 Tem | yayınlandı | 159 | 0 |
+| H-3 20–26 Tem | **çözüldü** | 139 | **8** (yerelde 12) |
+| H-2 27 Tem–2 Ağu | yayınlandı | 165 | 0 |
+| H-1 3–9 Ağu | yayınlandı | 161 | 0 |
+| H-0 10–16 Ağu | arşiv + yayınlandı | 164 | 0 |
+
+Açığın tamamı yine Vardiya Şefliği'nde. 30 personel, 4 tercih, 12 izin,
+27 resmi tatil (13'ü Ramazan/Kurban), 343 gece yarısını aşan blok.
+Beş servis `active`, `journalctl`'de 0 hata, `/api/ben` kimliksiz 401.
+
+**Bir tuzak yakalandı.** İlk rsync frontend'de **0 dosya** aktardı: `dist/`
+baskı düzeltmesinden önce derlenmişti ve sunucudakiyle aynıydı. Yeniden
+derlenip gönderildi (`index-D5cG4Hsi.js`); yakalanmasaydı eski arayüz
+sessizce kalacaktı. Ders: `npm run build` ile rsync arasına başka bir
+kaynak değişikliği girerse rsync "değişiklik yok" der ve HAKLIDIR — yanlış
+olan derlemenin eskiliğidir.
+
+**Yönetim hesabı silinmedi**, doğrulandı: `omerharmankaya` (YONETIM),
+`yonetici1`, `yonetim1` üçü de aktif. DAGITIM.md'deki "demo yenilenirse
+yönetim hesabı yeniden kurulmalı" notu `HesapKapsami.PERSONELE_BAGLI`
+davranışından eskidir.
+
+### Açık kalan — çalışan paneli için hesap yok
+
+Temizlik **personel kaydına bağlı 1 hesabı** (1 açık oturumla) sildi; bu
+beklenen davranıştır (o hesap silinen personele bağlıydı). Sonuç: şu anda
+çalışan rolünde hiçbir hesap yok ve **çalışan paneli gösterilemez** —
+"Vardiyalarım", "sıradaki vardiya", tercih bildirimi ve FR-9.4'ün değişen
+gün işareti ancak çalışan hesabıyla görülür. Yeni personelden birine
+Kullanıcılar ekranından hesap açılmalı; parola belirlemek proje
+yürütücüsünün işi.
 
 ---
 
