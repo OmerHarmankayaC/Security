@@ -9,6 +9,52 @@ başlar.
 
 ---
 
+## 2026-08-14 — Düzeltme: Excel çıktısı arayüze bağlanmamıştı — **BİTTİ, DAĞITILDI**
+
+**Tur 8 eksik teslim edilmişti.** Dört iş de bitmişti, testler yeşildi,
+uç noktalar sunucuda çalışıyordu — ama `xlsx` kelimesi frontend'de **hiç
+geçmiyordu**. Ekrandaki "Dışa Aktar" düğmesi hâlâ CSV üretiyordu, yani
+özellik uygulamadan **ulaşılamıyordu**. Proje yürütücüsü dışa aktardığı
+dosyaları gösterdi ve tabloların değişmediğini söyledi; gönderdiği iki
+görüntü de CSV'ydi (sekme adı `cizelge_2026-07-13_2026-07-19_s`,
+sütunlar `tarih, sicil, ad, …`).
+
+Turun promptundaki dört iş de backend biçimindeydi ve ben de yalnız
+backend'i yaptım. **Bir uç noktayı çağıran hiçbir şey yoksa iş bitmemiştir**
+— testin yeşil olması özelliğin erişilebilir olduğunu söylemiyor.
+
+### Yapılan
+
+- `api.cizelgeExcelIndir` / `api.analizExcelIndir` — ayrı bir ikili indirme
+  yolu. Ortak `istek` yardımcısı her gövdeyi JSON diye çözüyor, çalışma
+  kitabı JSON değil. **401 ele alışı aynı kaldı**: atlansaydı oturumu
+  kapanmış kullanıcı, sessizce inmeyen bir dosyayla baş başa kalırdı.
+- **Dosya adı `Content-Disposition`'dan** okunuyor, istemcide yeniden
+  kurulmuyor — ad sunucudaki `dosya_adi()`'nda tek yerde duruyor.
+- Çizelge ve Analiz ekranlarına **Excel** düğmesi; CSV düğmesinin etiketi
+  ne olduğunu söylüyor (ham veri). İndirme sırasında düğme "İndiriliyor…"
+  oluyor ve hata ekranın **mevcut** hata yüzeyine gidiyor, ikinci bir
+  duruma değil.
+- Üç yeni test (`src/api/client.test.ts`): ad başlıktan okunuyor, başlık
+  yoksa yedek ada düşüyor, 401 dinleyiciyi tetikliyor.
+
+**284 → 287 vitest**, `tsc -b` ve `oxlint` temiz.
+
+### Dağıtım
+
+Yalnız arayüz değişti; göç yok, servis durdurulmadı. `rsync` 35 dosya,
+ardından `chown`. Doğrulama, bir önceki turda öğrenilen tuzağa göre
+yapıldı — HTTP 200 kanıt değil (Caddy geri düşüşü):
+
+| Denetim | Sonuç |
+|---|---|
+| Canlı `index.html` paketi | `index-DnwLQ1gd.js` = yerel derleme |
+| Pakette `cizelge.xlsx` / `analiz.xlsx` | 1 / 1 eşleşme |
+| Pakette `Content-Disposition` | 1 eşleşme |
+| `web/assets` içinde kalan paket | tek (eski silindi) |
+
+---
+
 ## 2026-08-14 — Dağıtım: Tur 7 + 8 — **TAMAMLANDI**
 
 Gösterim sunucusuna (46.225.109.40) çıkıldı. Kesinti **13:29:44–13:32:06
