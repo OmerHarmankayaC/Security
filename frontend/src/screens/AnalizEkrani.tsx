@@ -42,6 +42,7 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
   const [personelListesi, setPersonelListesi] = useState<Personel[]>([])
   const [analiz, setAnaliz] = useState<Analiz | null>(null)
   const [yukleniyor, setYukleniyor] = useState(false)
+  const [excelIniyor, setExcelIniyor] = useState(false)
   const [hata, setHata] = useState<string | null>(null)
 
   useEffect(() => {
@@ -152,9 +153,28 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
       ekranSec={ekranSec}
       baslik="Analiz"
       aksiyonlar={
-        <Buton varyant="ikincil" onClick={disaAktar} disabled={surumId === null}>
-          Dışa Aktar (CSV)
-        </Buton>
+        <>
+          {/* Analizin Excel'i CIZELGENINKINDEN AYRI bir dosyadir: adalet
+              dagilimi, kapsama acigi ve ceza dokumu cizelgenin yaninda degil
+              kendi kitabinda durur (SRS FR-8.9). */}
+          <Buton
+            varyant="ikincil"
+            onClick={() => {
+              if (!surum) return
+              setExcelIniyor(true)
+              api
+                .analizExcelIndir(surum.surum_id, surum.surum_no)
+                .catch(() => setHata('Excel dosyası indirilemedi.'))
+                .finally(() => setExcelIniyor(false))
+            }}
+            disabled={surum === null || excelIniyor}
+          >
+            {excelIniyor ? 'İndiriliyor…' : 'Excel'}
+          </Buton>
+          <Buton varyant="ikincil" onClick={disaAktar} disabled={surumId === null}>
+            CSV
+          </Buton>
+        </>
       }
     >
       <Kart>

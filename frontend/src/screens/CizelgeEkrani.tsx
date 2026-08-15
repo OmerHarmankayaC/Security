@@ -89,6 +89,7 @@ type Gorunum = 'gun' | 'hafta'
 
 export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }: Props) {
   const [donemler, setDonemler] = useState<Donem[]>([])
+  const [excelIniyor, setExcelIniyor] = useState(false)
   const [surumler, setSurumler] = useState<CizelgeSurumu[]>([])
   const [surumId, setSurumId] = useState<number | null>(null)
 
@@ -591,10 +592,29 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
               </button>
             ))}
           </div>
+          {/* EXCEL SUNUCUDAN, CSV TARAYICIDAN. Çalışma kitabı biçimlemeyi
+              (saat bandı dolgusu, formüller, grafik) taşır; onu istemcide
+              kurmak biçimin ikinci bir tanımı olurdu. CSV ham veridir ve
+              zaten elde duran veriden üretilir. */}
+          <Buton
+            varyant="ikincil"
+            disabled={surum === null || excelIniyor}
+            title="Çizelge + özet + ham veri, biçimlenmiş çalışma kitabı"
+            onClick={() => {
+              if (!surum) return
+              setExcelIniyor(true)
+              api
+                .cizelgeExcelIndir(surum.surum_id, surum.surum_no)
+                .catch(() => setHata('Excel dosyası indirilemedi.'))
+                .finally(() => setExcelIniyor(false))
+            }}
+          >
+            {excelIniyor ? 'İndiriliyor…' : 'Excel'}
+          </Buton>
           <Buton
             varyant="ikincil"
             disabled={disaAktarmaVerisi === null}
-            title="Uzun biçim CSV + talep sapması dosyası"
+            title="Uzun biçim CSV + talep sapması dosyası (ham veri)"
             onClick={() => disaAktarmaVerisi && csvDisaAktar(disaAktarmaVerisi)}
           >
             CSV

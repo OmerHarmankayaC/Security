@@ -87,6 +87,33 @@ async function istek<T>(yol: string, secenekler?: RequestInit): Promise<T> {
   return (await yanit.json()) as T
 }
 
+/**
+ * İkili dosya indirir (Excel çıktısı, FR-8.5/FR-8.9).
+ *
+ * `istek` gövdeyi JSON diye çözer; çalışma kitabı JSON değildir, o yüzden
+ * ayrı bir yol gerekti. Ama 401 ELE ALIŞI AYNI KALIR — oturum düşmesi her
+ * yerde tek dinleyiciden duyulur; burada atlanırsa kullanıcı, oturumu
+ * kapandığı hâlde sessizce inmeyen bir dosyayla baş başa kalırdı.
+ *
+ * Dosya adını sunucu söyler (`Content-Disposition`). İstemcinin adı kendi
+ * kurması, aynı adın iki yerde tanımlanması demekti.
+ */
+async function dosyaIndir(yol: string, yedekAd: string): Promise<void> {
+  const yanit = await fetch(yol)
+  if (!yanit.ok) {
+    if (yanit.status === 401) _oturumDustuDinleyicisi?.()
+    throw new ApiHatasi(yanit.status, null)
+  }
+  const bildirim = yanit.headers.get('Content-Disposition') ?? ''
+  const eslesme = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(bildirim)
+  const url = URL.createObjectURL(await yanit.blob())
+  const baglanti = document.createElement('a')
+  baglanti.href = url
+  baglanti.download = eslesme?.[1] ? decodeURIComponent(eslesme[1]) : yedekAd
+  baglanti.click()
+  URL.revokeObjectURL(url)
+}
+
 const gonder = <T>(yol: string, govde: unknown, yontem: 'POST' | 'PUT' = 'POST') =>
   istek<T>(yol, { method: yontem, body: JSON.stringify(govde) })
 
@@ -108,6 +135,11 @@ export const api = {
   // doğru kalıyor (bkz. backend göç a4d92c15e807).
   surumFazlaKadro: (surumId: number) =>
     istek<FazlaKadro[]>(`/api/surum/${surumId}/fazla-kadro`),
+
+  cizelgeExcelIndir: (surumId: number, surumNo: number) =>
+    dosyaIndir(`/api/surum/${surumId}/cizelge.xlsx`, `cizelge_surum${surumNo}.xlsx`),
+  analizExcelIndir: (surumId: number, surumNo: number) =>
+    dosyaIndir(`/api/surum/${surumId}/analiz.xlsx`, `analiz_surum${surumNo}.xlsx`),
 
   personelListele: () => istek<Personel[]>('/api/personel'),
   noktaListele: () => istek<GorevNoktasi[]>('/api/nokta'),
