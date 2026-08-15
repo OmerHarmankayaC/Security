@@ -81,10 +81,29 @@ birlikte ölçeklendiği, oranın payı küçülttüğü ve **yönün** doğru o
 **Karar proje yürütücüsünde:** kabul testi için izole bir test şeması mı
 açılsın, yoksa madde Tur 10'a mı bırakılsın?
 
+### Test takımı — 387 yeşil, ama önce yanlış okundu
+
+Tam takım **387 geçti** (373 + 14 yeni), 10 dk 14 sn. Süre eski seviyesinde:
+yukarıdaki N× sorgu hatası düzeltilmeseydi 25 dakikaydı.
+
+**Arada beş test kırık göründü ve bu bir YANILGIYDI.** Sebebi kodda değil,
+arka planda **iki tam pytest koşusunun aynı test veritabanına aynı anda
+vurmasıydı** — benim arka plan işlerini üst üste başlatmamdan.
+`StaleDataError: UPDATE ... expected to update 1 row(s); 0 were matched`
+bunun imzası. Tek koşuya inilince hepsi yeşil.
+
+Aynı kök neden kaldırılan kabul testini de açıklıyor olabilir: üç farklı
+kurulumda **birebir aynı sayılar** (46'ya 41) çıkmıştı ve kurulum
+değişirken sonucun hiç değişmemesi, ölçülen şeyin o senaryo olmadığına
+işaret ediyor.
+
+**Ders:** bu depoda testler paylaşımlı bir PostgreSQL şemasına yazıyor;
+ikinci bir koşu başlatmadan önce birincisinin bittiğinden emin ol.
+
 ### Yapılmayanlar
 
 İş 5 (gösterim verisi — üç ardışık yayınlanmış dönem), K1/K3 kabul ölçümü,
-çözücü–doğrulayıcı uyum testi kontrolü, ters sıralı koşu.
+çözücü–doğrulayıcı uyum testi sayımı (24/24), ters sıralı koşu.
 
 ---
 
