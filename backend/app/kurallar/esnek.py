@@ -245,6 +245,8 @@ class S2GeceAdaleti(EsnekHedef):
             ust_sinir=len(gunler) * _GUNUN_SAATI,
             talep_uygun_mu=lambda anahtar: gece_saati_mi(anahtar[1]),
             degisken_onek="s2_sapma",
+            olcu="gece",
+            gecmis_yuk=baglam.gecmis_gece_saat,
         )
 
     def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
@@ -255,6 +257,8 @@ class S2GeceAdaleti(EsnekHedef):
             atama_agirligi=lambda a: a.gece_saati,
             talep_uygun_mu=lambda anahtar: gece_saati_mi(anahtar[1]),
             aciklama="gece saati adil paydan sapiyor",
+            olcu="gece",
+            gecmis_yuk=baglam.gecmis_gece_saat,
         )
 
 
@@ -292,6 +296,8 @@ class S3HaftaSonuAdaleti(EsnekHedef):
             ust_sinir=len(hs_gunleri) * _GUNUN_SAATI,
             talep_uygun_mu=lambda anahtar: baglam.hafta_sonu_mu(anahtar[0]),
             degisken_onek="s3_sapma",
+            olcu="hafta_sonu",
+            gecmis_yuk=baglam.gecmis_hafta_sonu_saat,
         )
 
     def dogrula(self, atamalar: list[AtamaKaydi], baglam: Baglam) -> list[Ihlal]:
@@ -302,6 +308,8 @@ class S3HaftaSonuAdaleti(EsnekHedef):
             atama_agirligi=lambda a: a.sure_saat if baglam.hafta_sonu_mu(a.tarih) else 0,
             talep_uygun_mu=lambda anahtar: baglam.hafta_sonu_mu(anahtar[0]),
             aciklama="hafta sonu/resmi tatil saati adil paydan sapiyor",
+            olcu="hafta_sonu",
+            gecmis_yuk=baglam.gecmis_hafta_sonu_saat,
         )
 
 
@@ -374,14 +382,16 @@ class S4ToplamSaatDengesi(EsnekHedef):
             toplam_saat = sum(baglam.blok_saati(p, g) for g in gunler)
             if isinstance(toplam_saat, int):
                 continue
+            # Gecmis yuk SABIT TERIM (SRS TD-6), karar degiskeni degil.
+            gecmis = round(baglam.gecmis_toplam_saat(p))
             taban, tavan = floor(paylar.get(p, 0.0)), ceil(paylar.get(p, 0.0))
             # UST SINIR PAYI DA KAPSAMALI (S2/S3 ile ayni gerekce): kadro
             # yetersizken pay bir kisinin tasiyabilecegi azami yuku asabilir
             # ve `sapma >= tavan − saat` kisiti degiskenin ust sinirini
             # asarak modeli COZULEMEZ yapardi.
-            sapma = model.new_int_var(0, max(ust_sinir, tavan), f"s4_sapma_p{p}")
-            model.add(sapma >= toplam_saat - taban)
-            model.add(sapma >= tavan - toplam_saat)
+            sapma = model.new_int_var(0, max(ust_sinir + gecmis, tavan), f"s4_sapma_p{p}")
+            model.add(sapma >= toplam_saat + gecmis - taban)
+            model.add(sapma >= tavan - toplam_saat - gecmis)
             terimler.append(sapma)
         return sum(terimler) if terimler else 0
 
@@ -395,7 +405,7 @@ class S4ToplamSaatDengesi(EsnekHedef):
         ihlaller: list[Ihlal] = []
         for personel_id in baglam.personel:
             pay = paylar.get(personel_id, 0.0)
-            saat = saatler.get(personel_id, 0)
+            saat = saatler.get(personel_id, 0) + round(baglam.gecmis_toplam_saat(personel_id))
             taban, tavan = floor(pay), ceil(pay)
             sapma = max(saat - taban, tavan - saat, 0)
             if sapma > 0:
@@ -884,8 +894,17 @@ def s4_hedef_paylari(baglam: Baglam, donem_gun_sayisi: float) -> dict[int, float
     toplam_hedef = sum(hedef_saatler.values())
     if toplam_hedef <= 0:
         return dict.fromkeys(hedef_saatler, 0.0)
-    return {
+    paylar = {
         p: hedef_saat / toplam_hedef * toplam_talep_saat for p, hedef_saat in hedef_saatler.items()
+    }
+    if baglam.gecmis is None:
+        return paylar
+    # ADALET UFKU (SRS TD-6): gecmis pencerede gerceklesen saat de paya
+    # girer ve pay calisabilir oraniyla kucultulur. Ikisi de yapilmazsa
+    # donem ici yuk, ufku kapsayan bir yukle karsilastirilmis olurdu.
+    return {
+        p: (pay + baglam.gecmis.pay_toplam.get(p, 0.0)) * baglam.calisabilir_oran(p)
+        for p, pay in paylar.items()
     }
 
 
@@ -906,6 +925,8 @@ def _adalet_sapmasi_terimi(
     ust_sinir: int,
     talep_uygun_mu: Callable[[tuple[date, int, int]], bool],
     degisken_onek: str,
+    olcu: str,
+    gecmis_yuk: Callable[[int], float],
 ) -> cp_model.LinearExprT:
     """S2 ve S3'un modele_ekle'sinin ortak formulasyonu (SRS 4.3).
 
@@ -916,10 +937,14 @@ def _adalet_sapmasi_terimi(
     """
     if not sayilar:
         return 0
-    paylar = baglam.adil_paylar(talep_uygun_mu)
+    paylar = baglam.adil_paylar(talep_uygun_mu, olcu=olcu)
     terimler: list[cp_model.IntVar] = []
     for p, sayi in sayilar.items():
         pay = paylar.get(p, 0.0)
+        # GECMIS YUK KARAR DEGISKENI DEGIL SABIT TERIMDIR (SRS TD-6):
+        # donem ici toplama eklenen bir sayidir, cozucunun uzerinde
+        # oynayabilecegi bir sey degil.
+        gecmis = round(gecmis_yuk(p))
         if pay <= 0 or isinstance(sayi, int):
             # Payi sifir olan personel olcunun DISINDADIR: hedefe ulasmasi
             # zaten imkansiz, sapmasini raporlamak olcuyu ayirt edici
@@ -930,6 +955,9 @@ def _adalet_sapmasi_terimi(
         # sozlesme); kesirli bir ceza CP-SAT'a tamsayi katsayi olarak
         # giremezdi.
         taban, tavan = floor(pay), ceil(pay)
+        # KISIYE OZEL ust sinir; `ust_sinir` parametresine yazilmaz, yoksa
+        # bir kisinin gecmisi sonraki herkesin sinirini sisirirdi.
+        kisi_ust_siniri = ust_sinir + gecmis
         # UST SINIR PAYI DA KAPSAMALI. `ust_sinir` bir kisinin fiilen
         # tasiyabilecegi azami yuktur; pay ise talebin kisiye dusen
         # bolumudur ve KADRO YETERSIZ oldugunda bunu asabilir. O durumda
@@ -937,9 +965,9 @@ def _adalet_sapmasi_terimi(
         # MODEL COZULEMEZ hale gelir - kadro yetersizliginin dogru cevabi
         # ise cizelgeyi uretip acigi gostermektir (SRS FR-5.2). Uyum testi
         # bunu 24 ornekten birinde yakaladi.
-        sapma = model.new_int_var(0, max(ust_sinir, tavan), f"{degisken_onek}_p{p}")
-        model.add(sapma >= sayi - taban)
-        model.add(sapma >= tavan - sayi)
+        sapma = model.new_int_var(0, max(kisi_ust_siniri, tavan), f"{degisken_onek}_p{p}")
+        model.add(sapma >= sayi + gecmis - taban)
+        model.add(sapma >= tavan - sayi - gecmis)
         terimler.append(sapma)
     return sum(terimler) if terimler else 0
 
@@ -952,6 +980,8 @@ def _adalet_sapmasi_ihlalleri(
     atama_agirligi: Callable[[AtamaKaydi], int],
     talep_uygun_mu: Callable[[tuple[date, int, int]], bool],
     aciklama: str,
+    olcu: str,
+    gecmis_yuk: Callable[[int], float],
 ) -> list[Ihlal]:
     """S2 ve S3'un ortak formulasyonu: sapma[p] = max(sayi−taban, tavan−sayi, 0).
 
@@ -964,7 +994,7 @@ def _adalet_sapmasi_ihlalleri(
 
     # modele_ekle ile BIREBIR ayni paylar - iki yorumlayici ayni sayiyi
     # uretmek zorundadir (SDD 3.2.1 uyum testi).
-    paylar = baglam.adil_paylar(talep_uygun_mu)
+    paylar = baglam.adil_paylar(talep_uygun_mu, olcu=olcu)
     havuz = {p for p, pay in paylar.items() if pay > 0}
     if not havuz:
         return []
@@ -976,7 +1006,10 @@ def _adalet_sapmasi_ihlalleri(
 
     ihlaller: list[Ihlal] = []
     for personel_id in sorted(havuz):
-        sayi = sayilar.get(personel_id, 0)
+        # YUK ILE HEDEF AYNI UFKU KAPSAR (SRS TD-6): donem ici saate gecmis
+        # ufuktaki gerceklesen saat eklenir, pay da ayni pencereye gore
+        # hesaplandi. Biri eklenip digeri eklenmezse sapma anlamsizlasir.
+        sayi = sayilar.get(personel_id, 0) + round(gecmis_yuk(personel_id))
         pay = paylar[personel_id]
         taban, tavan = floor(pay), ceil(pay)
         sapma = max(sayi - taban, tavan - sayi, 0)

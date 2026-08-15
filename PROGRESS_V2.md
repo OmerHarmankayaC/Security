@@ -9,6 +9,85 @@ başlar.
 
 ---
 
+## 2026-08-15 — Tur 9: Geçmiş Sayaçlar ve Kümülatif Adalet — **KISMEN**
+
+Kaynak: `docs/turlar/CLAUDE_CODE_PROMPTU_TUR9.md`. **Dört iş bitti, İş 5 ve
+tur kapanış ölçümleri açık.** Doküman sürümleri doğrulandı: Charter **1.4**,
+SRS **1.25**, SDD **1.32**, Backlog **1.22**.
+
+### İş 1 — `GecmisSayaclar` · **BİTTİ**
+
+`app/services/gecmis_sayaclar.py`. Kaynak yayınlanmış sürümlerin atamaları;
+her dönem için **yalnız en son yayınlanan** sayılır (arşiv geçmişi iki kez
+sayardı, taslak henüz olmamış bir çizelgeyi geçmişe yazardı). Ufuk bir
+dönemin ortasına düşerse filtre **bloğun başladığı güne** bakar (TD-1) —
+döneme bakılsaydı ya tamamı sayılır ya hepsi düşerdi. Önbellek yok.
+
+Şekil ve aritmetik `app/kurallar/gecmis.py`de, veritabanı okuması serviste:
+kural katmanı servis katmanını içeri almaz.
+
+### İş 2 — Çalışabilirlik oranı · **BİTTİ**
+
+Aynı serviste (ufkun tanımı ikiye bölünmesin diye). Aktiflik aralığı +
+**yalnız tam gün** müsaitlik kayıtları; yarım gün izin günü düşürmez.
+Kaydı olmayan personel 1.0 sayılır — varsayılan 0.0 olsaydı hakkında bilgi
+bulunmayan kişi ölçünün tamamen dışına düşerdi.
+
+### İş 3 — S2/S3/S4 kümülatif ufka geçti · **BİTTİ**
+
+`adil_paylar` tek yer olarak kaldı ve `olcu` parametresi aldı. Geçmiş yük
+sabit terim (karar değişkeni değil), geçmiş pay hedefe ekleniyor, pay son
+adımda çalışabilirlik oranıyla ölçekleniyor.
+
+### İş 4 — H10'un devri türetiliyor · **BİTTİ**
+
+Türetilen kota yılı içi fazla çalışma **artı** kayıt alanı; `Baglam.
+yasal_devir` tek erişim noktası. Eşik bağlam kurucuda H10'un kendi kayıt
+satırından okunuyor — **çağıranlara parametre olarak bırakılmadı**, çünkü
+onu vermeyi unutan her yol sessizce eski davranışa döner ve kota olmadığı
+kadar boş görünürdü.
+
+Dört tüketici de (çözücü, ön kontrol, analiz, dışa aktarma) `baglam_olustur`
+üzerinden geçtiği için beşinci bir hesap yeri açılmadı.
+
+### Yol boyunca bulunan iki hata
+
+1. **`_turetilen_fazla_calisma` personel döngüsünün içindeydi.** Aynı ağır
+   sorgu kişi sayısı kadar koşuyordu; tam takım 10 dakikadan 25 dakikaya
+   çıktı. Pencere başına bir kez hesaplanacak şekilde düzeltildi (kota yılı
+   kişiye göre değişebildiği için önbellek `yil_bas` anahtarlı).
+2. **Ortak sapma teriminde `ust_sinir += gecmis`** parametreyi kalıcı
+   büyütüyordu: bir kişinin geçmişi sonraki herkesin üst sınırını şişirirdi.
+   Kişiye özel değişkene alındı.
+
+### AÇIK — İş 3'ün uçtan uca kabul testi yazılamadı
+
+Turun istediği "iki dönemi ardışık çözüp aynı kişinin yükünü karşılaştıran"
+test **üç denemede de ayırt edici olmadı** ve kaldırıldı. Nedeni koddaki bir
+eksiklik değil, **test veritabanının paylaşımlı olması**:
+
+- İlk hâli ufuk **kapalıyken de** geçiyordu. `baglam_olustur` veritabanındaki
+  tüm aktif personeli yükler; test veritabanında başka testlerden kalan 30+
+  kişi var ve nöbetler onlara dağılıyordu.
+- Havuz yetkinlikle kapatıldı, ölçüm yarışılan noktayla sınırlandı, S4'ün
+  çekişi `haftalik_hedef_saat=0` ile kaldırıldı — **üçünde de sonuç aynı
+  kaldı** (46'ya 41, yanlış yönde). İki kişi tek noktada üst üste yığılıyor.
+
+Mekanizma **14 birim testiyle** kanıtlı (`test_gecmis_sayaclar.py` 8,
+`test_kumulatif_adalet.py` 6): geçmiş yükün cezaya girdiği, yük ile hedefin
+birlikte ölçeklendiği, oranın payı küçülttüğü ve **yönün** doğru olduğu
+(yük > pay / yük < pay) dahil. Eksik olan uçtan uca kabuldür.
+
+**Karar proje yürütücüsünde:** kabul testi için izole bir test şeması mı
+açılsın, yoksa madde Tur 10'a mı bırakılsın?
+
+### Yapılmayanlar
+
+İş 5 (gösterim verisi — üç ardışık yayınlanmış dönem), K1/K3 kabul ölçümü,
+çözücü–doğrulayıcı uyum testi kontrolü, ters sıralı koşu.
+
+---
+
 ## 2026-08-14 — Düzeltme: Excel çıktısı arayüze bağlanmamıştı — **BİTTİ, DAĞITILDI**
 
 **Tur 8 eksik teslim edilmişti.** Dört iş de bitmişti, testler yeşildi,

@@ -21,8 +21,10 @@ from app.kurallar.baglam import (
     TercihKaydi,
 )
 from app.models.girdi import Musaitlik, Tercih, TercihDurumu
+from app.models.kural import Kural
 from app.models.sonuc import Donem
 from app.models.tanim import GorevNoktasi, OzelGun, Personel, Talep, Yetkinlik
+from app.services.gecmis_sayaclar import ADALET_UFKU_GUN, GecmisSayaclar
 from app.services.talep_cozucu import talebi_saate_ac
 
 
@@ -42,12 +44,24 @@ def zaman_ekseni_olustur(donem: Donem, *, isitma_penceresi_gun: int = 7) -> list
     return isitma_gunleri + donem_gunlerini_uret(donem.baslangic_tarihi, donem.bitis_tarihi)
 
 
+# H10 kayitli degilse kuralin kendi varsayilaniyla ayni deger kullanilir.
+_VARSAYILAN_FAZLA_CALISMA_ESIGI = 45.0
+
+
+def _h10_esigi(oturum: Session) -> float:
+    satir = oturum.execute(select(Kural).where(Kural.kimlik == "H10")).scalars().first()
+    if satir is None or not satir.parametreler:
+        return _VARSAYILAN_FAZLA_CALISMA_ESIGI
+    return float(satir.parametreler.get("fazla_calisma_esigi", _VARSAYILAN_FAZLA_CALISMA_ESIGI))
+
+
 def baglam_olustur(
     oturum: Session,
     donem: Donem,
     *,
     isitma_penceresi_gun: int = 7,
     yalniz_aktif: bool = True,
+    adalet_ufku_gun: int = ADALET_UFKU_GUN,
 ) -> Baglam:
     """Donem icin Baglam'i kurar.
 
@@ -55,6 +69,11 @@ def baglam_olustur(
     (model_kur'un karar degiskeni uretimi zaman_ekseni'nin tamami uzerinde
     calisir); donem_baslangic/donem_bitis ise yalnizca donemi isaretler
     (TD-6: adalet sayaclari isitma penceresini kapsamaz).
+
+    adalet_ufku_gun (SRS TD-6): donem oncesi birikimin kapsandigi kayan
+    pencere. Sifir verildiginde gecmis hic okunmaz ve olcu yalniz donemi
+    kapsar - gecmisi olmayan kurulumda ve gecmisten bagimsiz sinanmak
+    isteyen testlerde dogru olan davranis budur.
 
     yalniz_aktif (madde 1): pasiflestirilmis tanimlarin ("yeni cozumlerde
     kullanilmaz, mevcut kayitlarda gorunmeye devam eder") ele alinisi.
@@ -122,7 +141,11 @@ def baglam_olustur(
     # analiz ayni acilimdan besleniyor.
     talep_saat = talebi_saate_ac(talep_satirlari, zaman_ekseni, ozel_gunler)
 
-    return Baglam(
+    # GECMIS EN SONA BIRAKILIR: adil pay katkisi `erisebilen` kumelerine
+    # dayanir, o da yetkinlik ve nokta tanimlarindan kurulur. Once gecici
+    # bir baglam kurulup erisim kumeleri ondan okunur; tanimin ikinci bir
+    # kopyasini cikarmak yerine mevcut `erisebilen`i kullanmis oluruz.
+    taban = Baglam(
         gorev_noktalari=gorev_noktalari,
         # Eksen BURADA da doldurulur, yalniz model_kur'da degil: dogrula
         # yolundaki kurallar (S8) mutlak saat indeksini baglamdan okur ve
@@ -139,3 +162,8 @@ def baglam_olustur(
         yetkinlik_adlari=yetkinlik_adlari,
         tercihler=tercihler,
     )
+    if adalet_ufku_gun <= 0:
+        return taban
+    erisebilen = {n: taban.erisebilen(n) for n in gorev_noktalari}
+    taban.gecmis = GecmisSayaclar(oturum).hesapla(donem, adalet_ufku_gun, erisebilen=erisebilen)
+    return taban
