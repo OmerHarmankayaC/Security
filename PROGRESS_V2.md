@@ -9,6 +9,109 @@ başlar.
 
 ---
 
+## 2026-08-14 — Dağıtım: Tur 7 + 8 — **TAMAMLANDI**
+
+Gösterim sunucusuna (46.225.109.40) çıkıldı. Kesinti **13:29:44–13:32:06
+(2 dk 22 sn)**. `vera-rag` ve `energy-api` boyunca ayakta kaldı — ikisinin
+de `ActiveEnterTimestamp` değeri 8 Ağustos'ta duruyor, yani hiç yeniden
+başlamadılar. Ortak PostgreSQL'e dokunulmadı.
+
+Dağıtılan sürüm `f4bcfc0` (= `origin/tur8-disa-aktarma`), çalışma ağacı
+temiz. Yordam yine yerelde derle + `rsync`; `deploy/DAGITIM.md` geçerli.
+
+### Uygulanan sıra
+
+1. Yerelde `npm run build`, `tsc -b` (0), **284 vitest**. Backend takımı
+   `c828261`'de 373 yeşildi; üzerine gelen tek commit yalnızca doküman
+   dosyalarına dokunduğu için yeniden koşturulmadı.
+2. Ön kontrol: bitmemiş çözüm işi **yok** (`cozum_isi` yalnız TAMAMLANDI 6
+   + UYARILI 1), beş servis de aktif, `alembic current` = `f2a8c561d94b`.
+3. `systemctl stop vardiya-cozucu`, ardından `vardiya-api`.
+4. Yedek: `/opt/vardiya/yedek/vardiya-20260814-1330-tur7ve8oncesi.dump`,
+   **70K**, `pg_restore -l` ile denetlendi (155 nesne, 19 tablo verisi).
+5. `rsync`: `frontend/dist/` → `web/` (37 dosya), `backend/` → `backend/`.
+   `.env`, `.venv`, `__pycache__`, `*.pyc` hariç tutuldu.
+6. `pip install -e ".[dev]"` → çıkış 0; **`openpyxl` 3.1.5** kuruldu (Tur
+   8'in yeni bağımlılığı, sunucuda yoktu). `chown -R vardiya:vardiya`.
+7. `alembic upgrade head` → iki göç koştu, çıkış 0.
+8. **`sapmalari_yenile` yedi sürümün hepsi için koşturuldu** — servisler
+   *açılmadan önce*, uygulama eksik veriyle görünmesin diye.
+9. `systemctl start vardiya-api`, `vardiya-cozucu`.
+
+### `alembic current` — önce / sonra
+
+```
+önce : f2a8c561d94b
+sonra: b8d21f6a90c3 (head)
+```
+
+### Göç doğrulaması — sayarak
+
+| Ölçü | Önce | Sonra |
+|---|---|---|
+| `atama` satırı | 1.117 | **1.117** |
+| `cizelge_surumu` / `personel` | 7 / 30 | 7 / 30 |
+| `kapsama_acigi` | 9 | **0 → 8** (yenilendi) |
+| `fazla_kadro` | 17 | **0 → 111** (yenilendi) |
+
+Dört sayı da doğrudan `psql` ile sayıldı. Yenileme sonrası 8 ve 111,
+`sapmalari_yenile`'nin yedi sürüm için döndürdüğü `SapmaOzeti`
+toplamlarıyla da örtüşüyor (`eksik_hucre` 0+7+0+0+0+0+1, `fazla_hucre`
+20+8+14+15+19+18+17) — fonksiyonun bildirdiği ile tabloda duran aynı.
+| `cizelge_surumu.damga` boş olan | — | **0** |
+
+`kapsama_acigi` sütunları artık `baslangic_zamani, bitis_zamani`; `tarih`,
+`baslangic`, `bitis` düştü. Toplam kişi-saat 8.136.
+
+**Sapma tablolarının boşalması göçün tasarımı gereğidir**, kayıp değil:
+`b8d21f6a90c3` satırları siler çünkü eski `tarih + ofsetsiz saat` şeklinden
+zaman damgasına birebir çeviri mümkün değil. Yeniden hesap atamalardan
+yapılır ve tek doğru kaynak zaten atamalardır.
+
+### Doğrulama
+
+- `systemctl is-active`: vardiya-api, vardiya-cozucu, vera-rag, energy-api,
+  postgresql, caddy → **altısı da active**
+- `http://127.0.0.1:8002/health` → `{"durum":"ok"}`
+- `GET /api/ben` kimliksiz → **401**
+- `https://vardiya.omerharmankaya.com/assets/index-BNyTOpfe.js` → **200**
+- `journalctl` (başlatmadan beri): **0 hata satırı**
+- Turun asıl konusu sınandı: `/api/surum/{id}/cizelge.xlsx` ve
+  `analiz.xlsx` rotaları kayıtlı, kimliksiz çağrıda **401** (404 değil —
+  yani rota var ve yetkilendirme çalışıyor)
+
+### `.env` denetimi
+
+`TEST_VERITABANI_URL` ve `VERI_TEMIZLIGINE_IZIN` sayısı: **0**. İkisi de
+sunucu `.env`'ine hiç yazılmadı.
+
+### Dağıtım sonrası ikinci tur doğrulama
+
+Dağıtımdan bir süre sonra hepsi yeniden sınandı; **SSH bir aralık
+erişilemez oldu** (üç deneme: iki `Operation timed out`, bir `Network is
+unreachable`), sonra kendiliğinden döndü. Uygulama bu süre boyunca ayakta
+kaldı — kesinti SSH katmanındaydı, servislerde değil. SSH dönünce:
+
+| Denetim | Sonuç |
+|---|---|
+| `kapsama_acigi` \| `fazla_kadro` | **8 \| 111** — `psql` ile sayıldı |
+| `alembic current` | `b8d21f6a90c3 (head)` |
+| Sunucudaki `disa_aktarma_servisi.py` | `_SAAT_BANDI` / `_EN_ACIK_SAAT` **var** — yani `c828261`'in biçim düzenlemesi gerçekten sunucuda |
+| `openpyxl` | 3.1.5 |
+| Altı servis | altısı da `active` |
+| `.env` sızıntı sayacı | 0 |
+
+**HTTP tarafında bir tuzak:** Caddy tek sayfa uygulaması için geri düşüş
+yapıyor, yani `/assets/...` altındaki **var olmayan** bir dosya da 200
+dönüyor (`/assets/BU-DOSYA-YOK-12345.js` → 200 ile doğrulandı). Paketin
+yerinde olduğunu "200 aldım" diye kanıtlamak bu yüzden geçersiz; doğru
+kanıt `index.html`'in işaret ettiği paket adının yerel derlemeyle
+eşleşmesi (`index-BNyTOpfe.js`) ve paket içeriğinde turun eklediği metnin
+bulunması (`Düzenlemek İçin Kopyala` → 1 eşleşme). `/api` altında geri
+düşüş yok: var olmayan rota 404, dışa aktarma rotaları 401 veriyor.
+
+---
+
 ## 2026-08-14 — Tur 8: Dışa Aktarma — **BİTTİ**
 
 Kaynak: `docs/turlar/CLAUDE_CODE_PROMPTU_TUR8.md`. Dört iş, hepsi bitti.
