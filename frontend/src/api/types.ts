@@ -474,6 +474,51 @@ export interface Analiz {
   bina_degisim_sayisi: KisiSayisi[]
   ceza_dokumu: Record<string, number> | null
   toplam_ceza: number | null
+  /** ARALIK SAYISI ile KİŞİ-SAAT ayrı ölçülerdir (SDD 6.3.4): ardışık saatler
+   *  tek kayıtta birleştiği için satır sayısı yükü anlatmaz. İkisi karıştırıldı
+   *  ve dışa aktarma başlığında yanlış sayı gösterildi. */
+  karsilanmayan_kisi_saat: number
+  acik_aralik_sayisi: number
+  kota_durumu: KotaDurumu[]
+  ceza_kalemleri: AnalizCezaKalemi[]
+  kumulatif_degisim: KumulatifDegisim
+  /** Hangi ufkun ölçüldüğü. İki ufkun sayıları farklıdır ve hangisine
+   *  bakıldığı belirsiz kalırsa tablo yanlış okunur. */
+  ufuk: Ufuk
+}
+
+export type Ufuk = 'donem' | 'adalet'
+
+/** H10: kişi başına yıllık fazla çalışma ve kalan kota. Sunucu SIRALI
+ *  gönderir — sınıra dayanan üstte; kartın amacı listeyi değil riski
+ *  göstermek (SDD 6.3.4). */
+export interface KotaDurumu {
+  personel_id: number
+  ad_soyad: string
+  fazla_calisma_saat: number
+  kalan_kota_saat: number
+}
+
+/** Analiz ekranının ceza dökümü satırı (SDD 6.3.4). Doğrulama sonucundaki
+ *  `CezaKalemi`den AYRIDIR: o bir değişikliğin FARKINI taşır, bu ise sürümün
+ *  mevcut durumunu. Ham değer kuralın kendi biriminde (kişi-saat, saat, gün);
+ *  ağırlıklı ceza amaç fonksiyonuna girendir. İkisinin tek sütunda
+ *  gösterilmesi, toplamın satırların toplamı olmadığı bir tablo üretir. */
+export interface AnalizCezaKalemi {
+  kimlik: string
+  ad: string
+  ham_deger: number
+  agirlik: number
+  agirlikli_ceza: number
+}
+
+/** Kümülatif adaletin vaadi sapmanın küçük olması değil, ZAMANLA küçülmesidir
+ *  (Charter 5, K3). Önceki yayınlanmış dönem yoksa alanlar null kalır —
+ *  sıfır yazmak "değişim olmadı" anlamına gelirdi. */
+export interface KumulatifDegisim {
+  onceki_surum_id: number | null
+  onceki_ortalama_sapma: number | null
+  simdiki_ortalama_sapma: number | null
 }
 
 // --- Çalışan Paneli (SDD 6.1, Ek B; SRS FR-9.x) -----------------------------

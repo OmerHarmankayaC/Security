@@ -1,5 +1,6 @@
 import type {
   Analiz,
+  Ufuk,
   Atama,
   DogrulamaIstegi,
   KaydetIstegi,
@@ -290,7 +291,10 @@ export const api = {
     ),
 
   // --- Analiz (FR-8.x) ---------------------------------------------------
-  analizGetir: (surumId: number) => istek<Analiz>(`/api/analiz/${surumId}`),
+  // Ufuk SEÇİMLE gelir; varsayılan dönem içidir çünkü kabul kriteri onu
+  // ölçer (Charter 1.5) ve ekran ilk açıldığında o sayıyı göstermelidir.
+  analizGetir: (surumId: number, ufuk: Ufuk = 'donem') =>
+    istek<Analiz>(`/api/analiz/${surumId}?ufuk=${ufuk}`),
 
   // --- Çalışan Paneli (SDD 6.1, Ek B; SRS FR-9.x) -------------------------
   // Hiçbiri `personel_id` GÖNDERMEZ ve göndermemelidir: hangi personelin
