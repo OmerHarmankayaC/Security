@@ -1081,6 +1081,13 @@ import { describe, expect, it } from 'vitest'
 
 import { benzersizKisaltma } from './metin'
 
+/**
+ * DİKKAT — çakışan örnekler bilinçli seçildi. `kisalt()` çok kelimeli adı
+ * baş harflerden türetir ("Depo A" → "DA"), dolayısıyla "Depo A/B/C" ZATEN
+ * benzersizdir ve ayrıştırma yolunu hiç çalıştırmaz. Gerçek çakışma tek
+ * kelimeli aynı üç harf ("Güvenlik"/"Güvence" → "GÜV") ya da aynı baş
+ * harfler ("Ana Kapı"/"Arka Kapı" → "AK") ile doğar.
+ */
 describe('benzersizKisaltma', () => {
   it('çakışmayan adlarda kisalt() ile aynı sonucu verir', () => {
     const harita = benzersizKisaltma(['Güvenlik', 'Ana Kapı'])
@@ -1088,20 +1095,25 @@ describe('benzersizKisaltma', () => {
     expect(harita.get('Ana Kapı')).toBe('AK')
   })
 
-  it('aynı kısaltmaya düşen adları ayrıştırır', () => {
-    const harita = benzersizKisaltma(['Kule 1', 'Kule 2'])
-    expect(harita.get('Kule 1')).not.toBe(harita.get('Kule 2'))
+  it('aynı üç harfe düşen tek kelimeli adları ayrıştırır', () => {
+    const harita = benzersizKisaltma(['Güvenlik', 'Güvence'])
+    expect(harita.get('Güvenlik')).not.toBe(harita.get('Güvence'))
+  })
+
+  it('aynı baş harflere düşen çok kelimeli adları ayrıştırır', () => {
+    const harita = benzersizKisaltma(['Ana Kapı', 'Arka Kapı'])
+    expect(harita.get('Ana Kapı')).not.toBe(harita.get('Arka Kapı'))
   })
 
   it('üç ad aynı kısaltmaya düşerse üçü de ayrışır', () => {
-    const harita = benzersizKisaltma(['Depo A', 'Depo B', 'Depo C'])
+    const harita = benzersizKisaltma(['Güvenlik', 'Güvence', 'Güvercin'])
     expect(new Set(harita.values()).size).toBe(3)
   })
 
   it('giriş sırası sonucu değiştirmez', () => {
-    const a = benzersizKisaltma(['Kule 1', 'Kule 2'])
-    const b = benzersizKisaltma(['Kule 2', 'Kule 1'])
-    expect(a.get('Kule 1')).toBe(b.get('Kule 1'))
+    const a = benzersizKisaltma(['Güvenlik', 'Güvence'])
+    const b = benzersizKisaltma(['Güvence', 'Güvenlik'])
+    expect(a.get('Güvenlik')).toBe(b.get('Güvenlik'))
   })
 })
 ```
@@ -1227,7 +1239,8 @@ const VERI = {
   donem_bitis_tarihi: '2026-08-18',
   yayinlanmis_surum_var: true,
   yayin_zamani: null,
-  vardiyalar: [vardiya('2026-08-17', 'Depo A'), vardiya('2026-08-18', 'Depo B')],
+  // Çakışan iki ad: ikisi de kisalt() ile "GÜV" verir (bkz. metin.test.ts).
+  vardiyalar: [vardiya('2026-08-17', 'Güvenlik'), vardiya('2026-08-18', 'Güvence')],
   kaldirilan_gunler: [],
   siradaki: null,
 } as unknown as Vardiyalarim
@@ -1235,10 +1248,10 @@ const VERI = {
 afterEach(cleanup)
 
 describe('VardiyalarimEkrani', () => {
-  it('aynı harfle başlayan iki noktayı ızgarada ayrıştırır', () => {
+  it('aynı üç harfe düşen iki noktayı ızgarada ayrıştırır', () => {
     render(<VardiyalarimEkrani veri={VERI} />)
-    // İki nokta da "DEP" olsaydı çalışan hangi noktaya gittiğini okuyamazdı.
-    const hucreler = screen.getAllByText(/^DEP/)
+    // İkisi de "GÜV" görünseydi çalışan hangi noktaya gittiğini okuyamazdı.
+    const hucreler = screen.getAllByText(/^GÜV/)
     expect(new Set(hucreler.map((h) => h.textContent)).size).toBe(2)
   })
 
@@ -1250,7 +1263,7 @@ describe('VardiyalarimEkrani', () => {
           tarih: '2026-08-18',
           onceki_baslangic_zamani: '2026-08-18T08:00:00',
           onceki_bitis_zamani: '2026-08-18T16:00:00',
-          onceki_nokta_ad: 'Depo B',
+          onceki_nokta_ad: 'Güvence',
         },
       ],
     } as unknown as Vardiyalarim
