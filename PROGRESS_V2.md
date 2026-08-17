@@ -56,6 +56,46 @@ Dengeli gösterim haftası (2026-08-03 – 08-09), 60 sn, 30 personel:
 ötekileri ezmeye başladı. S1 baskınlığı dört kurulumda da korunuyor
 (10000 > 5442, en kötü hâlde).
 
+### T-08 ayrıştırıldı: iyileşme SÜREDEN geliyor, kalibrasyondan değil
+
+İlk 300 sn ölçümü iki değişkeni birden değiştirdiği için yorumlanamazdı
+(hem yeni ağırlıklar hem uzun süre). Ayırt edici ölçüm koşuldu — hepsi
+**referans örneğinde** (40 personel × 28 gün), K3'ün kabul kriteri olarak
+tanımlı olduğu yerde:
+
+| Ağırlıklar | Limit | K3 azami | Eşiği aşan |
+|---|---|---|---|
+| S2=10, S4=1 (eski) | 60 sn | 25,00 | 10 |
+| **S2=20, S4=4 (yeni)** | **60 sn** | **22,00** | **10** |
+| S2=20, S4=4 (yeni) | 300 sn | **12,00** | **1** |
+
+**Kalibrasyonun payı: 25 → 22** (%12, aşan sayısı değişmedi).
+**Sürenin payı: 22 → 12** (%45, aşan sayısı 10'dan 1'e).
+
+Yani iyileşmenin neredeyse tamamı arama süresinden geliyor. T-08'in kendi
+uyarısı tam da buraya düşüyor: *"ölçüm koşulunu değiştirerek kriteri
+geçirmek yerine nedeni giderilmeli."* 300 saniye kriteri geçirmeye
+yaklaştırıyor ama nedeni gidermiyor — çözücü hâlâ baskın ağırlıklı S1'i
+erken halledip adalet hedeflerine geç sıra veriyor, yalnızca ona daha çok
+zaman tanınmış oluyor.
+
+**Bir gözlem daha:** 300 saniyede yük aralığı 32–65, pay aralığı 33–64,1.
+Yani otuz dokuz kişi payının içinde, kriteri düşüren **tek kişi** ve o da
+12 saatlik sapmayla. Ölçünün azami sapma mı yoksa dağılım mı olması
+gerektiği sorusu buradan doğuyor; Charter'ın kararıdır, burada yalnızca
+görünür kılınıyor.
+
+### K3'ün ölçüldüğü senaryo — bir yöntem hatası
+
+K3'ü önce **dengeli gösterim haftasında** ölçtüm ve 300 saniyenin hiçbir şey
+değiştirmediğini gördüm (11,0 → 11,0). Sebep: o senaryo 30 kişi × 7 gün ve
+zaten 60 saniyeden çok önce en iyi çözümüne ulaşıyor; fazladan süre satın
+alacak bir şey yok. T-08'in eğrisi ise **referans örneğinde** ölçülmüştü.
+
+Kabul kriterlerinin her biri BELİRLİ BİR ÖRNEK üzerinde tanımlıdır ve bu,
+ölçünün parçasıdır — eşiği kadar bağlayıcı. Aracı T-07 için kurup K3'ü de
+oraya iliştirmek yanlıştı; ikisi aynı senaryoda ölçülemez.
+
 ### AÇIK: K3 hâlâ eşiği geçmiyor
 
 Azami sapma 11,0, eşik 8. Kalibrasyon iyileştirdi ama geçirmedi. T-08'in kendi
