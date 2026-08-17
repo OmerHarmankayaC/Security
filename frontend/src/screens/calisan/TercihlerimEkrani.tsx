@@ -103,6 +103,7 @@ export function TercihlerimEkrani() {
   // Alt sınır: dönem başlangıcı ile bugünün BÜYÜĞÜ — geçmiş bir güne tercih
   // bildirmenin anlamı yok, dönem gelecekteyse de başlangıçtan önce gün yok.
   const enErken = acik ? (acik.baslangic_tarihi > bugun ? acik.baslangic_tarihi : bugun) : ''
+  const aralikSuresi = araligiSure(baslangicSaati, bitisSaati)
 
   const bildirdiklerimKarti = (
     <Kart>
@@ -218,15 +219,8 @@ export function TercihlerimEkrani() {
             {tip === 'zaman_araligi_tercihi' && (
               <>
                 <div className="flex flex-col gap-1">
-                  {/* Diğer etiketler gibi `etiket-caps` + buyukHarf() DEĞİL:
-                      TanimlarEkrani'ndaki aynı saat aralığı seçicisiyle aynı
-                      düz-metin biçimi (bkz. "talep-baslangic"/"talep-bitis").
-                      buyukHarf('Bitiş') "BİTİŞ" (noktalı büyük İ) üretir ve
-                      testlerin ASCII `/bitiş/i` regex'i bunu eşleştiremez —
-                      JS'in büyük/küçük harf katlaması Türkçe İ/I ayrımını
-                      bilmez. */}
-                  <label htmlFor="tercih-baslangic" className="text-sm text-ink-muted">
-                    Başlangıç
+                  <label htmlFor="tercih-baslangic" className="etiket-caps text-ink-muted">
+                    {buyukHarf('Başlangıç')}
                   </label>
                   <select
                     id="tercih-baslangic"
@@ -242,8 +236,8 @@ export function TercihlerimEkrani() {
                   </select>
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label htmlFor="tercih-bitis" className="text-sm text-ink-muted">
-                    Bitiş
+                  <label htmlFor="tercih-bitis" className="etiket-caps text-ink-muted">
+                    {buyukHarf('Bitiş')}
                   </label>
                   <select
                     id="tercih-bitis"
@@ -262,9 +256,7 @@ export function TercihlerimEkrani() {
                     aralik_sure_saat); bunu yazmazsak 08→08 seçen kullanıcı 24
                     saat bildirdiğini bilmez. */}
                 <span className="text-sm text-ink-muted">
-                  {araligiSure(baslangicSaati, bitisSaati) === 24
-                    ? 'tüm gün (24 saat)'
-                    : `${araligiSure(baslangicSaati, bitisSaati)} saat`}
+                  {aralikSuresi === 24 ? 'tüm gün (24 saat)' : `${aralikSuresi} saat`}
                 </span>
               </>
             )}
