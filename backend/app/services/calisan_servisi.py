@@ -33,6 +33,11 @@ class TercihDonemiBulunamadiError(Exception):
     donemin tercih bildirim penceresi kapanmis (router 400'e cevirir)."""
 
 
+class TercihKararlanmisError(Exception):
+    """O gun icin zaten KARARLANMIS (onaylanmis/reddedilmis) bir tercih var;
+    ustune yazmak yonetici kararini sessizce silerdi (router 409'a cevirir)."""
+
+
 class CalisanServisi:
     def __init__(self, oturum: Session) -> None:
         self.oturum = oturum
@@ -350,15 +355,30 @@ class CalisanServisi:
         if donem.tercih_son_tarihi < date.today():
             raise TercihDonemiBulunamadiError("Bu donem icin tercih bildirim penceresi kapandi")
 
-        kayit = self.tercih.olustur(
-            personel_id=personel_id,
-            donem_id=donem.donem_id,
-            tarih=veri.tarih,
-            tip=veri.tip,
-            tercih_baslangic=veri.tercih_baslangic,
-            tercih_bitis=veri.tercih_bitis,
-            calisan_notu=veri.calisan_notu,
-        )
+        mevcut = self.tercih.personel_ve_tarihe_gore_getir(personel_id, veri.tarih)
+        if mevcut is not None:
+            if mevcut.durum is not TercihDurumu.BEKLEMEDE:
+                raise TercihKararlanmisError(
+                    "Bu gun icin kararlanmis bir tercihin var; degistirmek icin yoneticine basvur"
+                )
+            kayit = self.tercih.guncelle(
+                mevcut.tercih_id,
+                tip=veri.tip,
+                tercih_baslangic=veri.tercih_baslangic,
+                tercih_bitis=veri.tercih_bitis,
+                calisan_notu=veri.calisan_notu,
+            )
+            assert kayit is not None  # az once okundu
+        else:
+            kayit = self.tercih.olustur(
+                personel_id=personel_id,
+                donem_id=donem.donem_id,
+                tarih=veri.tarih,
+                tip=veri.tip,
+                tercih_baslangic=veri.tercih_baslangic,
+                tercih_bitis=veri.tercih_bitis,
+                calisan_notu=veri.calisan_notu,
+            )
 
         return CalisanTercihOku(
             tercih_id=kayit.tercih_id,

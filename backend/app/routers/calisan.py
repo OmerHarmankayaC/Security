@@ -26,7 +26,11 @@ from app.schemas.calisan import (
     DonemOzetiOku,
     VardiyalarimOku,
 )
-from app.services.calisan_servisi import CalisanServisi, TercihDonemiBulunamadiError
+from app.services.calisan_servisi import (
+    CalisanServisi,
+    TercihDonemiBulunamadiError,
+    TercihKararlanmisError,
+)
 
 router = APIRouter(prefix="/api/calisan", tags=["calisan"], dependencies=[Depends(calisan_yetkisi)])
 
@@ -71,6 +75,8 @@ def tercih_bildir(
         sonuc = CalisanServisi(oturum).tercih_bildir(personel_id, veri)
     except TercihDonemiBulunamadiError as hata:
         raise HTTPException(status_code=400, detail=str(hata)) from hata
+    except TercihKararlanmisError as hata:
+        raise HTTPException(status_code=409, detail=str(hata)) from hata
     if sonuc is None:
         raise HTTPException(status_code=404, detail="Personel bulunamadi")
     return sonuc

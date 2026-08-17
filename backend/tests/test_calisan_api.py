@@ -642,6 +642,62 @@ def test_tercih_bildir_mutlu_yol_ve_donem_disi_tarih_400() -> None:
     assert yanit.status_code == 400
 
 
+def test_ayni_gune_ikinci_tercih_beklemedekinin_uzerine_yazar() -> None:
+    """Calisan fikrini degistirebilir; ayni gun icin iki celiskili tercih
+    (calismam + 08-16 calisirim) yan yana duramaz."""
+    pg_yoksa_atla()
+    with OturumYerel() as oturum:
+        _temizle(oturum)
+        personel_id = _senaryo_kur(oturum)
+    istemci = _calisan_istemcisi(personel_id)
+    hedef = (BUGUN + timedelta(days=1)).isoformat()
+
+    ilk = istemci.post("/api/calisan/tercih", json={"tarih": hedef, "tip": "calismama"})
+    ikinci = istemci.post(
+        "/api/calisan/tercih",
+        json={
+            "tarih": hedef,
+            "tip": "zaman_araligi_tercihi",
+            "tercih_baslangic": "08:00:00",
+            "tercih_bitis": "16:00:00",
+        },
+    )
+
+    assert ilk.status_code == 201
+    assert ikinci.status_code == 201
+    assert ikinci.json()["tercih_id"] == ilk.json()["tercih_id"]
+    liste = istemci.get("/api/calisan/tercih").json()["tercihler"]
+    assert len([t for t in liste if t["tarih"] == hedef]) == 1
+
+
+def test_kararlanmis_tercihin_uzerine_yazilmaz() -> None:
+    """Yonetici karari sessizce silinmez (409)."""
+    pg_yoksa_atla()
+    with OturumYerel() as oturum:
+        _temizle(oturum)
+        personel_id = _senaryo_kur(oturum)
+        hedef_tarih = BUGUN + timedelta(days=1)
+        donem = oturum.query(Donem).first()
+        oturum.add(
+            Tercih(
+                personel_id=personel_id,
+                donem_id=donem.donem_id,
+                tarih=hedef_tarih,
+                tip=TercihTipi.CALISMAMA,
+                durum=TercihDurumu.ONAYLANDI,
+            )
+        )
+        oturum.commit()
+    istemci = _calisan_istemcisi(personel_id)
+
+    yanit = istemci.post(
+        "/api/calisan/tercih",
+        json={"tarih": hedef_tarih.isoformat(), "tip": "calismama"},
+    )
+
+    assert yanit.status_code == 409
+
+
 # --- Donem ozetim / /api/calisan/ozetim (FR-9.5, SDD 6.3.4) -----------------
 
 
