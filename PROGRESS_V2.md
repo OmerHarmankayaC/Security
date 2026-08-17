@@ -9,6 +9,69 @@ başlar.
 
 ---
 
+## 2026-08-17 — Tur 10, İş 4: Ağırlık Kalibrasyonu — **KISMEN**
+
+### Ölçüm aracı önce KIRIKTI ve bunu üç ölçüm boyunca fark etmedim
+
+İlk araç `model_kur` + `CozucuAdaptoru.coz`'u doğrudan çağırıyordu. Üç farklı
+ağırlık kümesinde **birebir aynı sayı** çıktı (K3 = 21,0, fazla çalışma 0).
+Tur 9'da öğrendiğim işaret buydu: kurulum değişirken sonucun hiç değişmemesi.
+
+Sebep ağırlıklar değildi — `durum=cozum_yok`, **sıfır atama**. Ölçülen şey boş
+bir çizelgeydi: "0 saat fazla çalışma" boşluktan geliyordu, "21,0 sapma" ise
+sapma değil en büyük adil payın kendisiydi (yük sıfırken |0 − pay| = pay).
+
+**Kök neden ısıtma penceresi.** TD-5 ısıtma günlerinin SABİT GİRDİ olduğunu
+söyler; doğrudan çağrı onları karar değişkeni bırakıyordu. Yedi gün × otuz
+kişi × yirmi dört saatlik ek serbestlik, üzerinde talep bulunmayan ama bütün
+zorunlu kuralların işlediği bir arama uzayı açtı; çözücü **yüz yirmi saniyede
+bile** uygun çözüm bulamadı. Aynı dönem üretim yolunda altmış saniyede
+çözülüyor.
+
+**Ders:** ölçüm aracı üretim yolunu TAKLİT ETMEZ, ONU KULLANIR. Taklit ettiği
+anda ölçtüğü şey ürünün davranışı olmaktan çıkar. Yeni araç
+(`scripts/agirlik_kalibrasyonu.py`) `CozumServisi.baslat` + çözüm işçisini
+çağırır ve boş çözümü sessizce ölçmek yerine yüksek sesle reddeder.
+
+### Bir geri alma
+
+Kırık ölçüme dayanarak "T-07'nin belirtisi artık yeniden üretilmiyor"
+demiştim. **Yanlış.** Doğru ölçümde taban değerler: 7 kişi, 27 saat fazla
+çalışma — backlog'un yazdığı "on kişi 32 saat"e yakın. T-07 duruyor.
+
+### Ölçülen adaylar
+
+Dengeli gösterim haftası (2026-08-03 – 08-09), 60 sn, 30 personel:
+
+| Ağırlıklar | T-07 fazla çalışma | K3 azami / ortanca | Eşiği aşan | Toplam ceza |
+|---|---|---|---|---|
+| Taban: S2=10, S4=1 | 7 kişi / **27 sa** | 11,0 / 3,0 | 7/30 | 2059 |
+| A: S4=8 | 5 kişi / 31 sa | 16,0 / 3,0 | 6/30 | 3912 |
+| **B: S2=20, S4=4** | 6 kişi / **22 sa** | **11,0 / 2,0** | **3/30** | 3254 |
+| C: S2=40, S4=4 | 6 kişi / 36 sa | 11,0 / 2,0 | 3/30 | 5442 |
+
+**Seçilen: B (S2=20, S4=4).** Eşiği aşan kişi sayısı 7'den 3'e, ortanca sapma
+3,0'dan 2,0'a indi; fazla çalışma 27'den 22 saate. A ve C'nin ikisi de fazla
+çalışmayı kötüleştirdi — A çünkü S4 tek başına çok güçlendi, C çünkü S2
+ötekileri ezmeye başladı. S1 baskınlığı dört kurulumda da korunuyor
+(10000 > 5442, en kötü hâlde).
+
+### AÇIK: K3 hâlâ eşiği geçmiyor
+
+Azami sapma 11,0, eşik 8. Kalibrasyon iyileştirdi ama geçirmedi. T-08'in kendi
+teşhisi burada da geçerli: sapma çözücü süresine bağlı (60 sn'de 30, 900 sn'de
+7 ölçülmüştü). Ağırlık aramasını daha ileri götürmek yerine **zaman limiti
+kararının** verilmesi gerekiyor — T-08 zaten "ölçüm koşulunu değiştirerek
+kriteri geçirmek yerine nedeni giderilmeli" diyor ve bu karar proje
+yürütücüsünde.
+
+### Yapılmayan
+
+İş 5 (kapanış ölçümü + `PERFORMANS_NOTU.md` sürüm 3) — kalibrasyon
+sonuçlanmadığı için başlanmadı.
+
+---
+
 ## 2026-08-17 — Dağıtım: Tur 9 — **TAMAMLANDI**
 
 Kesinti **10:37:31–10:38:17 (46 sn)** — bugüne kadarki en kısası. Kapsam dar
