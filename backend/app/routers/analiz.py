@@ -1,7 +1,7 @@
 """Analiz ve Excel disa aktarma uc noktalari (SDD 3.2, 5.8; SRS FR-8.x)."""
 
 from io import BytesIO
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -21,8 +21,18 @@ Oturum = Annotated[Session, Depends(oturum_al)]
 
 
 @router.get("/analiz/{surum_id}", response_model=AnalizOku)
-def analiz_getir(surum_id: int, oturum: Oturum) -> AnalizOku:
-    sonuc = AnalizServisi(oturum).hesapla(surum_id)
+def analiz_getir(
+    surum_id: int,
+    oturum: Oturum,
+    ufuk: Literal["donem", "adalet"] = "donem",
+) -> AnalizOku:
+    """`ufuk` adalet olculerinin hangi pencereden okundugunu secer (SDD 6.3.4).
+
+    Varsayilan DONEM: kabul kriteri planlama donemini olcer (Charter 1.5) ve
+    ekran ilk acildiginda o sayiyi gostermelidir. Adalet ufku bilincli bir
+    secimle acilir.
+    """
+    sonuc = AnalizServisi(oturum).hesapla(surum_id, ufuk)
     if sonuc is None:
         raise HTTPException(status_code=404, detail="Cizelge surumu bulunamadi")
     return sonuc

@@ -183,7 +183,18 @@ class AnalizServisi:
             .first()
         )
 
-    def hesapla(self, surum_id: int) -> AnalizOku | None:
+    def hesapla(self, surum_id: int, ufuk: str = "donem") -> AnalizOku | None:
+        """`ufuk`: "donem" (varsayilan) ya da "adalet" (doksan gun, SRS TD-6).
+
+        IKI UFKUN SAYILARI FARKLIDIR ve hangisine bakildigi belirsiz kalirsa
+        tablo yanlis okunur (SDD 6.3.4) - bu yuzden secilen ufuk yanitin
+        icinde geri doner ve ekran onu her zaman gosterir.
+
+        Adalet ufkunda hem YUK hem PAY genisler: gecmis gerceklesen saat yuke,
+        gecmis pay hedefe eklenir ve pay calisabilirlik oraniyla olceklenir.
+        Yalniz biri genisletilseydi kisi hic yapmadigi bir isin hesabini
+        verirken gorunurdu.
+        """
         surum = self.surum.getir(surum_id)
         if surum is None:
             return None
@@ -283,14 +294,23 @@ class AnalizServisi:
         # reddettigi olcudur: erisilebilirligi kisitli bir havuz ona gore
         # kalici olarak sapmali gorunur. Paylar bir kez hesaplanir, havuz
         # ondan turer — iki ayri gecis yapilmaz ve tanim yine tek yerdedir.
-        gece_paylari = baglam.adil_paylar(lambda anahtar: gece_saati_mi(anahtar[1]))
-        hs_paylari = baglam.adil_paylar(lambda anahtar: baglam.hafta_sonu_mu(anahtar[0]))
+        # UFUK SECIMI TEK YERDE: `olcu` verilirse gecmis pay eklenir ve oran
+        # uygulanir, verilmezse donem ici kalir (bkz. `Baglam.adil_paylar`).
+        gece_olcu = "gece" if ufuk == "adalet" else None
+        hs_olcu = "hafta_sonu" if ufuk == "adalet" else None
+        gece_paylari = baglam.adil_paylar(lambda anahtar: gece_saati_mi(anahtar[1]), olcu=gece_olcu)
+        hs_paylari = baglam.adil_paylar(
+            lambda anahtar: baglam.hafta_sonu_mu(anahtar[0]), olcu=hs_olcu
+        )
+        # Yuk de ayni ufku kapsamali.
+        gecmis_gece = baglam.gecmis_gece_saat if ufuk == "adalet" else (lambda _p: 0.0)
+        gecmis_hs = baglam.gecmis_hafta_sonu_saat if ufuk == "adalet" else (lambda _p: 0.0)
 
         kisi_basina_gece = [
             KisiSayisiOku(
                 personel_id=p.personel_id,
                 ad_soyad=p.ad_soyad,
-                sayi=gece_saat.get(p.personel_id, 0.0),
+                sayi=gece_saat.get(p.personel_id, 0.0) + gecmis_gece(p.personel_id),
                 pay=gece_paylari[p.personel_id],
             )
             for p in personel_satirlari
@@ -300,7 +320,7 @@ class AnalizServisi:
             KisiSayisiOku(
                 personel_id=p.personel_id,
                 ad_soyad=p.ad_soyad,
-                sayi=hs_saat.get(p.personel_id, 0.0),
+                sayi=hs_saat.get(p.personel_id, 0.0) + gecmis_hs(p.personel_id),
                 pay=hs_paylari[p.personel_id],
             )
             for p in personel_satirlari
@@ -385,6 +405,7 @@ class AnalizServisi:
 
         return AnalizOku(
             surum_id=surum_id,
+            ufuk=ufuk,
             karsilanmayan_kisi_saat=karsilanmayan,
             acik_aralik_sayisi=len(aciklar),
             kota_durumu=self._kota_durumu(atamalar, baglam, personel_satirlari),

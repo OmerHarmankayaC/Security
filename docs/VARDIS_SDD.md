@@ -56,6 +56,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 14.08.2026 | Dışa aktarma servisi ve kapsama kayıtlarının zaman damgasına taşınması tasarlandı (4.2.4, yeni 5.8); Ek B'ye Excel uç noktaları eklendi | 1.31 |
 | Ömer HARMANKAYA | 14.08.2026 | Geçmiş sayaçlar servisi tasarlandı (yeni 5.9): dört tüketicinin tek kaynaktan beslenmesi, çalışabilirlik oranı ve önbellek kararı | 1.32 |
 | Ömer HARMANKAYA | 14.08.2026 | Geçmiş sayaçların pencere başına bir kez hesaplanması ve kural katmanında paylaşılan parametre nesnesinin değiştirilmemesi 5.9'a yazıldı | 1.33 |
+| Ömer HARMANKAYA | 17.08.2026 | Analiz ekranı yeniden tasarlandı (6.3.4): üst şerit, kota kartı, ufuk anahtarı, kümülatif değişim göstergesi ve ceza dökümünün ham/ağırlıklı ayrımı | 1.34 |
 
 
 
@@ -1416,17 +1417,50 @@ düzendedir. İki sunum kuralı vardır:
 
 ### 6.3.4 Analiz Ekranı
 
-- Kapsama Kartı: Dönem geneli kapsama oranı ile açık verilen gün, saat aralığı ve nokta listesi.
+Ekran beş soruya yanıt verir ve sırası bu soruların aciliyetine göredir: bu çizelge
+kullanılabilir mi, yük adil dağılmış mı, kimin kotası doluyor, sıkıntı nerede,
+önceki döneme göre ne değişti.
 
-- Adalet Grafiği: Kişi başına gece ve hafta sonu **saatlerinin** dağılımı; kişiye düşen adil pay referans çizgisi olarak gösterilir.
+- Üst Şerit: Üç sayı — kapsama oranı, karşılanmayan kişi-saat, toplam ceza.
+  **Karşılanmayan kişi-saat ile açık kayıt sayısı ayrı ölçülerdir** ve ikisi de
+  gösterilir: ardışık saatler tek kayıtta birleştirildiği için satır sayısı
+  yükü anlatmaz. İkisinin karıştırılması bir kez gerçekleşti ve dışa aktarma
+  başlığında yanlış sayı gösterildi.
 
-- Saat Dengesi Tablosu: Personel başına toplam saat, kişiye düşen adil pay ve sapma (SRS S4).
+- Kapsama Kartı: Açık verilen gün, saat aralığı, görev noktası ve eksik kişi
+  sayısı; her satırda o aralığın kişi-saat karşılığı. Toplam satırı bulunur.
 
-- Ceza Dökümü: Toplam cezanın hedefler arasındaki dağılımı. Her hedefin adı, ağırlığı ve katkısı listelenir.
+- Adalet Kartı: Üç ölçü yan yana — gece saati, hafta sonu saati, toplam saat.
+  Her biri için kişi başına yük ve **kişiye düşen adil pay** (SRS S2, S3, S4);
+  sapmaya göre sıralanır, en uzaktakiler üstte. Havuz ortalaması gösterilmez.
 
-- Dışa Aktarma Butonu: Çizelgeyi ve raporları CSV biçiminde indirir (SRS 7.2). Çizelge ile kapsama açıkları ayrı dosyalar hâlinde iner.
+  **Ufuk Anahtarı** bu kartın üstündedir: ölçüler ya planlama dönemi ya da doksan
+  günlük adalet ufku için gösterilir (SRS TD-6). Hangi ufkun seçili olduğu her
+  zaman görünür; iki ufkun sayıları farklıdır ve hangisine bakıldığı belirsiz
+  kalırsa tablo yanlış okunur.
 
-Dışa aktarma yalnızca bu ekrana özgü değildir: Çizelge ekranı (6.3.3) da aynı işlevi sunar; ayrıca oradan yazdırılabilir görünüm üretilir (FR-8.8). Biçimlendirme ve indirme mantığı iki ekran tarafından paylaşılan tek bir birimde tutulur, ekran başına ayrı kopya çıkarılmaz.
+- Kota Kartı: Personel başına yıllık fazla çalışma ve kalan kota (SRS H10).
+  Kotası tükenmeye yakın olanlar üstte sıralanır — bu kartın amacı listeyi
+  göstermek değil, kimin sınıra dayandığını göstermektir.
+
+- Ceza Dökümü: Her hedef için **üç ayrı sütun** — ham değer, ağırlık, ağırlıklı
+  ceza. Ham değer kuralın kendi biriminde ölçülür (kişi-saat, saat, gün);
+  ağırlıklı ceza amaç fonksiyonuna girendir. İkisinin tek sütunda gösterilmesi,
+  toplamın satırların toplamı olmadığı bir tablo üretir.
+
+  Hedefler kimlikleriyle değil adlarıyla listelenir; "S4" tek başına kimseye bir
+  şey söylemez.
+
+- Kümülatif Değişim: Kişi başına sapmanın önceki yayınlanmış döneme göre azalıp
+  azalmadığı. Kümülatif adaletin vaadi sapmanın küçük olması değil, zamanla
+  küçülmesidir (Charter bölüm 5, K3); bu kart o vaadin ölçüldüğü yerdir.
+
+- Dışa Aktarma: Çizelge ve analiz için Excel çıktısı (SRS FR-8.5, FR-8.9); CSV
+  makine okunur biçim olarak korunur.
+
+Ekrandaki bütün sayılar `AnalizServisi`'nden gelir; ekran kendi hesabını yapmaz.
+Aynı kural dışa aktarma için de geçerlidir (5.8) — üç yüzeyin aynı sayıyı farklı
+göstermesi, bu projede birkaç kez ödenmiş bir bedeldir.
 
 ### 6.3.5 Sürümler Ekranı
 
