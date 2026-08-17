@@ -19,6 +19,20 @@ CALISMAZ - varsayilana dusup gelistirme verisini sessizce temizlemek, tam
 olarak kacinilmak istenen sey. Bu, `VERI_TEMIZLIGINE_IZIN` kilidinin
 YERINE gecmez; onun yaninda duran ikinci bir kapidir. Birincisi "yikici
 islem yapilabilir mi", ikincisi "hangi veritabaninda".
+
+UCUNCU KAPI: TEK KOSUM (B-24). Iki pytest sureci ayni test veritabanina ayni
+anda vurdugunda takim YALAN SOYLER. Bir kez yasandi: bes test kirik gorundu,
+hicbiri gercek degildi - biri digerinin satirlarini silerken
+`StaleDataError: UPDATE ... expected to update 1 row(s); 0 were matched`
+cikiyordu. Belirti kodu isaret ediyor, sebep ise kullanim.
+
+Cozum izolasyon degil ENGELLEME. Kosum basina ayri sema acmak uc yuz seksen
+testi yavaslatir ve karsiliginda paralel kosum imkani verir; tek gelistirici
+tek makinede buna ihtiyac duymuyor. Bunun yerine oturum boyunca tutulan bir
+PostgreSQL DANISMA KILIDI alinir ve ikinci surec anlasilir bir hatayla durur.
+Danisma kilidi secildi cunku BAGLANTIYA baglidir: surec oldurulurse kilit
+kendiliginden birakilir. Kilit dosyasi bayat kalir ve bir sonraki kosumu
+sebepsiz engellerdi.
 """
 
 import os
@@ -74,6 +88,7 @@ def _test_veritabanini_zorunlu_kil() -> None:
     os.environ["VERITABANI_URL"] = adres
 
     _baglantiyi_dogrula(adres)
+    _kilit.al(adres)
 
 
 def _baglantiyi_dogrula(adres: str) -> None:
@@ -98,6 +113,60 @@ def _baglantiyi_dogrula(adres: str) -> None:
         ) from hata
     finally:
         motor.dispose()
+
+
+# Danisma kilidinin anahtari: sabit ve keyfi, yalniz bu takimin surecleri
+# arasinda anlam tasir.
+_KILIT_ANAHTARI = 8_242_026_015
+
+
+class _TekKosumKilidi:
+    """Oturum boyunca ACIK KALAN baglanti; kilit onunla birlikte yasar."""
+
+    def __init__(self) -> None:
+        self._baglanti = None
+
+    def al(self, adres: str) -> None:
+        from sqlalchemy import create_engine, text
+
+        motor = create_engine(adres)
+        baglanti = motor.connect()
+        alindi = baglanti.execute(
+            text("SELECT pg_try_advisory_lock(:anahtar)"), {"anahtar": _KILIT_ANAHTARI}
+        ).scalar()
+        if not alindi:
+            baglanti.close()
+            motor.dispose()
+            raise pytest.UsageError(
+                "Bu test veritabaninda BASKA BIR PYTEST KOSUMU var "
+                f"({make_url(adres).database!r}).\n\n"
+                "Iki kosum ayni veriyi paylasir ve birbirinin satirlarini silerek "
+                "GERCEK OLMAYAN hatalar uretir; bir kez bes test sahte olarak kirik "
+                "gorundu (B-24).\n\n"
+                "Calisan kosumun bitmesini bekleyin:\n"
+                "  ps -eo pid,etime,command | grep '[p]ytest'\n"
+                "Kosum takildiysa surecini durdurun; kilit baglantiyla birlikte "
+                "kendiliginden birakilir."
+            )
+        # Baglanti KAPATILMAZ: kilit onun uzerinde duruyor.
+        self._baglanti = baglanti
+
+    def birak(self) -> None:
+        if self._baglanti is not None:
+            self._baglanti.close()
+            self._baglanti = None
+
+
+_kilit = _TekKosumKilidi()
+
+
+def pytest_sessionfinish(session, exitstatus) -> None:  # noqa: ARG001
+    """Kilidi acikca birak.
+
+    Surec olse de PostgreSQL birakir; bu yalnizca ayni makinede pesi sira
+    kosulan takimlarin baglantinin kapanmasini beklememesi icin.
+    """
+    _kilit.birak()
 
 
 _test_veritabanini_zorunlu_kil()

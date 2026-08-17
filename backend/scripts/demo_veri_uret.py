@@ -274,6 +274,20 @@ def _kurallari_olustur(oturum: Session) -> None:
 _PASIF_PERSONEL_SICIL = "GG-017"
 _PASIF_KAPANIS_GUN_ONCE = 7 * _HAFTA_SAYISI + 3
 
+# UFKUN ORTASINDA ISE BASLAYAN PERSONEL (SRS TD-6, Tur 9 Is 2).
+#
+# Adalet ufku doksan gundur. Bu kisi ufkun ortasinda ise basladigi icin
+# `calisabilir_oran` yaklasik 0.5 cikar ve adil payi yarilanir. Demo verisi
+# bunu tasimasaydi oranin etkisi hicbir ekranda GORUNMEZDI: herkes ufkun
+# tamaminda calisabilir oldugunda oran hep 1.0'dir ve kod calisiyormus gibi
+# durur.
+#
+# Oranin var olma nedeni de burada okunur: bu kisi tam payla olculseydi
+# kalici olarak hedefin ALTINDA gorunur ve sapmasi hicbir cizelgeyle
+# kapatilamazdi (SRS TD-6, ayni hatanin ucuncu bicimi).
+_YENI_PERSONEL_SICIL = "GG-020"
+_YENI_PERSONEL_BASLANGIC_GUN_ONCE = 45
+
 # DEVIR BAKIYESI (H10, FR-1.1). Kota senaryosunun tamami bu uc satirda:
 # yillik kota 270 saat, esik 45 saat/hafta.
 #
@@ -363,6 +377,7 @@ def _personeli_olustur(
     # haftalarin bir kismini kadrosuz birakirdi.
     ise_baslama = bugun - timedelta(days=365)
     pasif_kapanis = bugun - timedelta(days=_PASIF_KAPANIS_GUN_ONCE)
+    yeni_baslangic = bugun - timedelta(days=_YENI_PERSONEL_BASLANGIC_GUN_ONCE)
 
     gruplar: dict[str, list[Personel]] = {}
     for grup in PERSONEL_GRUPLARI:
@@ -373,7 +388,9 @@ def _personeli_olustur(
                 ad_soyad=_ad_soyad(grup.sicil_on_eki, i),
                 sicil_no=sicil_no,
                 haftalik_hedef_saat=40,
-                aktif_baslangic=ise_baslama,
+                aktif_baslangic=(
+                    yeni_baslangic if sicil_no == _YENI_PERSONEL_SICIL else ise_baslama
+                ),
                 aktif_bitis=pasif_kapanis if sicil_no == _PASIF_PERSONEL_SICIL else None,
                 devir_fazla_calisma_saat=Decimal(str(_DEVIR_BAKIYELERI.get(sicil_no, 0.0))),
                 kota_yili=bugun.year,
