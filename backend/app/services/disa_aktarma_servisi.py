@@ -233,22 +233,13 @@ class DisaAktarmaServisi:
         }
 
         aciklar = list(self.kapsama.surume_gore_getir(surum_id))
-        karsilanmayan = sum(
-            _kisi_saat(a.baslangic_zamani, a.bitis_zamani, a.eksik_sayi) for a in aciklar
-        )
 
-        # HAM CEZA `analiz.ceza_dokumu`DAN, kurallari burada yeniden
-        # calistirmaktan DEGIL. Ikisi ayni sayiyi vermiyor: `dogrula` cozum
-        # aninin baglamini bilmedigi icin S2/S3/S4'te farkli degerler uretiyor
-        # ve dosya ekranla celisiyordu. Dokum zaten cozucunun kendi kaydidir
-        # ve `agirlik` ile carpimi `toplam_ceza`yi verir - dosyadaki formul de
-        # tam bunu gosterir, yani okuyucu iliskiyi dosyada dogrulayabilir.
-        agirliklar = {k.kimlik: float(k.agirlik or 0) for k in kurallar}
-        adlar = {k.kimlik: (k.ad or k.kimlik) for k in kurallar}
-        kalemler = [
-            (kimlik, adlar.get(kimlik, kimlik), float(deger), agirliklar.get(kimlik, 0.0))
-            for kimlik, deger in sorted((analiz.ceza_dokumu or {}).items())
-        ]
+        # KARSILANMAYAN KISI-SAAT VE CEZA KALEMLERI ANALIZ SERVISINDEN.
+        # Ikisi de bir sure burada hesaplaniyordu; SDD 6.3.4 ekran, dosya ve
+        # servisin ayni sayiyi vermesini sart kosuyor ve ayni hesabin iki
+        # yerde durmasi bu projede birkac kez bedelini odetti. Kalemler
+        # (kimlik, ad, ham, agirlik) dortlusune burada yalnizca DONUSTURULUR.
+        kalemler = [(k.kimlik, k.ad, k.ham_deger, k.agirlik) for k in analiz.ceza_kalemleri]
 
         return _Baglam(
             surum=surum,
@@ -264,7 +255,7 @@ class DisaAktarmaServisi:
             nokta_adi={n.nokta_id: n.ad for n in self.nokta.tumunu_getir()},
             fazla_calisma=fazla_calisma,
             kalan_kota=kalan,
-            karsilanmayan_kisi_saat=karsilanmayan,
+            karsilanmayan_kisi_saat=analiz.karsilanmayan_kisi_saat,
             ceza_kalemleri=kalemler,
         )
 

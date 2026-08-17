@@ -421,3 +421,37 @@ def test_cizelge_hucresi_saat_araligi_ve_nokta_kisaltmasi_tasir(senaryo: dict) -
     for metin in dolu:
         aralik, nokta = metin.split("\n")
         assert "–" in aralik and nokta == kisaltma
+
+
+def test_ekran_ile_dosya_ayni_kaynaktan_besleniyor(senaryo: dict) -> None:
+    """SDD 6.3.4: ekran, dosya ve servis AYNI sayiyi vermek zorunda.
+
+    Karsilanmayan kisi-saat ile ceza kalemleri bir sure DISA AKTARMA
+    SERVISINDE hesaplaniyordu; ekran onlari hic gormuyordu. Ikisi
+    `AnalizServisi`e tasindi ve bu test iki yuzeyin ayrisamayacagini
+    kilitliyor - ayrisirlarsa hangisinin dogru oldugunu kimse bilemez.
+    """
+    oturum = OturumYerel()
+    try:
+        analiz = AnalizServisi(oturum).hesapla(senaryo["surum_id"])
+    finally:
+        oturum.close()
+    assert analiz is not None
+
+    ozet = _kitap(senaryo["surum_id"], "analiz")["Özet"]
+    sayisal = {satir[0].value: satir[1].value for satir in ozet.iter_rows(min_row=1, max_col=2)}
+
+    assert sayisal["Karşılanmayan"] == analiz.karsilanmayan_kisi_saat
+    assert sayisal["Açık aralık sayısı"] == analiz.acik_aralik_sayisi
+
+    # Ceza tablosundaki her satir servisin kalemiyle birebir.
+    dosya_kalemleri = {
+        satir[0].value: (satir[2].value, satir[3].value)
+        for satir in ozet.iter_rows(min_row=10, max_col=5)
+        if satir[3].value is not None
+    }
+    for kalem in analiz.ceza_kalemleri:
+        assert kalem.kimlik in dosya_kalemleri, f"{kalem.kimlik} dosyada yok"
+        ham, agirlik = dosya_kalemleri[kalem.kimlik]
+        assert ham == pytest.approx(round(kalem.ham_deger, 1))
+        assert agirlik == pytest.approx(kalem.agirlik)

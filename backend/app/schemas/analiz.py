@@ -51,6 +51,57 @@ class FazlaKadroKalemi(BaseModel):
     fazla_sayi: int
 
 
+class KotaDurumuOku(BaseModel):
+    """H10: kisi basina yillik fazla calisma ve KALAN kota.
+
+    Kartin amaci listeyi degil RISKI gostermek (SDD 6.3.4): sirali gelir,
+    kotasi tukenmeye yakin olan ustte.
+    """
+
+    personel_id: int
+    ad_soyad: str
+    fazla_calisma_saat: float
+    kalan_kota_saat: float
+
+
+class CezaKalemiOku(BaseModel):
+    """Bir esnek hedefin UC AYRI sayisi (SDD 6.3.4).
+
+    Ham deger kuralin kendi biriminde olculur (kisi-saat, saat, gun);
+    agirlikli ceza amac fonksiyonuna girendir. Ikisinin tek sutunda
+    gosterilmesi, toplamin satirlarin toplami olmadigi bir tablo uretir.
+
+    `ad` kimlikle degil ADLA listelenir: "S4" tek basina kimseye bir sey
+    soylemez.
+    """
+
+    kimlik: str
+    ad: str
+    ham_deger: float
+    agirlik: float
+    agirlikli_ceza: float
+
+
+class KumulatifDegisimOku(BaseModel):
+    """Kisi basina sapmanin ONCEKI yayinlanmis doneme gore degisimi.
+
+    Kumulatif adaletin vaadi sapmanin kucuk olmasi degil, ZAMANLA
+    kucuulmesidir (Charter 5, K3). Onceki yayinlanmis donem yoksa alanlar
+    None kalir ve ekran "karsilastirilacak donem yok" der - sifir yazmak
+    "degisim olmadi" anlamina gelirdi.
+    """
+
+    onceki_surum_id: int | None = None
+    onceki_ortalama_sapma: float | None = None
+    simdiki_ortalama_sapma: float | None = None
+
+    @property
+    def azaliyor_mu(self) -> bool | None:
+        if self.onceki_ortalama_sapma is None or self.simdiki_ortalama_sapma is None:
+            return None
+        return self.simdiki_ortalama_sapma < self.onceki_ortalama_sapma
+
+
 class AnalizOku(BaseModel):
     surum_id: int
     # TANIMSIZ olabilir: talep yoksa oran hesaplanamaz ve arayuz tire
@@ -71,3 +122,13 @@ class AnalizOku(BaseModel):
     bina_degisim_sayisi: list[KisiSayisiOku]
     ceza_dokumu: dict[str, float] | None
     toplam_ceza: float | None
+    # ARALIK SAYISI ile KISI-SAAT AYRI OLCULERDIR (SDD 6.3.4). Ardisik
+    # saatler tek kayitta birlestigi icin satir sayisi yuku anlatmaz; ikisi
+    # karistirildi ve disa aktarma basliginda yanlis sayi gosterildi.
+    karsilanmayan_kisi_saat: int = 0
+    acik_aralik_sayisi: int = 0
+    kota_durumu: list[KotaDurumuOku] = Field(default_factory=list)
+    ceza_kalemleri: list[CezaKalemiOku] = Field(default_factory=list)
+    kumulatif_degisim: KumulatifDegisimOku = Field(default_factory=KumulatifDegisimOku)
+    # Hangi ufkun olculdugu (SDD 6.3.4 ufuk anahtari): "donem" | "adalet".
+    ufuk: str = "donem"

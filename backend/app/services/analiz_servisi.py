@@ -11,13 +11,18 @@ DE kapsadigindan bu filtre burada acikca uygulanmalidir).
 from collections import defaultdict
 from collections.abc import Sequence
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.kurallar.baglam import AtamaKaydi, TercihKaydi
+from app.kurallar.baglam import AtamaKaydi, Baglam, TercihKaydi
 from app.kurallar.esnek import S6bBinaTutarliligi, s4_hedef_paylari
+from app.kurallar.kayit_defteri import kurallari_yukle
 from app.kurallar.zaman_araligi import gece_saati_mi, saat_kumesi
+from app.kurallar.zorunlu import h10_fazla_calisma_saatleri
 from app.models.girdi import TercihTipi
+from app.models.sonuc import CizelgeSurumu, CizelgeSurumuDurumu, Donem
 from app.models.tanim import Personel
+from app.repositories.kural import KuralDeposu
 from app.repositories.sonuc import (
     AtamaDeposu,
     CizelgeSurumuDeposu,
@@ -27,7 +32,15 @@ from app.repositories.sonuc import (
     KapsamaAcigiDeposu,
 )
 from app.repositories.tanim import PersonelDeposu
-from app.schemas.analiz import AnalizOku, FazlaKadroKalemi, KisiSayisiOku, SaatDengesiOku
+from app.schemas.analiz import (
+    AnalizOku,
+    CezaKalemiOku,
+    FazlaKadroKalemi,
+    KisiSayisiOku,
+    KotaDurumuOku,
+    KumulatifDegisimOku,
+    SaatDengesiOku,
+)
 from app.services.atama_donusumu import atama_kayitlarina_cevir
 from app.services.baglam_kurucu import baglam_olustur
 
@@ -61,6 +74,114 @@ class AnalizServisi:
         self.fazla_kadro = FazlaKadroDeposu(oturum)
         self.cozum_isi = CozumIsiDeposu(oturum)
         self.personel = PersonelDeposu(oturum)
+        self.kural = KuralDeposu(oturum)
+
+    def _kota_durumu(
+        self, atamalar: list, baglam: Baglam, personel_satirlari: Sequence[Personel]
+    ) -> list[KotaDurumuOku]:
+        """H10: kisi basina fazla calisma ve kalan kota, RISKE gore sirali.
+
+        Fazla calisma H10'un KENDI fonksiyonundan okunur; burada yeniden
+        hesaplansaydi ekranda, sistemin baska hicbir yerinde bulunmayan bir
+        sayi olurdu (SDD 5.8 ile ayni gerekce).
+        """
+        h10 = next(
+            (k for k in kurallari_yukle(self.kural.aktif_kurallari_getir()) if k.kimlik == "H10"),
+            None,
+        )
+        esik = float(h10.parametreler.get("fazla_calisma_esigi", 45)) if h10 else 45.0
+        kota = float(h10.parametreler.get("yillik_fazla_kotasi", 270)) if h10 else 270.0
+
+        fazlalar = h10_fazla_calisma_saatleri(atamalar, baglam, esik)
+        adlar = {p.personel_id: p.ad_soyad for p in personel_satirlari}
+        satirlar = [
+            KotaDurumuOku(
+                personel_id=p,
+                ad_soyad=adlar.get(p, str(p)),
+                fazla_calisma_saat=round(fazlalar.get(p, 0.0), 1),
+                kalan_kota_saat=round(
+                    max(kota - baglam.devir_fazla_calisma_saat(p) - fazlalar.get(p, 0.0), 0.0), 1
+                ),
+            )
+            for p in baglam.personel
+        ]
+        # SINIRA DAYANAN USTTE: kartin amaci listeyi degil riski gostermek.
+        satirlar.sort(key=lambda k: (k.kalan_kota_saat, -k.fazla_calisma_saat))
+        return satirlar
+
+    def _ceza_kalemleri(self, ceza_dokumu: dict[str, float] | None) -> list[CezaKalemiOku]:
+        """Ham deger / agirlik / agirlikli ceza — UC AYRI SUTUN (SDD 6.3.4).
+
+        Ham deger cozucunun kendi dokumunden gelir; agirlik kural
+        katalogundan. Carpimlarinin toplami `toplam_ceza`ya esittir ve dosya
+        bu iliskiyi canli formulle gosterir (SDD 5.8).
+        """
+        if not ceza_dokumu:
+            return []
+        kurallar = {k.kimlik: k for k in kurallari_yukle(self.kural.aktif_kurallari_getir())}
+        kalemler = []
+        for kimlik, ham in sorted(ceza_dokumu.items()):
+            kural = kurallar.get(kimlik)
+            agirlik = float(kural.agirlik or 0) if kural else 0.0
+            kalemler.append(
+                CezaKalemiOku(
+                    kimlik=kimlik,
+                    ad=(kural.ad if kural and kural.ad else kimlik),
+                    ham_deger=float(ham),
+                    agirlik=agirlik,
+                    agirlikli_ceza=float(ham) * agirlik,
+                )
+            )
+        return kalemler
+
+    def _kumulatif_degisim(
+        self, surum, donem, baglam: Baglam, atamalar: list
+    ) -> KumulatifDegisimOku:
+        """Kisi basina gece sapmasinin ONCEKI yayinlanmis doneme gore degisimi.
+
+        Kumulatif adaletin vaadi sapmanin kucuk olmasi degil, ZAMANLA
+        kucuulmesidir (Charter 5, K3).
+        """
+        simdiki = _ortalama_gece_sapmasi(baglam, atamalar)
+        onceki = self._onceki_yayinlanan(donem)
+        if onceki is None:
+            return KumulatifDegisimOku(simdiki_ortalama_sapma=simdiki)
+
+        onceki_donem = self.donem.getir(onceki.donem_id)
+        if onceki_donem is None:
+            return KumulatifDegisimOku(simdiki_ortalama_sapma=simdiki)
+        onceki_baglam = baglam_olustur(self.oturum, onceki_donem, yalniz_aktif=False)
+        onceki_atamalar = [
+            a
+            for a in atama_kayitlarina_cevir(self.atama.surume_gore_getir(onceki.surum_id))
+            if onceki_baglam.donem_icinde(a.tarih)
+        ]
+        return KumulatifDegisimOku(
+            onceki_surum_id=onceki.surum_id,
+            onceki_ortalama_sapma=_ortalama_gece_sapmasi(onceki_baglam, onceki_atamalar),
+            simdiki_ortalama_sapma=simdiki,
+        )
+
+    def _onceki_yayinlanan(self, donem):
+        """Bu donemden ONCE biten donemlerin EN SON yayinlanmis surumu.
+
+        Ayni donemin arsiv surumu degil: karsilastirma "gecen doneme gore"
+        yapilir, "bu donemin onceki denemesine gore" degil. Ikisi ayri
+        sorulardir ve ikincisi Surumler ekraninin isidir (SDD 6.3.5).
+        """
+        return (
+            self.oturum.execute(
+                select(CizelgeSurumu)
+                .join(Donem, Donem.donem_id == CizelgeSurumu.donem_id)
+                .where(
+                    CizelgeSurumu.durum == CizelgeSurumuDurumu.YAYINLANDI,
+                    Donem.bitis_tarihi < donem.baslangic_tarihi,
+                )
+                .order_by(Donem.bitis_tarihi.desc(), CizelgeSurumu.surum_no.desc())
+            )
+            .scalars()
+            .first()
+        )
 
     def hesapla(self, surum_id: int) -> AnalizOku | None:
         surum = self.surum.getir(surum_id)
@@ -255,8 +376,20 @@ class AnalizServisi:
             else None
         )
 
+        # --- Kapsama acigi: ARALIK SAYISI ve KISI-SAAT ayri olculer.
+        aciklar = self.kapsama.surume_gore_getir(surum_id)
+        karsilanmayan = sum(
+            a.eksik_sayi * round((a.bitis_zamani - a.baslangic_zamani).total_seconds() / 3600)
+            for a in aciklar
+        )
+
         return AnalizOku(
             surum_id=surum_id,
+            karsilanmayan_kisi_saat=karsilanmayan,
+            acik_aralik_sayisi=len(aciklar),
+            kota_durumu=self._kota_durumu(atamalar, baglam, personel_satirlari),
+            ceza_kalemleri=self._ceza_kalemleri(ceza_dokumu),
+            kumulatif_degisim=self._kumulatif_degisim(surum, donem, baglam, atamalar),
             kapsama_orani=kapsama_orani,
             fazla_kadro=fazla_kadro,
             toplam_fazla_kadro=toplam_fazla,
@@ -270,3 +403,22 @@ class AnalizServisi:
             ceza_dokumu=ceza_dokumu,
             toplam_ceza=toplam_ceza,
         )
+
+
+def _ortalama_gece_sapmasi(baglam: Baglam, atamalar: list[AtamaKaydi]) -> float | None:
+    """Kisi basina gece saatinin adil paydan ORTALAMA mutlak sapmasi.
+
+    Ufuk DONEM ICIDIR (Charter 1.5): `adil_paylar` `olcu` verilmeden
+    cagrilir. Kumulatif degisim gostergesi iki donemi karsilastirir ve
+    ikisinin de kendi donemi icinde olculmesi gerekir; biri ufuk biri donem
+    olsaydi karsilastirma anlamsizlasirdi.
+    """
+    paylar = baglam.adil_paylar(lambda anahtar: gece_saati_mi(anahtar[1]))
+    havuz = [p for p, pay in paylar.items() if pay > 0]
+    if not havuz:
+        return None
+    yukler: dict[int, float] = defaultdict(float)
+    for a in atamalar:
+        if baglam.donem_icinde(a.tarih):
+            yukler[a.personel_id] += a.gece_saati
+    return round(sum(abs(yukler[p] - paylar[p]) for p in havuz) / len(havuz), 2)
