@@ -176,6 +176,42 @@ kalibrasyonu bu karardan önce yapılırsa yanlış hedefe ayarlanır.
 `test_cozucu_dogrulayici_uyumu_olcek.py` **24/24** geçiyor (6 dk 25 sn).
 Kümülatif ufuk iki yorumlayıcının aynı sayıyı üretmesini bozmadı.
 
+### Ters sıralı koşu — sıra bağımlılığı yok
+
+| Sıra | Sonuç |
+|---|---|
+| İleri | 363 geçti, 1 atlandı (3 dk 55 sn) |
+| Ters (`ls -r`) | **363 geçti, 1 atlandı** (3 dk 56 sn) |
+
+Ölçek testi (24 örnek, 6,5 dk) ikisinden de hariç tutuldu; tam takım zaten
+ayrıca koşuldu (387 geçti, 1 atlandı).
+
+`--reverse` bayrağı bu kurulumda yok (pytest-reverse kurulu değil); dosyalar
+`ls -r` ile ters sırada verildi. İlk denemede bayrak hata verdi ve yedek
+komut **çalışmadı**: `cmd | tail || yedek` yazılmıştı ve boru hattının çıkış
+kodu `tail`'inki (0) olduğu için `||` hiç tetiklenmedi. Kısa süre "koşuyor"
+diye rapor edildi; düzeltildi.
+
+### Turun bitiş kontrolü
+
+- [x] Tam takım geçiyor — 387 geçti, 1 atlandı (atlanan: kabul testi, test
+      veritabanında gösterim verisi yok)
+- [x] Ters sıralı koşu aynı sonucu veriyor
+- [x] `ruff` temiz (bu turda frontend değişmedi)
+- [x] Uyum testi 24/24
+- [x] Kabul ölçümü koşuldu; K1 = 12,18 sn
+- [x] K3 ayrıca kaydedildi: 34 → 61,27
+- [x] Ulaşılabilirlik teşhisi "her havuz hedefe erişebiliyor"
+
+### Tur 10'a taşınan iki soru
+
+1. **K3'ün eşiği ile ölçüsü aynı ufku kapsamıyor** (yukarıda). Ağırlık
+   kalibrasyonu bu karardan önce yapılırsa yanlış hedefe ayarlanır.
+2. **Kabul ölçümü betiği hiçbir otomatik koşumda değil.** SDD 5.9 onu
+   `GecmisSayaclar`ın dört tüketicisinden biri sayıyor ama iki tur boyunca
+   sessizce kırık kaldı. Takıma ya da CI'a alınması gerekir; aksi hâlde
+   "dört tüketici tek kaynaktan beslenir" sözleşmesi denetimsiz kalıyor.
+
 ---
 
 ## 2026-08-14 — Düzeltme: Excel çıktısı arayüze bağlanmamıştı — **BİTTİ, DAĞITILDI**
