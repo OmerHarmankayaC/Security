@@ -19,7 +19,7 @@ function esik(referans: number): number {
 
 function karsilastirmaMetni(sen: number, referans: number, birim: string): string {
   const fark = sen - referans
-  if (Math.abs(fark) < esik(referans)) return 'ortalamaya yakınsın'
+  if (Math.abs(fark) < esik(referans)) return 'adil payına yakınsın'
   return fark > 0
     ? `adil payının ${sayiBicimle(Math.abs(fark), 1)} ${birim} üzerindesin`
     : `adil payının ${sayiBicimle(Math.abs(fark), 1)} ${birim} altındasın`
@@ -223,20 +223,44 @@ export function DonemOzetimEkrani({ veri }: Props) {
   const [ufuk, setUfuk] = useState<Ufuk>('donem')
   const [ozet, setOzet] = useState<DonemOzeti | null>(null)
   const [yukleniyor, setYukleniyor] = useState(true)
+  // Gerçek hata (ağ, 5xx, düşmüş oturum) MEŞRU `null` yanıtla (yayınlanmış
+  // çizelge yok) KARIŞTIRILMAZ — ikisi de sessizce aynı "boş" duruma
+  // düşerse, sunucu çökmüşken çalışan "henüz çizelge yok" okur.
+  const [hata, setHata] = useState<string | null>(null)
 
   useEffect(() => {
+    // İSTEK YARIŞI: ufuk hızla iki kez değişirse önceki isteğin GEÇ dönen
+    // yanıtı yenisinin üstüne yazabilir. `guncel`, bu effect süperseded
+    // olduğunda (bağımlılık değişip cleanup çalıştığında) false olur; o
+    // andan sonra dönen yanıt/hata yok sayılır — React'in standart iptal
+    // deseni, AbortController gerekmez.
+    let guncel = true
     setYukleniyor(true)
+    setHata(null)
     api
       .calisanOzetim(ufuk)
-      .then(setOzet)
-      .catch(() => setOzet(null))
-      .finally(() => setYukleniyor(false))
+      .then((yanit) => {
+        if (guncel) setOzet(yanit)
+      })
+      .catch((e) => {
+        if (guncel) setHata(e instanceof Error ? e.message : 'Özet alınamadı')
+      })
+      .finally(() => {
+        if (guncel) setYukleniyor(false)
+      })
+    return () => {
+      guncel = false
+    }
   }, [ufuk])
 
   return (
     <>
       <UfukAnahtari ufuk={ufuk} sec={setUfuk} />
-      {yukleniyor && ozet === null ? null : ozet === null ? (
+      {hata ? (
+        <Kart>
+          <p className="m-0 text-sm text-signal">{hata}</p>
+        </Kart>
+      ) : yukleniyor && ozet === null ? null : ozet === null ? (
         <Kart>
           <p className="m-0 text-sm text-ink-muted">
             Bu dönem için henüz yayınlanmış bir çizelge yok, özet hesaplanamıyor.

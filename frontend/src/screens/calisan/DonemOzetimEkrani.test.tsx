@@ -13,19 +13,24 @@ import type { DonemOzeti, Vardiyalarim } from '@/api/types'
 import { DonemOzetimEkrani } from './DonemOzetimEkrani'
 
 let _ozet: DonemOzeti | null
-// Varsayılan davranış senkron gibi çözülür (`_ozet`). Yarış senaryosunu
-// (ufuk değişirken eski yanıt hâlâ ekranda) sınamak isteyen tek test bunu
-// `true` yapıp yanıtı ELİNDE tutar — gerçek `fetch` gibi, çağrı anında değil
-// test kararıyla çözülür. Diğer testler bundan etkilenmez.
+// Varsayılan davranış senkron gibi çözülür (`_ozet`). Yarış/hata senaryolarını
+// sınamak isteyen testler `_yavas`ı `true` yapıp yanıtı ELİNDE tutar — gerçek
+// `fetch` gibi, çağrı anında değil test kararıyla çözülür/reddedilir. `_hata`
+// ayarlıysa (ve `_yavas` değilse) istek doğrudan reddedilir. Diğer testler
+// bundan etkilenmez.
 let _yavas = false
-let _bekleyenler: Array<(v: DonemOzeti | null) => void> = []
+let _hata: Error | null = null
+let _bekleyenler: Array<{ resolve: (v: DonemOzeti | null) => void; reject: (e: unknown) => void }> = []
 const calisanOzetim = vi.fn()
 
 vi.mock('@/api/client', () => ({
   api: {
     calisanOzetim: (...a: unknown[]) => {
       calisanOzetim(...a)
-      if (_yavas) return new Promise<DonemOzeti | null>((resolve) => _bekleyenler.push(resolve))
+      if (_yavas) {
+        return new Promise<DonemOzeti | null>((resolve, reject) => _bekleyenler.push({ resolve, reject }))
+      }
+      if (_hata) return Promise.reject(_hata)
       return Promise.resolve(_ozet)
     },
   },
@@ -55,6 +60,7 @@ afterEach(() => {
   cleanup()
   calisanOzetim.mockClear()
   _yavas = false
+  _hata = null
   _bekleyenler = []
 })
 
@@ -86,7 +92,8 @@ describe('DonemOzetimEkrani', () => {
     // gece payı 100, sen 103 -> fark 3 < 5 (100 * %5) -> "yakınsın".
     _ozet = { ...OZET, gece_saati: 103, adil_pay_gece: 100 }
     render(<DonemOzetimEkrani veri={VERI} />)
-    expect(await screen.findByText(/gece saatinde ortalamaya yakınsın/)).toBeTruthy()
+    // Referans artık ekip ortalaması değil adil pay — metin de öyle demeli.
+    expect(await screen.findByText(/gece saatinde adil payına yakınsın/)).toBeTruthy()
   })
 
   it('özet yoksa çizelge olmadığını söyler', async () => {
@@ -111,7 +118,7 @@ describe('DonemOzetimEkrani', () => {
     _yavas = true
     render(<DonemOzetimEkrani veri={VERI} />)
     await waitFor(() => expect(_bekleyenler).toHaveLength(1))
-    _bekleyenler.shift()!(OZET) // ilk (dönem) yanıtı gelir
+    _bekleyenler.shift()!.resolve(OZET) // ilk (dönem) yanıtı gelir
     await screen.findByText(/DÖNEMİ/)
 
     fireEvent.click(screen.getByRole('button', { name: /90 gün/i }))
@@ -124,7 +131,45 @@ describe('DonemOzetimEkrani', () => {
     expect(screen.queryByText('SON 90 GÜN')).toBeNull()
     expect(screen.getByText(/DÖNEMİ/)).toBeTruthy()
 
-    _bekleyenler.shift()!({ ...OZET, ufuk: 'adalet' }) // ikinci (adalet) yanıtı gelir
+    _bekleyenler.shift()!.resolve({ ...OZET, ufuk: 'adalet' }) // ikinci (adalet) yanıtı gelir
     await waitFor(() => expect(screen.getByText('SON 90 GÜN')).toBeTruthy())
+  })
+
+  it('istek reddedilirse hata görünür, "çizelge yok" metni DEĞİL', async () => {
+    // Ağ hatası / 500 / düşmüş oturum, meşru "yayınlanmış çizelge yok"
+    // yanıtıyla (`null`) KARIŞTIRILMAZ — biri sunucu sorunu, biri normal hâl.
+    _hata = new Error('Sunucuya ulaşılamadı')
+    render(<DonemOzetimEkrani veri={VERI} />)
+    expect(await screen.findByText('Sunucuya ulaşılamadı')).toBeTruthy()
+    expect(screen.queryByText(/henüz yayınlanmış bir çizelge yok/i)).toBeNull()
+  })
+
+  it('ters sırada çözülen isteklerde ekranda son seçimin verisi kalır, bayat yanıt yazmaz', async () => {
+    // "Bu Dönem" -> "Son 90 Gün" hızlı tıklanır; İKİ istek de havada kalır.
+    // Önce YENİ (adalet) isteğin yanıtı gelir, SONRA eski (dönem) isteğin
+    // GEÇ gelen yanıtı gelir. Yarış koruması olmadan bu, ekranı son atılan
+    // isteğin üstüne eski veriyle yazardı — düğme "Son 90 Gün" basılı
+    // görünürken kartlar dönem sayılarına dönerdi.
+    _yavas = true
+    render(<DonemOzetimEkrani veri={VERI} />)
+    await waitFor(() => expect(_bekleyenler).toHaveLength(1))
+    const donemIstegi = _bekleyenler[0]!
+
+    fireEvent.click(screen.getByRole('button', { name: /90 gün/i }))
+    await waitFor(() => expect(_bekleyenler).toHaveLength(2))
+    const adaletIstegi = _bekleyenler[1]!
+
+    // Ters sıra: önce ikinci (adalet) istek çözülür.
+    adaletIstegi.resolve({ ...OZET, ufuk: 'adalet', toplam_saat: 999 })
+    await waitFor(() => expect(screen.getByText('SON 90 GÜN')).toBeTruthy())
+
+    // ...sonra ilk (dönem) isteğin bayat yanıtı GEÇ gelir.
+    donemIstegi.resolve(OZET)
+
+    // Ekranda hâlâ adalet verisi durmalı — bayat dönem yanıtı yok sayılmalı.
+    // (999,0 birden fazla yerde basılır — büyük rakam ve SEN çubuğu — bu
+    // yüzden tekil değil çoğul sorgu.)
+    await waitFor(() => expect(screen.getAllByText('999,0').length).toBeGreaterThan(0))
+    expect(screen.queryByText('17 – 23 Ağu 2026 DÖNEMİ')).toBeNull()
   })
 })
