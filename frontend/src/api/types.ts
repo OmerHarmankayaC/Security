@@ -556,18 +556,24 @@ export interface KaldirilanGun {
 }
 
 export interface DonemOzeti {
+  /** Hangi ufkun okunduğu (SDD 6.3.4); yanıtın içinde taşınır. */
+  ufuk: Ufuk
   /** Birim SAAT (SRS S2, S3). */
   gece_saati: number
   ekip_ortalama_gece: number
+  /** KIYASIN REFERANSI: kişiye düşen adil pay. Havuz dışındaysa null. */
+  adil_pay_gece: number | null
   // SRS S2/S3'teki uygun havuz (P_gece / P_hs) üyeliği. Havuz dışındaki
   // çalışan o vardiyaları yetkinliği gereği hiç alamaz; karşılaştırma
   // anlamsız olduğu için gösterilmez (SDD 5.7).
   gece_havuzunda: boolean
   hafta_sonu_saati: number
   ekip_ortalama_hafta_sonu: number
+  adil_pay_hafta_sonu: number | null
   hafta_sonu_havuzunda: boolean
   toplam_saat: number
   ekip_ortalama_saat: number
+  hedef_saat: number
 }
 
 export interface Vardiyalarim {
@@ -584,7 +590,6 @@ export interface Vardiyalarim {
   vardiyalar: Vardiyam[]
   kaldirilan_gunler: KaldirilanGun[]
   siradaki: Vardiyam | null
-  ozet: DonemOzeti | null
 }
 
 export interface AcikDonem {

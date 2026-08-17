@@ -13,6 +13,7 @@ import type {
   CozumKarariYaniti,
   Donem,
   DogrulamaSonucu,
+  DonemOzeti,
   GorevNoktasi,
   FazlaKadro,
   KapsamaAcigi,
@@ -302,6 +303,10 @@ export const api = {
   // Kimliği burada taşımak, sunucunun onu yok saydığı bilinse bile,
   // "istemci kimliği seçiyor" izlenimi verirdi.
   calisanVardiyalarim: () => istek<Vardiyalarim>('/api/calisan/vardiyalarim'),
+  // Özet ayrı çağrıdır: bir tam analiz hesabı ödediği için Dönem Özetim
+  // sekmesi açılmadan çalışmaz. `null` = henüz yayınlanmış çizelge yok.
+  calisanOzetim: (ufuk: Ufuk = 'donem') =>
+    istek<DonemOzeti | null>(`/api/calisan/ozetim?ufuk=${ufuk}`),
   calisanTercihlerim: () => istek<CalisanTercihListesi>('/api/calisan/tercih'),
   calisanTercihBildir: (govde: {
     tarih: string
