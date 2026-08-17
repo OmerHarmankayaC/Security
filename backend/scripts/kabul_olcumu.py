@@ -89,6 +89,7 @@ from app.models.tanim import (  # noqa: E402
     Talep,
     Yetkinlik,
 )
+from app.repositories.sonuc import CizelgeSurumuDeposu  # noqa: E402
 from app.services.baglam_kurucu import baglam_olustur, zaman_ekseni_olustur  # noqa: E402
 from app.services.dogrulama_servisi import AtamaDegisikligi, DogrulamaServisi  # noqa: E402
 from app.services.ornek_senaryo import (
@@ -97,6 +98,7 @@ from app.services.ornek_senaryo import (
     VARDIYA_SEFI,  # noqa: E402
     talep_satirlarini_olustur,
 )
+from app.services.surum_servisi import SurumServisi  # noqa: E402
 from app.veri_temizligi import (  # noqa: E402
     HesapKapsami,
     TemizlikSonucu,
@@ -788,6 +790,62 @@ def _yazdir(kriterler: list[Kriter], temizlik: TemizlikSonucu | None = None) -> 
         print("esiklerle birlikte verildigi icin acigin buyuklugu dogrudan okunabilir.")
 
 
+def _k6(oturum: Session, donem: Donem, surum_id: int, zaman_limiti: float) -> Kriter:
+    """Charter 5, ALTINCI kriter: yeniden cozumde degisen atama sayisi raporlanir.
+
+    Bu kriter betikte HIC OLCULMUYORDU - Charter altisini sayiyor, betik
+    besini raporluyordu ve aradaki fark kimsenin dikkatini cekmemisti. Olcen
+    bir sey olmadikca bir kriterin var olmasi onun saglandigi anlamina
+    gelmez; ayni ders `kabul_olcumu.py`nin iki tur kirik kalmasinda da
+    ogrenildi (B-25).
+
+    Olculen sey SAYININ KENDISI DEGIL, raporlanabilmesidir: yeniden cozum bir
+    taslak turetir, ikisi karsilastirilir ve fark uc ture ayrilir. Fark sifir
+    cikabilir (cozucu ayni sonucu bulmustur) ve bu bir basarisizlik degildir.
+    """
+    servis = SurumServisi(oturum)
+    # `CizelgeSurumuDeposu.taslak_turet` atamalari KOPYALAMAZ; yeni surumun
+    # atamalari yeniden cozumden yazilir. `SurumServisi.taslak_olarak_kopyala`
+    # kopyalardi ve fark her zaman sifir cikardi.
+    yeni_surum = CizelgeSurumuDeposu(oturum).taslak_turet(surum_id)
+    if yeni_surum is None:
+        return Kriter(
+            kimlik="K6",
+            baslik="Yeniden cozumde degisen atama sayisi raporlanir",
+            esik="karsilastirma uretilir ve uc ture ayrilir",
+            olculen="taslak turetilemedi",
+            gecti=False,
+        )
+    oturum.commit()
+
+    olcum, _ = _coz(oturum, donem, zaman_limiti)
+    _atamalari_yaz(oturum, yeni_surum.surum_id, olcum, donem)
+    oturum.commit()
+
+    fark = servis.karsilastir(surum_id, yeni_surum.surum_id)
+    if fark is None:
+        return Kriter(
+            kimlik="K6",
+            baslik="Yeniden cozumde degisen atama sayisi raporlanir",
+            esik="karsilastirma uretilir ve uc ture ayrilir",
+            olculen="karsilastirma uretilemedi",
+            gecti=False,
+        )
+    return Kriter(
+        kimlik="K6",
+        baslik="Yeniden cozumde degisen atama sayisi raporlanir",
+        esik="karsilastirma uretilir ve uc ture ayrilir",
+        olculen=f"{fark.toplam_degisiklik} degisiklik",
+        gecti=True,
+        ayrinti=[
+            f"eklenen    : {fark.eklenen}",
+            f"kaldirilan : {fark.kaldirilan}",
+            f"degisen    : {fark.degisen}",
+            f"karsilastirilan surumler: {fark.onceki_surum_no} -> {fark.yeni_surum_no}",
+        ],
+    )
+
+
 def main() -> int:
     ayristirici = argparse.ArgumentParser(description="Kabul kriteri olcumu")
     ayristirici.add_argument("--json", action="store_true", help="Makine okunur cikti")
@@ -837,6 +895,7 @@ def main() -> int:
 
         # --- Manuel duzenleme: K5
         kriterler.append(_k5(oturum, surum.surum_id, referans_donem))
+        kriterler.append(_k6(oturum, referans_donem, surum.surum_id, argumanlar.zaman_limiti))
         oturum.commit()
     finally:
         oturum.close()
