@@ -54,6 +54,8 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 13.08.2026 | Çizelge ekranının görünüm anahtarı ve nokta süzgeci 6.3.3'e, analiz yanıtındaki adil pay alanı Ek B'ye yazıldı; revizyon tablosunun sıralaması düzeltildi | 1.29 |
 | Ömer HARMANKAYA | 14.08.2026 | Manuel düzenleme taslak oturum modeline göre yeniden tasarlandı: doğrulamanın biriken değişikliklerin tamamı üzerinden yapılması ve kaydetmenin tek işlemde koşullu uygulanması 5.5'e, düzenleme etkileşimi 6.3.3'e, uç nokta değişiklikleri Ek B'ye yazıldı | 1.30 |
 | Ömer HARMANKAYA | 14.08.2026 | Dışa aktarma servisi ve kapsama kayıtlarının zaman damgasına taşınması tasarlandı (4.2.4, yeni 5.8); Ek B'ye Excel uç noktaları eklendi | 1.31 |
+| Ömer HARMANKAYA | 14.08.2026 | Geçmiş sayaçlar servisi tasarlandı (yeni 5.9): dört tüketicinin tek kaynaktan beslenmesi, çalışabilirlik oranı ve önbellek kararı | 1.32 |
+| Ömer HARMANKAYA | 14.08.2026 | Geçmiş sayaçların pencere başına bir kez hesaplanması ve kural katmanında paylaşılan parametre nesnesinin değiştirilmemesi 5.9'a yazıldı | 1.33 |
 
 
 
@@ -1194,6 +1196,69 @@ ortalaması kullanmak, S2'nin açıkça reddettiği ölçüyü dosyaya taşımak
 
 Uç noktalar dosyayı doğrudan döndürür; ayrı bir iş kuyruğu kurulmaz. Bir
 dönemdeki atama sayısı birkaç yüzdür ve ölçek bunu gerektirmez.
+
+## 5.9 Geçmiş Sayaçlar
+
+Dönem öncesi birikim tek bir serviste toplanır (`GecmisSayaclar`). Servis bir
+dönem ve bir ufuk alır, her personel için gece saati, hafta sonu saati, toplam
+saat ve fazla çalışma saati döndürür.
+
+```
+FONKSİYON sayaclar(donem, ufuk_gun):
+    pencere_bas ← donem.baslangic − ufuk_gun
+    surumler ← CizelgeDeposu.donem_basina_son_yayinlanan(pencere_bas, donem.baslangic)
+    atamalar ← surumler.atamalari_kesisen(pencere_bas, donem.baslangic)
+
+    sayac ← {}
+    HER a İÇİN atamalar:
+        p ← a.personel
+        sayac[p].toplam      += a.sure_saat
+        sayac[p].gece        += gece_saati(a)
+        sayac[p].hafta_sonu  += EĞER hafta_sonu(a.baslangic_gunu) İSE a.sure_saat DEĞİLSE 0
+    DÖNDÜR sayac
+```
+
+**Dört tüketici, tek kaynak.** Çözücü (S2, S3, S4 ve H10 için), ön kontrol,
+analiz servisi ve kabul ölçüm betiği aynı servisi çağırır. Beşinci bir hesap yeri
+açılmaz; bu projede aynı hesabın iki yerde durmasının bedeli birkaç kez
+ödenmiştir.
+
+**Bir dönemin birden çok yayınlanmış sürümü olabilir.** Sayım her dönem için en
+son yayınlananı kullanır. Arşivlenmiş ve taslak sürümler sayılmaz — biri geçmişi
+iki kez sayar, diğeri henüz gerçekleşmemiş bir çizelgeyi geçmişe yazar.
+
+**Çalışabilirlik oranı** aynı serviste hesaplanır (SRS TD-6): personelin ufuk
+içinde aktif olduğu ve tam gün müsaitlik kaydıyla kapatılmadığı gün sayısının
+ufuk uzunluğuna oranı. Pay bu oranla ölçeklenir. Oranın ayrı bir yerde
+hesaplanması, ufkun tanımının iki yere dağılması demektir.
+
+**Yasal ufuk ayrıdır.** H10'un kota hesabı ısıtma penceresini ve personel
+kaydındaki devir bakiyesini kapsar; adalet ufkuyla aynı fonksiyondan geçse de
+farklı parametreyle çağrılır ve devir alanı türetilen değere eklenir. İki ufkun
+tek bir çağrıda birleştirilmesi, hangi kuralın hangisini kullandığını çağrı
+yerine bakmadan anlaşılmaz kılar (SRS TD-14 ile aynı gerekçe).
+
+**Önbellek kurulmaz.** Doksan günlük bir pencerede otuz personel için yaklaşık
+üç bin blok okunur; ölçek bunu gerektirmez. Önbellek, bir sürüm yayınlandığında
+veya arşive alındığında bayatlar ve geçersiz kılma mantığı hesabın kendisinden
+karmaşık olur — saklanan sayaç için verilen kararın (SRS TD-6) aynı gerekçesi.
+
+**Pencere başına bir kez hesaplanır.** Sayaç sorgusu personel döngüsünün içine
+girdiğinde kişi sayısı kadar tekrarlanır; ölçülen etkisi test takımını on
+dakikadan yirmi beş dakikaya çıkarmasıdır. Sonuç doğru olduğu için belirti yalnızca
+süredir — hesap bir kez yapılır ve tüm personel aynı sonuçtan okur.
+
+**Geçmiş yük paylaşılan parametreyi değiştirmez.** Ortak sapma teriminde üst
+sınıra geçmiş yükün eklenmesi, parametre nesnesi paylaşılıyorsa kalıcı olur: bir
+personelin geçmişi kendisinden sonra değerlendirilen herkesin üst sınırını şişirir.
+Hata sessizdir — model çözülür, çizelge üretilir, yalnızca sayılar yanlış olur.
+Kural sınıfları kendilerine verilen parametreleri okur, değiştirmez; yerel bir
+kopya üzerinde çalışırlar.
+
+**Modele sabit terim olarak girer.** Geçmiş yük karar değişkeni değildir; S2,
+S3 ve S4'ün sapma ifadelerinde dönem içi toplama eklenen bir sayıdır. Payın
+kendisi de geçmiş gerçekleşme ile dönem talebinin toplamından hesaplanır ve
+model kurulurken sabittir.
 
 # 6. Kullanıcı Arayüzü Tasarımı
 

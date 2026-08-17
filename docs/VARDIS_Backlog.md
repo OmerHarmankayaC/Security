@@ -44,6 +44,8 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 13.08.2026 | Tur 6'nın iki kararı işlendi (adil pay değerlerinin sunucudan dönmesi, nokta ekseninin kaldırılması); kapsama açığı kaydının zaman damgasına taşınması B-23 olarak eklendi | 1.19 |
 | Ömer HARMANKAYA | 14.08.2026 | Manuel düzenlemenin taslak oturum modeline geçirilmesi kararları işlendi (SRS 1.23, SDD 1.30) | 1.20 |
 | Ömer HARMANKAYA | 14.08.2026 | Dışa aktarma kararları işlendi ve B-23 kapsama alındı (SRS 1.24, SDD 1.31) | 1.21 |
+| Ömer HARMANKAYA | 14.08.2026 | Kümülatif adaletin tasarım kararları işlendi (SRS 1.25, SDD 1.32) | 1.22 |
+| Ömer HARMANKAYA | 14.08.2026 | Tur 9 uygulamasının iki dersi SDD 5.9'a işlendi; testlerin eşzamanlı koşturulmasına karşı kilit B-24 olarak eklendi | 1.23 |
 
 
 
@@ -77,7 +79,7 @@ Bu maddeler değerli bulunmuş ancak ilk sürüme alınmamıştır. Her biri, ç
 
 | Kimlik | Madde ve Gerekçe | Gündeme Gelme Koşulu | Etki / Maliyet |
 | --- | --- | --- | --- |
-| B-01 | ~~Kümülatif adalet.~~ **Kapsama alındı (12.08.2026).** Saatlik düzene geçişle aynı altyapıyı (dönem öncesi birikim katmanı) paylaştığı için birlikte ele alınıyor; ayrı yapılması hâlinde aynı hesap iki yerde dururdu. Uygulama planı sürüm 2, Tur 5. | — | — |
+| B-01 | ~~Kümülatif adalet.~~ **Tur 9'da uygulanıyor (14.08.2026).** Tasarım SRS TD-6 ve SDD 5.9'da. | — | — |
 | B-02 | Otomatik çakışma teşhisi. Çelişkili kural kümelerinde hangi kısıt alt kümesinin çözümü imkânsız kıldığının otomatik olarak bulunması (unsat core analizi). İlk sürümde bu ihtiyaç, çözüm öncesi ön kontrol katmanı ve S1'in esnek tanımıyla karşılanmaktadır. | Ön kontrol katmanının yetersiz kaldığı somut bir örnekle karşılaşıldığında | Orta / Yüksek |
 | B-03 | Eş zamanlı düzenleme. Birden fazla yöneticinin aynı çizelge sürümü üzerinde aynı anda çalışabilmesi. Tek kullanıcı varsayımı gösterim için yeterlidir. | Sistemin birden fazla vardiya yöneticisi tarafından kullanılacağı kesinleştiğinde | Düşük / Yüksek |
 | B-04 | Senaryo karşılaştırma. Aynı veri üzerinde farklı ağırlık setleriyle üretilen çizelgelerin yan yana değerlendirilmesi. Ağırlık ayarlama işlevi ilk sürümde vardır; eksik olan yalnızca karşılaştırmalı görünümdür. | Ağırlık ayarlamanın gerçek kullanımda sık tekrarlandığı gözlendiğinde | Orta / Düşük |
@@ -100,6 +102,7 @@ Bu maddeler değerli bulunmuş ancak ilk sürüme alınmamıştır. Her biri, ç
 | B-21 | ~~Asgari kadro hesabının saat tabanına taşınması.~~ **Kapsama alındı (13.08.2026).** SRS 3.3.6 ve FR-1.9 saat tabanına taşındı; kişi-vardiya karşılığı gösterilmiyor. Uygulama planı sürüm 2, Tur 4. | — | — |
 | B-22 | ~~Testler arası veri sızıntısı.~~ **Kapsama alındı (13.08.2026).** Tur 4'ün ilk işi; kural kataloğunun yeniden yazımı çok sayıda yeni tanım testi getiriyor. | — | — |
 | B-23 | ~~Kapsama açığı ve fazla kadro kayıtlarının zaman damgasına taşınması.~~ **Kapsama alındı (14.08.2026).** Tur 8'in ilk işi; dışa aktarma bu biçim düzeltilmeden yapılamaz. | — | — |
+| B-24 | Testlerin eşzamanlı koşturulmasına karşı kilit. İki pytest süreci aynı test veritabanına aynı anda vurduğunda `StaleDataError` ve sessiz veri karışması üretiyor; bir koşuda beş test kırık göründü ve kodda karşılığı yoktu. Ayrı bir test veritabanı (B-20) ve testler arası temizlik (B-22) bu durumu kapsamıyor. İkinci süreç anlaşılır bir hatayla durmalı. | Tur 9 içinde — sonraki her koşumu korur | Yüksek |
 
 
 
@@ -164,6 +167,10 @@ Aşağıdaki tablo, tasarım sürecinde alınan ve sonradan değiştirilen karar
 | 11.08.2026 | Çözücü ipucu, `gecici_sonuc`'ta taşınmak yerine ayrı bir `cozum_ipucu` sütununa alındı; boşaltma anı model kurulumundan iş sonuna çekildi | Aynı alanda taşınmaları hâlinde tek sütun iki sözleşmeye bağlanırdı: aynı değer bir işte "kullanıcı kararı bekliyor", başka bir işte "modele verilecek ipucu" anlamına gelirdi ve alanın doluluğuna bakan bir sorgu henüz başlamamış bir işi karar bekliyor sanabilirdi. Boşaltmanın öne alınması ise işçi yeniden başladığında işin ipucusuz devam etmesine yol açardı — sonuç sessizce kötüleşir, iz kalmaz |
 | 11.08.2026 | Arama başlamadan gelen durdurma (iş kuyrukta veya ön kontrolde) karar noktası doğurmaz, doğrudan iptaldir | Henüz saklanacak bir sonuç yok. Böyle bir işte karar paneli açmak üç seçenekten ikisini anlamsız, birini de zaten var olan bir eylemin uzun yolu hâline getirir. Arama başlamış fakat çözüm bulunamamışsa karar sorulur — orada "devam" ipucusuz da olsa anlamlıdır, kullanıcı yeni bir zaman limiti veriyordur |
 | 11.08.2026 | Test takımı geliştirme veritabanından ayrıldı (B-20) | Aynı kökten üç ayrı belirti çıktı: çözüm işçisi arka planda çalışırken test kuyruğundan iş kapıyor, test takımı kullanıcı hesaplarını siliyor, kabul ölçümü ile testler birbirinin verisini bozuyor. Not düşmek üçünü de tekrar ettirirdi; bağlantı adresinde test veritabanı görülmediğinde takımın yüksek sesle durması, sessiz veri kaybının yerine geçer |
+| 14.08.2026 | Adalet ölçüsünde yük ve hedef birlikte ölçeklenir | Dönem içi yükü ufuk boyunca hesaplanmış bir payla karşılaştırmak, kişiyi hiç yapmadığı bir işin hesabını verirken göstermek olur. Geçmiş için talep değil gerçekleşen saat kullanılır: geçmiş dönemlerin talep tanımları değişmiş olabilir, elimizdeki kesin bilgi kimin ne kadar çalıştığıdır |
+| 14.08.2026 | Pay, personelin ufuk içinde çalışabilir olduğu gün oranıyla ölçeklenir | Ufkun tamamında çalışabilir olmayan personel — arada işe başlamış, uzun izne ayrılmış — tam payla karşılaştırıldığında kalıcı olarak hedefin altında görünür ve sapma hiçbir çizelgeyle kapatılamaz. Bu, aynı hatanın üçüncü biçimi: önce gece talebi olan hiçbir noktada çalışamayan personel paydada sayılıyordu, sonra erişilebilirliği kısıtlı havuz tek ortalamaya vuruluyordu |
+| 14.08.2026 | Erişilebilirlik geçmiş için de bugünkü yetkinlik tanımından alınır | Bir personelin geçmişte hangi noktalarda çalışabildiği kayıt altında değil. Yaklaşıklık bilinçli; alternatifi yetkinlik değişikliklerinin tarihçesini tutmaktır ve kazandıracağı kesinlik bu maliyeti karşılamaz |
+| 14.08.2026 | Geçmiş sayaçlar için önbellek kurulmaz | Doksan günlük pencerede yaklaşık üç bin blok okunur; ölçek gerektirmiyor. Önbellek bir sürüm yayınlandığında veya arşive alındığında bayatlar ve geçersiz kılma mantığı hesabın kendisinden karmaşık olur — saklanan sayaç için verilen kararın aynı gerekçesi |
 | 14.08.2026 | CSV ve Excel çıktıları birbirinin yerine geçmez | CSV makine okunur çıktıdır ve başka bir sisteme veri taşır; Excel masaya konur ve bakılır. Bugünkü çizelge dışa aktarması yalnızca talep açığını CSV olarak veriyor ve çizelgenin kendisini hiç taşımıyordu — kullanıcı bunu bir hata olarak bildirdi |
 | 14.08.2026 | Dışa aktarma ikinci bir hesap yapmaz; verisini mevcut okuma yüzeylerinden alır | Kendi toplamlarını hesaplayan bir dışa aktarma, aynı sayının ekranda ve dosyada farklı çıkması demektir. Blok geometrisi ve saat biçimlemesi de aynı yardımcıdan geçer — saat metni biçimleyicisinin üç kopyası bir kez hataya yol açtı |
 | 14.08.2026 | Dosyadaki renk de tek başına bilgi taşımaz | Ekrandaki renk bandı için konan kural çıktı için de geçerli: saat aralığı hücrede metin olarak yazılı, dolgunun anlamı açıklama satırında. Renksiz basılan bir çıktı okunabilir kalmalı |

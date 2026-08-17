@@ -47,6 +47,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 13.08.2026 | 7.2'deki çizelge dışa aktarma biçimi saat modeline göre yeniden yazıldı; vardiya tipi ve gece bayrağı alanları kaldırıldı, başlangıç ve bitiş ISO damgasına çevrildi | 1.22 |
 | Ömer HARMANKAYA | 14.08.2026 | Manuel düzenleme taslak oturum modeline geçirildi (5.6): değişiklikler anında görünür ve geri alınabilir, sunucuya yalnızca kaydetmeyle yazılır; blok taşıma ve yayınlanmış sürümün salt okunurluğu gereksinim olarak yazıldı; TD-16 eklendi | 1.23 |
 | Ömer HARMANKAYA | 14.08.2026 | Çizelgenin ve analizin Excel çıktısı gereksinim olarak tanımlandı (FR-8.5, FR-8.9); dosya yapısı ve biçimlendirme kuralları 7.2'ye yazıldı | 1.24 |
+| Ömer HARMANKAYA | 14.08.2026 | Adalet ufkunun tanımı tamamlandı: geçmiş yükün ve hedefin birlikte ölçeklenmesi, ufuk içinde kısmen çalışabilir personel için payın orantılanması ve erişilebilirliğin bugünkü tanımdan alınması TD-6'ya yazıldı | 1.25 |
 
 
 
@@ -204,6 +205,31 @@ Dönem öncesi birikimin hesaba katılması iki ayrı ufuk gerektirir ve bunlar 
 Ufkun "son N dönem" olarak tanımlanmaması bilinçlidir: dönem uzunluğu değişkendir (bir hafta ile bir ay arasında) ve aynı sayı farklı kurulumlarda farklı uzunlukta pencereler üretirdi. "Kota yılının başından bugüne" tanımı ise ufku ocak ayında sıfırlayıp aralıkta on iki aya çıkarır; yıl başında ağır gece yükü alan bir personelin bu yükü şubatta hiç görünmez.
 
 **Birikim türetilir, saklanmaz.** İki ufkun de kaynağı yayınlanmış sürümlerin atamalarıdır; ayrı bir sayaç tablosunda tutulmaz. Saklanan sayaç, bir dönem yeniden çözüldüğünde veya bir sürüm arşive alındığında bayatlar. Tek istisna personel kaydındaki devir bakiyesidir: sistemin kota yılının başından beri her şeyi bilmediği durumu karşılar ve türetilen değere eklenir.
+
+Bir dönemin birden çok yayınlanmış sürümü bulunabilir; sayım her dönem için **en son yayınlanan** sürümü kullanır. Ufuk bir dönemin ortasına düşerse o dönemin yalnızca pencereye giren günleri sayılır; blok başladığı güne yazılır (TD-1).
+
+**Yük ile hedef birlikte ölçeklenir.** Adalet ölçüsü, ufuk boyunca taşınan yükü ufuk boyunca düşen payla karşılaştırır. Dönem içi yükü ufuk boyunca hesaplanmış bir payla karşılaştırmak, kişiyi hiç yapmadığı bir işin hesabını verirken göstermek olur:
+
+```
+gece_yuku[p]  = geçmiş_gece[p] + dönem içi gece saati
+pay_gece[p]   = ( geçmiş gerçekleşen gece saati + dönem gece talebi )
+                erişebilenler arasında bölünerek, p'nin payları toplamı
+```
+
+Geçmiş için talep değil **gerçekleşen** saat kullanılır: geçmiş dönemlerin talep tanımları o günden bu yana değişmiş olabilir ve sistemin elindeki kesin bilgi kimin ne kadar çalıştığıdır.
+
+**Pay, çalışabilirlik oranıyla ölçeklenir.** Ufkun tamamında çalışabilir olmayan personel — arada işe başlamış, uzun izne ayrılmış veya aktifliği sona ermiş olan — tam pay ile ölçülemez. Böyle bir personel yükün tamamını taşıyamaz ve tam payla karşılaştırıldığında kalıcı olarak hedefin altında görünür; sapma hiçbir çizelgeyle kapatılamaz.
+
+```
+calisabilir_oran[p] = ufuk içinde p'nin çalışabilir olduğu gün / ufuk gün sayısı
+pay[p] ← pay[p] · calisabilir_oran[p]
+```
+
+Çalışabilirlik, personelin aktiflik tarih aralığından ve tam gün kapsayan müsaitlik kayıtlarından hesaplanır.
+
+Bu, aynı hatanın üçüncü biçimidir ve ilk ikisi bu projede yaşanmıştır: önce gece talebi bulunan hiçbir noktada çalışamayan personel paydada sayılıyordu, sonra erişilebilirliği kısıtlı havuz tek ortalamaya vuruluyordu. Üçünde de ölçü, hiçbir çizelgeyle kapatılamayan bir sapma raporlayarak ayırt ediciliğini kaybediyordu.
+
+**Erişilebilirlik bugünkü tanımdan alınır.** Bir personelin geçmişte hangi noktalarda çalışabildiği kayıt altında değildir; yetkinlik tanımı o günden bu yana değişmiş olabilir. Sayım bu nedenle güncel yetkinlikleri kullanır. Yaklaşıklık bilinçlidir; alternatifi yetkinlik değişikliklerinin tarihçesini tutmaktır ve kazandıracağı kesinlik bu maliyeti karşılamaz.
 
 ### TD-7 — Haftalık saat penceresi
 
