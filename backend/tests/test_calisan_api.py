@@ -51,6 +51,89 @@ def _temizle(oturum) -> None:  # noqa: ANN001 - Session, testlere ozel yardimci
     senaryo_verisini_temizle(oturum)
 
 
+def _senaryo_kur(oturum) -> int:  # noqa: ANN001 - Session, testlere ozel yardimci
+    """Ortak taban senaryo: personel + BUGUN'u kapsayan donem + gorev
+    noktasi + talep (adil pay havuzu icin) + yayinlanmis surum + bir atama.
+
+    Donem ozetim (FR-9.5) ve vardiyalarim'in duz mutlu yolunu sinayan
+    testler bu tek kurulumu paylasir; FR-9.4'un degisen-gun izlemesi
+    (arsiv + yayin ikilisi, gun bazinda desen) `senaryo` fikstüründe ayri
+    kalir - o senaryo bu yardimciya indirgenemeyecek kadar kendine ozgu
+    veri tasir."""
+    on_ek = _benzersiz("ozet")
+    nokta = GorevNoktasi(ad=f"Nokta-{on_ek}")
+    oturum.add(nokta)
+    personel = Personel(
+        ad_soyad=f"Ozet-{on_ek}",
+        sicil_no=_benzersiz("OZT"),
+        haftalik_hedef_saat=40,
+        aktif_baslangic=date(2026, 1, 1),
+    )
+    oturum.add(personel)
+    oturum.flush()
+
+    # Talep satirlari: AnalizServisi'nin adil pay havuzu (P_gece / P_hs)
+    # bunlardan turer - talep olmadan gece/hafta sonu metrikleri hic uretilmez.
+    oturum.add_all(
+        [
+            Talep(
+                nokta_id=nokta.nokta_id,
+                baslangic=time(8, 0),
+                bitis=time(16, 0),
+                gun_tipi=GunTipi.HAFTA_ICI,
+                tarih=None,
+                gereken_sayi=1,
+            ),
+            Talep(
+                nokta_id=nokta.nokta_id,
+                baslangic=time(0, 0),
+                bitis=time(8, 0),
+                gun_tipi=GunTipi.HAFTA_ICI,
+                tarih=None,
+                gereken_sayi=1,
+            ),
+            Talep(
+                nokta_id=nokta.nokta_id,
+                baslangic=time(0, 0),
+                bitis=time(8, 0),
+                gun_tipi=GunTipi.HAFTA_SONU,
+                tarih=None,
+                gereken_sayi=1,
+            ),
+        ]
+    )
+
+    donem = Donem(
+        baslangic_tarihi=BUGUN - timedelta(days=1),
+        bitis_tarihi=BUGUN + timedelta(days=1),
+        tercih_son_tarihi=BUGUN + timedelta(days=5),
+    )
+    oturum.add(donem)
+    oturum.flush()
+
+    surum = CizelgeSurumu(
+        donem_id=donem.donem_id,
+        surum_no=1,
+        durum=CizelgeSurumuDurumu.YAYINLANDI,
+        yayin_zamani=datetime.now(UTC),
+    )
+    oturum.add(surum)
+    oturum.flush()
+
+    oturum.add(
+        Atama(
+            surum_id=surum.surum_id,
+            personel_id=personel.personel_id,
+            baslangic_zamani=datetime.combine(BUGUN, time(8, 0)),
+            bitis_zamani=datetime.combine(BUGUN, time(16, 0)),
+            nokta_id=nokta.nokta_id,
+            kaynak=AtamaKaynagi.COZUCU,
+        )
+    )
+    oturum.commit()
+    return personel.personel_id
+
+
 # --- FR-9.1: gosterilecek personel YALNIZ oturumdan belirlenir --------------
 
 
@@ -307,61 +390,28 @@ def test_vardiyalarim_degisen_gunleri_uc_ture_ayirir(senaryo: dict[str, int]) ->
     # Siradaki, kaldirilan gunu SECMEZ; bugunden itibaren ilk gercek vardiya.
     assert govde["siradaki"]["tarih"] == gun2
 
+    # Donem ozeti (FR-9.5) artik kendi uc noktasindadir (/api/calisan/ozetim,
+    # bkz. test_ozetim_ufku_yaniti_icinde_tasir); burada YALNIZ ozetin
+    # `vardiyalarim` govdesinde OLMADIGI dogrulanir.
+    assert "ozet" not in govde
+
     # Donem ozeti (FR-9.5) yalniz yayinlanmis surumden hesaplanir - kaldirilan
     # gun sayilara girmez. Tek personel oldugu icin kendi degeri = ekip ort.
     # BIRIM SAAT (SRS S2): 00.00-08.00 blogunun ALTI saati gece penceresine
     # (20.00-06.00) duser. Onceki beklenti 1'di ve birimi vardiya sayisiydi.
-    assert govde["ozet"]["gece_saati"] == pytest.approx(6.0)
-    assert govde["ozet"]["ekip_ortalama_gece"] == pytest.approx(6.0)
-    assert govde["ozet"]["toplam_saat"] == pytest.approx(24.0)
+    ozetim = istemci.get("/api/calisan/ozetim").json()
+    assert ozetim["gece_saati"] == pytest.approx(6.0)
+    assert ozetim["ekip_ortalama_gece"] == pytest.approx(6.0)
+    assert ozetim["toplam_saat"] == pytest.approx(24.0)
 
 
 def test_ilk_yayinda_hicbir_gun_isaretlenmez() -> None:
     """FR-9.4: donemin ilk yayininda karsilastirma tabani (arsiv surumu)
     bulunmadigindan hicbir gun isaretlenmez ve kaldirilan gun olmaz."""
-    on_ek = _benzersiz("ilkyayin")
-    oturum = OturumYerel()
-    try:
+    pg_yoksa_atla()
+    with OturumYerel() as oturum:
         _temizle(oturum)
-        nokta = GorevNoktasi(ad=f"Nokta-{on_ek}")
-        oturum.add(nokta)
-        personel = Personel(
-            ad_soyad=f"Ilk-{on_ek}",
-            sicil_no=_benzersiz("ILK"),
-            haftalik_hedef_saat=40,
-            aktif_baslangic=date(2026, 1, 1),
-        )
-        oturum.add(personel)
-        donem = Donem(
-            baslangic_tarihi=BUGUN - timedelta(days=1),
-            bitis_tarihi=BUGUN + timedelta(days=1),
-            tercih_son_tarihi=BUGUN + timedelta(days=5),
-        )
-        oturum.add(donem)
-        oturum.flush()
-        surum = CizelgeSurumu(
-            donem_id=donem.donem_id,
-            surum_no=1,
-            durum=CizelgeSurumuDurumu.YAYINLANDI,
-            yayin_zamani=datetime.now(UTC),
-        )
-        oturum.add(surum)
-        oturum.flush()
-        oturum.add(
-            Atama(
-                surum_id=surum.surum_id,
-                personel_id=personel.personel_id,
-                baslangic_zamani=datetime.combine(BUGUN, time(8, 0)),
-                bitis_zamani=datetime.combine(BUGUN, time(16, 0)),
-                nokta_id=nokta.nokta_id,
-                kaynak=AtamaKaynagi.COZUCU,
-            )
-        )
-        oturum.commit()
-        personel_id = personel.personel_id
-    finally:
-        oturum.rollback()
-        oturum.close()
+        personel_id = _senaryo_kur(oturum)
 
     govde = _calisan_istemcisi(personel_id).get("/api/calisan/vardiyalarim").json()
     assert [v["degisim_tipi"] for v in govde["vardiyalar"]] == [None]
@@ -404,7 +454,9 @@ def test_vardiyalarim_yayinlanmamis_surumde_bos_liste_doner() -> None:
     assert govde["yayinlanmis_surum_var"] is False
     assert govde["vardiyalar"] == []
     assert govde["kaldirilan_gunler"] == []
-    assert govde["ozet"] is None
+    # `ozet` artik bu govdede yok (bkz. test_vardiyalarim_artik_ozet_tasimaz):
+    # donem ozeti /api/calisan/ozetim uc noktasina tasindi.
+    assert "ozet" not in govde
 
 
 # --- Tercihlerim / karsilanma durumu (TD-12, FR-3.6, FR-9.6) ----------------
@@ -588,3 +640,59 @@ def test_tercih_bildir_mutlu_yol_ve_donem_disi_tarih_400() -> None:
         json={"tarih": disari_tarih, "tip": "calismama"},
     )
     assert yanit.status_code == 400
+
+
+# --- Donem ozetim / /api/calisan/ozetim (FR-9.5, SDD 6.3.4) -----------------
+
+
+def test_ozetim_ufku_yaniti_icinde_tasir() -> None:
+    """SDD 6.3.4: hangi ufkun okundugu yanitin icinde durur; iki ufkun
+    sayilari farklidir ve belirsiz kalirsa sayi yanlis okunur."""
+    pg_yoksa_atla()
+    with OturumYerel() as oturum:
+        _temizle(oturum)
+        personel_id = _senaryo_kur(oturum)
+    istemci = _calisan_istemcisi(personel_id)
+
+    donem_yaniti = istemci.get("/api/calisan/ozetim")
+    adalet_yaniti = istemci.get("/api/calisan/ozetim?ufuk=adalet")
+
+    assert donem_yaniti.status_code == 200
+    assert donem_yaniti.json()["ufuk"] == "donem"
+    assert adalet_yaniti.json()["ufuk"] == "adalet"
+
+
+def test_ozetim_yayin_yoksa_null_doner() -> None:
+    """404 DEGIL: "henuz cizelge yok" bir hata degil bir durumdur."""
+    pg_yoksa_atla()
+    with OturumYerel() as oturum:
+        _temizle(oturum)
+        personel = Personel(
+            ad_soyad=_benzersiz("Ozetsiz"),
+            sicil_no=_benzersiz("S"),
+            haftalik_hedef_saat=40,
+            aktif_baslangic=BUGUN - timedelta(days=30),
+        )
+        oturum.add(personel)
+        oturum.commit()
+        personel_id = personel.personel_id
+    istemci = _calisan_istemcisi(personel_id)
+
+    yanit = istemci.get("/api/calisan/ozetim")
+
+    assert yanit.status_code == 200
+    assert yanit.json() is None
+
+
+def test_vardiyalarim_artik_ozet_tasimaz() -> None:
+    """Ozet ayri uc noktada; panelin her acilisi bir tam hesapla() odemez."""
+    pg_yoksa_atla()
+    with OturumYerel() as oturum:
+        _temizle(oturum)
+        personel_id = _senaryo_kur(oturum)
+    istemci = _calisan_istemcisi(personel_id)
+
+    yanit = istemci.get("/api/calisan/vardiyalarim")
+
+    assert yanit.status_code == 200
+    assert "ozet" not in yanit.json()

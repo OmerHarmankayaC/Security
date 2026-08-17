@@ -67,7 +67,6 @@ class CalisanServisi:
             vardiyalar=[],
             kaldirilan_gunler=[],
             siradaki=None,
-            ozet=None,
         )
 
         donem = self.donem.guncel_donemi_bul(bugun)
@@ -105,7 +104,6 @@ class CalisanServisi:
             vardiyalar=vardiyalar,
             kaldirilan_gunler=kaldirilan_gunler,
             siradaki=siradaki,
-            ozet=self._donem_ozeti(personel_id, yayinlanan.surum_id),
         )
 
     def _vardiyalari_olustur(
@@ -181,12 +179,32 @@ class CalisanServisi:
             )
         return vardiyalar, kaldirilan_gunler
 
-    def _donem_ozeti(self, personel_id: int, surum_id: int) -> DonemOzetiOku | None:
+    def donem_ozetim(
+        self, personel_id: int, ufuk: str = "donem", *, bugun: date | None = None
+    ) -> DonemOzetiOku | None:
+        """FR-9.5 ozetinin kendi uc noktasi. `ufuk` dogrudan AnalizServisi'ne
+        gecer - ikinci bir adalet formulu YAZILMAZ, tanim tek yerde kalir.
+
+        None: aktif donem yok, yayinlanmis surum yok ya da analiz hesaplanamadi.
+        Personel yoklugu burada AYRISTIRILMAZ; panel o duruma vardiyalarim
+        cagrisinda zaten duser."""
+        bugun = bugun if bugun is not None else date.today()
+        donem = self.donem.guncel_donemi_bul(bugun)
+        if donem is None:
+            return None
+        yayinlanan = self.surum.yayinlanan_getir(donem.donem_id)
+        if yayinlanan is None:
+            return None
+        return self._donem_ozeti(personel_id, yayinlanan.surum_id, ufuk)
+
+    def _donem_ozeti(
+        self, personel_id: int, surum_id: int, ufuk: str = "donem"
+    ) -> DonemOzetiOku | None:
         """FR-9.5: AnalizServisi'nin (SDD 5.7) mevcut hesaplarinin yeniden
         kullanimi - burada yalniz bu personelin kendi degeri + ekip
         ortalamasi (tekil deger) client'a cikar, digerlerinin kirilimi
         cikmaz (bkz. schemas/calisan.py docstring'i)."""
-        analiz = AnalizServisi(self.oturum).hesapla(surum_id)
+        analiz = AnalizServisi(self.oturum).hesapla(surum_id, ufuk)
         if analiz is None:
             return None
 
@@ -219,14 +237,18 @@ class CalisanServisi:
         )
 
         return DonemOzetiOku(
+            ufuk=ufuk,
             gece_saati=gece,
             ekip_ortalama_gece=ekip_gece,
+            adil_pay_gece=gece_kaydi.pay if gece_kaydi is not None else None,
             gece_havuzunda=gece_kaydi is not None,
             hafta_sonu_saati=hs,
             ekip_ortalama_hafta_sonu=ekip_hs,
+            adil_pay_hafta_sonu=hs_kaydi.pay if hs_kaydi is not None else None,
             hafta_sonu_havuzunda=hs_kaydi is not None,
             toplam_saat=saat.toplam_saat if saat is not None else 0.0,
             ekip_ortalama_saat=ekip_saat,
+            hedef_saat=saat.hedef_saat if saat is not None else 0.0,
         )
 
     # --- Tercih bildirimi / Tercihlerim (FR-9.6, FR-3.x) ---------------------
