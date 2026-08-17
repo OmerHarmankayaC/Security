@@ -52,7 +52,7 @@ import json
 import sys
 import time as zaman
 from dataclasses import dataclass, field
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -533,21 +533,29 @@ def _k4(oturum: Session, celiskili_donem: Donem, olcum: CozumOlcumu) -> Kriter:
         if eksik > 0:
             noktaya_gore.setdefault(nokta_id, {})[(tarih, saat)] = eksik
 
-    araliklar: list[tuple[date, time, time, int, int]] = [
-        (tarih, baslangic, bitis, sayi, nokta_id)
+    # B-23'ten beri `saatleri_araliklara_birlestir` UC deger dondurur:
+    # (baslangic_damgasi, bitis_damgasi, sayi). Tarih artik ayri bir alan
+    # degil, baslangic damgasindan TURETILIR (TD-1) - gece yarisini asan
+    # aralik gun sinirinda kesilmedigi icin ayri bir tarih alani hangi gune
+    # ait oldugunu soyleyemezdi. Bu betik dort deger acmaya devam ediyordu
+    # ve Tur 8'den beri ilk cagrida patliyordu; kimse kosmadigi icin
+    # gorulmedi.
+    araliklar: list[tuple[datetime, datetime, int, int]] = [
+        (baslangic, bitis, sayi, nokta_id)
         for nokta_id, saatler in noktaya_gore.items()
-        for tarih, baslangic, bitis, sayi in saatleri_araliklara_birlestir(saatler)
+        for baslangic, bitis, sayi in saatleri_araliklara_birlestir(saatler)
     ]
     araliklar.sort()
     toplam_eksik = sum(olcum.kapsama_eksikleri.values())
     ornekler = [
-        f"{tarih.isoformat()} / {aralik_metni(baslangic, bitis)} / "
+        f"{baslangic.date().isoformat()} / "
+        f"{aralik_metni(baslangic.time(), bitis.time())} / "
         f"{nokta_adlari.get(nokta_id, nokta_id)} -> {sayi} kisi eksik"
-        for tarih, baslangic, bitis, sayi, nokta_id in araliklar[:5]
+        for baslangic, bitis, sayi, nokta_id in araliklar[:5]
     ]
     tam_bilgi = all(
-        isinstance(tarih, date) and nokta_id in nokta_adlari and sayi > 0
-        for tarih, _bas, _bitis, sayi, nokta_id in araliklar
+        isinstance(bas, datetime) and nokta_id in nokta_adlari and sayi > 0
+        for bas, _bitis, sayi, nokta_id in araliklar
     )
     return Kriter(
         kimlik="K4",
@@ -599,15 +607,21 @@ def _k5(oturum: Session, surum_id: int, donem: Donem) -> Kriter:
     sureler: list[float] = []
     for _ in range(5):
         baslangic = zaman.perf_counter()
+        # Tur 7'de `dogrula` TEK degisiklik degil BEKLEYEN KUMENIN TAMAMINI
+        # alir hale geldi (TD-16) ve `surum_id` degisiklik nesnesinden cikip
+        # cagriya tasindi. Betik eski imzayla kaldigi icin iki turdur
+        # kosamiyordu.
         servis.dogrula(
-            AtamaDegisikligi(
-                surum_id=surum_id,
-                personel_id=mevcut.personel_id,
-                tarih=mevcut_baslangic.date(),
-                baslangic_saati=time(yeni_baslangic),
-                bitis_saati=time((yeni_baslangic + sure) % 24),
-                nokta_id=mevcut.nokta_id,
-            )
+            surum_id,
+            [
+                AtamaDegisikligi(
+                    personel_id=mevcut.personel_id,
+                    tarih=mevcut_baslangic.date(),
+                    baslangic_saati=time(yeni_baslangic),
+                    bitis_saati=time((yeni_baslangic + sure) % 24),
+                    nokta_id=mevcut.nokta_id,
+                )
+            ],
         )
         sureler.append(zaman.perf_counter() - baslangic)
 

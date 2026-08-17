@@ -100,10 +100,81 @@ işaret ediyor.
 **Ders:** bu depoda testler paylaşımlı bir PostgreSQL şemasına yazıyor;
 ikinci bir koşu başlatmadan önce birincisinin bittiğinden emin ol.
 
-### Yapılmayanlar
+### İş 5 — gösterim verisi · **BİTTİ**
 
-İş 5 (gösterim verisi — üç ardışık yayınlanmış dönem), K1/K3 kabul ölçümü,
-çözücü–doğrulayıcı uyum testi sayımı (24/24), ters sıralı koşu.
+Üç ardışık yayınlanmış dönem zaten vardı (H-2, H-1, H-0; dar hafta
+yayınlanmadığı için zincir orada kırılıyor). Eksik olan tek şey **ufkun
+ortasında işe başlamış personeldi**: herkes 365 gün önce başlıyordu, yani
+`calisabilir_oran` herkeste 1,0 çıkıyor ve İş 2 hiçbir ekranda görünmüyordu —
+kod çalışıyormuş gibi duruyordu. `GG-020` 45 gün önce başlatıldı, oranı 0,50.
+
+### Kabul testi geri getirildi ve **GEÇTİ**
+
+Silmek hataydı; `xfail` ile geri kondu, düzeltildi ve yeşile döndüğü için
+işaret kaldırıldı. Test gösterim verisi olmayan bir veritabanında **atlar**.
+
+**Dördüncü deneme neyi öğretti:** yön yanlış değildi, **karşılaştırma**
+yanlıştı. Test "en çok taşıyan" ile "en az taşıyan"ı seçiyordu ve ikisi
+farklı yetkinlik havuzlarındaydı (VS-001 vardiya şefi, GG-020 güvenlik
+görevlisi) — aynı nöbetler için yarışmayan iki kişinin gece saatini
+karşılaştırmak anlamsız. Üstelik "hafif" sayılan kişi tam da ufkun ortasında
+işe başlayandı; payı zaten yarılanmış, az taşıması **doğru davranış**.
+
+Aynı havuz içinde ve yalnız ufkun tamamında çalışabilenler arasında bakınca:
+
+| Havuz | En çok taşıyanlar → 3. dönem | En az taşıyanlar → 3. dönem |
+|---|---|---|
+| Vardiya Şefliği (2 kişi) | **16** | 23 |
+| Güvenlik (20 kişi) | **12,3** ort. | 14,2 ort. |
+
+Tekil kişi yerine üçte bir dilim karşılaştırılıyor: tek kişi çözücünün o
+dönemki eşitlik tercihine fazla duyarlı, dilim ortalaması eğilimi ölçer.
+
+### Kabul ölçümü — betik İKİ TURDUR KIRIKMIŞ
+
+`scripts/kabul_olcumu.py` çalıştırılınca iki ayrı yerde patladı; ikisi de bu
+turdan değil:
+
+1. `saatleri_araliklara_birlestir` **B-23'ten beri (Tur 8)** üç değer
+   döndürüyor, betik dört açıyordu. Tarih artık ayrı alan değil, başlangıç
+   damgasından türetiliyor (TD-1).
+2. `AtamaDegisikligi` **Tur 7'de (TD-16)** `surum_id` almayı bıraktı ve
+   `dogrula` tek değişiklik yerine bekleyen kümenin tamamını alır oldu.
+
+İkisi de düzeltildi. **Asıl bulgu betiğin kendisi değil:** SDD 5.9 bu betiği
+`GecmisSayaclar`ın dört tüketicisinden biri sayıyor, ama iki tur boyunca hiç
+koşmadığı için kimse fark etmedi. Turun kapanış listesinde olmasaydı bu tur
+da fark edilmeyecekti.
+
+### K1 / K3 ölçümü
+
+| Kriter | Eşik | Ölçülen | Durum |
+|---|---|---|---|
+| K1 — 40 personel × 28 gün | < 60 sn | **12,18 sn** | geçti |
+| K2 — zorunlu ihlal | 0 | 0 | geçti |
+| K3 — gece yükü sapması | ≤ 8 | **61,27** | kaldı |
+| K4 — açık gösterimi | ≥ 1 açık, tam bilgi | 147 aralık | geçti |
+| K5 — düzenleme doğrulaması | < 1 sn | 0,081 sn | geçti |
+
+**K1:** geçmiş sayaçlar model kurmaya eklendi ama artış eşiğin yarısının
+(30 sn) çok altında kaldı — durma koşulu oluşmadı.
+
+**K3 — Tur 10'un kalibrasyonuna not.** Değer 34'ten **61,27'ye çıktı**, yani
+kümülatif ufuk sapmayı **yukarı** taşıdı. Bu beklenen bir yöndür ve
+ağırlıklara dokunulmadı (turun talimatı). Dikkat edilmesi gereken şey
+şudur: **eşik ile ölçü artık aynı ufku kapsamıyor.** Charter 1.4'ün 8 gece
+saati eşiği TEK DÖNEM için kalibre edilmişti; ölçü ise artık doksan günü
+kapsıyor ve doğal olarak daha büyük bir mutlak sapma üretiyor. Tur 10 ya
+eşiği ufka orantılamalı ya da K3'ü dönem içi sapmayla ölçmelidir; ağırlık
+kalibrasyonu bu karardan önce yapılırsa yanlış hedefe ayarlanır.
+
+**Ulaşılabilirlik teşhisi:** "her havuz hedefe erişebiliyor" diyor —
+31 kişilik havuzda kişi başı tavan 42,58; 9 kişilik havuzda 177,78.
+
+### Çözücü–doğrulayıcı uyumu
+
+`test_cozucu_dogrulayici_uyumu_olcek.py` **24/24** geçiyor (6 dk 25 sn).
+Kümülatif ufuk iki yorumlayıcının aynı sayıyı üretmesini bozmadı.
 
 ---
 
