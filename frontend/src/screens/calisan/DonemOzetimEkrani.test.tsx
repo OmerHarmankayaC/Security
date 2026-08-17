@@ -13,12 +13,19 @@ import type { DonemOzeti, Vardiyalarim } from '@/api/types'
 import { DonemOzetimEkrani } from './DonemOzetimEkrani'
 
 let _ozet: DonemOzeti | null
+// Varsayılan davranış senkron gibi çözülür (`_ozet`). Yarış senaryosunu
+// (ufuk değişirken eski yanıt hâlâ ekranda) sınamak isteyen tek test bunu
+// `true` yapıp yanıtı ELİNDE tutar — gerçek `fetch` gibi, çağrı anında değil
+// test kararıyla çözülür. Diğer testler bundan etkilenmez.
+let _yavas = false
+let _bekleyenler: Array<(v: DonemOzeti | null) => void> = []
 const calisanOzetim = vi.fn()
 
 vi.mock('@/api/client', () => ({
   api: {
     calisanOzetim: (...a: unknown[]) => {
       calisanOzetim(...a)
+      if (_yavas) return new Promise<DonemOzeti | null>((resolve) => _bekleyenler.push(resolve))
       return Promise.resolve(_ozet)
     },
   },
@@ -47,6 +54,8 @@ const OZET: DonemOzeti = {
 afterEach(() => {
   cleanup()
   calisanOzetim.mockClear()
+  _yavas = false
+  _bekleyenler = []
 })
 
 describe('DonemOzetimEkrani', () => {
@@ -92,5 +101,30 @@ describe('DonemOzetimEkrani', () => {
     await screen.findByText(/Hafta Sonu/i)
     expect(screen.queryByText(/Gece Saati/i)).toBeNull()
     expect(screen.getByText(/gece vardiyası bulunmadığı için/i)).toBeTruthy()
+  })
+
+  it('ufuk değişince yeni yanıt gelene kadar başlık ESKİ ufku gösterir, düğmenin seçtiğini değil', async () => {
+    // SDD 6.3.4: "Son 90 Gün" yazan bir başlığın altında dönem-içi sayıları
+    // göstermek, hiçbir başlık göstermemekten daha kötü — yanlış bir
+    // kesinlik verir. Etiket EKRANDAKİ SAYININ ufkunu (ozet.ufuk) yazmalı,
+    // düğmenin hangi ufku istediğini değil.
+    _yavas = true
+    render(<DonemOzetimEkrani veri={VERI} />)
+    await waitFor(() => expect(_bekleyenler).toHaveLength(1))
+    _bekleyenler.shift()!(OZET) // ilk (dönem) yanıtı gelir
+    await screen.findByText(/DÖNEMİ/)
+
+    fireEvent.click(screen.getByRole('button', { name: /90 gün/i }))
+    await waitFor(() => expect(_bekleyenler).toHaveLength(1))
+
+    // Düğme YENİ seçimi anında gösterir (ne istedim)...
+    expect(screen.getByRole('button', { name: /90 gün/i }).getAttribute('aria-pressed')).toBe('true')
+    // ...ama ikinci yanıt gelmeden başlık hâlâ dönem etiketini yazar, "SON
+    // 90 GÜN" değil (ne görüyorum) — ekrandaki kartlar hâlâ dönem sayıları.
+    expect(screen.queryByText('SON 90 GÜN')).toBeNull()
+    expect(screen.getByText(/DÖNEMİ/)).toBeTruthy()
+
+    _bekleyenler.shift()!({ ...OZET, ufuk: 'adalet' }) // ikinci (adalet) yanıtı gelir
+    await waitFor(() => expect(screen.getByText('SON 90 GÜN')).toBeTruthy())
   })
 })

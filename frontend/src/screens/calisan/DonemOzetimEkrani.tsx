@@ -131,7 +131,7 @@ function UfukAnahtari({ ufuk, sec }: { ufuk: Ufuk; sec: (u: Ufuk) => void }) {
   )
 }
 
-function Ozet({ veri, ozet, ufuk }: { veri: Vardiyalarim; ozet: DonemOzeti; ufuk: Ufuk }) {
+function Ozet({ veri, ozet }: { veri: Vardiyalarim; ozet: DonemOzeti }) {
   const adilPayGece = ozet.adil_pay_gece ?? ozet.ekip_ortalama_gece
   const adilPayHaftaSonu = ozet.adil_pay_hafta_sonu ?? ozet.ekip_ortalama_hafta_sonu
 
@@ -155,14 +155,21 @@ function Ozet({ veri, ozet, ufuk }: { veri: Vardiyalarim; ozet: DonemOzeti; ufuk
   return (
     <>
       <div>
+        {/* ozet.ufuk OKUNUR, yerel seçim durumu DEĞİL: ufuk değiştirildiğinde
+            yeni yanıt gelene kadar burada hâlâ önceki isteğin ufku yazar.
+            Aksi hâlde başlık "SON 90 GÜN" derken kartlar bu dönemin yedi
+            gününü gösterebilir — ekrandaki sayının hangi ufka ait olduğu
+            belirsizleşir (SDD 6.3.4). */}
         <p className="m-0 etiket-caps text-ink-muted">
-          {ufuk === 'adalet'
+          {ozet.ufuk === 'adalet'
             ? 'SON 90 GÜN'
             : veri.donem_baslangic_tarihi && veri.donem_bitis_tarihi
               ? `${donemAraligiBicimle(veri.donem_baslangic_tarihi, veri.donem_bitis_tarihi)} DÖNEMİ`
               : ''}
         </p>
-        <p className="m-0 mt-1 text-sm text-ink">Bu dönemde {cumleler.join(', ')}.</p>
+        <p className="m-0 mt-1 text-sm text-ink">
+          {ozet.ufuk === 'adalet' ? 'Son 90 günde' : 'Bu dönemde'} {cumleler.join(', ')}.
+        </p>
       </div>
 
       {ozet.gece_havuzunda && (
@@ -236,7 +243,7 @@ export function DonemOzetimEkrani({ veri }: Props) {
           </p>
         </Kart>
       ) : (
-        <Ozet veri={veri} ozet={ozet} ufuk={ufuk} />
+        <Ozet veri={veri} ozet={ozet} />
       )}
     </>
   )
