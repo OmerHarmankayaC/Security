@@ -199,3 +199,30 @@ def test_s3_hafta_sonu_gecmisi_ayri_olcuden_gelir() -> None:
     gecmissiz_ceza = {i.personel_id: i.ceza or 0.0 for i in kural.dogrula(atamalar, gecmissiz)}
     assert ihlaller[1] > gecmissiz_ceza[1]
     assert baglam.gecmis_gece_saat(1) == 0.0
+
+
+def test_donem_ici_pay_calisabilir_oranla_olceklenmez() -> None:
+    """Oran UFKUN olcusudur; donem ici paya uygulanmasi olculen bir hataydi.
+
+    Kabul olcumunun referans ornegi doksan gunluk pencerenin yalnizca 32
+    gununu kapsiyordu. `olcu` verilmeden cagrilan `adil_paylar` paylari yine
+    de 0,356 ile carpiyor, yuk ise donem ici kaldigi icin sapma 34'ten
+    61,27'ye ciriyordu — ne cozucu kotulesmisti ne veri.
+
+    Kural: ufuk genislemesi ile oran olceklemesi BIRLIKTE olur ya da hic
+    olmaz.
+    """
+    gecmis = _gecmis(gece={1: 0.0, 2: 0.0}, pay_gece={1: 4.0, 2: 4.0}, oran={1: 1.0, 2: 0.5})
+    baglam = _baglam(gecmis)
+
+    def gece_mi(anahtar) -> bool:
+        return anahtar[1] >= 20 or anahtar[1] < 6
+
+    donem_ici = baglam.adil_paylar(gece_mi)
+    ufuk = baglam.adil_paylar(gece_mi, olcu="gece")
+
+    # Donem ici: oran YOK, gecmis pay YOK — iki kisi de ayni payi alir.
+    assert donem_ici[1] == pytest.approx(donem_ici[2])
+    # Ufuk: gecmis pay eklenir, sonra oran uygulanir.
+    assert ufuk[1] == pytest.approx(donem_ici[1] + 4.0)
+    assert ufuk[2] == pytest.approx((donem_ici[2] + 4.0) * 0.5)

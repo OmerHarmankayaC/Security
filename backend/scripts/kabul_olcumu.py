@@ -411,6 +411,16 @@ def _k3(olcum: CozumOlcumu, baglam: Any) -> Kriter:
     TD-13) turetilecek bir sey yok - blok uzunluklari cozumun ciktisi.
     Sekiz saat bir gece nobetinin uzunluguna karsilik gelir: bir kisinin
     payindan bir nobet kadar fazla ya da eksik gece almasi kabul edilebilir.
+
+    OLCUM UFKU PLANLAMA DONEMIDIR (Charter 1.5). Adalet hesaplari doksan
+    gunu kapsar (SRS TD-6) ama gecmis, sistemin o calistirmada
+    degistiremeyecegi bir GIRDIDIR: onceki donemlerde birikmis bir sapma tek
+    donemde kapatilamaz ve kumulatif sapmayi kriter yapmak sistemi kendi
+    denetimi disindaki bir seyden sorumlu tutmak olur. Kumulatif olcu
+    asagida GOSTERGE olarak ayrica raporlanir.
+
+    `adil_paylar` `olcu` verilmeden cagrilir: o zaman ne gecmis pay eklenir
+    ne de calisabilirlik orani uygulanir - ikisi de ufkun kavramlaridir.
     """
     paylar = baglam.adil_paylar(lambda anahtar: gece_saati_mi(anahtar[1]))
     havuz = {p for p, pay in paylar.items() if pay > 0}
@@ -442,15 +452,44 @@ def _k3(olcum: CozumOlcumu, baglam: Any) -> Kriter:
         f"{max(yukler.values(), default=0)} gece saati",
         f"esigi asan kisi         : {len(asanlar)}",
     ]
+    ayrinti.extend(_k3_kumulatif_gosterge(baglam, yukler))
     ayrinti.extend(_k3_ulasilabilirlik_teshisi(baglam, paylar))
     return Kriter(
         kimlik="K3",
-        baslik="Kisi basina gece yuku adil paydan en fazla sekiz gece saati sapar",
-        esik=f"azami |sapma| <= {esik} gece saati (Charter 1.4)",
+        baslik="Donem ici gece yuku, doneme dusen adil paydan en fazla sekiz gece saati sapar",
+        esik=f"azami |sapma| <= {esik} gece saati, DONEM ICI (Charter 1.5)",
         olculen=f"{en_buyuk:.2f}",
         gecti=not asanlar,
         ayrinti=ayrinti,
     )
+
+
+def _k3_kumulatif_gosterge(baglam: Any, donem_ici_yuk: dict[int, int]) -> list[str]:
+    """Kumulatif sapma — KRITER DEGIL GOSTERGE (Charter 1.5).
+
+    Kriter donem ici dagilimi olcer; bu satirlar doksan gunluk ufkun ne
+    durumda oldugunu soyler. Ikisi ayni raporda ama AYRI baslikta durur,
+    cunku biri "bu cizelge kabul edilebilir mi", digeri "sistem zaman icinde
+    duzeltiyor mu" sorusunun cevabidir.
+    """
+    if baglam.gecmis is None or not baglam.gecmis.sayaclar:
+        return ["kumulatif gosterge     : ufukta yayinlanmis donem yok"]
+
+    ufuk_paylari = baglam.adil_paylar(lambda anahtar: gece_saati_mi(anahtar[1]), olcu="gece")
+    havuz = [p for p, pay in ufuk_paylari.items() if pay > 0]
+    if not havuz:
+        return ["kumulatif gosterge     : olcume giren kimse yok"]
+
+    # Ufuk yuku = gecmis gerceklesen + donem ici. Pay da ayni pencereyi
+    # kapsiyor; ikisini ayni ufuktan okumak bu turun ilk isinin konusuydu.
+    sapmalar = [
+        abs(baglam.gecmis_gece_saat(p) + donem_ici_yuk.get(p, 0) - ufuk_paylari[p]) for p in havuz
+    ]
+    return [
+        f"kumulatif gosterge     : ufuk {baglam.gecmis.ufuk_gun} gun, "
+        f"azami |sapma| {max(sapmalar):.1f} / ortanca {sorted(sapmalar)[len(sapmalar) // 2]:.1f}"
+        " gece saati (KRITER DEGIL)",
+    ]
 
 
 def _k3_ulasilabilirlik_teshisi(baglam: Any, paylar: dict[int, float]) -> list[str]:

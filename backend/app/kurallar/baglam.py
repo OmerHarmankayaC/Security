@@ -527,19 +527,29 @@ class Baglam:
             for personel_id in erisebilenler:
                 paylar[personel_id] += kisi_basi
 
-        if self.gecmis is not None and olcu is not None:
-            gecmis_pay = {
-                "gece": self.gecmis.pay_gece,
-                "hafta_sonu": self.gecmis.pay_hafta_sonu,
-                "toplam": self.gecmis.pay_toplam,
-            }[olcu]
-            for personel_id, katki in gecmis_pay.items():
-                if personel_id in paylar:
-                    paylar[personel_id] += katki
+        # UFUK GENISLEMESI VE ORAN OLCEKLEMESI BIRLIKTE OLUR YA DA HIC OLMAZ.
+        #
+        # `olcu` verilmediginde cagiran DONEM ICI payi istiyor demektir ve
+        # oran uygulanmamalidir: oran "kisi ufkun ne kadarinda calisabildi"
+        # sorusunun cevabidir, donemin degil. Ikisini ayirmamak olculen bir
+        # hataya yol acti - kabul olcumunun referans ornegi doksan gunluk
+        # pencerenin yalnizca 32 gununu kapsiyordu, paylar 0,356 ile carpilip
+        # 33-64 bandindan 11,7-22,8'e dusuyor, yuk ise donem ici kaldigi icin
+        # sapma 34'ten 61,27'ye ciriyordu. Ne cozucu kotulesmisti ne veri;
+        # yalnizca pay ile yuk farkli ufuklardan okunuyordu.
+        if self.gecmis is None or olcu is None:
+            return paylar
 
-        if self.gecmis is not None:
-            for personel_id in paylar:
-                paylar[personel_id] *= self.calisabilir_oran(personel_id)
+        gecmis_pay = {
+            "gece": self.gecmis.pay_gece,
+            "hafta_sonu": self.gecmis.pay_hafta_sonu,
+            "toplam": self.gecmis.pay_toplam,
+        }[olcu]
+        for personel_id, katki in gecmis_pay.items():
+            if personel_id in paylar:
+                paylar[personel_id] += katki
+        for personel_id in paylar:
+            paylar[personel_id] *= self.calisabilir_oran(personel_id)
         return paylar
 
     def uygun_havuz(self, talep_uygun_mu: Callable[[tuple[date, int, int]], bool]) -> set[int]:

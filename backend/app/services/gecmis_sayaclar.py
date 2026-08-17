@@ -80,7 +80,16 @@ class GecmisSayaclar:
             pay_gece=paylar["gece"],
             pay_hafta_sonu=paylar["hafta_sonu"],
             pay_toplam=paylar["toplam"],
-            calisabilir_oran=self._calisabilir_oranlar(pencere_bas, pencere_bit, ufuk_gun),
+            # ORAN YALNIZ UFUK DOLUYSA ANLAMLIDIR. Pencerede hic yayinlanmis
+            # donem yoksa payin ufuktan gelen bir bileseni de yoktur; oran
+            # yine de uygulansaydi DONEM ICI talepten hesaplanan pay,
+            # UFUK olcegindeki bir duzeltmeyle kucultulurdu. Olculdu: kabul
+            # olcumunun referans orneginde herkes 0,356 ile carpiliyor,
+            # cozucu kuculmus hedefe gore optimize ediyor ve K3 34'ten
+            # 54'e cikiyordu - ne veri ne cozucu degismisti.
+            calisabilir_oran=(
+                self._calisabilir_oranlar(pencere_bas, pencere_bit, ufuk_gun) if atamalar else {}
+            ),
         )
 
     # --- Okuma -------------------------------------------------------------
