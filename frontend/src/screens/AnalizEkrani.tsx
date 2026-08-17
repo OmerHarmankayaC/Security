@@ -127,6 +127,24 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
     (s) => Math.abs(s.sapma) > 1e-9,
   )
 
+  // Ortanca sapma ve "hepsi aynı yönde mi": tablo renklendirmesi buna dayanır.
+  const { ortancaSapma, hepsiAyniYonde, saatDilimi, saatGizlenen } = useMemo(() => {
+    const sirali = [...saatSapmasiOlanlar].sort((a, b) => Math.abs(b.sapma) - Math.abs(a.sapma))
+    const sapmalar = sirali.map((s) => s.sapma).sort((a, b) => a - b)
+    const ortanca = sapmalar.length > 0 ? sapmalar[Math.floor(sapmalar.length / 2)]! : 0
+    const dilim = sirali.slice(0, 12)
+    return {
+      ortancaSapma: ortanca,
+      // HEPSİ AYNI YÖNDE: tümü artı ya da tümü eksi. Karma durumda dengesizlik
+      // kişiler arasındadır ve not gösterilmez.
+      hepsiAyniYonde:
+        sapmalar.length > 1 &&
+        (sapmalar.every((d) => d > 0) || sapmalar.every((d) => d < 0)),
+      saatDilimi: dilim,
+      saatGizlenen: sirali.length - dilim.length,
+    }
+  }, [saatSapmasiOlanlar])
+
   const cezaGirdileri = analiz?.ceza_dokumu
     ? Object.entries(analiz.ceza_dokumu).sort(([a], [b]) => a.localeCompare(b))
     : []
@@ -373,28 +391,40 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {saatSapmasiOlanlar
-                    .sort((a, b) => Math.abs(b.sapma) - Math.abs(a.sapma))
-                    .map((s) => (
-                      <tr key={s.personel_id} className="border-t border-rule">
-                        <td className="px-3 py-3 text-sm font-medium text-ink">{s.ad_soyad}</td>
-                        <td className="px-3 py-3 font-mono text-sm text-ink-muted">
-                          {sayiBicimle(s.toplam_saat, 0)} sa
-                        </td>
-                        <td className="px-3 py-3 font-mono text-sm text-ink-muted">
-                          {sayiBicimle(s.hedef_saat, 0)} sa
-                        </td>
-                        <td
-                          className={`px-3 py-3 font-mono text-sm font-semibold ${
-                            Math.abs(s.sapma) > s.hedef_saat * 0.1 ? 'text-signal' : 'text-ink'
-                          }`}
-                        >
-                          {saatSapmasi(s.sapma)}
-                        </td>
-                      </tr>
-                    ))}
+                  {saatDilimi.map((s) => (
+                    <tr key={s.personel_id} className="border-t border-rule">
+                      <td className="px-3 py-3 text-sm font-medium text-ink">{s.ad_soyad}</td>
+                      <td className="px-3 py-3 font-mono text-sm text-ink-muted">
+                        {sayiBicimle(s.toplam_saat, 0)} sa
+                      </td>
+                      <td className="px-3 py-3 font-mono text-sm text-ink-muted">
+                        {sayiBicimle(s.hedef_saat, 0)} sa
+                      </td>
+                      {/* RENK, ORTANCADAN UZAKLIĞA GÖRE. Mutlak büyüklüğe
+                          bakılıyordu ve talep hedeflerin toplamından düşük
+                          olduğunda HERKES kırmızı çıkıyordu — tablo hiçbir
+                          ayrım üretmiyordu. Kişiler arası fark anlamlıdır,
+                          herkesin ortak kayması senaryonun özelliğidir. */}
+                      <td
+                        className={cn(
+                          'px-3 py-3 font-mono text-sm font-semibold',
+                          Math.abs(s.sapma - ortancaSapma) > 15 ? 'text-signal' : 'text-ink',
+                        )}
+                      >
+                        {saatSapmasi(s.sapma)}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
+            )}
+            {saatSapmasiOlanlar.length > 0 && (
+              <p className="mt-3 text-xs text-ink-muted">
+                {hepsiAyniYonde
+                  ? `Bu dönemde herkesin toplamı payının ${ortancaSapma < 0 ? 'altında' : 'üstünde'}: talep, hedeflerin toplamıyla örtüşmüyor. Anlamlı olan kişiler arası fark — renk ortancadan (${saatSapmasi(ortancaSapma)}) uzaklığa göre.`
+                  : 'Renk, ortancadan on beş saatten fazla uzaklaşan kişileri işaretler.'}
+                {saatGizlenen > 0 && ` En uzaktaki ${saatDilimi.length} kişi gösteriliyor.`}
+              </p>
             )}
           </Kart>
 
@@ -476,6 +506,14 @@ function AdaletGrafigi({
   const azami = satirlar.reduce((m, s) => Math.max(m, s.saat, s.pay), 0)
   const oran = (deger: number) => (azami > 0 ? `${(deger / azami) * 100}%` : '0%')
 
+  // KART LİSTE DEĞİL, SAPMA GÖSTERİR. Otuz kişilik bir havuzda otuz çubuk
+  // basıldığında en uzaktakiler görsel olarak kayboluyordu; satırlar zaten
+  // sapmaya göre sıralı, ilk sekizi soruyu yanıtlıyor. Kalanı isteyen açar.
+  const ILK_GOSTERILEN = 8
+  const [hepsi, setHepsi] = useState(false)
+  const gosterilen = hepsi ? satirlar : satirlar.slice(0, ILK_GOSTERILEN)
+  const gizlenen = satirlar.length - gosterilen.length
+
   return (
     <Kart>
       <KartEtiketi>{etiket}</KartEtiketi>
@@ -483,9 +521,11 @@ function AdaletGrafigi({
         <p className="text-sm text-ink-muted">{bosMetin}</p>
       ) : (
         <ul className="m-0 flex list-none flex-col gap-2 p-0">
-          {satirlar.map((s) => (
+          {gosterilen.map((s) => (
             <li key={s.personel_id} className="flex items-center gap-3 text-sm">
-              <span className="w-32 shrink-0 truncate text-ink">{s.ad_soyad}</span>
+              <span className="w-52 shrink-0 truncate text-ink" title={s.ad_soyad}>
+                {s.ad_soyad}
+              </span>
               <span className="relative flex h-2.5 flex-1 overflow-hidden rounded-sm bg-sunken">
                 <span className={cn('block h-full', cubukSinifi)} style={{ width: oran(s.saat) }} />
                 {/* Referans çizgisi: bu KİŞİNİN payı. */}
@@ -520,6 +560,24 @@ function AdaletGrafigi({
             </li>
           ))}
         </ul>
+      )}
+      {gizlenen > 0 && (
+        <button
+          type="button"
+          onClick={() => setHepsi(true)}
+          className="mt-3 font-mono text-sm text-accent underline-offset-2 hover:underline"
+        >
+          {gizlenen} kişi daha göster
+        </button>
+      )}
+      {hepsi && satirlar.length > ILK_GOSTERILEN && (
+        <button
+          type="button"
+          onClick={() => setHepsi(false)}
+          className="mt-3 font-mono text-sm text-ink-muted underline-offset-2 hover:underline"
+        >
+          Yalnız en uzaktaki {ILK_GOSTERILEN} kişi
+        </button>
       )}
       <p className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-muted">
         <span className="flex items-center gap-1.5">
