@@ -1,38 +1,39 @@
-# Vardiya Çizelgeleme Karar Destek Aracı
+# Shift Scheduling Decision Support Tool
 
-BOTAŞ tesislerinin güvenlik personeli için, kısıt programlama (Google OR-Tools
-CP-SAT) tabanlı bir vardiya çizelgeleme karar destek aracı. FastAPI + React +
-PostgreSQL üzerine kurulu bir web uygulamasıdır.
+A constraint-programming (Google OR-Tools CP-SAT) decision support tool for
+scheduling security personnel at BOTAŞ facilities. A web application built on
+FastAPI + React + PostgreSQL.
 
-Projenin kapsamı, mimarisi ve kural kataloğu için `docs/` altındaki dört
-dokümana (Charter, SRS, Backlog, SDD) bakınız.
+For scope, architecture, and the rule catalogue, see the four canonical
+documents under [`docs/`](docs/) (Charter, SRS, Backlog, SDD).
 
-Geliştirme sürecinin planı iki dosyadadır: yürürlükteki plan
-[`docs/turlar/UYGULAMA_PLANI_V2.md`](docs/turlar/UYGULAMA_PLANI_V2.md) (ikinci aşama, turlar
-hâlinde), birinci aşamanın kapanmış günlük planı ise
-[`docs/turlar/UYGULAMA_PLANI.md`](docs/turlar/UYGULAMA_PLANI.md).
-İlerleme kaydı da ikiye ayrılır: yürürlükteki
-[`PROGRESS_V2.md`](PROGRESS_V2.md), arşiv [`PROGRESS.md`](PROGRESS.md).
+The development plan lives in two files: the active plan
+[`docs/turlar/UYGULAMA_PLANI_V2.md`](docs/turlar/UYGULAMA_PLANI_V2.md) (phase
+two, run in tours), and the closed daily plan for phase one,
+[`docs/turlar/UYGULAMA_PLANI.md`](docs/turlar/UYGULAMA_PLANI.md). Progress
+tracking is likewise split: the active log is
+[`PROGRESS_V2.md`](PROGRESS_V2.md), the archive is [`PROGRESS.md`](PROGRESS.md).
 
-## Gereksinimler
+## Requirements
 
-Sürümler için [`VERSIONS.md`](VERSIONS.md) dosyasına bakınız. Özet:
+See [`VERSIONS.md`](VERSIONS.md) for pinned versions. Summary:
 
 - Python 3.12+
 - Node.js 22.x
-- PostgreSQL 16 (yerelde çalışır durumda, `.env` bu sunucuyu göstermeli)
+- PostgreSQL 16 (running locally; `.env` must point at this server)
 
-## Kurulum
+## Setup
 
 ```bash
-cp .env.example .env   # gerekirse degerleri duzenleyin
+cp .env.example .env   # edit values as needed
 ./scripts/kurulum.sh
 ```
 
-Betik; backend sanal ortamını kurar, veritabanı göçlerini uygular, backend
-testlerini/lint kontrollerini çalıştırır ve frontend bağımlılıklarını kurar.
+The script sets up the backend virtual environment, applies database
+migrations, runs the backend tests/lint checks, and installs frontend
+dependencies.
 
-## Geliştirme
+## Development
 
 Backend:
 
@@ -42,9 +43,9 @@ source .venv/bin/activate
 uvicorn app.main:app --reload
 ```
 
-`http://localhost:8000/health` 200 dönmelidir.
+`http://localhost:8000/health` should return 200.
 
-Çözüm işçisi (**ayrı bir terminalde, API'nin yanı sıra çalışmalı**):
+Solver worker (**runs in a separate terminal, alongside the API**):
 
 ```bash
 cd backend
@@ -52,78 +53,81 @@ source .venv/bin/activate
 python scripts/cozum_iscisi.py
 ```
 
-Çözüm işi API sürecinde değil, ayrı bir serviste çalışır (SDD 3.4.4); iki
-süreç yalnızca veritabanı üzerinden haberleşir. Bu işçi çalışmazsa çözüm
-istekleri `kuyrukta` durumunda bekler ve hiçbir çizelge üretilmez.
-Geliştirme ile sunucu böylece aynı yolu kullanır.
+The solve job runs in a separate service, not in the API process (SDD 3.4.4);
+the two processes only communicate through the database. If this worker
+isn't running, solve requests sit `queued` and no schedule is ever produced.
+Development thus follows the same path as production.
 
-İlk yönetim hesabı (SRS FR-10.10 — arayüzde hesap açan bir uç nokta
-**yoktur**, sistemin hesapsız anında hesap açmanın yolu budur):
+Creating the first admin account (SRS FR-10.10 — there is **no** in-app
+sign-up endpoint; this is how the account-less system bootstraps its first
+account):
 
 ```bash
 cd backend && source .venv/bin/activate
 python scripts/yonetim_hesabi_olustur.py
 ```
 
-Parola argüman olarak verilemez; betik onu ekrana yazmadan sorar (komut
-satırına yazılan parola kabuk geçmişine ve `ps` çıktısına düşerdi). Sonraki
-hesaplar arayüzdeki Kullanıcılar ekranından açılır.
+The password cannot be passed as an argument; the script prompts for it
+without echoing (a password typed on the command line would end up in shell
+history and `ps` output). Subsequent accounts are created from the Users
+screen in the UI.
 
-**Yerel geliştirmede `.env` içine `OTURUM_CEREZI_SECURE=false` yazın.**
-Oturum çerezi üretimde `Secure` niteliği taşır ve tarayıcı onu düz
-`http://localhost` adresine geri göndermez; ayar kapatılmazsa giriş hiçbir
-hata göstermeden başarısız olur.
+**In local development, set `OTURUM_CEREZI_SECURE=false` in `.env`.** The
+session cookie carries the `Secure` attribute in production, and the browser
+won't send it back over plain `http://localhost`; login fails silently if this
+isn't disabled.
 
-Gösterim amaçlı örnek veri (FR-1.14 — SRS 3.3'teki güvenlik personeli
-senaryosu). Dönemler **üretildiği güne göre** yerleşir ve çizelgeler
-**gerçek çözücüyle** üretilir; veri sabit tarihlere çakılı değildir:
+Demo data for presentations (FR-1.14 — the security-personnel scenario from
+SRS 3.3). Periods are anchored **to the day they're generated**, and
+schedules are produced by the **real solver** — the data isn't pinned to
+fixed dates:
 
-| Dönem | Yeri | Durum | Ne gösterir |
+| Period | Location | Status | What it shows |
 |---|---|---|---|
-| Geçen | önceki hafta | yayınlandı | Geçmiş çizelge; bir sonrakinin ısıtma penceresi (TD-5) |
-| Bu Hafta | **bugünü içerir** | arşiv + yayınlandı | Dengeli dönem. Çalışan panelinin "Vardiyalarım" ve "sıradaki vardiya"sı; iki sürüm olduğu için "değişen günler" işareti de çalışır (FR-9.4) |
-| Sıkışık | gelecek 4 hafta | çözüldü | Kapanamayan kapsama açığı (Backlog B-14). Çelişki **erişilebilirlik** üzerinden kurulur: vardiya şefliği havuzunun beşi izinde ve o noktaya başka kimse giremez (H8) — blok uzunluğundan bağımsız |
-| Tatilli | ilk ulusal bayram haftası | sürüm yok | Resmî tatil azaltılmış kadroya düşer (FR-1.10, TD-3); **tercih penceresi açık** olan tek dönem |
-| Fazla Çalışma | tatilliden bir hafta sonra | çözüldü | Güvenlik havuzunun üçte biri izinde; kalanların haftalık yükü eşiği (45 sa) aşar ve **kota tüketimi görünür** olur (H10) |
-| Kota Sınırı | onu izleyen hafta | çözüldü | Devir bakiyesi yüksek personel. Kotası dolmuş kişi eşiğe kadar çalışmaya **devam eder**, üstüne çıkamaz; ön kontrol bunu uyarı olarak bildirir |
+| Last | previous week | published | Past schedule; the warm-start window for the next one (TD-5) |
+| This Week | **includes today** | archived + published | Balanced period. Powers "My Shifts" and "next shift" on the employee panel; two versions exist so the "changed days" marker also works (FR-9.4) |
+| Tight | next 4 weeks | solved | An unclosable coverage gap (Backlog B-14). The conflict is built through **availability**: five of the shift-supervisor pool are on leave and no one else can fill that slot (H8) — independent of block length |
+| Holiday | first national holiday week | unpublished | An official holiday drops staffing (FR-1.10, TD-3); the only period with an **open preference window** |
+| Overtime | one week after the holiday | solved | A third of the security pool is on leave; the remaining staff's weekly load crosses the threshold (45h) and **quota consumption becomes visible** (H10) |
+| Quota Limit | the week after that | solved | Staff with a high carry-over balance. Anyone at their quota keeps working up to the threshold and no further; the pre-check flags this as a warning |
 
-Ayrıca 30 personel (3 sabit vardiyalı, 1 pasifleştirilmiş), iki yıllık
-resmî tatil takvimi, dört müsaitlik tipinin tamamı, yarım gün dilimler
-(TD-4) ve tercihin üç durumu.
+Also included: 30 staff members (3 fixed-shift, 1 deactivated), a two-year
+official holiday calendar, all four availability types, half-day slots
+(TD-4), and all three preference states.
 
-**Kadro talebe göre boyutlandırılmıştır** (SRS 3.3.6): 30 kişide kişi
-başına haftalık yük 38,4 saat — fazla çalışma eşiğine yakın ama altında.
-Önceki 44 kişilik kadroda yük 26 saate düşüyor, kimse eşiğe yaklaşmıyor ve
-H10 hiçbir zaman tetiklenmiyordu; kuralların işlediğini gösteremeyen bir
-gösterim verisi, kuralların yazılmamış olmasıyla aynı kapıya çıkar.
+**Staffing is sized to match demand** (SRS 3.3.6): at 30 people, the weekly
+load per person is 38.4 hours — close to but under the overtime threshold.
+At the previous staffing level of 44, load drops to 26 hours, no one
+approaches the threshold, and H10 never triggers; demo data that can't show
+the rules working amounts to the same thing as the rules not being written.
 
 ```bash
 cd backend && source .venv/bin/activate
-python scripts/demo_veri_uret.py           # ilk calistirma
-python scripts/demo_veri_uret.py --reset   # var olan demo verisini silip yeniden uretir
-python scripts/demo_veri_uret.py --reset --cozme   # cizelge uretmeden, yalnizca tanimlar
+python scripts/demo_veri_uret.py           # first run
+python scripts/demo_veri_uret.py --reset   # wipe and regenerate existing demo data
+python scripts/demo_veri_uret.py --reset --cozme   # definitions only, skip solving
 ```
 
-Çözüm birkaç on saniye sürer; yalnızca tanım ekranlarına bakacaksanız
-`--cozme` ile atlayabilirsiniz.
+Solving takes several tens of seconds; skip it with `--cozme` if you only
+need to look at the definition screens.
 
-## Giriş
+## Login
 
-Sistemde kayıt ekranı yoktur (FR-10.1); ilk hesap arayüz dışı bir betikle
-açılır (FR-10.10). Varsayılan kullanıcı adı **`admin`**, rolü yönetim —
-kullanıcı hesaplarını yönetebilen tek rol:
+There is no sign-up screen (FR-10.1); the first account is created out of
+band via a script (FR-10.10). The default username is **`admin`**, with the
+admin role — the only role that can manage user accounts:
 
 ```bash
 cd backend && source .venv/bin/activate
 python scripts/yonetim_hesabi_olustur.py
 ```
 
-Parola argüman olarak verilemez; betik onu ekrana yazmadan iki kez sorar
-(en az 12 karakter). Sonraki hesaplar arayüzdeki Kullanıcılar ekranından
-açılır.
+The password can't be passed as an argument; the script prompts for it twice
+without echoing (minimum 12 characters). Subsequent accounts are created from
+the Users screen in the UI.
 
-Test takımı bu hesaba dokunmaz: testler ayrı bir veritabanında koşar
-(bkz. "Testler ve Lint").
+The test suite never touches this account: tests run against a separate
+database (see "Tests and Lint").
 
 Frontend:
 
@@ -132,31 +136,32 @@ cd frontend
 npm run dev
 ```
 
-## Testler ve Lint
+## Tests and Lint
 
-**Testler AYRI bir veritabanında koşar** (Ürün Backlog'u B-20). Takım,
-bağlantı adresinde bir test veritabanı görmezse çalışmayı reddeder —
-geliştirme verisini sessizce temizlemek yerine yüksek sesle durur.
+**Tests run against a SEPARATE database** (Product Backlog B-20). The suite
+refuses to run if it doesn't see a test database in the connection string —
+it fails loudly instead of silently wiping development data.
 
-İlk kurulumda bir kez:
+One-time initial setup:
 
 ```bash
 createdb vardiya_test
 cd backend
-VERITABANI_URL=postgresql+psycopg://vardiya:<PAROLA>@localhost:5432/vardiya_test \
+VERITABANI_URL=postgresql+psycopg://vardiya:<PASSWORD>@localhost:5432/vardiya_test \
   .venv/bin/alembic upgrade head
 ```
 
-Adresi `backend/.env` dosyasına yazın (`.env.example`'daki satır):
+Set the address in `backend/.env` (see the line in `.env.example`):
 
 ```
-TEST_VERITABANI_URL=postgresql+psycopg://vardiya:<PAROLA>@localhost:5432/vardiya_test
+TEST_VERITABANI_URL=postgresql+psycopg://vardiya:<PASSWORD>@localhost:5432/vardiya_test
 ```
 
-Veritabanı adı `test` geçmelidir; kilit bunu arar. Şema göçle kurulur,
-`create_all` ile değil — test veritabanı da geliştirme veritabanıyla aynı
-göç zincirini izler, dolayısıyla göçlerin kendisi de her koşumda dolaylı
-olarak sınanır. Yeni bir göç eklendiğinde ikisine de uygulanır.
+The database name must contain `test`; the guard looks for it. The schema is
+built through migrations, not `create_all` — the test database follows the
+same migration chain as the development database, so the migrations
+themselves are implicitly exercised on every run. A new migration must be
+applied to both.
 
 ```bash
 cd backend && source .venv/bin/activate
@@ -169,18 +174,17 @@ cd frontend
 npx tsc --noEmit -p tsconfig.app.json
 ```
 
-## Proje Yapısı
+## Project Structure
 
 ```
-backend/    FastAPI uygulaması, SQLAlchemy modelleri, Alembic göçleri
+backend/    FastAPI application, SQLAlchemy models, Alembic migrations
 frontend/   Vite + React + TypeScript (strict mode)
-docs/       Charter, SRS, Backlog, SDD (kanonik dörtlü)
-docs/turlar/ Planlar, tur promptları, devam yönergeleri — kaynak DEĞİL, kayıt
-scripts/    Kurulum ve yardımcı betikler
+docs/       Charter, SRS, Backlog, SDD (the canonical four)
+docs/turlar/ Plans, tour prompts, handover notes — a record, NOT a source of truth
+scripts/    Setup and utility scripts
 ```
 
-## İlerleme Takibi
+## Progress Tracking
 
-Oturumlar arası bağlam [`PROGRESS_V2.md`](PROGRESS_V2.md) dosyasında
-tutulur; birinci aşamanın günlüğü [`PROGRESS.md`](PROGRESS.md) kapandı ve
-yalnızca arşivdir.
+Cross-session context is kept in [`PROGRESS_V2.md`](PROGRESS_V2.md); the
+phase-one log in [`PROGRESS.md`](PROGRESS.md) is closed and archival only.
