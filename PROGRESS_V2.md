@@ -9,7 +9,65 @@ başlar.
 
 ---
 
-## 2026-08-15 — Tur 9: Geçmiş Sayaçlar ve Kümülatif Adalet — **KISMEN**
+## 2026-08-17 — Dağıtım: Tur 9 — **TAMAMLANDI**
+
+Kesinti **10:37:31–10:38:17 (46 sn)** — bugüne kadarki en kısası. Kapsam dar
+olduğu için: **göç yok, yeni bağımlılık yok, frontend değişmedi.** Yalnız
+backend `rsync` + servis yeniden başlatma. `vera-rag` ve `energy-api`
+boyunca ayakta kaldı.
+
+Dağıtılan sürüm `1628c54` (= `origin/tur8-disa-aktarma`), çalışma ağacı temiz.
+
+### Uygulanan sıra
+
+1. Ön kontrol: bitmemiş çözüm işi **yok** (TAMAMLANDI 6, UYARILI 1), altı
+   servis aktif, `alembic current` = `b8d21f6a90c3` — **yerelle aynı**,
+   bekleyen göç yok.
+2. `systemctl stop vardiya-cozucu`, ardından `vardiya-api`.
+3. Yedek: `/opt/vardiya/yedek/vardiya-20260817-1037-tur9oncesi.dump`, **73K**.
+4. `rsync` backend (`.env`, `.venv`, `__pycache__`, `*.pyc` hariç);
+   `pip install -e ".[dev]"` → 0; `chown`.
+5. `systemctl start vardiya-api`, `vardiya-cozucu`.
+
+### Doğrulama
+
+| Denetim | Sonuç |
+|---|---|
+| Altı servis | hepsi `active` |
+| `127.0.0.1:8002/health` | `{"durum":"ok"}` |
+| `/` \| `/api/ben` \| olmayan rota | 200 \| 401 \| **404** |
+| `alembic current` | `b8d21f6a90c3 (head)` — değişmedi |
+| `journalctl` hata satırı | 0 |
+| `.env` sızıntı sayacı | 0 |
+
+**Turun asıl konusu sunucuda sınandı.** Son dönem için `GecmisSayaclar`
+çağrıldı: 90 günlük pencere (2026-05-19 .. 2026-08-17), **29 kişide gece
+saati birikmiş** (en yükseği 118 saat), `calisabilir_oran` **0,54 ile 1,00**
+arasında değişiyor. Yani hem birikim hem çalışabilirlik oranı gerçek veride
+işliyor — oranın 1,00'dan farklı çıkması İş 2'nin ölü kod olmadığının
+kanıtı.
+
+### Beklenen davranış değişikliği
+
+Mevcut yayınlanmış çizelgeler **değişmedi** (`atama` 1.282 satır, `sapma`
+tabloları korundu — bu turda tablo boşaltan göç yok). Ama **Analiz
+ekranındaki sapma sayıları büyüyecek**: ölçü artık tek dönem yerine doksan
+günü kapsıyor. Gerileme değil, ölçünün tanımının değişmesi; K3'ün 34'ten
+61,27'ye çıkması da aynı sebepten.
+
+### SSH yine kesildi
+
+Dağıtımdan önce SSH yedi denemede de zaman aşımına uğradı (biri ilk, altısı
+60 sn aralıklı); site bu süre boyunca 200 dönüyordu ve **port 443 açık, port
+22 filtreliydi** — yani makine sağlıklı, engelleme SSH'a özeldi. Muhtemel
+sebep bu oturumdaki yoğun bağlantı sayısının `fail2ban`i tetiklemesi.
+Denemeye ara verilince kendiliğinden düzeldi. Aynı belirti bir önceki
+dağıtımda da görüldü; **teşhis yöntemi kayda değer**: 443 açık + 22 kapalı
+ise sorun uygulamada değil erişimdedir.
+
+---
+
+## 2026-08-15 — Tur 9: Geçmiş Sayaçlar ve Kümülatif Adalet — **BİTTİ**
 
 Kaynak: `docs/turlar/CLAUDE_CODE_PROMPTU_TUR9.md`. **Dört iş bitti, İş 5 ve
 tur kapanış ölçümleri açık.** Doküman sürümleri doğrulandı: Charter **1.4**,
