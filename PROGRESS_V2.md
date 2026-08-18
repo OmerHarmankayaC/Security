@@ -11,8 +11,12 @@ başlar.
 
 ## 2026-08-18 — Görev 8: Tam takım doğrulama ve kayıt — **TAMAMLANDI**
 
-Çalışan paneli düzeltme turunun (yedi commit: `5e2b7de`…`9f1bab0`) kapanış
-doğrulaması. Kaynak koduna dokunulmadı — bu görev yalnız doğrulama ve kayıt.
+Çalışan paneli düzeltme turunun (yedi görev, on commit: `5e2b7de` (Görev 1),
+`eb9c24d` (Görev 2), `d1c4d56` + `7fe9a72` + `e537080` (Görev 3+4, üç
+commit), `9ea41ab` + `8cca290` (Görev 5, ilki ve review düzeltmesi),
+`f282539` (Görev 6), `82d6de2` + `9f1bab0` (Görev 7, ilki ve review
+düzeltmesi)) kapanış doğrulaması. Kaynak koduna dokunulmadı — bu görev
+yalnız doğrulama ve kayıt.
 
 ### Frontend — temiz
 
@@ -47,7 +51,7 @@ cd backend && pytest -q
 On bir dosya hariç tutuldu; hepsi gerçekten OR-Tools CP-SAT çözücüyü
 çalıştırıyor (`cp_model` / `CozumServisi` / `isi_calistir_ve_bekle`) ve
 sandbox'ın 10 dakikalık zaman aşımını aşabiliyor (bkz. Tur 10 kalibrasyon
-kaydı yukarıda — tek bir ölçüm 60–900 sn arası sürebiliyor). **Bu dosyalar bu
+kaydı aşağıda — tek bir ölçüm 60–900 sn arası sürebiliyor). **Bu dosyalar bu
 turda koşmadı ve doğrulanmadı** — sessizce "temiz" denip geçilmiyor,
 burada açıkça yazılıyor. `ruff check .` de ayrıca çalıştırıldı: temiz.
 
@@ -86,7 +90,7 @@ geliştirme ortamında hiçbir zaman gerçek kopya görülmedi.
   dışında (ya da daha yüksek zaman aşımıyla) tek tek çalıştırılıp
   doğrulanmalı.
 - Tur 10, İş 4 (Ağırlık Kalibrasyonu) hâlâ **KISMEN** durumda duruyor — K3
-  eşiği geçmiyor, zaman limiti kararı proje yürütücüsünde bekliyor (yukarı
+  eşiği geçmiyor, zaman limiti kararı proje yürütücüsünde bekliyor (aşağı
   bakınız). Görev 8 bunu etkilemedi, etkilemesi de beklenmiyordu.
 
 ### DOKÜMAN BORCU
