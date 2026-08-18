@@ -14,6 +14,93 @@ two, run in tours), and the closed daily plan for phase one,
 tracking is likewise split: the active log is
 [`PROGRESS_V2.md`](PROGRESS_V2.md), the archive is [`PROGRESS.md`](PROGRESS.md).
 
+## Screenshots
+
+The day grid, where demand and assignments are read hour by hour:
+
+![Day grid](docs/gorseller/gun-izgarasi.png)
+
+The solve screen — the run is startable, watchable, and stoppable; a stopped
+run offers the best schedule found so far rather than discarding it:
+
+![Solve screen](docs/gorseller/cozum-ekrani.png)
+
+The analysis screen, where a published version is measured — coverage, quota
+status, fairness distributions, and the penalty breakdown:
+
+![Analysis screen](docs/gorseller/analiz-ekrani.png)
+
+## Status
+
+Six acceptance criteria are defined in the Project Charter (section 5).
+**Five of six pass.**
+
+| Criterion | Threshold | Measured (demo server) | Result |
+|---|---|---|---|
+| K1 — time to a usable schedule | < 60 s | 23.88 s | ✅ |
+| K2 — hard constraint violations | 0 | 0 | ✅ |
+| K3 — night fairness | at most 10% of staff deviate > 8 night hours | 33 of 40 (82.5%) | ❌ |
+| K4 — infeasible instance is explained | ≥ 1 gap, fully described | 151 intervals | ✅ |
+| K5 — manual edit validation | < 1 s | 0.251 s | ✅ |
+| K6 — re-solve difference reported | report produced | 896 changes | ✅ |
+
+**K3 does not pass, and the reason is search time rather than staffing.** The
+reachability diagnostic confirms every pool can reach its target: the
+obstacle is that the search does not get there within the time limit. On the
+reference instance, moving from 60 to 300 seconds took the number of people
+outside their fair share from 10 of 40 down to 1 of 40, while re-tuning the
+soft-constraint weights only moved the maximum deviation from 25.0 to 22.0.
+
+That distinction matters and is easy to misread: **most of the improvement in
+night fairness comes from the longer search, not from weight calibration.**
+Presenting it as a calibration result would be misleading.
+
+Two changes followed from this and are not yet reflected in the numbers
+above: the criterion was redefined as a distribution (previously "no single
+person deviates more than 8 hours", which turned on one person and was
+extremely sensitive to where the search happened to stop), and the solver
+time limit was raised from 60 to 300 seconds. **The table still shows the
+measurement taken under the previous definition and the previous limit; it
+will be re-measured on the demo server.**
+
+## Known limitations
+
+- **The solver returns the best schedule found within its time limit**, not a
+  proven optimum. A longer limit generally produces a fairer schedule; the
+  limit is a parameter (`cozucu_zaman_limiti_saniye`, default 300 s).
+- **Cumulative fairness looks back 90 days** (a rolling window over published
+  versions). Deviation accumulated before that window is not visible to the
+  system, and a deviation accumulated over previous periods cannot be closed
+  within a single period.
+- **A published schedule is read-only.** Corrections are made by deriving a
+  new draft and publishing it; the previous version is archived rather than
+  overwritten, so employees can always be shown what changed.
+- **Single facility.** Buildings and duty points belong to one facility;
+  separate personnel pools per facility are not modelled.
+- **Availability has day-level resolution** (full day / morning / afternoon),
+  not arbitrary hour ranges.
+- **One scheduler at a time.** Concurrent editing of the same version by two
+  managers is not handled.
+
+## Measurement environment
+
+The numbers above were measured on the demo server, not the development
+machine — that is the binding environment.
+
+| | Development machine | Demo server (reference) |
+|---|---|---|
+| OS | macOS 15.7.3, arm64 | Linux x86_64 (Ubuntu) |
+| Cores | 10 | 4 |
+| Memory | 16 GB | 7 GB |
+| Search workers | 3 | 3 (cores − 1) |
+
+**The demo server is shared** — other services run on the same machine — so
+the measured times should be read as an upper bound rather than a best case.
+CP-SAT is also non-deterministic under parallel search: the same instance can
+yield different (equally good) solutions across runs. K3's deviation and K4's
+gap count vary between runs; the pass/fail decisions and the K1/K2/K5 values
+do not.
+
 ## Requirements
 
 See [`VERSIONS.md`](VERSIONS.md) for pinned versions. Summary:
@@ -188,3 +275,10 @@ scripts/    Setup and utility scripts
 
 Cross-session context is kept in [`PROGRESS_V2.md`](PROGRESS_V2.md); the
 phase-one log in [`PROGRESS.md`](PROGRESS.md) is closed and archival only.
+
+## License
+
+**No licence is granted.** This repository is published for code review as
+part of an internship project; all rights are reserved by default. You are
+welcome to read the code. If you want to use, modify, or redistribute any
+part of it, please get in touch first.
