@@ -123,36 +123,22 @@ describe('DonemOzetimEkrani', () => {
     expect(await screen.findByText(/gece saatinde adil payına yakınsın/)).toBeTruthy()
   })
 
-  it('adalet ufkunda Toplam Saat kartı dönem-içi olduğunu görünür biçimde söyler', async () => {
-    // Bulgu 1: toplam_saat her zaman dönem içi hesaplanır (analiz_servisi.py
-    // ufuk almaz, bu turun kapsamı dışında) — ama gece/hafta sonu kartları
-    // gerçekten 90 günü kapsar. "SON 90 GÜN" başlığının altında bu ayrım
-    // görünür olmazsa dönem-içi bir sayı 90 günlük sanılır.
-    _ozet = { ...OZET, ufuk: 'adalet' }
+  it('adalet ufkunda toplam saat de doksan günü kapsar', async () => {
+    // Bir zamanlar `toplam_saat` ufuktan habersizdi: hedef doksan günü,
+    // yük yedi günü kapsıyordu ve herkes hedefinin ~160 saat altında
+    // görünüyordu (ölçüldü: 52,0 karşısında 212,4). Ekran bunu "bu sayı
+    // dönem içidir" uyarısıyla örtüyordu. Kaynak düzeltildi
+    // (analiz_servisi + s4_hedef_paylari ufku izliyor), örtü kalktı: kartın
+    // artık hiçbir istisna metni taşımaması GEREKİR, yoksa doğru sayının
+    // üstüne yanlış bir uyarı basmış oluruz.
+    _ozet = { ...OZET, ufuk: 'adalet', toplam_saat: 480, hedef_saat: 460 }
     render(<DonemOzetimEkrani veri={VERI} />)
     await screen.findByText('SON 90 GÜN')
-    // Kart üstünde görünür bir uyarı (footnote değil) — kendi metni
-    // (UfukAnahtarı'nın "Sayılar yalnızca bu dönemi kapsar" cümlesinden
-    // KASITLI olarak farklı, ikisi karışmasın).
-    expect(
-      screen.getByText('Bu sayı her zaman DÖNEM İÇİNİ kapsar, seçtiğin ufuktan etkilenmez.'),
-    ).toBeTruthy()
-    // Cümlenin kendisi de aynı ayrımı taşır.
-    expect(screen.getByText(/toplam saatte \(dönem içi, 90 günü değil\)/)).toBeTruthy()
-  })
-
-  it('dönem ufkunda Toplam Saat kartı hiçbir uyarı taşımaz', async () => {
-    // Uyarı yalnızca adalet ufkunda anlamlı: dönem ufkunda zaten her sayı
-    // dönem içi, ayrım söz konusu değil.
-    _ozet = OZET
-    render(<DonemOzetimEkrani veri={VERI} />)
-    // Kartın etiketi (KartEtiketi, buyukHarf ile) tam olarak "TOPLAM SAAT"
-    // basar; /Toplam Saat/i cümledeki "toplam saatte ..." ile de eşleşip
-    // birden fazla öğe döndürdüğü için TAM metinle sorgulanır.
-    await screen.findByText('TOPLAM SAAT')
-    expect(
-      screen.queryByText('Bu sayı her zaman DÖNEM İÇİNİ kapsar, seçtiğin ufuktan etkilenmez.'),
-    ).toBeNull()
+    expect(screen.queryByText(/DÖNEM İÇİNİ kapsar/)).toBeNull()
+    expect(screen.queryByText(/90 günü değil/)).toBeNull()
+    // Sayı olduğu gibi, istisnasız gösterilir. (480,0 hem büyük sayıda hem
+    // bar satırında geçtiği için tekil sorgu belirsiz kalır.)
+    expect(screen.getAllByText(/480,0/).length).toBeGreaterThan(0)
   })
 
   it('özet yoksa çizelge olmadığını söyler', async () => {

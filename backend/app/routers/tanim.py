@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.db import oturum_al
 from app.guvenlik import yonetici_yetkisi
+from app.models.girdi import TERCIH_GUN_TEKILLIGI
 from app.repositories.tanim import SilmeSonucu, TanimDeposu
 from app.schemas.girdi import (
     MusaitlikOku,
@@ -389,9 +390,17 @@ def tercih_olustur(veri: TercihOlustur, servis: Servis) -> TercihOku:
     # yakalanmamis bir IntegrityError olarak 500 uretiyordu. Bu turun brief'i
     # bu uc noktanin semantigini (ustune yazma/karar kurali) DEGISTIRMIYOR -
     # yalniz mevcut kisidin artik sessizce 500 uretmemesini istiyor.
+    #
+    # KISIT ADINA DARALTILIR: bu uc nokta `personel_id`/`donem_id`yi disaridan
+    # alir ve varliklarini dogrulamaz, dolayisiyla yabanci anahtar ihlali de
+    # bir IntegrityError'dur. Ayrim yapilmazsa olmayan bir personel icin
+    # gelen istek "bu tarih icin zaten bir tercihi var" diye yanlis bir
+    # NEDENLE reddedilirdi; cagiran tarafi yanlis yere bakmaya gonderir.
     try:
         return servis.tercih.olustur(**veri.model_dump())  # type: ignore[return-value]
     except IntegrityError as hata:
+        if TERCIH_GUN_TEKILLIGI not in str(hata.orig):
+            raise
         raise HTTPException(
             status_code=409,
             detail="Bu personelin bu tarih icin zaten bir tercihi var",

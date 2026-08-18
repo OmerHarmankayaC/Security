@@ -61,8 +61,16 @@ K3_ESIK = 8.0
 # surecidir ve yarim kalmis bir kume birakmak, sonraki olcumun tabanini
 # sessizce kaydirir.
 OZGUN = {
-    "S1": 10000, "S1f": 2, "S2": 10, "S3": 8, "S4": 1,
-    "S5": 12, "S6": 4, "S6b": 6, "S7": 6, "S8": 15,
+    "S1": 10000,
+    "S1f": 2,
+    "S2": 10,
+    "S3": 8,
+    "S4": 1,
+    "S5": 12,
+    "S6": 4,
+    "S6b": 6,
+    "S7": 6,
+    "S8": 15,
 }
 
 

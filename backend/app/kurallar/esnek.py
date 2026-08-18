@@ -867,7 +867,9 @@ def _donem_gun_sayisi(baglam: Baglam) -> float:
     return 7.0  # donem bilgisi yoksa (testlerde) haftalik hedefi degistirmeyen notr deger
 
 
-def s4_hedef_paylari(baglam: Baglam, donem_gun_sayisi: float) -> dict[int, float]:
+def s4_hedef_paylari(
+    baglam: Baglam, donem_gun_sayisi: float, *, gecmisi_kat: bool = True
+) -> dict[int, float]:
     """S4'un adil payi: donemin toplam talep saatinden kisiye, kisisel donemlik
     hedef saatiyle orantili dusen pay — SAAT cinsinden (modele_ekle, dogrula ve
     Analiz servisinin ortak hesabi).
@@ -897,11 +899,16 @@ def s4_hedef_paylari(baglam: Baglam, donem_gun_sayisi: float) -> dict[int, float
     paylar = {
         p: hedef_saat / toplam_hedef * toplam_talep_saat for p, hedef_saat in hedef_saatler.items()
     }
-    if baglam.gecmis is None:
+    if baglam.gecmis is None or not gecmisi_kat:
         return paylar
     # ADALET UFKU (SRS TD-6): gecmis pencerede gerceklesen saat de paya
     # girer ve pay calisabilir oraniyla kucultulur. Ikisi de yapilmazsa
     # donem ici yuk, ufku kapsayan bir yukle karsilastirilmis olurdu.
+    #
+    # `gecmisi_kat=False` YALNIZ DONEM ICINI okuyan cagiran icindir (Analiz
+    # ekraninin "donem" ufku). Cozucu ve dogrulayici hicbir zaman False
+    # vermez: S4'un yuk tarafi gecmis saati SABIT TERIM olarak ekler
+    # (modele_ekle ve dogrula), dolayisiyla hedefin de kapsamasi gerekir.
     return {
         p: (pay + baglam.gecmis.pay_toplam.get(p, 0.0)) * baglam.calisabilir_oran(p)
         for p, pay in paylar.items()

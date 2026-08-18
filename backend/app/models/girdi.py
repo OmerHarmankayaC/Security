@@ -46,14 +46,18 @@ class Musaitlik(Base, ZamanDamgasiKarisimi):
     not_: Mapped[str | None] = mapped_column("not", default=None)
 
 
+# Kisit ADI tek yerde: yakalayan taraf (routers/tanim.py) hangi kisidin
+# dustugunu metinden ayirt eder ve yabanci anahtar ihlalini yanlislikla
+# "bu gun icin zaten tercih var" diye raporlamaz.
+TERCIH_GUN_TEKILLIGI = "uq_tercih_personel_tarih"
+
+
 class Tercih(Base, ZamanDamgasiKarisimi):
     __tablename__ = "tercih"
     # Bir calisan bir gun icin TEK tercih bildirir. Iki kayit, biri
     # "calismam" digeri "08-16 calisirim" oldugunda hangisinin gecerli
     # oldugu tanimsiz kalirdi; ikisi de onaylanabilirdi.
-    __table_args__ = (
-        UniqueConstraint("personel_id", "tarih", name="uq_tercih_personel_tarih"),
-    )
+    __table_args__ = (UniqueConstraint("personel_id", "tarih", name=TERCIH_GUN_TEKILLIGI),)
 
     tercih_id: Mapped[int] = mapped_column(primary_key=True)
     personel_id: Mapped[int] = mapped_column(ForeignKey("personel.personel_id"))
@@ -70,6 +74,7 @@ class Tercih(Base, ZamanDamgasiKarisimi):
 
 
 __all__ = [
+    "TERCIH_GUN_TEKILLIGI",
     "Musaitlik",
     "MusaitlikDilimi",
     "MusaitlikTipi",

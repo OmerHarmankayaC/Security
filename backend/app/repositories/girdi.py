@@ -26,7 +26,5 @@ class TercihDeposu(TabanDepo[Tercih]):
 
     def personel_ve_tarihe_gore_getir(self, personel_id: int, tarih: date) -> Tercih | None:
         """Tekillik kisitinin okuma tarafi: o gunun tercihi (varsa)."""
-        stmt = select(Tercih).where(
-            Tercih.personel_id == personel_id, Tercih.tarih == tarih
-        )
+        stmt = select(Tercih).where(Tercih.personel_id == personel_id, Tercih.tarih == tarih)
         return self.oturum.execute(stmt).scalars().one_or_none()

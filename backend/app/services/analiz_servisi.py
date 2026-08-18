@@ -335,11 +335,19 @@ class AnalizServisi:
         # Hesap S4'un kendi fonksiyonundan gelir - kural iki ayri yerde
         # kodlanmaz (SDD 2.4); S4_OLCEK onda bir saat oldugundan dogal birime
         # geri cevrilir (SDD Ek A, "Kesirli hedeflerin tamsayiya olceklenmesi").
-        paylar = s4_hedef_paylari(baglam, donem_gun_sayisi)
+        # SAAT DENGESI DE UFKU IZLER — gece ve hafta sonu gibi. Bu satir
+        # eskiden hedefi gecmisi KATARAK, yuku ise yalniz donem icinden
+        # okuyordu: hedef doksan gunu, yuk yedi gunu kapsiyordu ve herkes
+        # hedefinin yuz altmis saat altinda gorunuyordu (olculdu: toplam
+        # 52,0 / hedef 212,4). Iki taraf ayni pencereden okunmak zorunda.
+        # S4'un dogrula'si zaten boyle yapiyor (esnek.py, S4.dogrula):
+        # yuke gecmis saati ekler. Analiz onunla ayni sayiyi vermelidir.
+        paylar = s4_hedef_paylari(baglam, donem_gun_sayisi, gecmisi_kat=ufuk == "adalet")
+        gecmis_saat = baglam.gecmis_toplam_saat if ufuk == "adalet" else (lambda _p: 0.0)
         saat_dagilimi: list[SaatDengesiOku] = []
         for p in personel_satirlari:
             hedef = paylar.get(p.personel_id, 0.0)
-            toplam = saat_toplam.get(p.personel_id, 0.0)
+            toplam = saat_toplam.get(p.personel_id, 0.0) + gecmis_saat(p.personel_id)
             saat_dagilimi.append(
                 SaatDengesiOku(
                     personel_id=p.personel_id,

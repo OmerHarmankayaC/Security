@@ -979,12 +979,17 @@ def test_ozetim_adalet_ufku_gecmis_atamayla_gercekten_farkli_sayilar_uretir() ->
     assert adalet_govde["adil_pay_hafta_sonu"] is not None
     assert adalet_govde["adil_pay_hafta_sonu"] > donem_govde["adil_pay_hafta_sonu"]
 
-    # --- hedef_saat: final review bulgu 1'in tam kanitladigi sey -- saat
-    # dagilimi (`s4_hedef_paylari`) `ufuk` ALMAZ, bu yuzden BILEREK ayni
-    # kaliyor. Bu, bulgu 1'in konusu (analiz_servisi.py bu turun kapsami
-    # disinda) -- burada sadece deger GORUNUR kilinir, "duzeltilmesi"
-    # beklenmez.
-    assert donem_govde["hedef_saat"] == adalet_govde["hedef_saat"]
+    # --- hedef_saat VE toplam_saat: saat dengesi de artik ufku izler.
+    #
+    # Bu satir eskiden ikisinin ESIT oldugunu iddia ediyordu ve o iddia bir
+    # HATAYI sabitliyordu: hedef gecmisi katiyordu (`s4_hedef_paylari`,
+    # `baglam.gecmis` doluysa kosulsuz), yuk ise yalniz donem icini
+    # sayiyordu. Gercek veride olculdu: toplam 52,0 karsisinda hedef 212,4
+    # -- HERKES hedefinin yuz altmis saat altinda gorunuyordu, her iki
+    # ufukta da. Iki taraf ayni pencereden okunmak zorunda; S4'un
+    # `dogrula`si zaten boyle yapar (yuke gecmis saati ekler).
+    assert adalet_govde["hedef_saat"] > donem_govde["hedef_saat"]
+    assert adalet_govde["toplam_saat"] > donem_govde["toplam_saat"]
 
 
 def test_ozetim_yayin_yoksa_null_doner() -> None:

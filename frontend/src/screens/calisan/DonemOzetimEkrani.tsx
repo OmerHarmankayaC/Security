@@ -32,7 +32,6 @@ function MetrikKarti({
   referans,
   ekip,
   ondalik = 0,
-  donemIciUyarisi = false,
 }: {
   etiket: string
   birim: string
@@ -40,20 +39,12 @@ function MetrikKarti({
   referans: number
   ekip: number
   ondalik?: number
-  // Bulgu 1: "adalet" ufkunda gece/hafta sonu kartları 90 günü kapsar, ama
-  // Toplam Saat kartının tabanı (analiz_servisi.py — bu turun kapsamı
-  // dışında) ufuktan HABERSİZ, hep dönem içi kalır. Aynı ekranda "SON 90
-  // GÜN" başlığının altında dönem-içi bir sayının duz duz basılması,
-  // çalışanın onu 90 günlük bir sayı sanmasına yol açar. Kartın kendisi bunu
-  // GÖRÜNÜR bir uyarıyla söylemek zorunda — alt bilgi kutusuna gömülmüş bir
-  // not yetmez.
-  donemIciUyarisi?: boolean
 }) {
   const fark = sen - referans
   const maks = Math.max(sen, referans, 1)
   return (
     <Kart>
-      <div className="mb-1 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between">
         <KartEtiketi>{etiket}</KartEtiketi>
         {Math.abs(fark) >= esik(referans) && (
           <Rozet varyant={fark > 0 ? 'kilitli' : 'notr'} genislik={192}>
@@ -61,11 +52,6 @@ function MetrikKarti({
           </Rozet>
         )}
       </div>
-      {donemIciUyarisi && (
-        <p className="m-0 mb-3 text-xs font-semibold text-signal">
-          Bu sayı her zaman DÖNEM İÇİNİ kapsar, seçtiğin ufuktan etkilenmez.
-        </p>
-      )}
       <p className="m-0 font-mono text-sayi-buyuk font-semibold text-ink">
         {sayiBicimle(sen, ondalik)} <span className="text-sm font-normal text-ink-muted">{birim}</span>
       </p>
@@ -168,7 +154,7 @@ function Ozet({ veri, ozet }: { veri: Vardiyalarim; ozet: DonemOzeti }) {
     // içinde açıkça söylemezsek "son 90 günde ... toplam saatte ..." okunuşu
     // sayının da 90 günü kapsadığını ima eder.
     ozet.ufuk === 'adalet'
-      ? `toplam saatte (dönem içi, 90 günü değil) ${karsilastirmaMetni(ozet.toplam_saat, ozet.hedef_saat, 'saat')}`
+      ? `toplam saatte ${karsilastirmaMetni(ozet.toplam_saat, ozet.hedef_saat, 'saat')}`
       : `toplam saatte ${karsilastirmaMetni(ozet.toplam_saat, ozet.hedef_saat, 'saat')}`,
   ].filter(Boolean)
 
@@ -219,7 +205,6 @@ function Ozet({ veri, ozet }: { veri: Vardiyalarim; ozet: DonemOzeti }) {
         referans={ozet.hedef_saat}
         ekip={ozet.ekip_ortalama_saat}
         ondalik={1}
-        donemIciUyarisi={ozet.ufuk === 'adalet'}
       />
 
       {(!ozet.gece_havuzunda || !ozet.hafta_sonu_havuzunda) && (
