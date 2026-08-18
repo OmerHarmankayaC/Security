@@ -9,6 +9,128 @@ başlar.
 
 ---
 
+## 2026-08-18 — Görev 8: Tam takım doğrulama ve kayıt — **TAMAMLANDI**
+
+Çalışan paneli düzeltme turunun (yedi commit: `5e2b7de`…`9f1bab0`) kapanış
+doğrulaması. Kaynak koduna dokunulmadı — bu görev yalnız doğrulama ve kayıt.
+
+### Frontend — temiz
+
+```
+cd frontend && npm run test   → 30 dosya, 314 test, hepsi geçti (4,00 sn)
+cd frontend && npm run lint   → oxlint; 0 hata, 4 önceden var olan
+                                 react(only-export-components) uyarısı
+                                 (button.tsx, badge.tsx, TanimYonetimi.tsx,
+                                 AktifIsBaglami.tsx — bu turun kapsamı dışında)
+cd frontend && npx tsc -b     → çıkış 0, hata yok
+```
+
+### Backend — temiz (ağır çözücü dosyaları hariç)
+
+```
+cd backend && pytest -q
+  --ignore=tests/test_cozucu_uctan_uca.py
+  --ignore=tests/test_cozucu_dogrulayici_uyumu.py
+  --ignore=tests/test_cozucu_dogrulayici_uyumu_olcek.py
+  --ignore=tests/test_cozum_servisi.py
+  --ignore=tests/test_cozum_iscisi.py
+  --ignore=tests/test_agirlik_kalibrasyonu.py
+  --ignore=tests/test_durdurma_karari.py
+  --ignore=tests/test_kurallar_zorunlu.py
+  --ignore=tests/test_kurallar_esnek.py
+  --ignore=tests/test_yeniden_coz.py
+  --ignore=tests/test_kabul_olcumu_dumani.py
+
+→ 263 passed, 1 skipped (12,76 sn)
+```
+
+On bir dosya hariç tutuldu; hepsi gerçekten OR-Tools CP-SAT çözücüyü
+çalıştırıyor (`cp_model` / `CozumServisi` / `isi_calistir_ve_bekle`) ve
+sandbox'ın 10 dakikalık zaman aşımını aşabiliyor (bkz. Tur 10 kalibrasyon
+kaydı yukarıda — tek bir ölçüm 60–900 sn arası sürebiliyor). **Bu dosyalar bu
+turda koşmadı ve doğrulanmadı** — sessizce "temiz" denip geçilmiyor,
+burada açıkça yazılıyor. `ruff check .` de ayrıca çalıştırıldı: temiz.
+
+Hariç tutulan dosyalar ve sayı, Görev 2 raporunda (`task-2-report.md`)
+uygulanan aynı hariç tutma listesiyle birebir aynı; o turda da (263 passed,
+1 skipped) aynı sonuç alınmıştı — çalışan paneli turunun içinde regresyon
+yok.
+
+### Göç `c4f1a7d20b93` — kopya sayımı (Görev 2'den, doğrulanmış)
+
+**Yerel geliştirme veritabanı (`vardiya`):** göç ilk uygulandığında **0
+kopya** vardı — `[goc c4f1a7d20b93] kopya:` satırı hiç basılmadı, silinen
+satır sayısı 0. Bugün bu görev kapsamında aynı veritabanında tekrar
+sayıldı ve hâlâ boş:
+
+```sql
+SELECT personel_id, tarih, count(*) FROM tercih
+GROUP BY personel_id, tarih HAVING count(*) > 1;
+-- 0 satır
+```
+
+`alembic current` → `c4f1a7d20b93 (head)`, `alembic heads` ile tek başlıklı.
+
+**Test veritabanı (`vardiya_test`) — ayrı bir gerçek, karıştırılmasın:**
+orada **1 kopya bulundu ve silindi** (`personel=6862 tarih=2026-08-18
+adet=2`, silinen satır `[414]`). Bu, üretim verisi DEĞİL — Görev 2'nin RED
+aşamasında, kısıt henüz yokken, çakışan iki `Tercih` satırı yaratan bir
+testin bıraktığı yapay artıktı; dedup mantığının kendi kanıtı oldu. Yerel
+geliştirme ortamında hiçbir zaman gerçek kopya görülmedi.
+
+### Kalan / ertelenen
+
+- Görev 8'in kendisi tamamen bitti; bu turda ertelenen kod işi yok.
+- On bir ağır çözücü test dosyası bu koşumda doğrulanmadı (yukarıda
+  listelendi) — bir sonraki oturumda PostgreSQL zaten ayaktayken ve sandbox
+  dışında (ya da daha yüksek zaman aşımıyla) tek tek çalıştırılıp
+  doğrulanmalı.
+- Tur 10, İş 4 (Ağırlık Kalibrasyonu) hâlâ **KISMEN** durumda duruyor — K3
+  eşiği geçmiyor, zaman limiti kararı proje yürütücüsünde bekliyor (yukarı
+  bakınız). Görev 8 bunu etkilemedi, etkilemesi de beklenmiyordu.
+
+### DOKÜMAN BORCU
+
+Dört kanonik doküman (Charter, SRS, SDD, Backlog) bu turda değiştirilmedi;
+aşağıdakiler bir sonraki doküman geçişinde işlenmeli:
+
+- **SDD 6.1** — dönem özeti artık `/api/calisan/vardiyalarim` içinde değil,
+  kendi uç noktası `GET /api/calisan/ozetim?ufuk=donem|adalet`te; ufuk
+  parametresi doğrudan `AnalizServisi.hesapla`'ya geçiyor ve yanıtta
+  yankılanıyor (`adil_pay_*`, `hedef_saat` alanları istemciye taşınıyor).
+- **SRS FR-9.6** — bir çalışan bir gün için tek tercih bildirebilir:
+  ikinci bildirim, gün BEKLEMEDE ise mevcut kaydın üstüne yazar (aynı
+  `tercih_id` korunur); gün KARARLANMIŞ (ONAYLANDI/REDDEDILDI) ise HTTP 409
+  döner. Veritabanı düzeyinde `uq_tercih_personel_tarih` (personel_id,
+  tarih) kısıtıyla zorlanıyor (göç `c4f1a7d20b93`).
+- **SDD Ek B** — yeni uç nokta `GET /api/calisan/ozetim` (ufuk parametresi,
+  yanıt gövdesi) ve `POST /api/calisan/tercih`'in 409 yanıt kodu Ek B'nin
+  uç nokta tablosuna eklenmeli.
+
+### Dağıtım öncesi sayım — dağıtımdan önce sunucuda çalıştırılacak
+
+`alembic upgrade head` üretim veritabanında çalıştırılmadan önce şu sayım
+yapılmalı ve sonucu buraya (ya da dağıtım kaydına) geçilmeli:
+
+```sql
+SELECT personel_id, tarih, count(*) FROM tercih
+GROUP BY personel_id, tarih HAVING count(*) > 1;
+```
+
+Sonuç boş değilse, göçün kaç satır sileceği (kopya grubu başına en yeni
+`tercih_id` dışındakiler) sayıya dökülüp kayda geçmeden `alembic upgrade`
+çalıştırılmaz — yerel geliştirme ortamında bu sayı şu ana dek hep 0 çıktı,
+ama üretim verisi farklı olabilir.
+
+### Sıradaki oturumun ilk işi
+
+On bir ağır çözücü test dosyasını (yukarıdaki `--ignore` listesi) sandbox
+dışında ya da uzatılmış zaman aşımıyla tek tek çalıştırıp bu turun
+regresyon yaratmadığını doğrulamak. Ardından üretim dağıtımı öncesi yukarıdaki
+sayım sorgusu gerçek sunucuda çalıştırılmalı.
+
+---
+
 ## 2026-08-17 — Tur 10, İş 4: Ağırlık Kalibrasyonu — **KISMEN**
 
 ### Ölçüm aracı önce KIRIKTI ve bunu üç ölçüm boyunca fark etmedim
