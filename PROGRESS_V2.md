@@ -9,6 +9,34 @@ başlar.
 
 ---
 
+## 2026-08-18 — Ağır çözücü testleri: doğrulama açığı kapandı — **TAMAMLANDI**
+
+Çalışan paneli turu boyunca sandbox zaman aşımı yüzünden hiç koşmayan 11 ağır
+OR-Tools dosyası, birleşmiş `main` üzerinde tek seferde koşturuldu.
+
+```
+cd backend && .venv/bin/pytest -q \
+  tests/test_cozucu_uctan_uca.py tests/test_cozucu_dogrulayici_uyumu.py \
+  tests/test_cozucu_dogrulayici_uyumu_olcek.py tests/test_cozum_servisi.py \
+  tests/test_cozum_iscisi.py tests/test_agirlik_kalibrasyonu.py \
+  tests/test_durdurma_karari.py tests/test_kurallar_zorunlu.py \
+  tests/test_kurallar_esnek.py tests/test_yeniden_coz.py \
+  tests/test_kabul_olcumu_dumani.py
+
+→ 134 passed in 596.83s (0:09:56)
+```
+
+Böylece backend takımının **tamamı** doğrulanmış oldu: 270 + 134 = 404 test
+(1 atlandı, veri eksikliğinden — `test_ardisik_donem_adaleti.py`). Turun
+"sıradaki oturumun ilk işi" olarak bıraktığı açık kapandı; çözücü tarafında
+gerileme yok.
+
+Süre kayda değer: on dakika, tek dosya bazında değil toplu koşuda. Bu yüzden
+tur içi döngülerde dışarıda bırakılmaları makul — ama tur kapanışında bir kez
+koşturulmaları şart, çünkü "koşmadı" ile "geçti" aynı şey değil.
+
+---
+
 ## 2026-08-18 — Çalışan paneli: nihai inceleme ve düzeltme dalgası — **TAMAMLANDI**
 
 Turun tamamı tek parça olarak incelendi (görev incelemelerinin yapısal olarak
