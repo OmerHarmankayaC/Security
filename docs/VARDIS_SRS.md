@@ -48,6 +48,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 14.08.2026 | Manuel düzenleme taslak oturum modeline geçirildi (5.6): değişiklikler anında görünür ve geri alınabilir, sunucuya yalnızca kaydetmeyle yazılır; blok taşıma ve yayınlanmış sürümün salt okunurluğu gereksinim olarak yazıldı; TD-16 eklendi | 1.23 |
 | Ömer HARMANKAYA | 14.08.2026 | Çizelgenin ve analizin Excel çıktısı gereksinim olarak tanımlandı (FR-8.5, FR-8.9); dosya yapısı ve biçimlendirme kuralları 7.2'ye yazıldı | 1.24 |
 | Ömer HARMANKAYA | 14.08.2026 | Adalet ufkunun tanımı tamamlandı: geçmiş yükün ve hedefin birlikte ölçeklenmesi, ufuk içinde kısmen çalışabilir personel için payın orantılanması ve erişilebilirliğin bugünkü tanımdan alınması TD-6'ya yazıldı | 1.25 |
+| Ömer HARMANKAYA | 18.08.2026 | Günde tek tercih kuralı FR-9.6'ya, çözücü zaman limitinin yeni varsayılanı FR-4.6'ya yazıldı; 7.2'deki çizelge dışa aktarma sütun listesiyle açıklama arasındaki çelişki giderildi | 1.26 |
 
 
 
@@ -836,7 +837,7 @@ Ağırlıkların tamamı kullanıcı tarafından ayarlanabilir. Sistem hangi hed
 | FR-4.3 | Sistem, bölüm 4.2'deki zorunlu kısıtların tamamını sağlayan çizelge üretmelidir. | Zorunlu |
 | FR-4.4 | Sistem, bölüm 4.4'teki amaç fonksiyonunu en aza indiren çözümü aramalıdır. | Zorunlu |
 | FR-4.5 | Sistem, önceki yayınlanmış çizelgenin son yedi gününü ısıtma penceresi olarak modele dahil etmelidir (TD-5). | Zorunlu |
-| FR-4.6 | Sistem, çözüm için üst zaman limiti tanımlanmasına imkân vermeli; limit dolduğunda o ana kadar bulunan en iyi çözümü döndürmelidir. | Yüksek |
+| FR-4.6 | Sistem, çözüm için üst zaman limiti tanımlanmasına imkân vermeli; limit dolduğunda o ana kadar bulunan en iyi çözümü döndürmelidir. Varsayılan değer **300 saniyedir**. | Yüksek |
 | FR-4.7 | Sistem, çözüm tamamlandığında çözüm süresini, çözüm durumunu ve toplam ceza puanını raporlamalıdır. | Zorunlu |
 | FR-4.8 | Sistem, toplam ceza puanını esnek hedef bazında ayrıştırarak göstermelidir. | Yüksek |
 | FR-4.9 | Sistem, çalışan bir çözüm işinin kullanıcı tarafından durdurulmasına imkân vermelidir. Durdurma anında bulunmuş en iyi çözüm atılmaz; karar verilene kadar saklanır ve kullanıcıya sunulur. Arama henüz başlamamışsa (iş kuyrukta veya ön kontroldeyse) durdurma doğrudan iptaldir ve karar sorulmaz. | Zorunlu |
@@ -942,7 +943,11 @@ Kaydetme, sürümün kullanıcı düzenlemeye başladığından beri değişmedi
 | FR-9.3 | Sistem, personelin çizelgesini dönem görünümünde (dönem uzunluğu ne ise o kadar) ve liste görünümünde sunmalı, sıradaki vardiyayı öne çıkarmalıdır. | Yüksek |
 | FR-9.4 | Sistem, yayınlanmış çizelgede, aynı dönemde en son arşive alınmış sürüme göre değişen günleri işaretlemelidir. Değişim üç biçimde ayrışır: eklendi, kaldırıldı, değişti (çalışma saatleri veya görev noktası farklı). Dönemin ilk yayınında karşılaştırma tabanı bulunmadığından hiçbir gün işaretlenmez. | Yüksek |
 | FR-9.5 | Sistem, personelin dönem içindeki gece, hafta sonu ve toplam saat sayısını ekip ortalamasıyla birlikte göstermelidir. | Orta |
-| FR-9.6 | Sistem, personelin tercih bildirmesine ve bildirdiği tercihlerin durumunu görmesine imkân vermelidir. | Yüksek |
+| FR-9.6 | Sistem, personelin tercih bildirmesine ve bildirdiği tercihlerin durumunu görmesine imkân vermelidir. Bir personel bir gün için **tek tercih** bildirir: aynı güne ikinci bir bildirim, mevcut kayıt beklemedeyse onun üzerine yazar; kayıt onaylanmış veya reddedilmişse bildirim reddedilir ve kullanıcıya nedeni gösterilir. | Yüksek |
+
+Günde tek tercih kuralı veritabanı düzeyinde de zorlanır; uygulama katmanındaki denetim tek başına bırakılmaz, çünkü iki yazma yolu vardır — çalışanın kendi bildirimi ve yöneticinin çalışan adına girişi. İkisi de aynı kısıta çarpar ve aynı yanıtı üretir.
+
+Kararlanmış bir tercihin üzerine yazılmaması bilinçlidir: onay veya ret bir yöneticinin verdiği karardır ve çalışanın yeni bir bildirimiyle sessizce geçersizleşmesi, kararın hiç verilmemiş olmasıyla aynı sonucu doğurur.
 
 
 
@@ -1110,7 +1115,9 @@ güne sayıldığı (TD-1) başlangıç damgasından türetilir.
 sürümlerdeki `gece_mi` bayrağının yerini alır ve çalışma zamanı saat düzeyinde
 belirlendiği için ikili bir değer taşımaz.
 
-Görev noktası sütunu, atamanın görev noktası kırılımında tutulmasından gelir (Yazılım Tasarım Dokümanı 4.2.4); noktası olmayan bir satır kaydın yalnızca bir bölümünü taşır. Tarih sütunu, satırların gün ekseninde okunmasını kolaylaştırmak üzere başa alınmıştır.
+Görev noktası sütunu, atamanın görev noktası kırılımında tutulmasından gelir (Yazılım Tasarım Dokümanı 4.2.4); noktası olmayan bir satır kaydın yalnızca bir bölümünü taşır.
+
+Ayrı bir tarih sütunu **bulunmaz**; önceki sürümlerde satırların gün ekseninde okunmasını kolaylaştırmak için başa alınmıştı. Çalışma zamanı saat düzeyine geçtiğinde bu sütun bir belirsizlik kaynağına dönüştü: gece yarısını aşan bir blokta tarih hangi günü gösterirdi? Gün bilgisi artık başlangıç damgasından türetilir ve tek kaynaktan gelir.
 
 **Kapsama açığı dışa aktarma (CSV):**
 

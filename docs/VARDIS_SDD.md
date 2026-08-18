@@ -57,6 +57,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 14.08.2026 | Geçmiş sayaçlar servisi tasarlandı (yeni 5.9): dört tüketicinin tek kaynaktan beslenmesi, çalışabilirlik oranı ve önbellek kararı | 1.32 |
 | Ömer HARMANKAYA | 14.08.2026 | Geçmiş sayaçların pencere başına bir kez hesaplanması ve kural katmanında paylaşılan parametre nesnesinin değiştirilmemesi 5.9'a yazıldı | 1.33 |
 | Ömer HARMANKAYA | 17.08.2026 | Analiz ekranı yeniden tasarlandı (6.3.4): üst şerit, kota kartı, ufuk anahtarı, kümülatif değişim göstergesi ve ceza dökümünün ham/ağırlıklı ayrımı | 1.34 |
+| Ömer HARMANKAYA | 18.08.2026 | Çalışan panelindeki dönem özetinin kendi uç noktasına taşınması 6.1'e, saat dengesinin ufku izlemesi 5.7'ye, `cizelge_surumu.damga` alanı 4.2.4'e, çözücü zaman limitinin yeni varsayılanı 3.3'e ve yeni uç nokta Ek B'ye yazıldı | 1.35 |
 
 
 
@@ -292,7 +293,9 @@ Bu nedenle çözüm işi ayrı bir yürütme bağlamında — ayrı bir sistem s
 
 ### 3.4.5 Yapılandırma ve Veri Saklama
 
-Veritabanı erişim bilgileri, çözücü zaman limiti, arama işçisi sayısı, oturum süreleri ve parola politikası eşikleri gibi ortama bağlı değerler ortam değişkenleri olarak sağlanır; kaynak kodda yer almaz. Aynı kod tabanı hem geliştirme hem gösterim ortamında yalnızca ortam değişkenleri değiştirilerek çalıştırılır.
+Veritabanı erişim bilgileri, çözücü zaman limiti, arama işçisi sayısı, oturum süreleri ve parola politikası eşikleri gibi ortama bağlı değerler ortam değişkenleri olarak sağlanır; kaynak kodda yer almaz.
+
+Çözücü zaman limitinin varsayılanı **300 saniyedir**. Önceki değer altmış saniyeydi ve ölçüldüğünde bağlayıcı olduğu görüldü: gece adaleti ölçüsündeki iyileşmenin büyük kısmı süreden geliyordu. Değer ürün kullanımından türer — çizelge bir dönemde bir kez üretilir ve etkileşimli bir işlem değildir; kullanıcı ilk uygun çözümü saniyeler içinde görür (Charter bölüm 5, K1) ve arama arka planda sürerken başka ekranlara geçebilir. Aynı kod tabanı hem geliştirme hem gösterim ortamında yalnızca ortam değişkenleri değiştirilerek çalıştırılır.
 
 Gösterim ortamında veritabanının düzenli yedeği alınır. Sistem tek kullanıcılı olduğundan ve veri hacmi küçük kaldığından, günlük tam yedek yeterlidir; noktasal geri dönüş mekanizmasına ihtiyaç duyulmamaktadır.
 
@@ -509,7 +512,8 @@ Parametrelerin belge alanında tutulmasının nedeni, her kural tipinin farklı 
 | surum_no | INT | Dönem içinde artan sürüm numarası |
 | durum | ENUM | taslak \| cozuldu \| yayinlandi \| arsiv (SRS TD-8) |
 | onceki_surum_id | INT (FK → cizelge_surumu), NULL | Bu sürümün türetildiği sürüm; S8 karşılaştırma tabanıdır |
-| yayin_zamani | TIMESTAMP, NULL | Yayınlanma anı |
+| yayin_zamani | TIMESTAMPTZ, NULL | Yayınlanma anı |
+| damga | UUID | Düzenleme oturumunun eş zamanlılık koruması; her kaydetmede yenilenir (5.5.1) |
 
 
 
@@ -1162,6 +1166,21 @@ Saat dağılımı metriğinin tabanı, personelin sözleşmesindeki haftalık he
 
 Gece ve hafta sonu metriklerinde kişi başına düşen değerin ekip ortalamasından sapması ayrıca hesaplanır ve kabul kriterindeki bir birimlik sapma sınırıyla karşılaştırılır. Bu iki metrikte ortalama ve sapma, SRS S2 ve S3'te tanımlanan uygun havuz (P_gece, P_hs) üzerinden hesaplanır; yetkinliği gereği gece veya hafta sonu talebi bulunan hiçbir noktada çalışamayan personel ölçüme dahil edilmez. Aksi hâlde bu personel kalıcı olarak ortalamanın altında görünür ve kabul kriteri hiçbir çizelgeyle sağlanamaz.
 
+**Saat dengesi ölçüsü seçili ufku izler.** `s4_hedef_paylari` hem çözücü hem
+analiz tarafından kullanılır ve varsayılan olarak geçmiş payı da içerir; çözücü
+ile doğrulayıcı yüke `gecmis_toplam_saat` **ekledikleri** için model tutarlıdır.
+Analizin okuması ise dönem ufku seçiliyken yalnızca dönemi sayıyor, hedefi ise
+doksan günlük paydan alıyordu — sonuç, herkesi hedefinin yüz altmış saat altında
+gösteren bir tablo ve ondan türeyen yanlış bir "en dengesiz personel" oldu.
+
+Fonksiyon bu nedenle bir `gecmisi_kat` bayrağı alır (varsayılan açık, çözücü yolu
+değişmez); analiz bayrağı seçili ufka göre verir. Yük ile hedefin **aynı ufku
+kapsaması** SRS TD-6'nın kuralıdır ve okuma yüzeyi için de geçerlidir.
+
+Bu hatanın bir süre fark edilmemesinin nedeni, backend testinin `donem` ile
+`adalet` hedeflerinin eşit olduğunu doğrulamasıydı — yani hatayı beklenen davranış
+olarak sabitliyordu. Test şimdi tersini iddia ediyor.
+
 ## 5.8 Dışa Aktarma
 
 Dışa aktarma tek bir serviste toplanır (`DisaAktarmaServisi`) ve verisini mevcut
@@ -1299,7 +1318,11 @@ belleğinde ikinci bir kopyasının tutulması, sayfa yenilendiğinde veya başk
 cihazdan girildiğinde iki kaynağın ayrışmasına yol açar. Bu ayrışma, işin gerçekte
 sürdüğü hâlde arayüzde kaybolmasının doğrudan nedenidir.
 
-Çalışan arayüzü üç bölümden oluşur: Vardiyalarım (yayınlanmış çizelgeden kişiye ait atamalar), Dönem Özetim (kişinin gece, hafta sonu ve toplam saat sayıları ile ekip ortalaması) ve Tercihlerim (tercih bildirim formu ile bildirilen tercihlerin durumu). Tercih bildirimi ayrı bir bölüm değildir; tek alanlık bir formdan ibaret olduğu için Tercihlerim listesinin üstünde yer alır. Bu arayüzde hiçbir yazma işlemi çizelgeyi etkilemez; yalnızca tercih kaydı oluşturulur.
+Çalışan arayüzü üç bölümden oluşur: Vardiyalarım (yayınlanmış çizelgeden kişiye ait atamalar), Dönem Özetim (kişinin gece, hafta sonu ve toplam saat sayıları ile kendisine düşen adil pay) ve Tercihlerim (tercih bildirim formu ile bildirilen tercihlerin durumu).
+
+**Dönem özeti kendi uç noktasındadır:** `GET /api/calisan/ozetim?ufuk=donem|adalet`. Önceki sürümlerde `vardiyalarim` yanıtının içinde taşınıyordu; iki farklı soruyu tek uç noktaya bağlamak, birine eklenen alanın diğerini de büyütmesi demekti. Ufuk parametresi doğrudan `AnalizServisi.hesapla`'ya geçer ve yanıt gövdesinde yankılanır — istemci hangi ufkun döndüğünü isteğine bakarak değil yanıta bakarak bilir.
+
+Karşılaştırma tabanı **kişiye düşen adil paydır**, ekip ortalaması değil (SRS S2, S4). Yönetici tarafında bir kez düzeltilen bu ölçü, çalışan tarafında da aynı olmalıdır: iki panelin aynı kişi için farklı bir "hedef" göstermesi, ikisinden birinin yanlış olduğunu söyler. Tercih bildirimi ayrı bir bölüm değildir; tek alanlık bir formdan ibaret olduğu için Tercihlerim listesinin üstünde yer alır. Bu arayüzde hiçbir yazma işlemi çizelgeyi etkilemez; yalnızca tercih kaydı oluşturulur.
 
 Arayüz tek sütunlu ve mobil önceliklidir; masaüstünde de ortalanmış tek sütun olarak sunulur. Panelin üç hedefi de düşük bilgi yoğunluğuna sahiptir ve geniş bir düzen, boşluğu doldurmak için yapay bileşen gerektirir. Tek sütun ayrıca NFR-7'deki mobil kullanılabilirlik gereksinimini ayrı bir tasarım turu olmadan karşılar.
 
@@ -1646,6 +1669,7 @@ Aşağıdaki tablo başlıca uç noktaların işlevsel bir özetidir. Uç noktal
 | /api/disa-aktar/cizelge/{surum_id} | GET | Çizelgenin Excel çıktısı (FR-8.5) |
 | /api/disa-aktar/analiz/{surum_id} | GET | Analiz sonuçlarının Excel çıktısı (FR-8.9) |
 | /api/calisan/vardiyalarim | GET | Çalışanın yayınlanmış çizelgedeki atamaları |
+| /api/calisan/ozetim | GET | Çalışanın dönem veya adalet ufkundaki yük özeti ve adil payı |
 | /api/calisan/tercih | GET, POST | Çalışanın tercih bildirimi |
 
 
