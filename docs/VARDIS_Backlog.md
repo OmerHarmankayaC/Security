@@ -47,6 +47,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 14.08.2026 | Kümülatif adaletin tasarım kararları işlendi (SRS 1.25, SDD 1.32) | 1.22 |
 | Ömer HARMANKAYA | 14.08.2026 | Tur 9 uygulamasının iki dersi SDD 5.9'a işlendi; testlerin eşzamanlı koşturulmasına karşı kilit B-24 olarak eklendi | 1.23 |
 | Ömer HARMANKAYA | 17.08.2026 | K3'ün ölçüm ufku planlama dönemiyle sınırlandı (Charter 1.5); analiz ekranı yeniden tasarlandı (SDD 1.34); kabul ölçümünün otomatik koşuma alınması B-25 olarak eklendi | 1.24 |
+| Ömer HARMANKAYA | 18.08.2026 | B-24 (eşzamanlı koşum kilidi) ve B-25 (kabul ölçümü duman testi) kapatıldı; ikisi de uygulanmış olduğu hâlde açık listede duruyordu | 1.25 |
 
 
 
@@ -103,8 +104,8 @@ Bu maddeler değerli bulunmuş ancak ilk sürüme alınmamıştır. Her biri, ç
 | B-21 | ~~Asgari kadro hesabının saat tabanına taşınması.~~ **Kapsama alındı (13.08.2026).** SRS 3.3.6 ve FR-1.9 saat tabanına taşındı; kişi-vardiya karşılığı gösterilmiyor. Uygulama planı sürüm 2, Tur 4. | — | — |
 | B-22 | ~~Testler arası veri sızıntısı.~~ **Kapsama alındı (13.08.2026).** Tur 4'ün ilk işi; kural kataloğunun yeniden yazımı çok sayıda yeni tanım testi getiriyor. | — | — |
 | B-23 | ~~Kapsama açığı ve fazla kadro kayıtlarının zaman damgasına taşınması.~~ **Kapsama alındı (14.08.2026).** Tur 8'in ilk işi; dışa aktarma bu biçim düzeltilmeden yapılamaz. | — | — |
-| B-24 | Testlerin eşzamanlı koşturulmasına karşı kilit. İki pytest süreci aynı test veritabanına aynı anda vurduğunda `StaleDataError` ve sessiz veri karışması üretiyor; bir koşuda beş test kırık göründü ve kodda karşılığı yoktu. Ayrı bir test veritabanı (B-20) ve testler arası temizlik (B-22) bu durumu kapsamıyor. İkinci süreç anlaşılır bir hatayla durmalı. | Tur 9 içinde — sonraki her koşumu korur | Yüksek |
-| B-25 | Kabul ölçümü betiğinin otomatik koşuma alınması. `kabul_olcumu.py` hiçbir otomatik koşumda değil ve iki tur boyunca sessizce kırık kaldı (B-23 ve TD-16 değişikliklerinden). SDD 5.9 onu geçmiş sayaçların dört tüketicisinden biri sayıyor; denetleyen bir şey olmadıkça "dört tüketici tek kaynaktan beslenir" sözleşmesi kâğıt üstünde kalır. En azından betiğin çalıştığını doğrulayan bir duman testi takıma alınmalı. | Tur 10 | Yüksek |
+| B-24 | ~~Testlerin eşzamanlı koşturulmasına karşı kilit.~~ **Kapatıldı (18.08.2026).** `backend/conftest.py` oturum boyunca tutulan bir PostgreSQL danışma kilidi (`pg_try_advisory_lock`) alır; ikinci pytest süreci anlaşılır bir hatayla durur. Danışma kilidi bağlantıya bağlı olduğu için süreç öldürülürse kendiliğinden bırakılır — kilit dosyası bayat kalıp sonraki koşumu sebepsiz engellerdi. Özgün gerekçe: İki pytest süreci aynı test veritabanına aynı anda vurduğunda `StaleDataError` ve sessiz veri karışması üretiyor; bir koşuda beş test kırık göründü ve kodda karşılığı yoktu. Ayrı bir test veritabanı (B-20) ve testler arası temizlik (B-22) bu durumu kapsamıyor. İkinci süreç anlaşılır bir hatayla durmalı. | — | — |
+| B-25 | ~~Kabul ölçümü betiğinin otomatik koşuma alınması.~~ **Kapatıldı (18.08.2026).** `backend/tests/test_kabul_olcumu_dumani.py` betiği içe aktarır (import anında patlayan bir betik burada düşer), altı kriterin altısının da uygulanmış olduğunu ve K3'ün dönem içi ufku kullandığını (Charter 1.5) doğrular. Özgün gerekçe: `kabul_olcumu.py` hiçbir otomatik koşumda değil ve iki tur boyunca sessizce kırık kaldı (B-23 ve TD-16 değişikliklerinden). SDD 5.9 onu geçmiş sayaçların dört tüketicisinden biri sayıyor; denetleyen bir şey olmadıkça "dört tüketici tek kaynaktan beslenir" sözleşmesi kâğıt üstünde kalır. En azından betiğin çalıştığını doğrulayan bir duman testi takıma alınmalı. | — | — |
 
 
 
