@@ -87,6 +87,33 @@ describe('DonemOzetimEkrani', () => {
     expect(await screen.findByText(/8,0 saat üzerindesin/)).toBeTruthy()
   })
 
+  it('rozet metni adil payı referans alır, "ortalama" değil', async () => {
+    // Bulgu 2: fark = sen - referans (adil pay) üzerinden hesaplanır ama
+    // eski rozet metni "Ortalamanın Üstünde/Altında" yazıyordu — barın
+    // ADİL PAY etiketiyle ve cümledeki "adil payının ... üzerindesin"
+    // ifadesiyle çelişiyordu. Rozet artık aynı referansı adlandırmalı.
+    //
+    // Rozet metni Rozet bileşeninde buyukHarf() ile TÜRKÇE yerelinde
+    // büyütülür: "Adil" -> "ADİL" (noktalı büyük İ). JS'in case-insensitive
+    // regex katlaması bunu ASCII "i" ile eşleştiremez (bkz. proje kuralı) —
+    // bu yüzden büyük harfli tam metin, /i BAYRAKSIZ sorgulanır.
+    _ozet = OZET
+    render(<DonemOzetimEkrani veri={VERI} />)
+    expect(await screen.findByText('ADİL PAYIN ÜSTÜNDE')).toBeTruthy()
+    expect(screen.queryByText(/Ortalaman/i)).toBeNull()
+  })
+
+  it('rozet ekip ortalamasının altındayken de "altında" değil "adil payın altında" der', async () => {
+    // gece: sen 24, ekip ortalaması 30 -> ekip ortalamasına göre ALTINDA;
+    // ama adil pay 16 -> referansa göre ÜSTÜNDE. Eski metin "Ortalamanın
+    // Üstünde" derken hemen altındaki "ekip ortalaması 30,0 sa" satırı
+    // employee'nin ekip ortalamasının altında olduğunu gösterip
+    // birbirleriyle çelişirdi (final review bulgu 2, tam bu senaryo).
+    _ozet = { ...OZET, gece_saati: 24, adil_pay_gece: 16, ekip_ortalama_gece: 30 }
+    render(<DonemOzetimEkrani veri={VERI} />)
+    expect(await screen.findByText('ADİL PAYIN ÜSTÜNDE')).toBeTruthy()
+  })
+
   it('eşik göreli: adil payın %5 altındaki fark sapma sayılmaz', async () => {
     // toplam: sen 160, hedef 160 -> fark 0. Hafta sonu 8 vs 8 -> fark 0.
     // gece payı 100, sen 103 -> fark 3 < 5 (100 * %5) -> "yakınsın".
@@ -94,6 +121,38 @@ describe('DonemOzetimEkrani', () => {
     render(<DonemOzetimEkrani veri={VERI} />)
     // Referans artık ekip ortalaması değil adil pay — metin de öyle demeli.
     expect(await screen.findByText(/gece saatinde adil payına yakınsın/)).toBeTruthy()
+  })
+
+  it('adalet ufkunda Toplam Saat kartı dönem-içi olduğunu görünür biçimde söyler', async () => {
+    // Bulgu 1: toplam_saat her zaman dönem içi hesaplanır (analiz_servisi.py
+    // ufuk almaz, bu turun kapsamı dışında) — ama gece/hafta sonu kartları
+    // gerçekten 90 günü kapsar. "SON 90 GÜN" başlığının altında bu ayrım
+    // görünür olmazsa dönem-içi bir sayı 90 günlük sanılır.
+    _ozet = { ...OZET, ufuk: 'adalet' }
+    render(<DonemOzetimEkrani veri={VERI} />)
+    await screen.findByText('SON 90 GÜN')
+    // Kart üstünde görünür bir uyarı (footnote değil) — kendi metni
+    // (UfukAnahtarı'nın "Sayılar yalnızca bu dönemi kapsar" cümlesinden
+    // KASITLI olarak farklı, ikisi karışmasın).
+    expect(
+      screen.getByText('Bu sayı her zaman DÖNEM İÇİNİ kapsar, seçtiğin ufuktan etkilenmez.'),
+    ).toBeTruthy()
+    // Cümlenin kendisi de aynı ayrımı taşır.
+    expect(screen.getByText(/toplam saatte \(dönem içi, 90 günü değil\)/)).toBeTruthy()
+  })
+
+  it('dönem ufkunda Toplam Saat kartı hiçbir uyarı taşımaz', async () => {
+    // Uyarı yalnızca adalet ufkunda anlamlı: dönem ufkunda zaten her sayı
+    // dönem içi, ayrım söz konusu değil.
+    _ozet = OZET
+    render(<DonemOzetimEkrani veri={VERI} />)
+    // Kartın etiketi (KartEtiketi, buyukHarf ile) tam olarak "TOPLAM SAAT"
+    // basar; /Toplam Saat/i cümledeki "toplam saatte ..." ile de eşleşip
+    // birden fazla öğe döndürdüğü için TAM metinle sorgulanır.
+    await screen.findByText('TOPLAM SAAT')
+    expect(
+      screen.queryByText('Bu sayı her zaman DÖNEM İÇİNİ kapsar, seçtiğin ufuktan etkilenmez.'),
+    ).toBeNull()
   })
 
   it('özet yoksa çizelge olmadığını söyler', async () => {
