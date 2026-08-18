@@ -134,6 +134,163 @@ def _senaryo_kur(oturum) -> int:  # noqa: ANN001 - Session, testlere ozel yardim
     return personel.personel_id
 
 
+# BUGUN'un haftanin hangi gunune denk geldigi TESTI CALISTIRAN GUNE GORE
+# DEGISIR; asagidaki iki yardimci, tarih seciminin hangi gun calistirilirsa
+# calistirilsin AYNI (deterministik) davranmasini saglar.
+def _ilk_hafta_sonu(baslangic: date, gun_sayisi: int) -> date:
+    for i in range(gun_sayisi):
+        aday = baslangic + timedelta(days=i)
+        if aday.weekday() >= 5:
+            return aday
+    raise AssertionError("pencerede hafta sonu bulunamadi")  # pragma: no cover
+
+
+def _ilk_hafta_ici(baslangic: date, gun_sayisi: int) -> date:
+    for i in range(gun_sayisi):
+        aday = baslangic + timedelta(days=i)
+        if aday.weekday() < 5:
+            return aday
+    raise AssertionError("pencerede hafta ici gun bulunamadi")  # pragma: no cover
+
+
+def _senaryo_kur_gecmis_donemli(oturum) -> int:  # noqa: ANN001 - Session, testlere ozel yardimci
+    """`_senaryo_kur` ile AYNI taban (SDD 6.3.4 testinin ihtiyaci): tek
+    farkla, donemin BASLANGICINDAN once, doksan gunluk adalet penceresine
+    (`ADALET_UFKU_GUN`) giren YAYINLANMIS bir onceki donem ve o donemde
+    GECE + HAFTA SONUNA denk bir atama ekler.
+
+    Final review bulgu 6: eski `_senaryo_kur` hicbir gecmis atama tasimiyordu,
+    dolayisiyla "donem" ve "adalet" ufuklari SAYISAL OLARAK AYNI cikiyordu —
+    testler bunu hic fark etmeden `ufuk` alaninin yanitta yankilandigini
+    dogruluyordu ama `hesapla()`ya GERCEKTEN ULASTIGINI degil. Burada
+    eklenen gecmis atama, iki ufkun GERCEKTEN FARKLI sayilar urettigini
+    kanitlamaya yeter.
+    """
+    on_ek = _benzersiz("ozetgecmis")
+    nokta = GorevNoktasi(ad=f"Nokta-{on_ek}")
+    oturum.add(nokta)
+    personel = Personel(
+        ad_soyad=f"OzetGecmis-{on_ek}",
+        sicil_no=_benzersiz("OZG"),
+        haftalik_hedef_saat=40,
+        aktif_baslangic=date(2026, 1, 1),
+    )
+    oturum.add(personel)
+    oturum.flush()
+
+    oturum.add_all(
+        [
+            Talep(
+                nokta_id=nokta.nokta_id,
+                baslangic=time(8, 0),
+                bitis=time(16, 0),
+                gun_tipi=GunTipi.HAFTA_ICI,
+                tarih=None,
+                gereken_sayi=1,
+            ),
+            Talep(
+                nokta_id=nokta.nokta_id,
+                baslangic=time(0, 0),
+                bitis=time(8, 0),
+                gun_tipi=GunTipi.HAFTA_ICI,
+                tarih=None,
+                gereken_sayi=1,
+            ),
+            Talep(
+                nokta_id=nokta.nokta_id,
+                baslangic=time(0, 0),
+                bitis=time(8, 0),
+                gun_tipi=GunTipi.HAFTA_SONU,
+                tarih=None,
+                gereken_sayi=1,
+            ),
+        ]
+    )
+
+    # Mevcut donem `guncel_donemi_bul(bugun)` geregi BUGUN'u kapsamak
+    # ZORUNDA (calisan_servisi.donem_ozetim), ama BUGUN'un haftanin hangi
+    # gunune denk geldigi test calisma anina gore degisir. On uc gunluk
+    # (BUGUN-6..BUGUN+6) pencere, BUGUN hangi gun olursa olsun EN AZ BIR
+    # tam hafta sonu icermeyi garanti eder -- boylece donem-ici HAFTA_SONU
+    # talebi her zaman gercek bir tarihe denk gelir ve
+    # `hafta_sonu_havuzunda` iki ufukta da GUVENILIR sekilde True olur.
+    donem_baslangic = BUGUN - timedelta(days=6)
+    donem_bitis = BUGUN + timedelta(days=6)
+    donem = Donem(
+        baslangic_tarihi=donem_baslangic,
+        bitis_tarihi=donem_bitis,
+        tercih_son_tarihi=donem_bitis + timedelta(days=5),
+    )
+    oturum.add(donem)
+    oturum.flush()
+
+    surum = CizelgeSurumu(
+        donem_id=donem.donem_id,
+        surum_no=1,
+        durum=CizelgeSurumuDurumu.YAYINLANDI,
+        yayin_zamani=datetime.now(UTC),
+    )
+    oturum.add(surum)
+    oturum.flush()
+
+    # Mevcut donemdeki tek atama GUNDUZ VE HAFTA ICI bir gunde (BUGUN'un
+    # kendisi degil -- `_ilk_hafta_ici` ile, BUGUN hafta sonuna denk gelse
+    # bile deterministik): donem-ici gece/hafta sonu saati SIFIR kalir,
+    # boylece adalet ufkundaki fark TAMAMEN gecmis atamadan gelir ve delta
+    # acikca olculebilir.
+    atama_gunu = _ilk_hafta_ici(donem_baslangic, 13)
+    oturum.add(
+        Atama(
+            surum_id=surum.surum_id,
+            personel_id=personel.personel_id,
+            baslangic_zamani=datetime.combine(atama_gunu, time(8, 0)),
+            bitis_zamani=datetime.combine(atama_gunu, time(16, 0)),
+            nokta_id=nokta.nokta_id,
+            kaynak=AtamaKaynagi.COZUCU,
+        )
+    )
+
+    # --- Gecmis (onceki, YAYINLANMIS) donem: ADALET_UFKU_GUN=90 penceresine
+    # giren ama mevcut donemden ONCE biten yedi gunluk bir donem.
+    gecmis_baslangic = BUGUN - timedelta(days=33)
+    gecmis_bitis = BUGUN - timedelta(days=27)
+    gecmis_donem = Donem(
+        baslangic_tarihi=gecmis_baslangic,
+        bitis_tarihi=gecmis_bitis,
+        tercih_son_tarihi=gecmis_baslangic - timedelta(days=1),
+    )
+    oturum.add(gecmis_donem)
+    oturum.flush()
+
+    gecmis_surum = CizelgeSurumu(
+        donem_id=gecmis_donem.donem_id,
+        surum_no=1,
+        durum=CizelgeSurumuDurumu.YAYINLANDI,
+        yayin_zamani=datetime.now(UTC),
+    )
+    oturum.add(gecmis_surum)
+    oturum.flush()
+
+    # Blok 00:00-08:00, HAFTA SONUNA denk bir gunde baslar: gece_saat_sayisi
+    # (20:00-06:00 kesisimi) 6 saat gece, blogun TAMAMI (8 saat) hafta sonu
+    # sayilir (TD-1: blok BASLADIGI gune yazilir) — GecmisSayaclar
+    # ikisini de BAGIMSIZ topluyor (bkz. gecmis_sayaclar.py:
+    # _sayaclari_topla).
+    hafta_sonu_gunu = _ilk_hafta_sonu(gecmis_baslangic, 7)
+    oturum.add(
+        Atama(
+            surum_id=gecmis_surum.surum_id,
+            personel_id=personel.personel_id,
+            baslangic_zamani=datetime.combine(hafta_sonu_gunu, time(0, 0)),
+            bitis_zamani=datetime.combine(hafta_sonu_gunu, time(8, 0)),
+            nokta_id=nokta.nokta_id,
+            kaynak=AtamaKaynagi.COZUCU,
+        )
+    )
+    oturum.commit()
+    return personel.personel_id
+
+
 # --- FR-9.1: gosterilecek personel YALNIZ oturumdan belirlenir --------------
 
 
@@ -698,6 +855,48 @@ def test_kararlanmis_tercihin_uzerine_yazilmaz() -> None:
     assert yanit.status_code == 409
 
 
+def test_ayni_gunde_yaris_durumunda_temiz_409_doner(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Final review bulgu 4 (yaris kismi): iki es zamanli istek de
+    `personel_ve_tarihe_gore_getir` ile "mevcut yok" gorup INSERT'e girebilir;
+    ikincisi `uq_tercih_personel_tarih`e (goc c4f1a7d20b93) carpar. Bunu
+    SIMULE ETMEK icin bir kayit onceden yaratilir ve okuma yolu HICBIR
+    ZAMAN onu gormuyormus gibi zorlanir -- gercek yaristaki ikinci istegin
+    SELECT'i de tam boyle davranir (rakibinin commit'i henuz gorunur olmadan
+    once baslar). Duzeltmeden once bu, yakalanmamis bir IntegrityError
+    olarak 500 uretirdi."""
+    pg_yoksa_atla()
+    with OturumYerel() as oturum:
+        _temizle(oturum)
+        personel_id = _senaryo_kur(oturum)
+    hedef_tarih = BUGUN + timedelta(days=1)
+
+    with OturumYerel() as oturum:
+        donem = oturum.query(Donem).first()
+        oturum.add(
+            Tercih(
+                personel_id=personel_id,
+                donem_id=donem.donem_id,
+                tarih=hedef_tarih,
+                tip=TercihTipi.CALISMAMA,
+                durum=TercihDurumu.BEKLEMEDE,
+            )
+        )
+        oturum.commit()
+
+    monkeypatch.setattr(
+        "app.repositories.girdi.TercihDeposu.personel_ve_tarihe_gore_getir",
+        lambda self, personel_id, tarih: None,
+    )
+
+    istemci = _calisan_istemcisi(personel_id)
+    yanit = istemci.post(
+        "/api/calisan/tercih",
+        json={"tarih": hedef_tarih.isoformat(), "tip": "calismama"},
+    )
+
+    assert yanit.status_code == 409
+
+
 # --- Donem ozetim / /api/calisan/ozetim (FR-9.5, SDD 6.3.4) -----------------
 
 
@@ -716,6 +915,76 @@ def test_ozetim_ufku_yaniti_icinde_tasir() -> None:
     assert donem_yaniti.status_code == 200
     assert donem_yaniti.json()["ufuk"] == "donem"
     assert adalet_yaniti.json()["ufuk"] == "adalet"
+
+
+def test_ozetim_adalet_ufku_gecmis_atamayla_gercekten_farkli_sayilar_uretir() -> None:
+    """Final review bulgu 6: eskiden `_senaryo_kur`de hicbir gecmis atama
+    yoktu, bu yuzden yukaridaki test `ufuk` alaninin ECHO edildigini
+    dogruluyordu ama `donem_ozetim`in `ufuk`u GERCEKTEN `AnalizServisi.
+    hesapla()`ya GECIRDIGINI degil -- `ufuk` parametresi sessizce yok
+    sayilsa bile o test GECERdi (iki ufuk sayisal olarak ayni cikardi).
+
+    Bu test, doksan gunluk adalet penceresine giren YAYINLANMIS bir onceki
+    donem + gece VE hafta sonuna denk bir atama ekleyen bir senaryo kurar
+    (`_senaryo_kur_gecmis_donemli`) ve iki ufkun GERCEKTEN FARKLI sayilar
+    urettigini kanitlar -- `ufuk` `hesapla()`ya ulasmayi bıraksa bu test
+    KIRILIR.
+
+    Ayrica bu turda hicbir backend testinin dokunmadigi alanlari da
+    (`adil_pay_gece`, `adil_pay_hafta_sonu`, `hedef_saat`, `gece_havuzunda`)
+    sinar.
+    """
+    pg_yoksa_atla()
+    with OturumYerel() as oturum:
+        _temizle(oturum)
+        personel_id = _senaryo_kur_gecmis_donemli(oturum)
+    istemci = _calisan_istemcisi(personel_id)
+
+    donem_yaniti = istemci.get("/api/calisan/ozetim")
+    adalet_yaniti = istemci.get("/api/calisan/ozetim?ufuk=adalet")
+    assert donem_yaniti.status_code == 200
+    assert adalet_yaniti.status_code == 200
+    donem_govde = donem_yaniti.json()
+    adalet_govde = adalet_yaniti.json()
+
+    # --- Havuz uyeligi: Talep satirlari gece/hafta sonu icerdigi icin
+    # personel HER IKI ufukta da havuzdadir (SDD 5.7) -- bu alan hicbir
+    # backend testinde daha once dogrulanmamisti.
+    assert donem_govde["gece_havuzunda"] is True
+    assert donem_govde["hafta_sonu_havuzunda"] is True
+    assert adalet_govde["gece_havuzunda"] is True
+    assert adalet_govde["hafta_sonu_havuzunda"] is True
+
+    # --- Yuk (SEN): donem-ici atama GUNDUZ oldugu icin donem ufkunda gece/
+    # hafta sonu saati SIFIR; adalet ufku gecmis atamanin 6 saat gece + 8
+    # saat hafta sonunu EKLER (bkz. fixture docstring'i).
+    assert donem_govde["gece_saati"] == 0.0
+    assert donem_govde["hafta_sonu_saati"] == 0.0
+    assert adalet_govde["gece_saati"] == pytest.approx(6.0)
+    assert adalet_govde["hafta_sonu_saati"] == pytest.approx(8.0)
+    # ASIL IDDIA: iki ufuk GERCEKTEN farkli sayilar uretir.
+    assert adalet_govde["gece_saati"] != donem_govde["gece_saati"]
+    assert adalet_govde["hafta_sonu_saati"] != donem_govde["hafta_sonu_saati"]
+
+    # --- Adil pay: adalet ufkunda gecmis YUK gibi gecmis PAY da eklenir
+    # (Baglam.adil_paylar, `olcu` verildiginde) -- tek personelli bu
+    # senaryoda pay tek basina butun talebi tasir, dolayisiyla adalet
+    # ufkundaki pay donem ufkundakinden BUYUK olmali (kesin sayi degil,
+    # yon dogrulanir -- `s4_hedef_paylari`/`adil_paylar` ic hesabi bu
+    # testin kapsami disinda).
+    assert donem_govde["adil_pay_gece"] is not None
+    assert adalet_govde["adil_pay_gece"] is not None
+    assert adalet_govde["adil_pay_gece"] > donem_govde["adil_pay_gece"]
+    assert donem_govde["adil_pay_hafta_sonu"] is not None
+    assert adalet_govde["adil_pay_hafta_sonu"] is not None
+    assert adalet_govde["adil_pay_hafta_sonu"] > donem_govde["adil_pay_hafta_sonu"]
+
+    # --- hedef_saat: final review bulgu 1'in tam kanitladigi sey -- saat
+    # dagilimi (`s4_hedef_paylari`) `ufuk` ALMAZ, bu yuzden BILEREK ayni
+    # kaliyor. Bu, bulgu 1'in konusu (analiz_servisi.py bu turun kapsami
+    # disinda) -- burada sadece deger GORUNUR kilinir, "duzeltilmesi"
+    # beklenmez.
+    assert donem_govde["hedef_saat"] == adalet_govde["hedef_saat"]
 
 
 def test_ozetim_yayin_yoksa_null_doner() -> None:

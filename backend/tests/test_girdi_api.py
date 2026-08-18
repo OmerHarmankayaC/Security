@@ -134,6 +134,29 @@ def test_tercih_olustur_listele_onayla_reddet(istemci: TestClient) -> None:
     assert yanit.json()["durum"] == "reddedildi"
 
 
+def test_tercih_olustururken_ayni_gune_ikinci_kez_409_doner(istemci: TestClient) -> None:
+    """Final review bulgu 4: `uq_tercih_personel_tarih` (goc c4f1a7d20b93)
+    calisan yolunda 409'a cevriliyordu ama bu yonetici ucu (POST /api/tercih)
+    dogrudan INSERT deniyordu -- kisit ihlali yakalanmamis bir
+    IntegrityError olarak 500 uretirdi. Bu tur onceki davranisi (500)
+    DEGISTIRMEDEN once bu test RED olurdu."""
+    on_ek = _benzersiz("tercihcak")
+    personel_id = _personel_olustur(istemci, on_ek)
+    donem_id = _donem_olustur(istemci)
+    govde = {
+        "personel_id": personel_id,
+        "donem_id": donem_id,
+        "tarih": "2026-09-10",
+        "tip": "calismama",
+    }
+
+    ilk = istemci.post("/api/tercih", json=govde)
+    assert ilk.status_code == 201
+
+    ikinci = istemci.post("/api/tercih", json=govde)
+    assert ikinci.status_code == 409
+
+
 def test_tercih_guncellerken_bulunamazsa_404_doner(istemci: TestClient) -> None:
     yanit = istemci.put("/api/tercih/999999999", json={"durum": "onaylandi"})
     assert yanit.status_code == 404

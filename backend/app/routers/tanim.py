@@ -8,6 +8,7 @@ from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db import oturum_al
@@ -382,7 +383,19 @@ def tercih_listele(servis: Servis) -> list[TercihOku]:
 
 @router.post("/tercih", response_model=TercihOku, status_code=201)
 def tercih_olustur(veri: TercihOlustur, servis: Servis) -> TercihOku:
-    return servis.tercih.olustur(**veri.model_dump())  # type: ignore[return-value]
+    # Final review bulgu 4: `uq_tercih_personel_tarih` (goc c4f1a7d20b93)
+    # calisan yolunda on-kontrol edilip ozel bir hatayla 409'a cevriliyor;
+    # bu yol (yonetici) once dogrudan INSERT deniyordu ve kisit ihlali
+    # yakalanmamis bir IntegrityError olarak 500 uretiyordu. Bu turun brief'i
+    # bu uc noktanin semantigini (ustune yazma/karar kurali) DEGISTIRMIYOR -
+    # yalniz mevcut kisidin artik sessizce 500 uretmemesini istiyor.
+    try:
+        return servis.tercih.olustur(**veri.model_dump())  # type: ignore[return-value]
+    except IntegrityError as hata:
+        raise HTTPException(
+            status_code=409,
+            detail="Bu personelin bu tarih icin zaten bir tercihi var",
+        ) from hata
 
 
 @router.put("/tercih/{tercih_id}", response_model=TercihOku)

@@ -6,6 +6,7 @@ yolu tercih_bildir'dir ve yalniz bir Tercih kaydi dogurur.
 
 from datetime import date, time
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.kurallar.zaman_araligi import saat_kumesi
@@ -35,7 +36,15 @@ class TercihDonemiBulunamadiError(Exception):
 
 class TercihKararlanmisError(Exception):
     """O gun icin zaten KARARLANMIS (onaylanmis/reddedilmis) bir tercih var;
-    ustune yazmak yonetici kararini sessizce silerdi (router 409'a cevirir)."""
+    ustune yazmak yonetici kararini sessizce silerdi (router 409'a cevirir).
+
+    Final review bulgu 4: AYNI hata, YARIS DURUMUNDA da firlatilir. Iki es
+    zamanli istek de `personel_ve_tarihe_gore_getir` ile "mevcut yok" gorup
+    INSERT'e girebilir; ikincisi `uq_tercih_personel_tarih`e (goc
+    c4f1a7d20b93) carpar ve bu IntegrityError yakalanmazsa 500 uretirdi.
+    Kullaniciya gorunen sonuc aynidir: "bu gun icin baska bir kayit var,
+    tekrar dene" - check-then-act'in kazanan/kaybeden ayrimi disari sizmaz.
+    """
 
 
 class CalisanServisi:
@@ -370,15 +379,24 @@ class CalisanServisi:
             )
             assert kayit is not None  # az once okundu
         else:
-            kayit = self.tercih.olustur(
-                personel_id=personel_id,
-                donem_id=donem.donem_id,
-                tarih=veri.tarih,
-                tip=veri.tip,
-                tercih_baslangic=veri.tercih_baslangic,
-                tercih_bitis=veri.tercih_bitis,
-                calisan_notu=veri.calisan_notu,
-            )
+            try:
+                kayit = self.tercih.olustur(
+                    personel_id=personel_id,
+                    donem_id=donem.donem_id,
+                    tarih=veri.tarih,
+                    tip=veri.tip,
+                    tercih_baslangic=veri.tercih_baslangic,
+                    tercih_bitis=veri.tercih_bitis,
+                    calisan_notu=veri.calisan_notu,
+                )
+            except IntegrityError as hata:
+                # Yaris durumu (bkz. TercihKararlanmisError docstring'i):
+                # buradaki `mevcut is None` kontrolu ile bu INSERT arasinda
+                # baska bir istek ayni gune kayit acmis olabilir.
+                raise TercihKararlanmisError(
+                    "Bu gun icin az once baska bir tercih kaydedildi; "
+                    "sayfayi yenileyip tekrar dene"
+                ) from hata
 
         return CalisanTercihOku(
             tercih_id=kayit.tercih_id,
