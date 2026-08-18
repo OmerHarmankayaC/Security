@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { CalisanTercihListesi } from '@/api/types'
+import { bugunIso, isoBicimle } from '@/lib/tarih'
 
 import { TercihlerimEkrani } from './TercihlerimEkrani'
 
@@ -50,6 +51,32 @@ describe('TercihlerimEkrani', () => {
     expect(alan.max).toBe('2099-01-11')
     // Alt sınır bugünden önce olamaz; dönem geleceğe düştüğü için başlangıç.
     expect(alan.min).toBe('2099-01-05')
+  })
+
+  it('dönem zaten başlamışsa varsayılan tarih bugün olur, dönem başlangıcı DEĞİL', async () => {
+    // Bulgu 5: `min` bugün ile dönem başlangıcının BÜYÜĞÜnü kullanır, ama
+    // varsayılan değer eskiden yalnız `baslangic_tarihi`den geliyordu. Dönem
+    // bugünden ÖNCE başlamışsa (tam bu senaryo) varsayılan `min`in ALTINA
+    // düşer ve alanı hiç değiştirmeden "Tercihi Gönder"e basan çalışan
+    // geçmiş bir güne tercih bildirir, backend de bunu kabul eder.
+    const bugun = bugunIso()
+    const uc_gun_once = new Date()
+    uc_gun_once.setDate(uc_gun_once.getDate() - 3)
+    const on_gun_sonra = new Date()
+    on_gun_sonra.setDate(on_gun_sonra.getDate() + 10)
+    _liste = {
+      acik_donem: {
+        donem_id: 2,
+        baslangic_tarihi: isoBicimle(uc_gun_once),
+        bitis_tarihi: isoBicimle(on_gun_sonra),
+        tercih_son_tarihi: isoBicimle(on_gun_sonra),
+      },
+      tercihler: [],
+    }
+    render(<TercihlerimEkrani />)
+    const alan = (await screen.findByLabelText(/gün/i)) as HTMLInputElement
+    expect(alan.min).toBe(bugun)
+    expect(alan.value).toBe(bugun)
   })
 
   it('açık dönem yoksa formu hiç göstermez ama geçmiş tercihleri gösterir', async () => {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ApiHatasi, api } from '@/api/client'
-import type { CalisanTercihListesi, KarsilanmaDurumu, TercihTipi } from '@/api/types'
+import type { AcikDonem, CalisanTercihListesi, KarsilanmaDurumu, TercihTipi } from '@/api/types'
 import { Buton, Kart, KartEtiketi, Rozet } from '@/components/app-ui'
 import { Input } from '@/components/ui/input'
 import {
@@ -25,6 +25,16 @@ const KARSILANMA_METNI: Record<KarsilanmaDurumu, { renk: string; etiket: string 
   karsilandi: { renk: 'bg-accent', etiket: 'Karşılandı' },
   karsilanmadi: { renk: 'bg-signal', etiket: 'Karşılanmadı' },
   henuz_belirsiz: { renk: 'bg-ink-muted', etiket: 'Henüz Belirsiz' },
+}
+
+// Bulgu 5: alan sınırının (`min`) VE varsayılan değerin AYNI alt sınırdan
+// beslenmesi zorunlu — tek fonksiyon, TEK YERDE. İki ayrı yerde elle
+// hesaplanırsa (biri `min` için, biri varsayılan için) biri güncellenip
+// diğeri unutulduğunda varsayılan `min`in altına düşebilir; tam bu turun
+// bulgusu buydu.
+function enErkenTarih(acikDonem: AcikDonem | null, bugun: string): string {
+  if (!acikDonem) return ''
+  return acikDonem.baslangic_tarihi > bugun ? acikDonem.baslangic_tarihi : bugun
 }
 
 function tercihAciklamasi(
@@ -58,7 +68,12 @@ export function TercihlerimEkrani() {
       .calisanTercihlerim()
       .then((t) => {
         setListe(t)
-        setTarih((mevcut) => mevcut || t.acik_donem?.baslangic_tarihi || '')
+        // Bulgu 5: varsayılan `min` ile AYNI alt sınırdan (`enErkenTarih`)
+        // gelir — dönem başlangıcından tek başına türetilirse, dönem zaten
+        // başlamışken (bugün > başlangıç) varsayılan `min`in ALTINA düşer ve
+        // alanı hiç değiştirmeden gönderen çalışan geçmiş bir güne tercih
+        // bildirir.
+        setTarih((mevcut) => mevcut || enErkenTarih(t.acik_donem, bugunIso()))
       })
       .catch((e) => setHata(e instanceof Error ? e.message : 'Tercihler yüklenemedi'))
   }
@@ -102,7 +117,8 @@ export function TercihlerimEkrani() {
   const kalanGun = acik ? gunFarki(bugun, acik.tercih_son_tarihi) : null
   // Alt sınır: dönem başlangıcı ile bugünün BÜYÜĞÜ — geçmiş bir güne tercih
   // bildirmenin anlamı yok, dönem gelecekteyse de başlangıçtan önce gün yok.
-  const enErken = acik ? (acik.baslangic_tarihi > bugun ? acik.baslangic_tarihi : bugun) : ''
+  // Varsayılan değer de (yukarıdaki `yukle`) AYNI fonksiyonu kullanır.
+  const enErken = enErkenTarih(acik, bugun)
   const aralikSuresi = araligiSure(baslangicSaati, bitisSaati)
 
   const bildirdiklerimKarti = (
