@@ -93,3 +93,68 @@ def test_kriter_ciktisi_rapora_yetecek_alanlari_tasiyor(betik) -> None:
     kriter = betik.Kriter(kimlik="K0", baslik="deneme", esik="esik", olculen="0", gecti=True)
     assert kriter.ayrinti == []
     assert kriter.gecti is True
+
+
+def _on_kisilik_gece_baglami() -> Baglam:
+    """On kisilik havuz, yedi gunun ikisinde gece talebi.
+
+    On kisi bilincli secildi: Charter 1.6'nin %10'u tam olarak BIR kisiye
+    denk gelir, yani "izin verilen asan" ile "bir fazlasi" arasindaki sinir
+    testte kesin olarak ifade edilebilir.
+    """
+    baglam = Baglam(
+        gorev_noktalari={NOKTA: GorevNoktasiBilgisi(NOKTA)},
+        personel={
+            k: PersonelBilgisi(k, date(2025, 1, 1), None, frozenset(), haftalik_hedef_saat=40)
+            for k in range(1, 11)
+        },
+        zaman_ekseni=[_G + timedelta(days=i) for i in range(7)],
+        donem_baslangic=_G,
+        donem_bitis=_G + timedelta(days=6),
+    )
+    for i in (0, 1):
+        for saat in range(20, 24):
+            baglam.talep_saat[(_G + timedelta(days=i), saat, NOKTA)] = 5
+    return baglam
+
+
+def _olcum(betik, atamalar):
+    return betik.CozumOlcumu(
+        durum="uygun",
+        atamalar=atamalar,
+        kapsama_eksikleri={},
+        model_kurma_saniye=0.1,
+        cozum_saniye=1.0,
+        ilk_cozum_saniye=1.0,
+        toplam_saniye=1.1,
+    )
+
+
+def test_k3_dagilim_olcusu_tek_asani_gecirir(betik) -> None:
+    """Charter 1.6: on kisilik havuzda BIR asan (%10) kriteri dusurmez.
+
+    ESKI OLCUDE (azami sapma <= 8) BU TEST DUSERDI: tek kisinin sapmasi
+    esigin ustunde ve azami sapma o kisiden okunuyordu. Olcunun azami
+    sapmadan dagilima gecmesinin gozlenebilir karsiligi tam olarak budur.
+    """
+    baglam = _on_kisilik_gece_baglami()
+    # Adil pay kisi basi 4 saat (40 gece talebi / 10 kisi). Bir kisiye dort
+    # gece verilir (16 saat) -> sapmasi 12 saat, esigin (8) uzerinde. Hic
+    # gece almayanlarin sapmasi 4 saat, esigin altinda.
+    atamalar = [blok(1, _G + timedelta(days=g), 20, 4, NOKTA) for g in range(4)]
+    kriter = betik._k3(_olcum(betik, atamalar), baglam)
+
+    assert kriter.gecti is True
+    assert "1/10" in kriter.olculen
+    # Azami sapma hala raporlanir ama KRITER DEGIL TESHIS.
+    assert any("azami sapma (teshis)" in satir for satir in kriter.ayrinti)
+
+
+def test_k3_dagilim_olcusu_iki_asani_reddeder(betik) -> None:
+    """Iki asan (%20) izin verilen orani gecer ve kriter duser."""
+    baglam = _on_kisilik_gece_baglami()
+    atamalar = [blok(k, _G + timedelta(days=g), 20, 4, NOKTA) for k in (1, 2) for g in range(4)]
+    kriter = betik._k3(_olcum(betik, atamalar), baglam)
+
+    assert kriter.gecti is False
+    assert "2/10" in kriter.olculen

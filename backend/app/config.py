@@ -78,7 +78,11 @@ class Ayarlar(BaseSettings):
     # kosturulmaz.
     test_veritabani_url: str | None = None
 
-    cozucu_zaman_limiti_saniye: int = 60
+    # Charter 1.6: bes dakika. Onceki altmis saniye gerekcesiz bir sayiydi
+    # ve olculdugunde BAGLAYICI oldugu goruldu - K3'teki iyilesmenin
+    # neredeyse tamami arama suresinden geliyordu. Cizelge donemde bir kez
+    # uretilir ve etkilesimli bir islem degildir.
+    cozucu_zaman_limiti_saniye: int = 300
     cozucu_arama_iscisi_sayisi: int = 3
 
     # --- Kimlik dogrulama (SRS 5.10; SDD 5.1b) ------------------------------

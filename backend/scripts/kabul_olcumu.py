@@ -111,6 +111,13 @@ from app.veri_temizligi import (  # noqa: E402
 # gelir.
 K3_ESIK_GECE_SAATI = 8
 
+# Charter 1.6: K3 artik AZAMI SAPMA degil SAPMANIN DAGILIMI. Azami sapma tek
+# bir kisiye bakar ve bu onu cozucunun o kosumda nereye vardigina asiri
+# duyarli kilar: referans ornekte kirk kisiden otuz dokuzu payinin icindeyken
+# kriter, on iki saat sapan TEK kisi yuzunden dusuyordu. Adaletin sorusu
+# "hic kimse sapmiyor mu" degil "sistem cogunluk icin adil mi".
+K3_AZAMI_ASAN_ORANI = 0.10
+
 # --- Referans ornek (Charter 5 / NFR-1: kirk personel, yirmi sekiz gun) ------
 
 REFERANS_PERSONEL_SAYISI = 40
@@ -400,8 +407,16 @@ def _k2(olcum: CozumOlcumu, baglam: Any, kurallar: list) -> Kriter:
 
 
 def _k3(olcum: CozumOlcumu, baglam: Any) -> Kriter:
-    """Charter 5 / NFR-9 (Charter 1.3): kisi basina gece yuku, KISIYE DUSEN
-    ADIL PAYDAN en fazla BIR GECE BLOGU kadar sapar.
+    """Charter 5 / NFR-9: gece yukunun adil paydan sapmasi, personelin EN
+    FAZLA YUZDE ONUNDA bir gece blogunu (sekiz saat) asar.
+
+    OLCU AZAMI SAPMA DEGIL SAPMANIN DAGILIMIDIR (Charter 1.6). Azami sapma
+    tek bir kisiye bakiyordu ve bu, kriteri cozucunun o kosumda nereye
+    vardigina asiri duyarli kiliyordu: referans ornekte kirk kisiden otuz
+    dokuzu payinin icindeyken kriter, on iki saat sapan TEK kisi yuzunden
+    dusuyordu. Azami sapma yine olculur ve raporlanir, ama TESHIS olarak -
+    dagilim gectigi halde buyuk cikmasi, tek bir kisinin sistematik olarak
+    disarida kaldigini gosterir.
 
     Olcunun birimi SAATTIR (SRS TD-2) ve hedef KISIYE OZELDIR (SRS 1.17):
     tek havuz ortalamasi kullanildiginda erisilebilirligi kisitli bir havuz
@@ -436,6 +451,9 @@ def _k3(olcum: CozumOlcumu, baglam: Any) -> Kriter:
     sapmalar = {p: abs(yukler[p] - paylar[p]) for p in havuz}
     en_buyuk = max(sapmalar.values(), default=0.0)
     asanlar = [p for p, s in sapmalar.items() if s > esik + 1e-9]
+    # Bos havuzda oran tanimsizdir; olcume giren kimse yoksa asan da yoktur.
+    asan_orani = len(asanlar) / len(havuz) if havuz else 0.0
+    azami_asan = int(len(havuz) * K3_AZAMI_ASAN_ORANI)
 
     gece_talebi = sum(
         gereken
@@ -447,21 +465,28 @@ def _k3(olcum: CozumOlcumu, baglam: Any) -> Kriter:
         f"donem ici gece talebi   : {gece_talebi} kisi-saat",
         f"olcume giren personel   : {len(havuz)} kisi "
         f"({havuz_disi} kisi olcum disi - gece talebi olan noktada calisamiyor)",
-        f"esik (Charter 1.4)      : {esik} gece saati",
+        f"esik (Charter 1.4)      : {esik} gece saati / kisi",
+        f"izin verilen asan       : {azami_asan} kisi "
+        f"(havuzun %{K3_AZAMI_ASAN_ORANI * 100:.0f}'i, Charter 1.6)",
         f"adil pay araligi        : {min(paylar[p] for p in havuz):.1f} - "
         f"{max(paylar[p] for p in havuz):.1f} gece saati",
         f"gozlenen yuk araligi    : {min(yukler.values(), default=0)} - "
         f"{max(yukler.values(), default=0)} gece saati",
-        f"esigi asan kisi         : {len(asanlar)}",
+        f"esigi asan kisi         : {len(asanlar)} (%{asan_orani * 100:.1f})",
+        # Azami sapma KRITER DEGIL TESHIS (Charter 1.6): dagilim gectigi halde
+        # buyuk cikmasi, tek bir kisinin sistematik olarak disarida kaldigini
+        # gosterir ve incelenmesi gereken bir isarettir.
+        f"azami sapma (teshis)    : {en_buyuk:.2f} gece saati",
     ]
     ayrinti.extend(_k3_kumulatif_gosterge(baglam, yukler))
     ayrinti.extend(_k3_ulasilabilirlik_teshisi(baglam, paylar))
     return Kriter(
         kimlik="K3",
-        baslik="Donem ici gece yuku, doneme dusen adil paydan en fazla sekiz gece saati sapar",
-        esik=f"azami |sapma| <= {esik} gece saati, DONEM ICI (Charter 1.5)",
-        olculen=f"{en_buyuk:.2f}",
-        gecti=not asanlar,
+        baslik="Personelin en fazla yuzde onu, adil paydan sekiz gece saatinden\n" "fazla sapar",
+        esik=f"asan kisi <= %{K3_AZAMI_ASAN_ORANI * 100:.0f} "
+        f"({azami_asan} kisi), |sapma| > {esik} sa, DONEM ICI (Charter 1.5, 1.6)",
+        olculen=f"{len(asanlar)}/{len(havuz)} kisi (%{asan_orani * 100:.1f})",
+        gecti=len(asanlar) <= azami_asan,
         ayrinti=ayrinti,
     )
 

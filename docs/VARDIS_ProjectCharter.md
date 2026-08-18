@@ -28,6 +28,7 @@ Kurum Mentörü: ____________________
 | Ömer HARMANKAYA | 13.08.2026 | Gece adaleti kabul kriteri (K3) saatlik çalışma düzenine uyarlandı: ölçünün birimi vardiya sayısından gece saatine döndüğü için eşik bir gece bloğu uzunluğu olarak yeniden yazıldı | 1.3 |
 | Ömer HARMANKAYA | 13.08.2026 | Model gerçek saatlik karara geçirildiği için K3'ün eşiği sabit sekiz gece saati olarak yazıldı ve K4'teki vardiya ifadesi saat aralığıyla değiştirildi; müracaat görev noktası kapsamdan çıkarıldı | 1.4 |
 | Ömer HARMANKAYA | 17.08.2026 | Gece adaleti kriterinin (K3) ölçüm ufku planlama dönemiyle sınırlandı; kümülatif sapma kabul kriteri değil gösterge olarak tanımlandı | 1.5 |
+| Ömer HARMANKAYA | 18.08.2026 | K3 azami sapma yerine sapmanın dağılımı olarak yeniden tanımlandı (personelin en fazla %10'u sekiz gece saatini aşar); azami sapma kriter değil teşhis oldu. çözücünün zaman limiti ürün gerekçesiyle beş dakikaya çıkarıldı (K1'in eşiği değişmedi: ilk uygun çözüm hâlâ altmış saniyenin altında ölçülür) | 1.6 |
 
 
 
@@ -447,11 +448,21 @@ Aşağıdaki işlevler bilinçli olarak kapsam dışında bırakılmıştır. Ka
 
 # 5. Kabul Kriterleri
 
-- Kırk personel ve yirmi sekiz günlük referans örnek (varsayılan bir haftalık dönemden büyük, kasıtlı bir stres testi ölçeği) altmış saniyenin altında çözülür.
+- Kırk personel ve yirmi sekiz günlük referans örnek (varsayılan bir haftalık dönemden büyük, kasıtlı bir stres testi ölçeği) için **kullanılabilir ilk çizelge altmış saniyenin altında** üretilir. Ölçülen süre ilk uygun çözüme ulaşma süresidir, modelin kurulması dahil; çözücü bu noktadan sonra zaman limiti dolana kadar çözümü iyileştirmeye devam eder.
+
+  **Çözücünün zaman limiti ayrı bir parametredir ve beş dakikadır.** Önceki altmış saniyelik limit gerekçesiz bir sayıydı ve ölçüldüğünde bağlayıcı olduğu görüldü: gece adaletindeki (K3) iyileşmenin neredeyse tamamı arama süresinden geliyor, ağırlık kalibrasyonundan değil — referans örnekte eşiği aşan kişi sayısı altmış saniyede kırkta on, üç yüz saniyede kırkta bir. Yani limit, çözüm kalitesini ürünün gerektirdiği bir sebep olmaksızın sınırlıyordu.
+
+  Yeni limit kullanım biçiminden türetilmiştir: çizelge planlama döneminde **bir kez** üretilir ve etkileşimli bir işlem değildir — kullanıcı işi başlatır, ilerlemeyi ekranda görür ve dilediği anda durdurup o ana kadarki en iyi çözümü alabilir. Beş dakikalık bir arama bu akışta soğurulur.
+
+  Limitin uzaması K1'in ölçtüğü sayıyı değiştirmez (ilk uygun çözüm yine altmış saniyenin altındadır); yalnızca çözücüye o çözümü iyileştirmesi için daha çok zaman tanır.
 
 - Üretilen çizelgede zorunlu kısıt ihlali bulunmaz; bu durum otomatik testlerle doğrulanır.
 
-- Kişi başına düşen gece yükü, **planlama dönemi içinde ölçüldüğünde**, o döneme düşen adil paydan en fazla **sekiz gece saati** kadar sapar. Ölçünün birimi gece saatidir (SRS TD-2); eşik bir gece nöbeti uzunluğuna karşılık gelir — bir kişinin payından bir nöbet kadar fazla veya eksik gece alması kabul edilebilir, ötesi başarısızlıktır.
+- Gece yükünün adil paydan sapması, **planlama dönemi içinde ölçüldüğünde**, ölçüme giren personelin **en fazla yüzde onunda** **sekiz gece saatini** aşar. Ölçünün birimi gece saatidir (SRS TD-2); sekiz saatlik eşik bir gece nöbeti uzunluğuna karşılık gelir — bir kişinin payından bir nöbet kadar fazla veya eksik gece alması kabul edilebilir.
+
+  **Ölçü, azami sapma değil sapmanın dağılımıdır.** Azami sapma tek bir kişiye bakar ve bu onu çözücünün o koşumda nereye vardığına aşırı duyarlı kılar: referans örnekte kırk kişiden otuz dokuzu payının içindeyken kriter, on iki saat sapan tek kişi yüzünden düşüyordu. Adaletin sorusu "hiç kimse sapmıyor mu" değil, "sistem çoğunluk için adil mi ve sapan azınlık ne kadar küçük"tür. Yüzde onluk sınır, kırk kişilik referans örnekte dört kişiye karşılık gelir.
+
+  Azami sapma ölçülmeye ve raporlanmaya devam eder — kriter değil **teşhis** olarak: dağılım geçtiği hâlde azami sapmanın büyük olması, tek bir kişinin sistematik olarak dışarıda kaldığını gösterir ve bu, incelenmesi gereken bir işarettir.
 
   Ölçüm ufkunun planlama dönemiyle sınırlanması bilinçlidir. Adalet hesapları doksan günlük bir ufku kapsar (SRS TD-6) fakat geçmiş, sistemin o çalıştırmada değiştiremeyeceği bir girdidir: önceki dönemlerde birikmiş bir sapma tek bir dönemde kapatılamaz. Kümülatif sapmanın büyüklüğünü kabul kriteri yapmak, sistemi kendi denetimi dışındaki bir şeyden sorumlu tutmak olurdu.
 

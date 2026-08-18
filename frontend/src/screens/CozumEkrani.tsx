@@ -72,7 +72,9 @@ function CezaDokumu({ girdiler, azami }: { girdiler: [string, number][]; azami: 
 
 export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
   const [donemler, setDonemler] = useState<Donem[]>([])
-  const [zamanLimiti, setZamanLimiti] = useState(60)
+  // Charter 1.6: beş dakika. Çizelge dönemde bir kez üretilir; altmış
+  // saniye çözüm kalitesini ürün gerekçesi olmadan sınırlıyordu.
+  const [zamanLimiti, setZamanLimiti] = useState(300)
 
   const [yeniDonemAcik, setYeniDonemAcik] = useState(false)
   const [yeniBaslangic, setYeniBaslangic] = useState('')

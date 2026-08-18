@@ -17,7 +17,8 @@ class CozumBaslatIstek(BaseModel):
 
     donem_id: int | None = None
     onceki_surum_id: int | None = None
-    zaman_limiti_saniye: int = 60
+    # Charter 1.6 (bes dakika); config.cozucu_zaman_limiti_saniye ile ayni.
+    zaman_limiti_saniye: int = 300
 
     @model_validator(mode="after")
     def _tam_olarak_biri(self) -> "CozumBaslatIstek":
