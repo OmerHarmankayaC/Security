@@ -22,7 +22,13 @@ from app.services.cozum_servisi import CozumServisi
 from tests.conftest import isi_calistir_ve_bekle, pg_yoksa_atla
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scripts.demo_veri_uret import _her_seyi_temizle, uret  # noqa: E402
+from scripts.demo_veri_uret import (  # noqa: E402
+    _DAR_HAFTA_INDISI,
+    _HAFTA_SAYISI,
+    _RAHAT_HAFTA_INDISI,
+    _her_seyi_temizle,
+    uret,
+)
 
 
 def test_s1_agirligi_diger_hedeflerin_agirlikli_toplamindan_buyuk() -> None:
@@ -42,20 +48,17 @@ def test_s1_agirligi_diger_hedeflerin_agirlikli_toplamindan_buyuk() -> None:
         uret(sifirla=False, coz=False)
         oturum.commit()
         donemler = oturum.execute(select(Donem).order_by(Donem.donem_id)).scalars().all()
-        assert len(donemler) == 6, (
-            "demo_veri_uret alti donem uretmeli (Gecen, Bu Hafta, Sikisik, Tatilli, "
-            "Fazla Calisma, Kota Siniri). Tur 4'te iki senaryo eklendi: kurallarin "
-            "islediginin gorulebilmesi icin fazla calisma ve kota tuketimi gosteren "
-            "donemler gerekiyordu."
+        assert len(donemler) == _HAFTA_SAYISI, (
+            f"demo_veri_uret {_HAFTA_SAYISI} haftalik donem uretmeli: bugunu iceren "
+            "hafta ve onceki dordu. Gosterim verisi bir GECMIS tasimali - adalet "
+            "sayaclari ve devir bakiyesi ancak birikim uzerinde anlam kazanir."
         )
         # Kalibrasyon iki donem olcer: agirlik dengesi "kadro yeterken acik
-        # birakilmamali" (rahat bir hafta) ve "kadro yetmezken acik gorunmeli"
-        # (Sikisik) uzerinden tanimli. Donemler tarih sirasinda: Gecen,
-        # Bu Hafta, Sikisik, Tatilli. Rahat ornek olarak "Bu Hafta" alinir -
-        # izin kaydi tasimayan bir hafta. Tatilli donem resmi tatil
-        # cozumlemesini gostermek icin var, agirlik dengesine yeni bir sey
-        # soylemez.
-        rahat_id, sikisik_id = donemler[1].donem_id, donemler[2].donem_id
+        # birakilmamali" (RAHAT hafta) ve "kadro yetmezken acik gorunmeli"
+        # (DAR hafta) uzerinden tanimli. Ikisinin takvimdeki yeri ureteste
+        # sabittir; indisler oradan okunur, burada yeniden sayilmaz.
+        rahat_id = donemler[_RAHAT_HAFTA_INDISI].donem_id
+        sikisik_id = donemler[_DAR_HAFTA_INDISI].donem_id
 
         w1 = oturum.execute(select(Kural.agirlik).where(Kural.kimlik == "S1")).scalar_one()
 

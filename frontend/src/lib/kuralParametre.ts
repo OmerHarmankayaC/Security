@@ -47,7 +47,23 @@ export function blokSinirlariniOku(kurallar: readonly Kural[]): BlokSinirlari {
  * hissetmeli (Tur 6 İş 4). Metin sunucunun ihlal mesajını taklit etmez, onu
  * ÖNCELER.
  */
-export function sinirUyarisi(sureSaat: number, sinirlar: BlokSinirlari): string | null {
+export function sinirUyarisi(
+  sureSaat: number,
+  sinirlar: BlokSinirlari,
+  sinirdaMi = false,
+): string | null {
+  // SINIRA DAYANMA (Tur 7): sürükleme artık aralığı kırpıyor, yani geçersiz
+  // bir süre hiç oluşmuyor. Uyarı bu durumda "engellendin" değil "sınıra
+  // geldin" der; metin de ona göre değişir.
+  if (sinirdaMi) {
+    if (sinirlar.asgariSaat !== null && sureSaat === sinirlar.asgariSaat) {
+      return `Asgari blok ${sinirlar.asgariSaat} saat (H1)`
+    }
+    if (sinirlar.azamiSaat !== null && sureSaat === sinirlar.azamiSaat) {
+      return `Günlük azami ${sinirlar.azamiSaat} saat (H9)`
+    }
+    return null
+  }
   if (sinirlar.asgariSaat !== null && sureSaat < sinirlar.asgariSaat) {
     return `Asgari blok ${sinirlar.asgariSaat} saat (H1)`
   }

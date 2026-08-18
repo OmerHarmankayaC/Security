@@ -40,6 +40,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from typing import Any
 
+from app.kurallar.gecmis import GecmisYuk
 from app.kurallar.zaman_araligi import gece_saati_mi
 from app.models.girdi import MusaitlikDilimi, TercihTipi
 
@@ -61,10 +62,10 @@ class PersonelBilgisi:
     aktif_bitis: date | None = None
     yetkinlikler: frozenset[int] = frozenset()
     haftalik_hedef_saat: float = 0.0
-    # H10: kota yilinin basindan bu doneme kadar birikmis fazla calisma
-    # saati. Personel kaydindaki alandan gelir; yayinlanmis surumlerden
-    # turetme henuz yok (`GecmisSayaclar`), geldiginde ikisi TOPLANIR -
-    # alan turetilen degerin yerine gecmez (TD-6).
+    # H10: personel KAYDINDAKI devir alani. Yayinlanmis surumlerden
+    # turetilen fazla calisma ile TOPLANIR (`Baglam.yasal_devir`); alan
+    # turetilen degerin yerine gecmez, sistemin kota yilinin basindan beri
+    # her seyi bilmedigi durumu karsilar (SRS TD-6).
     devir_fazla_calisma_saat: float = 0.0
 
 
@@ -155,6 +156,14 @@ class Baglam:
     tercihler: list[TercihKaydi] = field(default_factory=list)
     # Yalniz yeniden cozum dogrulamasinda dolu olur (S8); normalde None.
     onceki_atamalar: list[AtamaKaydi] | None = None
+    # ADALET UFKU (SRS TD-6): donem oncesi birikim. None ise olcu yalniz
+    # donemi kapsar - eski davranis, gecmisi olmayan kurulumda dogru olan.
+    gecmis: GecmisYuk | None = None
+    # YASAL UFUK (SRS TD-6, H10) — adalet ufkundan AYRI. Turetilen kota yili
+    # ici fazla calisma ILE personel kaydindaki devir alaninin toplamidir;
+    # ikisi toplanir, biri digerinin yerine gecmez. None ise yalniz kayit
+    # alani kullanilir (eski davranis).
+    yasal_devir: dict[int, float] | None = None
     # Asagidaki dort alan yalniz model kurma sirasinda (model_kur) doldurulur;
     # dogrula cagrilarinda bos kalir.
     zaman_ekseni: list[date] = field(default_factory=list)
@@ -291,8 +300,32 @@ class Baglam:
 
     # --- Tanim sorgulari ---------------------------------------------------
 
+    def gecmis_gece_saat(self, personel_id: int) -> float:
+        return self.gecmis.sayac(personel_id).gece_saat if self.gecmis else 0.0
+
+    def gecmis_hafta_sonu_saat(self, personel_id: int) -> float:
+        return self.gecmis.sayac(personel_id).hafta_sonu_saat if self.gecmis else 0.0
+
+    def gecmis_toplam_saat(self, personel_id: int) -> float:
+        return self.gecmis.sayac(personel_id).toplam_saat if self.gecmis else 0.0
+
+    def calisabilir_oran(self, personel_id: int) -> float:
+        """Ufuk icinde calisabilir gun / ufuk gun sayisi (SRS TD-6).
+
+        Gecmis yoksa 1.0: olcu yalniz donemi kapsar ve donem icinde herkes
+        tam pay ile olculur.
+        """
+        return self.gecmis.oran(personel_id) if self.gecmis else 1.0
+
     def devir_fazla_calisma_saat(self, personel_id: int) -> float:
-        """H10'un `devir[p]`i. Personel baglamda yoksa sifir."""
+        """H10'un `devir[p]`si — TEK ERISIM NOKTASI.
+
+        Turetilen deger varsa o kullanilir; icinde kayit alani zaten
+        toplanmistir (`GecmisSayaclar.yasal_devir`). Iki parcanin burada
+        ayrica toplanmasi kayit alanini iki kez sayardi.
+        """
+        if self.yasal_devir is not None:
+            return self.yasal_devir.get(personel_id, 0.0)
         bilgi = self.personel.get(personel_id)
         return bilgi.devir_fazla_calisma_saat if bilgi is not None else 0.0
 
@@ -439,7 +472,10 @@ class Baglam:
         )
 
     def adil_paylar(
-        self, talep_uygun_mu: Callable[[tuple[date, int, int]], bool]
+        self,
+        talep_uygun_mu: Callable[[tuple[date, int, int]], bool],
+        *,
+        olcu: str | None = None,
     ) -> dict[int, float]:
         """SRS 4.3 S2/S3: kisiye dusen ADIL PAY.
 
@@ -463,6 +499,17 @@ class Baglam:
         Cozucu (modele_ekle), dogrulayici (dogrula) ve Analiz servisi (SDD
         5.7) ayni tabani kullanmak zorunda oldugu icin tanim burada, tek
         yerde durur.
+
+        YUK ILE HEDEF BIRLIKTE OLCEKLENIR (SRS TD-6). `olcu` verildiginde
+        ("gece", "hafta_sonu", "toplam") gecmis atamalarin payi donem
+        talebinin payina EKLENIR; cagiran taraf da yuke gecmis saati ekler.
+        Donem ici yuku ufuk boyunca hesaplanmis bir payla karsilastirmak,
+        kisiyi hic yapmadigi bir isin hesabini verirken gostermek olurdu.
+
+        Pay son adimda CALISABILIR ORANIYLA kucultulur: ufkun tamaminda
+        calisabilir olmayan personel tam payla olculemez, yoksa kalici
+        olarak hedefin altinda gorunur ve sapmasi hicbir cizelgeyle
+        kapatilamaz.
         """
         paylar: dict[int, float] = dict.fromkeys(self.personel, 0.0)
         erisim_onbellegi: dict[int, frozenset[int]] = {}
@@ -479,6 +526,30 @@ class Baglam:
             kisi_basi = gereken / len(erisebilenler)
             for personel_id in erisebilenler:
                 paylar[personel_id] += kisi_basi
+
+        # UFUK GENISLEMESI VE ORAN OLCEKLEMESI BIRLIKTE OLUR YA DA HIC OLMAZ.
+        #
+        # `olcu` verilmediginde cagiran DONEM ICI payi istiyor demektir ve
+        # oran uygulanmamalidir: oran "kisi ufkun ne kadarinda calisabildi"
+        # sorusunun cevabidir, donemin degil. Ikisini ayirmamak olculen bir
+        # hataya yol acti - kabul olcumunun referans ornegi doksan gunluk
+        # pencerenin yalnizca 32 gununu kapsiyordu, paylar 0,356 ile carpilip
+        # 33-64 bandindan 11,7-22,8'e dusuyor, yuk ise donem ici kaldigi icin
+        # sapma 34'ten 61,27'ye ciriyordu. Ne cozucu kotulesmisti ne veri;
+        # yalnizca pay ile yuk farkli ufuklardan okunuyordu.
+        if self.gecmis is None or olcu is None:
+            return paylar
+
+        gecmis_pay = {
+            "gece": self.gecmis.pay_gece,
+            "hafta_sonu": self.gecmis.pay_hafta_sonu,
+            "toplam": self.gecmis.pay_toplam,
+        }[olcu]
+        for personel_id, katki in gecmis_pay.items():
+            if personel_id in paylar:
+                paylar[personel_id] += katki
+        for personel_id in paylar:
+            paylar[personel_id] *= self.calisabilir_oran(personel_id)
         return paylar
 
     def uygun_havuz(self, talep_uygun_mu: Callable[[tuple[date, int, int]], bool]) -> set[int]:

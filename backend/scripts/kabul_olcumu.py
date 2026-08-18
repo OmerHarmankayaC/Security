@@ -52,7 +52,7 @@ import json
 import sys
 import time as zaman
 from dataclasses import dataclass, field
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -89,6 +89,7 @@ from app.models.tanim import (  # noqa: E402
     Talep,
     Yetkinlik,
 )
+from app.repositories.sonuc import CizelgeSurumuDeposu  # noqa: E402
 from app.services.baglam_kurucu import baglam_olustur, zaman_ekseni_olustur  # noqa: E402
 from app.services.dogrulama_servisi import AtamaDegisikligi, DogrulamaServisi  # noqa: E402
 from app.services.ornek_senaryo import (
@@ -97,6 +98,7 @@ from app.services.ornek_senaryo import (
     VARDIYA_SEFI,  # noqa: E402
     talep_satirlarini_olustur,
 )
+from app.services.surum_servisi import SurumServisi  # noqa: E402
 from app.veri_temizligi import (  # noqa: E402
     HesapKapsami,
     TemizlikSonucu,
@@ -411,6 +413,16 @@ def _k3(olcum: CozumOlcumu, baglam: Any) -> Kriter:
     TD-13) turetilecek bir sey yok - blok uzunluklari cozumun ciktisi.
     Sekiz saat bir gece nobetinin uzunluguna karsilik gelir: bir kisinin
     payindan bir nobet kadar fazla ya da eksik gece almasi kabul edilebilir.
+
+    OLCUM UFKU PLANLAMA DONEMIDIR (Charter 1.5). Adalet hesaplari doksan
+    gunu kapsar (SRS TD-6) ama gecmis, sistemin o calistirmada
+    degistiremeyecegi bir GIRDIDIR: onceki donemlerde birikmis bir sapma tek
+    donemde kapatilamaz ve kumulatif sapmayi kriter yapmak sistemi kendi
+    denetimi disindaki bir seyden sorumlu tutmak olur. Kumulatif olcu
+    asagida GOSTERGE olarak ayrica raporlanir.
+
+    `adil_paylar` `olcu` verilmeden cagrilir: o zaman ne gecmis pay eklenir
+    ne de calisabilirlik orani uygulanir - ikisi de ufkun kavramlaridir.
     """
     paylar = baglam.adil_paylar(lambda anahtar: gece_saati_mi(anahtar[1]))
     havuz = {p for p, pay in paylar.items() if pay > 0}
@@ -442,15 +454,44 @@ def _k3(olcum: CozumOlcumu, baglam: Any) -> Kriter:
         f"{max(yukler.values(), default=0)} gece saati",
         f"esigi asan kisi         : {len(asanlar)}",
     ]
+    ayrinti.extend(_k3_kumulatif_gosterge(baglam, yukler))
     ayrinti.extend(_k3_ulasilabilirlik_teshisi(baglam, paylar))
     return Kriter(
         kimlik="K3",
-        baslik="Kisi basina gece yuku adil paydan en fazla sekiz gece saati sapar",
-        esik=f"azami |sapma| <= {esik} gece saati (Charter 1.4)",
+        baslik="Donem ici gece yuku, doneme dusen adil paydan en fazla sekiz gece saati sapar",
+        esik=f"azami |sapma| <= {esik} gece saati, DONEM ICI (Charter 1.5)",
         olculen=f"{en_buyuk:.2f}",
         gecti=not asanlar,
         ayrinti=ayrinti,
     )
+
+
+def _k3_kumulatif_gosterge(baglam: Any, donem_ici_yuk: dict[int, int]) -> list[str]:
+    """Kumulatif sapma — KRITER DEGIL GOSTERGE (Charter 1.5).
+
+    Kriter donem ici dagilimi olcer; bu satirlar doksan gunluk ufkun ne
+    durumda oldugunu soyler. Ikisi ayni raporda ama AYRI baslikta durur,
+    cunku biri "bu cizelge kabul edilebilir mi", digeri "sistem zaman icinde
+    duzeltiyor mu" sorusunun cevabidir.
+    """
+    if baglam.gecmis is None or not baglam.gecmis.sayaclar:
+        return ["kumulatif gosterge     : ufukta yayinlanmis donem yok"]
+
+    ufuk_paylari = baglam.adil_paylar(lambda anahtar: gece_saati_mi(anahtar[1]), olcu="gece")
+    havuz = [p for p, pay in ufuk_paylari.items() if pay > 0]
+    if not havuz:
+        return ["kumulatif gosterge     : olcume giren kimse yok"]
+
+    # Ufuk yuku = gecmis gerceklesen + donem ici. Pay da ayni pencereyi
+    # kapsiyor; ikisini ayni ufuktan okumak bu turun ilk isinin konusuydu.
+    sapmalar = [
+        abs(baglam.gecmis_gece_saat(p) + donem_ici_yuk.get(p, 0) - ufuk_paylari[p]) for p in havuz
+    ]
+    return [
+        f"kumulatif gosterge     : ufuk {baglam.gecmis.ufuk_gun} gun, "
+        f"azami |sapma| {max(sapmalar):.1f} / ortanca {sorted(sapmalar)[len(sapmalar) // 2]:.1f}"
+        " gece saati (KRITER DEGIL)",
+    ]
 
 
 def _k3_ulasilabilirlik_teshisi(baglam: Any, paylar: dict[int, float]) -> list[str]:
@@ -533,21 +574,29 @@ def _k4(oturum: Session, celiskili_donem: Donem, olcum: CozumOlcumu) -> Kriter:
         if eksik > 0:
             noktaya_gore.setdefault(nokta_id, {})[(tarih, saat)] = eksik
 
-    araliklar: list[tuple[date, time, time, int, int]] = [
-        (tarih, baslangic, bitis, sayi, nokta_id)
+    # B-23'ten beri `saatleri_araliklara_birlestir` UC deger dondurur:
+    # (baslangic_damgasi, bitis_damgasi, sayi). Tarih artik ayri bir alan
+    # degil, baslangic damgasindan TURETILIR (TD-1) - gece yarisini asan
+    # aralik gun sinirinda kesilmedigi icin ayri bir tarih alani hangi gune
+    # ait oldugunu soyleyemezdi. Bu betik dort deger acmaya devam ediyordu
+    # ve Tur 8'den beri ilk cagrida patliyordu; kimse kosmadigi icin
+    # gorulmedi.
+    araliklar: list[tuple[datetime, datetime, int, int]] = [
+        (baslangic, bitis, sayi, nokta_id)
         for nokta_id, saatler in noktaya_gore.items()
-        for tarih, baslangic, bitis, sayi in saatleri_araliklara_birlestir(saatler)
+        for baslangic, bitis, sayi in saatleri_araliklara_birlestir(saatler)
     ]
     araliklar.sort()
     toplam_eksik = sum(olcum.kapsama_eksikleri.values())
     ornekler = [
-        f"{tarih.isoformat()} / {aralik_metni(baslangic, bitis)} / "
+        f"{baslangic.date().isoformat()} / "
+        f"{aralik_metni(baslangic.time(), bitis.time())} / "
         f"{nokta_adlari.get(nokta_id, nokta_id)} -> {sayi} kisi eksik"
-        for tarih, baslangic, bitis, sayi, nokta_id in araliklar[:5]
+        for baslangic, bitis, sayi, nokta_id in araliklar[:5]
     ]
     tam_bilgi = all(
-        isinstance(tarih, date) and nokta_id in nokta_adlari and sayi > 0
-        for tarih, _bas, _bitis, sayi, nokta_id in araliklar
+        isinstance(bas, datetime) and nokta_id in nokta_adlari and sayi > 0
+        for bas, _bitis, sayi, nokta_id in araliklar
     )
     return Kriter(
         kimlik="K4",
@@ -599,15 +648,21 @@ def _k5(oturum: Session, surum_id: int, donem: Donem) -> Kriter:
     sureler: list[float] = []
     for _ in range(5):
         baslangic = zaman.perf_counter()
+        # Tur 7'de `dogrula` TEK degisiklik degil BEKLEYEN KUMENIN TAMAMINI
+        # alir hale geldi (TD-16) ve `surum_id` degisiklik nesnesinden cikip
+        # cagriya tasindi. Betik eski imzayla kaldigi icin iki turdur
+        # kosamiyordu.
         servis.dogrula(
-            AtamaDegisikligi(
-                surum_id=surum_id,
-                personel_id=mevcut.personel_id,
-                tarih=mevcut_baslangic.date(),
-                baslangic_saati=time(yeni_baslangic),
-                bitis_saati=time((yeni_baslangic + sure) % 24),
-                nokta_id=mevcut.nokta_id,
-            )
+            surum_id,
+            [
+                AtamaDegisikligi(
+                    personel_id=mevcut.personel_id,
+                    tarih=mevcut_baslangic.date(),
+                    baslangic_saati=time(yeni_baslangic),
+                    bitis_saati=time((yeni_baslangic + sure) % 24),
+                    nokta_id=mevcut.nokta_id,
+                )
+            ],
         )
         sureler.append(zaman.perf_counter() - baslangic)
 
@@ -735,6 +790,62 @@ def _yazdir(kriterler: list[Kriter], temizlik: TemizlikSonucu | None = None) -> 
         print("esiklerle birlikte verildigi icin acigin buyuklugu dogrudan okunabilir.")
 
 
+def _k6(oturum: Session, donem: Donem, surum_id: int, zaman_limiti: float) -> Kriter:
+    """Charter 5, ALTINCI kriter: yeniden cozumde degisen atama sayisi raporlanir.
+
+    Bu kriter betikte HIC OLCULMUYORDU - Charter altisini sayiyor, betik
+    besini raporluyordu ve aradaki fark kimsenin dikkatini cekmemisti. Olcen
+    bir sey olmadikca bir kriterin var olmasi onun saglandigi anlamina
+    gelmez; ayni ders `kabul_olcumu.py`nin iki tur kirik kalmasinda da
+    ogrenildi (B-25).
+
+    Olculen sey SAYININ KENDISI DEGIL, raporlanabilmesidir: yeniden cozum bir
+    taslak turetir, ikisi karsilastirilir ve fark uc ture ayrilir. Fark sifir
+    cikabilir (cozucu ayni sonucu bulmustur) ve bu bir basarisizlik degildir.
+    """
+    servis = SurumServisi(oturum)
+    # `CizelgeSurumuDeposu.taslak_turet` atamalari KOPYALAMAZ; yeni surumun
+    # atamalari yeniden cozumden yazilir. `SurumServisi.taslak_olarak_kopyala`
+    # kopyalardi ve fark her zaman sifir cikardi.
+    yeni_surum = CizelgeSurumuDeposu(oturum).taslak_turet(surum_id)
+    if yeni_surum is None:
+        return Kriter(
+            kimlik="K6",
+            baslik="Yeniden cozumde degisen atama sayisi raporlanir",
+            esik="karsilastirma uretilir ve uc ture ayrilir",
+            olculen="taslak turetilemedi",
+            gecti=False,
+        )
+    oturum.commit()
+
+    olcum, _ = _coz(oturum, donem, zaman_limiti)
+    _atamalari_yaz(oturum, yeni_surum.surum_id, olcum, donem)
+    oturum.commit()
+
+    fark = servis.karsilastir(surum_id, yeni_surum.surum_id)
+    if fark is None:
+        return Kriter(
+            kimlik="K6",
+            baslik="Yeniden cozumde degisen atama sayisi raporlanir",
+            esik="karsilastirma uretilir ve uc ture ayrilir",
+            olculen="karsilastirma uretilemedi",
+            gecti=False,
+        )
+    return Kriter(
+        kimlik="K6",
+        baslik="Yeniden cozumde degisen atama sayisi raporlanir",
+        esik="karsilastirma uretilir ve uc ture ayrilir",
+        olculen=f"{fark.toplam_degisiklik} degisiklik",
+        gecti=True,
+        ayrinti=[
+            f"eklenen    : {fark.eklenen}",
+            f"kaldirilan : {fark.kaldirilan}",
+            f"degisen    : {fark.degisen}",
+            f"karsilastirilan surumler: {fark.onceki_surum_no} -> {fark.yeni_surum_no}",
+        ],
+    )
+
+
 def main() -> int:
     ayristirici = argparse.ArgumentParser(description="Kabul kriteri olcumu")
     ayristirici.add_argument("--json", action="store_true", help="Makine okunur cikti")
@@ -784,6 +895,7 @@ def main() -> int:
 
         # --- Manuel duzenleme: K5
         kriterler.append(_k5(oturum, surum.surum_id, referans_donem))
+        kriterler.append(_k6(oturum, referans_donem, surum.surum_id, argumanlar.zaman_limiti))
         oturum.commit()
     finally:
         oturum.close()

@@ -59,6 +59,10 @@ const VARSAYILAN = {
   seciliPersonelId: null,
   onSatirSec: () => {},
   onBlokTanimla: () => {},
+  onBlokTasi: () => {},
+  onNoktaDegistir: () => {},
+  onKilitDegistir: () => {},
+  onBlokSil: () => {},
 }
 
 describe('İş 1 kabul — gece yarısını aşan blok iki günde de görünür, TEK bloktur', () => {
@@ -211,9 +215,8 @@ describe('kapsama açığı — SAAT düzeyinde ve renkten bağımsız işaretli
   const ACIK: KapsamaAcigi[] = [
     {
       acik_id: 1,
-      tarih: '2026-02-02',
-      baslangic: '06:00:00',
-      bitis: '08:00:00',
+      baslangic_zamani: '2026-02-02T06:00:00+03:00',
+      bitis_zamani: '2026-02-02T08:00:00+03:00',
       nokta_id: 1,
       eksik_sayi: 2,
     },
@@ -223,5 +226,185 @@ describe('kapsama açığı — SAAT düzeyinde ve renkten bağımsız işaretli
     render(<GunIzgarasi {...VARSAYILAN} gun="2026-02-02" kapsamaAcigi={ACIK} />)
     // Aralık iki saat sürüyor: 06 ve 07 işaretlenir, 08 işaretlenmez.
     expect(screen.getAllByText('▲2')).toHaveLength(2)
+  })
+})
+
+describe('İş 1 kabul — sınıra dayanınca sürükleme DURUR', () => {
+  function saatHucresi(saat: number): Element {
+    const hucre = document.querySelector(`[data-saat="${saat}"]`)
+    if (!hucre) throw new Error(`Saat hücresi bulunamadı: ${saat}`)
+    return hucre
+  }
+
+  it('asgari süreden kısa seçim yapılamaz — aralık asgariye ÇEKİLİR', () => {
+    const onBlokTanimla = vi.fn()
+    const { container } = render(
+      <GunIzgarasi {...VARSAYILAN} atamalar={[]} gun="2026-02-02" onBlokTanimla={onBlokTanimla} />,
+    )
+    // 08'den 09'a: iki saat, asgari dördün altında.
+    fireEvent.pointerDown(saatHucresi(8))
+    fireEvent.pointerEnter(saatHucresi(9))
+    fireEvent.pointerUp(container.firstChild!)
+    // Reddedilmez; asgariye tamamlanır. Kullanıcı sınırı elinde hisseder.
+    expect(onBlokTanimla).toHaveBeenCalledWith(1, 8, 12)
+  })
+
+  it('günlük tavanı aşan seçim azamide durur', () => {
+    const onBlokTanimla = vi.fn()
+    const { container } = render(
+      <GunIzgarasi {...VARSAYILAN} atamalar={[]} gun="2026-02-02" onBlokTanimla={onBlokTanimla} />,
+    )
+    fireEvent.pointerDown(saatHucresi(6))
+    fireEvent.pointerEnter(saatHucresi(22))
+    fireEvent.pointerUp(container.firstChild!)
+    // 06'dan 23'e on yedi saat; azami on bir.
+    expect(onBlokTanimla).toHaveBeenCalledWith(1, 6, 17)
+  })
+
+  it('sınıra dayanıldığı önizlemede yazar', () => {
+    render(<GunIzgarasi {...VARSAYILAN} atamalar={[]} gun="2026-02-02" />)
+    fireEvent.pointerDown(saatHucresi(8))
+    fireEvent.pointerEnter(saatHucresi(9))
+    expect(screen.getByText('Asgari blok 4 saat (H1)')).toBeTruthy()
+  })
+
+  it('pasif kuralda kırpma da yapılmaz', () => {
+    const onBlokTanimla = vi.fn()
+    const { container } = render(
+      <GunIzgarasi
+        {...VARSAYILAN}
+        atamalar={[]}
+        gun="2026-02-02"
+        sinirlar={{ asgariSaat: null, azamiSaat: null }}
+        onBlokTanimla={onBlokTanimla}
+      />,
+    )
+    fireEvent.pointerDown(saatHucresi(8))
+    fireEvent.pointerEnter(saatHucresi(9))
+    fireEvent.pointerUp(container.firstChild!)
+    expect(onBlokTanimla).toHaveBeenCalledWith(1, 8, 10)
+  })
+})
+
+describe('İş 1 kabul — blok taşıma ve menü', () => {
+  const IKI_PERSONEL = [
+    PERSONEL[0]!,
+    { ...PERSONEL[0]!, personel_id: 2, ad_soyad: 'Mehmet Çınar', sicil_no: 'P-002' },
+  ]
+  const GUNDUZ = {
+    ...GECE_BLOGU,
+    atama_id: 20,
+    baslangic_zamani: '2026-02-02T08:00:00+03:00',
+    bitis_zamani: '2026-02-02T16:00:00+03:00',
+    sure_saat: 8,
+  }
+
+  function serit(): HTMLElement {
+    const el = document.querySelector<HTMLElement>('[data-blok="20"]')
+    if (!el) throw new Error('Blok şeridi bulunamadı')
+    return el
+  }
+
+  it('gövdeden tutup BAŞKA personelin satırına taşır', () => {
+    const onBlokTasi = vi.fn()
+    const { container } = render(
+      <GunIzgarasi
+        {...VARSAYILAN}
+        personeller={IKI_PERSONEL}
+        atamalar={[GUNDUZ]}
+        gun="2026-02-02"
+        onBlokTasi={onBlokTasi}
+      />,
+    )
+    // jsdom düzen hesaplamaz: şeridin kabı sıfır genişliktedir ve oran hep
+    // 0 çıkar, yani tutulan saat 0 sayılır. Testin ölçtüğü şey SATIR
+    // DEĞİŞİKLİĞİDİR; saatin kendisi tarayıcıda gözle doğrulanmalı.
+    fireEvent.pointerDown(serit())
+    const hedefSatir = container.querySelectorAll('[data-saat="12"]')[1]!
+    fireEvent.pointerEnter(hedefSatir)
+    fireEvent.pointerUp(container.firstChild!)
+
+    expect(onBlokTasi).toHaveBeenCalledTimes(1)
+    const [kaynak, hedef] = onBlokTasi.mock.calls[0]!
+    expect(kaynak).toBe(1)
+    expect(hedef).toBe(2)
+  })
+
+  it('kıpırdamadan bırakmak taşıma DEĞİL menü açar', () => {
+    const onBlokTasi = vi.fn()
+    const { container } = render(
+      <GunIzgarasi
+        {...VARSAYILAN}
+        personeller={IKI_PERSONEL}
+        atamalar={[GUNDUZ]}
+        gun="2026-02-02"
+        onBlokTasi={onBlokTasi}
+      />,
+    )
+    fireEvent.pointerDown(serit())
+    fireEvent.pointerUp(container.firstChild!)
+    expect(onBlokTasi).not.toHaveBeenCalled()
+    expect(screen.getByRole('menu', { name: 'Blok işlemleri' })).toBeTruthy()
+  })
+
+  it('menüden silme TEK TIKLA yapılır', () => {
+    const onBlokSil = vi.fn()
+    const { container } = render(
+      <GunIzgarasi {...VARSAYILAN} atamalar={[GUNDUZ]} gun="2026-02-02" onBlokSil={onBlokSil} />,
+    )
+    fireEvent.pointerDown(serit())
+    fireEvent.pointerUp(container.firstChild!)
+    // Eski ekranda silme bir açılır listenin "— Boşalt —" seçeneğinin
+    // içine saklanmıştı; artık görünür bir eylem.
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Bloğu sil' }))
+    expect(onBlokSil).toHaveBeenCalledWith(1)
+  })
+
+  it('menüden kilitleme ve görev noktası değiştirme çalışır', () => {
+    const onKilitDegistir = vi.fn()
+    const onNoktaDegistir = vi.fn()
+    const noktaMap = new Map(NOKTALAR)
+    noktaMap.set(2, {
+      nokta_id: 2,
+      ad: 'Vardiya Şefliği',
+      bina_id: null,
+      onkosul_yetkinlik_id: null,
+      aktif: true,
+    })
+    const { container } = render(
+      <GunIzgarasi
+        {...VARSAYILAN}
+        atamalar={[GUNDUZ]}
+        gun="2026-02-02"
+        noktaMap={noktaMap}
+        seritNoktalari={[...noktaMap.values()]}
+        onKilitDegistir={onKilitDegistir}
+        onNoktaDegistir={onNoktaDegistir}
+      />,
+    )
+    fireEvent.pointerDown(serit())
+    fireEvent.pointerUp(container.firstChild!)
+
+    fireEvent.change(screen.getByLabelText('Görev Noktası'), { target: { value: '2' } })
+    expect(onNoktaDegistir).toHaveBeenCalledWith(1, 2)
+
+    fireEvent.pointerDown(serit())
+    fireEvent.pointerUp(container.firstChild!)
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Kilitle' }))
+    expect(onKilitDegistir).toHaveBeenCalledWith(1, true)
+  })
+
+  it('düzenlenemeyen sürümde menü hiç açılmaz', () => {
+    const { container } = render(
+      <GunIzgarasi
+        {...VARSAYILAN}
+        atamalar={[GUNDUZ]}
+        gun="2026-02-02"
+        duzenlenebilir={false}
+      />,
+    )
+    fireEvent.pointerDown(serit())
+    fireEvent.pointerUp(container.firstChild!)
+    expect(screen.queryByRole('menu')).toBeNull()
   })
 })

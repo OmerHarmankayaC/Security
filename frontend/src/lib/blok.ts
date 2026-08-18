@@ -172,3 +172,31 @@ export function geceSaati(baslangic: string, sureSaat: number): number {
   }
   return sayac
 }
+
+
+/**
+ * Sapma kaydının (kapsama açığı / fazla kadro) okunması — TEK YER.
+ *
+ * Kayıt artık tarih + ofsetsiz saat değil ZAMAN DAMGASI taşıyor (B-23);
+ * aralık gün sınırını kendisi taşır. Kaydın sayıldığı gün başlangıç
+ * damgasından türetilir — aynı sözleşme atamada da geçerli (SRS TD-1).
+ */
+export interface SapmaAraligi {
+  baslangic_zamani: string
+  bitis_zamani: string
+}
+
+/** Sapmanın sayıldığı gün: başlangıç damgasının tarihi. */
+export function sapmaGunu(sapma: SapmaAraligi): string {
+  return sapma.baslangic_zamani.slice(0, 10)
+}
+
+/** Sapmanın ekrandaki aralığı: "22.00–02.00". */
+export function sapmaEtiketi(sapma: SapmaAraligi): string {
+  return blokEtiketi(sapma.baslangic_zamani, sapma.bitis_zamani)
+}
+
+/** Sapmanın saat cinsinden uzunluğu; gün sınırını aşan aralıkta da doğru. */
+export function sapmaSuresi(sapma: SapmaAraligi): number {
+  return blokSuresi(sapma.baslangic_zamani, sapma.bitis_zamani)
+}

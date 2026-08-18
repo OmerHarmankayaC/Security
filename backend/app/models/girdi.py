@@ -1,7 +1,7 @@
 import enum
 from datetime import date, time
 
-from sqlalchemy import Date, ForeignKey, Time
+from sqlalchemy import Date, ForeignKey, Time, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -48,6 +48,12 @@ class Musaitlik(Base, ZamanDamgasiKarisimi):
 
 class Tercih(Base, ZamanDamgasiKarisimi):
     __tablename__ = "tercih"
+    # Bir calisan bir gun icin TEK tercih bildirir. Iki kayit, biri
+    # "calismam" digeri "08-16 calisirim" oldugunda hangisinin gecerli
+    # oldugu tanimsiz kalirdi; ikisi de onaylanabilirdi.
+    __table_args__ = (
+        UniqueConstraint("personel_id", "tarih", name="uq_tercih_personel_tarih"),
+    )
 
     tercih_id: Mapped[int] = mapped_column(primary_key=True)
     personel_id: Mapped[int] = mapped_column(ForeignKey("personel.personel_id"))

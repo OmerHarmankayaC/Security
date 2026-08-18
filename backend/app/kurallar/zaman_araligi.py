@@ -21,12 +21,19 @@ kurulan orneklerle cagirabilir.
 """
 
 from collections.abc import Iterable, Iterator, Mapping
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import TypeVar
 
 # Bir saatin "hangi kosuya ait oldugunu" belirleyen deger: kapsama aciginda
 # eksik sayisi, blok toplamada gorev noktasi.
 Etiket = TypeVar("Etiket")
+
+
+def aralik_sure_saat_damga(baslangic: datetime, bitis: datetime) -> int:
+    """Iki damga arasindaki saat sayisi. Damga aralikta gun sinirini kendisi
+    tasidigi icin burada mod aritmetigi YOKTUR - `aralik_sure_saat`in
+    `time` uzerinde yapmak zorunda oldugu tahmin ortadan kalkar."""
+    return round((bitis - baslangic).total_seconds() / 3600)
 
 
 def aralik_sure_saat(baslangic: time, bitis: time) -> int:
@@ -121,13 +128,21 @@ def mutlak_saat(tarih: date, saat: int) -> int:
 
 def saatleri_araliklara_birlestir(
     saat_sayilari: Mapping[tuple[date, int], int],
-) -> list[tuple[date, time, time, int]]:
+) -> list[tuple[datetime, datetime, int]]:
     """Ardisik ve SAYISI ESIT saatleri tek araliga toplar (SDD 4.2.4).
 
-    `(tarih, saat) -> sayi` alir, `(tarih, baslangic, bitis, sayi)` listesi
-    dondurur. 00, 01, … 07 saatlerinde 1 kisi eksikse tek bir
+    `(tarih, saat) -> sayi` alir, `(baslangic_zamani, bitis_zamani, sayi)`
+    listesi dondurur. 00, 01, … 07 saatlerinde 1 kisi eksikse tek bir
     `00.00-08.00 / 1` kaydi cikar, sekiz satir degil: yirmi dort satirlik
     bir liste kullaniciya hicbir sey anlatmaz.
+
+    GUN SINIRINDA ARTIK KESILMEZ (Tur 8, B-23). Kayitlar tarih + ofsetsiz
+    saat olarak durdugu surece 22.00-02.00 gibi bir aralik tek satirda
+    gosterilemiyordu ve gun basina bolunuyordu; okuyan taraf da "bu kayit
+    hangi gune ait" sorusunu ikinci kez sormak zorunda kaliyordu. Kayit
+    zaman damgasina tasindiktan sonra aralik kendini tasiyor ve bolme
+    gereksizlesti - kesilmeye devam etseydi dosyada iki ayri acik gorunur,
+    oysa tek bir acik vardir.
 
     Sayisi sifir olan saatler kayit uretmez.
     """
@@ -137,9 +152,14 @@ def saatleri_araliklara_birlestir(
         if sayi > 0
     ]
     return [
-        (date.fromordinal(ilk // 24), _saat(ilk % 24), _saat(son % 24 + 1), sayi)
-        for ilk, son, sayi in ardisik_saatleri_grupla(etiketli, gun_sinirinda_kes=True)
+        (_an(ilk), _an(son + 1), sayi)
+        for ilk, son, sayi in ardisik_saatleri_grupla(etiketli, gun_sinirinda_kes=False)
     ]
+
+
+def _an(mutlak: int) -> datetime:
+    """Mutlak saati zaman damgasina cevirir; gun siniri kendiliginden asilir."""
+    return datetime.combine(date.fromordinal(mutlak // 24), time(mutlak % 24))
 
 
 def _saat(deger: int) -> time:

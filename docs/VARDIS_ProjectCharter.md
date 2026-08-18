@@ -2,7 +2,7 @@
 
 **CMPE 399 — Yaz Stajı**
 
-BOTAŞ Boru Hatları ile Petrol Taşıma A.Ş.
+kurum Boru Hatları ile Petrol Taşıma A.Ş.
 
 **VARDİYA ÇİZELGELEME KARAR DESTEK ARACI**
 
@@ -27,14 +27,15 @@ Kurum Mentörü: ____________________
 | Ömer HARMANKAYA | 09.08.2026 | Kimlik doğrulama kapsama alındı: harici kimlik servisi maddesi kurumsal dizin entegrasyonu olarak yeniden yazıldı ve açık soru güncellendi | 1.2 |
 | Ömer HARMANKAYA | 13.08.2026 | Gece adaleti kabul kriteri (K3) saatlik çalışma düzenine uyarlandı: ölçünün birimi vardiya sayısından gece saatine döndüğü için eşik bir gece bloğu uzunluğu olarak yeniden yazıldı | 1.3 |
 | Ömer HARMANKAYA | 13.08.2026 | Model gerçek saatlik karara geçirildiği için K3'ün eşiği sabit sekiz gece saati olarak yazıldı ve K4'teki vardiya ifadesi saat aralığıyla değiştirildi; müracaat görev noktası kapsamdan çıkarıldı | 1.4 |
+| Ömer HARMANKAYA | 17.08.2026 | Gece adaleti kriterinin (K3) ölçüm ufku planlama dönemiyle sınırlandı; kümülatif sapma kabul kriteri değil gösterge olarak tanımlandı | 1.5 |
 
 
 
 # 1. Giriş
 
-Vardiya Çizelgeleme Karar Destek Aracı, kesintisiz çalışan tesislerde vardiya planlamasını üstlenen web tabanlı bir sistemdir. Proje, CMPE 399 yaz stajı kapsamında BOTAŞ bünyesinde yürütülmektedir. Bugün büyük ölçüde elle ve elektronik tablolar üzerinde yapılan çizelgeleme işi, sistemde bir kısıt programlama problemi olarak modellenmekte; ihlal edilemeyecek kurallar zorunlu kısıt, adalet ve tercihler ise ceza puanı üreten esnek hedefler olarak tanımlanmaktadır.
+Vardiya Çizelgeleme Karar Destek Aracı, kesintisiz çalışan tesislerde vardiya planlamasını üstlenen web tabanlı bir sistemdir. Proje, CMPE 399 yaz stajı kapsamında kurum bünyesinde yürütülmektedir. Bugün büyük ölçüde elle ve elektronik tablolar üzerinde yapılan çizelgeleme işi, sistemde bir kısıt programlama problemi olarak modellenmekte; ihlal edilemeyecek kurallar zorunlu kısıt, adalet ve tercihler ise ceza puanı üreten esnek hedefler olarak tanımlanmaktadır.
 
-Sistem genel amaçlı bir çizelgeleme aracı olarak tasarlanmakta, ilk uygulama alanı olarak BOTAŞ tesislerinin güvenlik personeli seçilmektedir. Bu daraltma modelin yapısını değiştirmemekte; yalnızca görev noktalarının, yetkinliklerin ve talep sayılarının somut değerlerini belirlemektedir. Söz konusu değerlerin tamamı sistem üzerinden düzenlenebilir veri olarak tutulduğundan, aracın başka bir personel grubuna uygulanması yapılandırma değişikliğinden ibarettir.
+Sistem genel amaçlı bir çizelgeleme aracı olarak tasarlanmakta, ilk uygulama alanı olarak kurum tesislerinin güvenlik personeli seçilmektedir. Bu daraltma modelin yapısını değiştirmemekte; yalnızca görev noktalarının, yetkinliklerin ve talep sayılarının somut değerlerini belirlemektedir. Söz konusu değerlerin tamamı sistem üzerinden düzenlenebilir veri olarak tutulduğundan, aracın başka bir personel grubuna uygulanması yapılandırma değişikliğinden ibarettir.
 
 Proje, gereksinimlerin geliştirme sırasında netleşeceği varsayımıyla çevik bir yaklaşımla, üç sprint halinde yürütülecektir. Temel çıktılar bu proje tanım dokümanı, kural kataloğu, matematiksel model dokümanı, çalışan bir web uygulaması, deney raporu ve staj raporudur. Kilometre taşları, kural kataloğunun onaylanmasından çözücünün ilk geçerli çizelgeyi üretmesine ve son teknik sunuma kadar yazılım geliştirme yaşam döngüsü etrafında yapılandırılmıştır.
 
@@ -42,7 +43,7 @@ Proje, gereksinimlerin geliştirme sırasında netleşeceği varsayımıyla çev
 
 ## 2.1 Genel Bakış
 
-BOTAŞ tesislerinde güvenlik hizmeti kesintisiz yürütülmekte; her vardiyada belirli görev noktalarında, belirli sayıda ve belirli niteliklerde personelin bulunması gerekmektedir. Bu ihtiyaç kâğıt üzerinde basit görünse de pratikte iç içe geçmiş kısıtlar üretmektedir. Gece vardiyasından çıkan personele ertesi sabah görev verilememekte, üst üste belirli sayıdan fazla gece tutulamamakta, haftalık çalışma saatlerinin yasal bir tavanı bulunmakta, izinler ve raporlar takvimden insan çıkarmakta, bazı görevler yalnızca belirli yetkinliğe sahip kişiler tarafından yapılabilmektedir. Bütün bunlar sağlandıktan sonra bir de adalet meselesi kalmakta; gece ve hafta sonu nöbetlerinin sürekli aynı kişilere düşmesi çizelgeyi teknik olarak geçerli ancak pratikte kabul edilemez kılmaktadır.
+kurum tesislerinde güvenlik hizmeti kesintisiz yürütülmekte; her vardiyada belirli görev noktalarında, belirli sayıda ve belirli niteliklerde personelin bulunması gerekmektedir. Bu ihtiyaç kâğıt üzerinde basit görünse de pratikte iç içe geçmiş kısıtlar üretmektedir. Gece vardiyasından çıkan personele ertesi sabah görev verilememekte, üst üste belirli sayıdan fazla gece tutulamamakta, haftalık çalışma saatlerinin yasal bir tavanı bulunmakta, izinler ve raporlar takvimden insan çıkarmakta, bazı görevler yalnızca belirli yetkinliğe sahip kişiler tarafından yapılabilmektedir. Bütün bunlar sağlandıktan sonra bir de adalet meselesi kalmakta; gece ve hafta sonu nöbetlerinin sürekli aynı kişilere düşmesi çizelgeyi teknik olarak geçerli ancak pratikte kabul edilemez kılmaktadır.
 
 Sistemin girdisi personel listesi, yetkinlikler, izin ve müsaitlik bilgileri, her vardiya için gereken personel sayısı ve kurumun uymak zorunda olduğu çalışma kurallarından oluşmaktadır. Çıktısı ise bütün zorunlu kuralları sağlayan, yükü çalışanlar arasında olabildiğince dengeli dağıtan ve tercihleri mümkün olduğunca gözeten bir dönemlik çizelgedir.
 
@@ -290,7 +291,7 @@ Nihayetinde araç, neyin daha önemli olduğuna kendisi karar vermemektedir. Ada
 
 ## 2.5 Uygulama Alanı: Güvenlik Personeli
 
-Sistemin ilk uygulama alanı BOTAŞ tesislerinin güvenlik personelidir. Aşağıda tanımlanan yapı, mentör görüşmesi sonrasında kesinleşmek üzere mevcut işleyişten alınmış varsayımlara dayanmaktadır. Bu değerlerin tamamı sistem içinden düzenlenebildiği için, gerçek değerlerin farklı çıkması durumunda yazılım değişikliği gerekmemektedir.
+Sistemin ilk uygulama alanı kurum tesislerinin güvenlik personelidir. Aşağıda tanımlanan yapı, mentör görüşmesi sonrasında kesinleşmek üzere mevcut işleyişten alınmış varsayımlara dayanmaktadır. Bu değerlerin tamamı sistem içinden düzenlenebildiği için, gerçek değerlerin farklı çıkması durumunda yazılım değişikliği gerekmemektedir.
 
 Tesiste iki bina bulunmakta ve güvenlik hizmeti kesintisiz yürütülmektedir. Mevcut işleyiş günde üç sekiz saatlik vardiyaya dayanmakla birlikte, sistem çalışma zamanını sabit vardiya tipleriyle değil saat düzeyinde belirler (SRS TD-13). Devriye görevi bulunmamakta; personel vardiya şefliği ve güvenlik noktalarında görevlendirilmektedir. Görev noktaları bina ayrımı yapılmadan tesis geneli tanımlanmıştır: kapı ve kontrol odası arasındaki ayrım kaldırılmış, tek bir "Güvenlik" noktasında birleştirilmiştir — kontrol odasında görevli personel zaten ayrı bir meslek grubu değil aynı yetkinliğe sahip bir güvenlik görevlisiydi, dolayısıyla atamanın hangi fiziksel noktaya yazıldığı modelin ihtiyaç duyduğu bir bilgi değildir; kim hangi kapıda veya kontrol odasında duracağını vardiya şefi o gün belirler. 
 
@@ -450,7 +451,11 @@ Aşağıdaki işlevler bilinçli olarak kapsam dışında bırakılmıştır. Ka
 
 - Üretilen çizelgede zorunlu kısıt ihlali bulunmaz; bu durum otomatik testlerle doğrulanır.
 
-- Kişi başına düşen gece yükü, kişiye düşen adil paydan en fazla **sekiz gece saati** kadar sapar. Ölçünün birimi gece saatidir (SRS TD-2); eşik, bir gece nöbeti uzunluğuna karşılık gelir — bir kişinin payından bir nöbet kadar fazla veya eksik gece alması kabul edilebilir, ötesi başarısızlıktır. Çalışma blokları çözümün çıktısı olduğundan eşik katalogdan türetilemez ve sabit yazılır.
+- Kişi başına düşen gece yükü, **planlama dönemi içinde ölçüldüğünde**, o döneme düşen adil paydan en fazla **sekiz gece saati** kadar sapar. Ölçünün birimi gece saatidir (SRS TD-2); eşik bir gece nöbeti uzunluğuna karşılık gelir — bir kişinin payından bir nöbet kadar fazla veya eksik gece alması kabul edilebilir, ötesi başarısızlıktır.
+
+  Ölçüm ufkunun planlama dönemiyle sınırlanması bilinçlidir. Adalet hesapları doksan günlük bir ufku kapsar (SRS TD-6) fakat geçmiş, sistemin o çalıştırmada değiştiremeyeceği bir girdidir: önceki dönemlerde birikmiş bir sapma tek bir dönemde kapatılamaz. Kümülatif sapmanın büyüklüğünü kabul kriteri yapmak, sistemi kendi denetimi dışındaki bir şeyden sorumlu tutmak olurdu.
+
+  Kümülatif davranış bunun yerine **gösterge** olarak raporlanır: kişi başına sapmanın önceki döneme göre azalıp azalmadığı. Kümülatif adaletin vaadi sapmanın küçük olması değil, zamanla küçülmesidir.
 
 - Kasten çelişkili kurulan örnekte sistem hangi gün, hangi saat aralığı ve hangi görev noktasında kaç kişi eksik kaldığını gösterir. Çelişki, kadro büyüklüğü üzerinden değil erişilebilirlik üzerinden kurulur: ön koşulu yalnızca küçük bir havuzun karşıladığı bir noktanın o havuzun izinli olduğu bir dönemde açık vermesi, çalışma sürelerinin uzunluğundan bağımsızdır.
 

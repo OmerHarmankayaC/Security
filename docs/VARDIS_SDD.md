@@ -52,6 +52,11 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 13.08.2026 | Gerçek saatlik modele geçiş tasarlandı: `vardiya_tipi` tablosu kaldırıldı, `atama` blok kaydına çevrildi (başlangıç ve bitiş zamanı), model kurma mutlak saat ekseni üzerine yeniden yazıldı (5.3), Tanımlar'dan Vardiya Tipi sekmesi kaldırıldı ve Çizelge ekranı gün ızgarası ile hafta şeridine ayrıldı (6.3.1, 6.3.3) | 1.27 |
 | Ömer HARMANKAYA | 13.08.2026 | Ölçüm sonrası üç madde 5.3'e yazıldı: taşma göstergelerinin günlük tavanla sınırlanması, değişken elemenin kural kısıtlarını sessizce iptal edebilmesi ve ısıtma penceresinin gerçekten sabitlenmesinin doğrulanması | 1.28 |
 | Ömer HARMANKAYA | 13.08.2026 | Çizelge ekranının görünüm anahtarı ve nokta süzgeci 6.3.3'e, analiz yanıtındaki adil pay alanı Ek B'ye yazıldı; revizyon tablosunun sıralaması düzeltildi | 1.29 |
+| Ömer HARMANKAYA | 14.08.2026 | Manuel düzenleme taslak oturum modeline göre yeniden tasarlandı: doğrulamanın biriken değişikliklerin tamamı üzerinden yapılması ve kaydetmenin tek işlemde koşullu uygulanması 5.5'e, düzenleme etkileşimi 6.3.3'e, uç nokta değişiklikleri Ek B'ye yazıldı | 1.30 |
+| Ömer HARMANKAYA | 14.08.2026 | Dışa aktarma servisi ve kapsama kayıtlarının zaman damgasına taşınması tasarlandı (4.2.4, yeni 5.8); Ek B'ye Excel uç noktaları eklendi | 1.31 |
+| Ömer HARMANKAYA | 14.08.2026 | Geçmiş sayaçlar servisi tasarlandı (yeni 5.9): dört tüketicinin tek kaynaktan beslenmesi, çalışabilirlik oranı ve önbellek kararı | 1.32 |
+| Ömer HARMANKAYA | 14.08.2026 | Geçmiş sayaçların pencere başına bir kez hesaplanması ve kural katmanında paylaşılan parametre nesnesinin değiştirilmemesi 5.9'a yazıldı | 1.33 |
+| Ömer HARMANKAYA | 17.08.2026 | Analiz ekranı yeniden tasarlandı (6.3.4): üst şerit, kota kartı, ufuk anahtarı, kümülatif değişim göstergesi ve ceza dökümünün ham/ağırlıklı ayrımı | 1.34 |
 
 
 
@@ -581,11 +586,16 @@ sürümün önceki hâlinin ayrıca saklanmasını gerektirirdi.
 | --- | --- | --- |
 | acik_id | INT (PK) | Kaydın benzersiz kimliği |
 | surum_id | INT (FK → cizelge_surumu) | Açığın tespit edildiği çizelge sürümü |
-| tarih | DATE | Açığın oluştuğu gün |
-| baslangic | TIME | Açığın başladığı saat |
-| bitis | TIME | Açığın bittiği saat; gün sonu `00.00` ile gösterilir (4.2.2) |
+| baslangic_zamani | TIMESTAMPTZ | Açığın başladığı an |
+| bitis_zamani | TIMESTAMPTZ | Açığın bittiği an; gece yarısını aşan aralıklarda ertesi güne düşer |
 | nokta_id | INT (FK → gorev_noktasi) | Açığın oluştuğu görev noktası |
 | eksik_sayi | INT | Talebe göre eksik kalan personel sayısı |
+
+**Kayıt zaman damgası taşır, tarih ve ofsetsiz saat değil.** Atama tablosu saatlik
+modele geçerken zaman damgasına taşınmıştı; bu iki tablo geride kalmıştı. Sonucu
+dışa aktarmada görülür: tarih ile ofsetsiz saatten ISO damgası kurmak, saklanmayan
+bir ofseti uydurmak anlamına gelir ve gece yarısını aşan bir açık aralığı dosyada
+okunamaz kalır. Üç tablo da aynı biçimi kullanır.
 
 Kayıt saat saat değil aralık olarak tutulur: ardışık ve eksik sayısı eşit olan saatler tek bir satırda birleştirilir. Yirmi dört satırlık bir liste kullanıcıya hiçbir şey anlatmaz; "00.00–08.00 arası bir kişi eksik" anlatır. Birleştirme yazma anında yapılır, okuma anında değil — aksi hâlde her tüketici kendi birleştirme mantığını yazar ve ikisi ayrışır.
 
@@ -597,9 +607,8 @@ Bu tablo, S1 formülasyonundaki eksik değişkenlerinin sıfırdan büyük oldu�
 | --- | --- | --- |
 | fazla_id | INT (PK) | Kaydın benzersiz kimliği |
 | surum_id | INT (FK → cizelge_surumu) | Kaydın ait olduğu çizelge sürümü |
-| tarih | DATE | Fazlalığın oluştuğu gün |
-| baslangic | TIME | Fazlalığın başladığı saat |
-| bitis | TIME | Fazlalığın bittiği saat; gün sonu `00.00` ile gösterilir (4.2.2) |
+| baslangic_zamani | TIMESTAMPTZ | Fazlalığın başladığı an |
+| bitis_zamani | TIMESTAMPTZ | Fazlalığın bittiği an; gece yarısını aşan aralıklarda ertesi güne düşer |
 | nokta_id | INT (FK → gorev_noktasi) | Fazlalığın oluştuğu görev noktası |
 | fazla_sayi | INT | Talebin üzerine çıkılan personel sayısı |
 
@@ -1015,42 +1024,86 @@ bırakılmaz, biri seçilir.
 
 ## 5.5 Manuel Düzenleme Doğrulaması
 
-Manuel düzenleme yalnızca bir doğrulama işlemi değildir: değişiklik kabul edildiğinde sürüme bağlı sapma tabloları da yeniden hesaplanır. Kapsama açığı ve fazla kadro kayıtları yalnızca çözücü tarafından yazılırsa, elle düzenlenmiş her sürümde analiz oranları, sürüm raporu ve dışa aktarılan dosya çözüm anındaki duruma göre bayat kalır. Yenileme, çözücünün kullandığı dönem sınırıyla aynı sınırı kullanır; ısıtma penceresine düşen günler hesaba katılmaz (SRS TD-5).
-
-Yönetici bir atamayı değiştirdiğinde, sistemin bir saniyenin altında kural ihlali bildirmesi beklenir. Bütün kuralların bütün dönem için sıfırdan yeniden değerlendirilmesi bu hedefi karşılamaz; bu nedenle doğrulama iki farklı kapsamda yürütülür ve kuralın kendi tanımına göre doğru kapsam seçilir.
-
-Zorunlu kısıtların (H1–H8) tamamı doğası gereği yereldir — en geniş kapsamlısı olan kayan yedi günlük saat tavanı bile yalnızca yedi günlük bir pencereye bakar. Bu kurallar için değiştirilen günün yedi gün öncesi ve yedi gün sonrasından oluşan pencere yeterlidir; pencere dışındaki atamalar kuralın sonucunu hiçbir zaman etkilemez.
-
-Esnek hedeflerin (S1–S8) bir kısmı ise dönem geneline yayılan bir toplam veya bir agregasyon üzerine kuruludur ve pencereyle sınırlandırılamaz. S1'in kapsama açığı her (gün, vardiya, nokta) hücresini kendi talebine göre değerlendirir; bir hücrelik değişikliğin S1 cezasına etkisi yalnızca o hücreye bakılarak hesaplanabilir ve bu doğası gereği zaten yereldir. S2, S3 ve S4 ise dönem genelindeki en yüksek ve en düşük değere (adalet) veya kişinin dönem toplamına (saat dengesi) bakar; bir kişinin tek bir gününün değişmesi bu agregatı kaydırabileceğinden, doğru bir ceza farkı ancak ilgili kişi veya dönem genelindeki mevcut değerle karşılaştırılarak hesaplanabilir. Bu nedenle S2–S4'ün ceza_degisimi hesabı, pencere yerine dönem genelindeki atama kümesi üzerinden, değişiklik öncesi ve sonrası olmak üzere iki kez çalıştırılır.
+Düzenleme, kaydedilene kadar biriken bir oturumdur (SRS TD-16). Sunucu iki uç
+nokta sunar ve ikisi de aynı kural uygulamasından beslenir:
 
 ```
-FONKSİYON degisikligi_dogrula(surum_id, degisiklik):
-    kurallar ← kurallari_yukle()
-    pencere ← etkilenen_pencere(degisiklik, kurallar)
-    atamalar_pencere ← AtamaDeposu.getir(surum_id, pencere)
-                       UYGULA degisiklik
-    atamalar_donem ← AtamaDeposu.getir(surum_id, TÜM_DÖNEM)
-                     UYGULA degisiklik
+FONKSİYON dogrula(surum_id, bekleyen_degisiklikler):
+    baglam ← BaglamKurucu.kur(surum.donem)          # ısıtma penceresi dahil
+    atamalar ← CizelgeDeposu.atamalar(surum_id)
+    aday ← atamalari_uygula(atamalar, bekleyen_degisiklikler)   # bellekte
 
     ihlaller ← []
-    HER kural İÇİN kurallar:
-        atamalar ← EĞER kural.kapsam = DÖNEM_GENELİ
-                   İSE atamalar_donem DEĞİLSE atamalar_pencere
-        ihlaller.EKLE_HEPSİNİ(kural.dogrula(atamalar, baglam))
+    HER kural İÇİN KuralKayitDefteri.zorunlu_kurallar():
+        ihlaller += kural.dogrula(aday, baglam)
 
-    zorunlu ← ihlaller.SÜZ(tip = ZORUNLU)
-    esnek   ← ihlaller.SÜZ(tip = ESNEK)
-    DÖNDÜR DogrulamaSonucu(
-        kabul_edilebilir = zorunlu.BOŞ_MU(),
-        zorunlu_ihlaller = zorunlu,
-        ceza_degisimi    = esnek.ceza_farki())
+    cezalar ← {}
+    HER hedef İÇİN KuralKayitDefteri.esnek_hedefler():
+        cezalar[hedef] ← hedef.dogrula(aday, baglam)
+
+    DÖNDÜR (ihlaller, cezalar, sapma_ozeti(aday, baglam))
 ```
 
+**Hiçbir şey yazılmaz.** Aday çizelge bellekte kurulur; işlem açılmaz, sapma
+tabloları tazelenmez. Bu, "kaydedilmezse değişiklik olmaz" kuralının uygulama
+karşılığıdır.
 
+**Değerlendirme biriken değişikliklerin tamamı üzerinden yapılır.** Tek tek
+geçerli olan iki değişiklik birlikte bir kuralı bozabilir: iki ayrı güne yapılan
+uzatma, ayrı ayrı haftalık tavanı aşmazken birlikte aşar. İstek bu nedenle son
+değişikliği değil, oturumun tamamını taşır. Yükü sınırlıdır — bir dönemdeki
+atama sayısı birkaç yüzdür.
 
-Kural sınıfının kapsam alanı sabittir ve kural tanımından gelir; çalışma zamanında hesaplanmaz. H1–H8 ile S1, S5, S6, S6b, S7 ve S8 pencere kapsamındadır — S1 ve S8'in kendisi dönem genelinde tanımlı olsa da, bir tek hücrelik değişikliğin bu iki kural üzerindeki etkisi yalnızca o hücreye bakılarak hesaplanabildiğinden pencere yeterlidir. S2, S3 ve S4 dönem geneli kapsamındadır. Dönem genelindeki atama sayısı tipik bir örnekte (kırk personel, yirmi sekiz gün) bin iki yüz satır civarındadır; bu ölçekte iki kez tarama milisaniyeler sürer ve hedeflenen sürenin belirgin altında kalır.
+Doğrulamanın istemciye taşınması reddedilmiştir: kural o durumda ikinci bir
+yerde tanımlanmış olurdu ve çözücü ile doğrulayıcının aynı tanımdan beslenmesi
+(SDD 3.2.1) bozulurdu.
 
-Zorunlu kısıt ihlali değişikliği reddeder; esnek hedef ihlali ise yalnızca ceza değişimi olarak bildirilir ve karar kullanıcıya bırakılır. Bu ayrım, sistemin kararı devralmayıp destekleme ilkesinin doğrudan uygulamasıdır.
+### 5.5.1 Kaydetme
+
+```
+YORDAM kaydet(surum_id, bekleyen_degisiklikler, surum_damgasi):
+    İŞLEM BAŞLAT:
+        surum ← CizelgeDeposu.kilitle(surum_id)      # SELECT … FOR UPDATE
+        EĞER surum.durum ≠ taslak:
+            HATA VER 'Yayınlanmış sürüm değiştirilemez'
+        EĞER surum.damga ≠ surum_damgasi:
+            HATA VER 'Sürüm düzenleme başladığından beri değişti'
+
+        ihlaller ← dogrula(surum_id, bekleyen_degisiklikler).ihlaller
+        EĞER ihlaller BOŞ DEĞİL: HATA VER ihlaller
+
+        atamalari_uygula_ve_yaz(surum_id, bekleyen_degisiklikler)
+        sapmalari_yenile(surum_id)
+        surum.damga ← YENİ_DAMGA()
+    İŞLEM BİTİR
+```
+
+**Kaydetme tek işlemdir.** Değişikliklerin bir kısmının yazılıp bir kısmının
+yazılamaması, kullanıcının ekranda gördüğüyle veritabanındaki durumun ayrışması
+demektir; kısmi kayıt yoktur.
+
+**Sürüm damgası** eş zamanlı düzenlemeyi yakalar. Kullanıcı düzenlemeye
+başladığında sürümün damgasını alır, kaydederken geri gönderir. Damga
+değişmişse başka bir oturum aynı sürümü değiştirmiştir ve kayıt reddedilir.
+Sessizce üzerine yazmak, diğer kullanıcının işini iz bırakmadan yok eder.
+
+**Doğrulama kaydetme anında tekrarlanır.** İstemciden gelen "geçerliydi"
+bilgisine güvenilmez; arada tanımlar değişmiş, kural parametresi güncellenmiş
+veya müsaitlik kaydı girilmiş olabilir.
+
+Kaydetme sonrası sapma tabloları tazelenir — kapsama açığı ve fazla kadro
+kayıtları yeniden hesaplanır ve aralık birleştirmesinden geçer (4.2.4).
+
+### 5.5.2 Yayınlanmış sürüm
+
+Yayınlanmış sürümler salt okunurdur (SRS FR-6.9). Kilit hem uç nokta düzeyinde
+hem yordamın içinde uygulanır: arayüzün düzenleme araçlarını gizlemesi tek
+başına yeterli değildir, çünkü istek doğrudan da gönderilebilir.
+
+Değişiklik gerektiğinde yayınlanmış sürümden yeni bir taslak türetilir (FR-7.3).
+Bu, yayınlanmış çizelgenin sahada dağıtılmış olmasının doğal sonucudur: dağıtılan
+bir çizelgenin sessizce değişmesi, elindeki kâğıdın artık geçerli olmadığını
+kimsenin bilmemesi demektir.
 
 ## 5.6 Değişim Odaklı Yeniden Çözme
 
@@ -1108,6 +1161,105 @@ Açık tablosundan türetilmesi hâlinde "açık kaydı bulunmaması" ile "açı
 Saat dağılımı metriğinin tabanı, personelin sözleşmesindeki haftalık hedef saat değil, SRS bölüm 4'teki S4 formülasyonunda tanımlanan adil paydır. Sözleşme saati taban alındığında, haftalık saat tavanı ve asgari izin günü kuralları kişi başına azami vardiya sayısını sınırladığı için kadro asgari gereksinimin üzerinde olduğunda hiçbir personel hedefine ulaşamaz; tablo bütün satırlarda aynı yönde sapma gösterir ve hiçbir ayrım üretmez. Adil pay tabanında sapma iki yönlü olabildiğinden metrik "kim payından fazla, kim az aldı" sorusunu yanıtlar ve yöneticinin üzerine işlem yapabileceği tek biçim budur.
 
 Gece ve hafta sonu metriklerinde kişi başına düşen değerin ekip ortalamasından sapması ayrıca hesaplanır ve kabul kriterindeki bir birimlik sapma sınırıyla karşılaştırılır. Bu iki metrikte ortalama ve sapma, SRS S2 ve S3'te tanımlanan uygun havuz (P_gece, P_hs) üzerinden hesaplanır; yetkinliği gereği gece veya hafta sonu talebi bulunan hiçbir noktada çalışamayan personel ölçüme dahil edilmez. Aksi hâlde bu personel kalıcı olarak ortalamanın altında görünür ve kabul kriteri hiçbir çizelgeyle sağlanamaz.
+
+## 5.8 Dışa Aktarma
+
+Dışa aktarma tek bir serviste toplanır (`DisaAktarmaServisi`) ve verisini mevcut
+okuma yüzeylerinden alır: çizelge atamalardan, analiz `AnalizServisi`'nden,
+açıklar kapsama açığı kayıtlarından. **İkinci bir hesap yapmaz.** Dışa aktarmanın
+kendi toplamlarını hesaplaması, aynı sayının ekranda ve dosyada farklı çıkması
+demektir; bu projede aynı hesabın iki yerde durmasının bedeli birkaç kez
+ödenmiştir.
+
+Blok geometrisi ve saat biçimlemesi arayüzdeki `blok.ts` ile aynı sözleşmeyi
+izler; sunucu tarafındaki karşılığı `zaman_araligi` yardımcısıdır. Saat metni
+biçimleyicisinin üç ayrı kopyası bir kez hataya yol açmıştır.
+
+```
+FONKSİYON cizelge_excel(surum_id):
+    surum, atamalar ← CizelgeDeposu.oku(surum_id)
+    aciklar ← CizelgeDeposu.kapsama_aciklari(surum_id)
+    ozet ← AnalizServisi.metrikler(surum_id)
+
+    kitap ← YeniCalismaKitabi()
+    sayfa_cizelge(kitap, atamalar, aciklar)      # personel × gün
+    sayfa_ozet(kitap, ozet)
+    sayfa_ham(kitap, atamalar)                   # CSV ile aynı içerik
+    DÖNDÜR kitap
+```
+
+**Hücre dolgusu bilgiyi tek başına taşımaz.** Saat aralığı hücrede metin olarak da
+yazılıdır ve bir açıklama satırı dolgunun anlamını söyler; renksiz basılan bir
+çıktı okunabilir kalır. Aynı ilke ekrandaki renk bandı için de geçerlidir (6.3.3).
+
+Analiz çıktısındaki grafikler kişiye düşen adil payı referans alır. Havuz
+ortalaması kullanmak, S2'nin açıkça reddettiği ölçüyü dosyaya taşımak olurdu.
+
+Uç noktalar dosyayı doğrudan döndürür; ayrı bir iş kuyruğu kurulmaz. Bir
+dönemdeki atama sayısı birkaç yüzdür ve ölçek bunu gerektirmez.
+
+## 5.9 Geçmiş Sayaçlar
+
+Dönem öncesi birikim tek bir serviste toplanır (`GecmisSayaclar`). Servis bir
+dönem ve bir ufuk alır, her personel için gece saati, hafta sonu saati, toplam
+saat ve fazla çalışma saati döndürür.
+
+```
+FONKSİYON sayaclar(donem, ufuk_gun):
+    pencere_bas ← donem.baslangic − ufuk_gun
+    surumler ← CizelgeDeposu.donem_basina_son_yayinlanan(pencere_bas, donem.baslangic)
+    atamalar ← surumler.atamalari_kesisen(pencere_bas, donem.baslangic)
+
+    sayac ← {}
+    HER a İÇİN atamalar:
+        p ← a.personel
+        sayac[p].toplam      += a.sure_saat
+        sayac[p].gece        += gece_saati(a)
+        sayac[p].hafta_sonu  += EĞER hafta_sonu(a.baslangic_gunu) İSE a.sure_saat DEĞİLSE 0
+    DÖNDÜR sayac
+```
+
+**Dört tüketici, tek kaynak.** Çözücü (S2, S3, S4 ve H10 için), ön kontrol,
+analiz servisi ve kabul ölçüm betiği aynı servisi çağırır. Beşinci bir hesap yeri
+açılmaz; bu projede aynı hesabın iki yerde durmasının bedeli birkaç kez
+ödenmiştir.
+
+**Bir dönemin birden çok yayınlanmış sürümü olabilir.** Sayım her dönem için en
+son yayınlananı kullanır. Arşivlenmiş ve taslak sürümler sayılmaz — biri geçmişi
+iki kez sayar, diğeri henüz gerçekleşmemiş bir çizelgeyi geçmişe yazar.
+
+**Çalışabilirlik oranı** aynı serviste hesaplanır (SRS TD-6): personelin ufuk
+içinde aktif olduğu ve tam gün müsaitlik kaydıyla kapatılmadığı gün sayısının
+ufuk uzunluğuna oranı. Pay bu oranla ölçeklenir. Oranın ayrı bir yerde
+hesaplanması, ufkun tanımının iki yere dağılması demektir.
+
+**Yasal ufuk ayrıdır.** H10'un kota hesabı ısıtma penceresini ve personel
+kaydındaki devir bakiyesini kapsar; adalet ufkuyla aynı fonksiyondan geçse de
+farklı parametreyle çağrılır ve devir alanı türetilen değere eklenir. İki ufkun
+tek bir çağrıda birleştirilmesi, hangi kuralın hangisini kullandığını çağrı
+yerine bakmadan anlaşılmaz kılar (SRS TD-14 ile aynı gerekçe).
+
+**Önbellek kurulmaz.** Doksan günlük bir pencerede otuz personel için yaklaşık
+üç bin blok okunur; ölçek bunu gerektirmez. Önbellek, bir sürüm yayınlandığında
+veya arşive alındığında bayatlar ve geçersiz kılma mantığı hesabın kendisinden
+karmaşık olur — saklanan sayaç için verilen kararın (SRS TD-6) aynı gerekçesi.
+
+**Pencere başına bir kez hesaplanır.** Sayaç sorgusu personel döngüsünün içine
+girdiğinde kişi sayısı kadar tekrarlanır; ölçülen etkisi test takımını on
+dakikadan yirmi beş dakikaya çıkarmasıdır. Sonuç doğru olduğu için belirti yalnızca
+süredir — hesap bir kez yapılır ve tüm personel aynı sonuçtan okur.
+
+**Geçmiş yük paylaşılan parametreyi değiştirmez.** Ortak sapma teriminde üst
+sınıra geçmiş yükün eklenmesi, parametre nesnesi paylaşılıyorsa kalıcı olur: bir
+personelin geçmişi kendisinden sonra değerlendirilen herkesin üst sınırını şişirir.
+Hata sessizdir — model çözülür, çizelge üretilir, yalnızca sayılar yanlış olur.
+Kural sınıfları kendilerine verilen parametreleri okur, değiştirmez; yerel bir
+kopya üzerinde çalışırlar.
+
+**Modele sabit terim olarak girer.** Geçmiş yük karar değişkeni değildir; S2,
+S3 ve S4'ün sapma ifadelerinde dönem içi toplama eklenen bir sayıdır. Payın
+kendisi de geçmiş gerçekleşme ile dönem talebinin toplamından hesaplanır ve
+model kurulurken sabittir.
 
 # 6. Kullanıcı Arayüzü Tasarımı
 
@@ -1235,9 +1387,23 @@ düzendedir. İki sunum kuralı vardır:
 
 - Hücre Rengi: Renk, saatin kendisinden hesaplanır — gece saatleri koyu, gündüz açık, aradaki geçiş süreklidir. Sabit üç kategori (gündüz, akşam, gece) çalışma zamanının kataloglu olduğu sürümlere aitti; blok kalmadığı için kategorik renk de kalkmıştır.
 
-- Hücre Düzenleme: Bir personelin gün satırında sürükleyerek veya başlangıç ve bitiş saati seçilerek blok tanımlanır. Görev noktası blok boyunca tektir (SRS H1). Seçim yapıldığında doğrulama isteği gönderilir.
+- Blok Düzenleme: Düzenleme ızgaranın üzerinde yapılır. Boş bir satırda sürükleyerek blok oluşturulur; bloğun kenarından tutularak uzatılır veya kısaltılır, gövdesinden tutularak gün içinde kaydırılır ya da başka bir personelin satırına taşınır. Bloğa tıklandığında görev noktası değiştirme, kilitleme ve silme eylemlerini taşıyan küçük bir menü açılır.
 
-- İhlal Bildirimi: Doğrulama sonucu zorunlu kısıt ihlali içeriyorsa değişiklik uygulanmaz; hangi kuralın hangi gerekçeyle bozulduğu bloğun yanında gösterilir. Esnek hedef ihlalinde değişiklik uygulanır ve ceza değişimi bilgilendirme olarak gösterilir.
+  Sürükleme sırasında oluşan aralık blok üzerinde yazılıdır ve asgari blok süresi ile günlük tavan sınırlarına dayanınca sürükleme durur; kullanıcı geçersiz bir seçim yapıp reddedilmek yerine sınırı hisseder. Değerler kural kataloğundan okunur.
+
+  Ayrı bir form üzerinden başlangıç ve bitiş saati girmek **ikincil** bir yoldur; tam değer yazmak isteyen kullanıcı içindir ve ızgaranın yerini almaz.
+
+- Anında Uygulama ve Geri Alma: Değişiklik bırakıldığı anda ızgarada görünür. Geri alma ve yeniden uygulama, oturumdaki değişiklik yığınını ileri geri sürer (SRS FR-6.7).
+
+- İhlal Bildirimi: Zorunlu kısıt ihlali doğuran değişiklik **uygulanmaz**; blok eski hâline döner ve hangi kuralın neden bozulduğu bloğun yanında gösterilir. Esnek hedef etkisi değişikliği engellemez.
+
+- Sonuç Şeridi: Uygulanan değişikliğin etkisi gündelik dille bildirilir — "Vardiya Şefliği'ndeki açık kapandı, toplam saat dengesi bir saat bozuldu" gibi. Sayısal ceza dökümü bu şeridin altındaki bir ayrıntı bağlantısının arkasındadır (SRS FR-6.4).
+
+  Ağırlıklı ceza toplamı kullanıcının okumak zorunda olduğu bir sayı değildir. "Ceza değişimi −9999" ifadesi tek başına yönünü bile söylemez; aynı ekranda hem "kabul edilebilir" hem kırmızı bir uyarı bulunması üç ayrı işaretin üç yöne bakması demektir.
+
+- Kaydetme: Değişiklikler sürüme yalnızca kaydetmeyle yazılır (SRS FR-6.8). Kaydedilmemiş değişiklik bulunduğu ekranın üstünde görünür ve kullanıcı ekrandan ayrılmadan önce uyarılır.
+
+- Yayınlanmış Sürüm: Salt okunurdur (SRS FR-6.9). Düzenleme araçları görünmez ve ekranda değişiklik için yeni bir taslak türetilmesi gerektiği belirtilir.
 
 - Kilitleme Anahtarı: Bir bloğu kilitler. Kilitli bloklar yeniden çözümde sabit girdi olarak korunur ve ızgarada ayırt edici biçimde işaretlenir.
 
@@ -1251,17 +1417,50 @@ düzendedir. İki sunum kuralı vardır:
 
 ### 6.3.4 Analiz Ekranı
 
-- Kapsama Kartı: Dönem geneli kapsama oranı ile açık verilen gün, saat aralığı ve nokta listesi.
+Ekran beş soruya yanıt verir ve sırası bu soruların aciliyetine göredir: bu çizelge
+kullanılabilir mi, yük adil dağılmış mı, kimin kotası doluyor, sıkıntı nerede,
+önceki döneme göre ne değişti.
 
-- Adalet Grafiği: Kişi başına gece ve hafta sonu **saatlerinin** dağılımı; kişiye düşen adil pay referans çizgisi olarak gösterilir.
+- Üst Şerit: Üç sayı — kapsama oranı, karşılanmayan kişi-saat, toplam ceza.
+  **Karşılanmayan kişi-saat ile açık kayıt sayısı ayrı ölçülerdir** ve ikisi de
+  gösterilir: ardışık saatler tek kayıtta birleştirildiği için satır sayısı
+  yükü anlatmaz. İkisinin karıştırılması bir kez gerçekleşti ve dışa aktarma
+  başlığında yanlış sayı gösterildi.
 
-- Saat Dengesi Tablosu: Personel başına toplam saat, kişiye düşen adil pay ve sapma (SRS S4).
+- Kapsama Kartı: Açık verilen gün, saat aralığı, görev noktası ve eksik kişi
+  sayısı; her satırda o aralığın kişi-saat karşılığı. Toplam satırı bulunur.
 
-- Ceza Dökümü: Toplam cezanın hedefler arasındaki dağılımı. Her hedefin adı, ağırlığı ve katkısı listelenir.
+- Adalet Kartı: Üç ölçü yan yana — gece saati, hafta sonu saati, toplam saat.
+  Her biri için kişi başına yük ve **kişiye düşen adil pay** (SRS S2, S3, S4);
+  sapmaya göre sıralanır, en uzaktakiler üstte. Havuz ortalaması gösterilmez.
 
-- Dışa Aktarma Butonu: Çizelgeyi ve raporları CSV biçiminde indirir (SRS 7.2). Çizelge ile kapsama açıkları ayrı dosyalar hâlinde iner.
+  **Ufuk Anahtarı** bu kartın üstündedir: ölçüler ya planlama dönemi ya da doksan
+  günlük adalet ufku için gösterilir (SRS TD-6). Hangi ufkun seçili olduğu her
+  zaman görünür; iki ufkun sayıları farklıdır ve hangisine bakıldığı belirsiz
+  kalırsa tablo yanlış okunur.
 
-Dışa aktarma yalnızca bu ekrana özgü değildir: Çizelge ekranı (6.3.3) da aynı işlevi sunar; ayrıca oradan yazdırılabilir görünüm üretilir (FR-8.8). Biçimlendirme ve indirme mantığı iki ekran tarafından paylaşılan tek bir birimde tutulur, ekran başına ayrı kopya çıkarılmaz.
+- Kota Kartı: Personel başına yıllık fazla çalışma ve kalan kota (SRS H10).
+  Kotası tükenmeye yakın olanlar üstte sıralanır — bu kartın amacı listeyi
+  göstermek değil, kimin sınıra dayandığını göstermektir.
+
+- Ceza Dökümü: Her hedef için **üç ayrı sütun** — ham değer, ağırlık, ağırlıklı
+  ceza. Ham değer kuralın kendi biriminde ölçülür (kişi-saat, saat, gün);
+  ağırlıklı ceza amaç fonksiyonuna girendir. İkisinin tek sütunda gösterilmesi,
+  toplamın satırların toplamı olmadığı bir tablo üretir.
+
+  Hedefler kimlikleriyle değil adlarıyla listelenir; "S4" tek başına kimseye bir
+  şey söylemez.
+
+- Kümülatif Değişim: Kişi başına sapmanın önceki yayınlanmış döneme göre azalıp
+  azalmadığı. Kümülatif adaletin vaadi sapmanın küçük olması değil, zamanla
+  küçülmesidir (Charter bölüm 5, K3); bu kart o vaadin ölçüldüğü yerdir.
+
+- Dışa Aktarma: Çizelge ve analiz için Excel çıktısı (SRS FR-8.5, FR-8.9); CSV
+  makine okunur biçim olarak korunur.
+
+Ekrandaki bütün sayılar `AnalizServisi`'nden gelir; ekran kendi hesabını yapmaz.
+Aynı kural dışa aktarma için de geçerlidir (5.8) — üç yüzeyin aynı sayıyı farklı
+göstermesi, bu projede birkaç kez ödenmiş bir bedeldir.
 
 ### 6.3.5 Sürümler Ekranı
 
@@ -1441,9 +1640,11 @@ Aşağıdaki tablo başlıca uç noktaların işlevsel bir özetidir. Uç noktal
 | /api/cozum/aktif | GET | Devam eden veya karar bekleyen iş; kabuktaki gösterge bunu yoklar |
 | /api/cozum/{id}/durdur | POST | Aramanın sonlandırılması. Arama sürüyorsa iş karar bekleyen duruma geçer, henüz kuyrukta veya ön kontroldeyse doğrudan iptal edilir (5.4.1). Durdurulamayacak bir durumdaki iş için istek reddedilir |
 | /api/cozum/{id}/karar | POST | Durdurulan işte kullanıcı kararı (kullan / at / devam) |
-| /api/atama/dogrula | POST | Manuel değişikliğin kural doğrulaması |
-| /api/atama | PUT | Doğrulanmış manuel değişikliğin uygulanması |
+| /api/atama/dogrula | POST | Düzenleme oturumundaki bütün bekleyen değişikliklerin kural doğrulaması; hiçbir şey yazmaz |
+| /api/atama/kaydet | POST | Düzenleme oturumundaki değişikliklerin tek işlemde uygulanması; sürüm damgası çakışmasında ve yayınlanmış sürümde reddedilir |
 | /api/analiz/{surum_id} | GET | Analiz metriklerinin hesaplanması; kişiye düşen adil pay değerleri dahil |
+| /api/disa-aktar/cizelge/{surum_id} | GET | Çizelgenin Excel çıktısı (FR-8.5) |
+| /api/disa-aktar/analiz/{surum_id} | GET | Analiz sonuçlarının Excel çıktısı (FR-8.9) |
 | /api/calisan/vardiyalarim | GET | Çalışanın yayınlanmış çizelgedeki atamaları |
 | /api/calisan/tercih | GET, POST | Çalışanın tercih bildirimi |
 

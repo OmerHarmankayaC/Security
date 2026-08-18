@@ -9,6 +9,1315 @@ başlar.
 
 ---
 
+## 2026-08-18 — Görev 8: Tam takım doğrulama ve kayıt — **TAMAMLANDI**
+
+Çalışan paneli düzeltme turunun (yedi görev, on commit: `5e2b7de` (Görev 1),
+`eb9c24d` (Görev 2), `d1c4d56` + `7fe9a72` + `e537080` (Görev 3+4, üç
+commit), `9ea41ab` + `8cca290` (Görev 5, ilki ve review düzeltmesi),
+`f282539` (Görev 6), `82d6de2` + `9f1bab0` (Görev 7, ilki ve review
+düzeltmesi)) kapanış doğrulaması. Kaynak koduna dokunulmadı — bu görev
+yalnız doğrulama ve kayıt.
+
+### Frontend — temiz
+
+```
+cd frontend && npm run test   → 30 dosya, 314 test, hepsi geçti (4,00 sn)
+cd frontend && npm run lint   → oxlint; 0 hata, 4 önceden var olan
+                                 react(only-export-components) uyarısı
+                                 (button.tsx, badge.tsx, TanimYonetimi.tsx,
+                                 AktifIsBaglami.tsx — bu turun kapsamı dışında)
+cd frontend && npx tsc -b     → çıkış 0, hata yok
+```
+
+### Backend — temiz (ağır çözücü dosyaları hariç)
+
+```
+cd backend && pytest -q
+  --ignore=tests/test_cozucu_uctan_uca.py
+  --ignore=tests/test_cozucu_dogrulayici_uyumu.py
+  --ignore=tests/test_cozucu_dogrulayici_uyumu_olcek.py
+  --ignore=tests/test_cozum_servisi.py
+  --ignore=tests/test_cozum_iscisi.py
+  --ignore=tests/test_agirlik_kalibrasyonu.py
+  --ignore=tests/test_durdurma_karari.py
+  --ignore=tests/test_kurallar_zorunlu.py
+  --ignore=tests/test_kurallar_esnek.py
+  --ignore=tests/test_yeniden_coz.py
+  --ignore=tests/test_kabul_olcumu_dumani.py
+
+→ 263 passed, 1 skipped (12,76 sn)
+```
+
+On bir dosya hariç tutuldu; hepsi gerçekten OR-Tools CP-SAT çözücüyü
+çalıştırıyor (`cp_model` / `CozumServisi` / `isi_calistir_ve_bekle`) ve
+sandbox'ın 10 dakikalık zaman aşımını aşabiliyor (bkz. Tur 10 kalibrasyon
+kaydı aşağıda — tek bir ölçüm 60–900 sn arası sürebiliyor). **Bu dosyalar bu
+turda koşmadı ve doğrulanmadı** — sessizce "temiz" denip geçilmiyor,
+burada açıkça yazılıyor. `ruff check .` de ayrıca çalıştırıldı: temiz.
+
+Hariç tutulan dosyalar ve sayı, Görev 2 raporunda (`task-2-report.md`)
+uygulanan aynı hariç tutma listesiyle birebir aynı; o turda da (263 passed,
+1 skipped) aynı sonuç alınmıştı — çalışan paneli turunun içinde regresyon
+yok.
+
+### Göç `c4f1a7d20b93` — kopya sayımı (Görev 2'den, doğrulanmış)
+
+**Yerel geliştirme veritabanı (`vardiya`):** göç ilk uygulandığında **0
+kopya** vardı — `[goc c4f1a7d20b93] kopya:` satırı hiç basılmadı, silinen
+satır sayısı 0. Bugün bu görev kapsamında aynı veritabanında tekrar
+sayıldı ve hâlâ boş:
+
+```sql
+SELECT personel_id, tarih, count(*) FROM tercih
+GROUP BY personel_id, tarih HAVING count(*) > 1;
+-- 0 satır
+```
+
+`alembic current` → `c4f1a7d20b93 (head)`, `alembic heads` ile tek başlıklı.
+
+**Test veritabanı (`vardiya_test`) — ayrı bir gerçek, karıştırılmasın:**
+orada **1 kopya bulundu ve silindi** (`personel=6862 tarih=2026-08-18
+adet=2`, silinen satır `[414]`). Bu, üretim verisi DEĞİL — Görev 2'nin RED
+aşamasında, kısıt henüz yokken, çakışan iki `Tercih` satırı yaratan bir
+testin bıraktığı yapay artıktı; dedup mantığının kendi kanıtı oldu. Yerel
+geliştirme ortamında hiçbir zaman gerçek kopya görülmedi.
+
+### Kalan / ertelenen
+
+- Görev 8'in kendisi tamamen bitti; bu turda ertelenen kod işi yok.
+- On bir ağır çözücü test dosyası bu koşumda doğrulanmadı (yukarıda
+  listelendi) — bir sonraki oturumda PostgreSQL zaten ayaktayken ve sandbox
+  dışında (ya da daha yüksek zaman aşımıyla) tek tek çalıştırılıp
+  doğrulanmalı.
+- Tur 10, İş 4 (Ağırlık Kalibrasyonu) hâlâ **KISMEN** durumda duruyor — K3
+  eşiği geçmiyor, zaman limiti kararı proje yürütücüsünde bekliyor (aşağı
+  bakınız). Görev 8 bunu etkilemedi, etkilemesi de beklenmiyordu.
+
+### DOKÜMAN BORCU
+
+Dört kanonik doküman (Charter, SRS, SDD, Backlog) bu turda değiştirilmedi;
+aşağıdakiler bir sonraki doküman geçişinde işlenmeli:
+
+- **SDD 6.1** — dönem özeti artık `/api/calisan/vardiyalarim` içinde değil,
+  kendi uç noktası `GET /api/calisan/ozetim?ufuk=donem|adalet`te; ufuk
+  parametresi doğrudan `AnalizServisi.hesapla`'ya geçiyor ve yanıtta
+  yankılanıyor (`adil_pay_*`, `hedef_saat` alanları istemciye taşınıyor).
+- **SRS FR-9.6** — bir çalışan bir gün için tek tercih bildirebilir:
+  ikinci bildirim, gün BEKLEMEDE ise mevcut kaydın üstüne yazar (aynı
+  `tercih_id` korunur); gün KARARLANMIŞ (ONAYLANDI/REDDEDILDI) ise HTTP 409
+  döner. Veritabanı düzeyinde `uq_tercih_personel_tarih` (personel_id,
+  tarih) kısıtıyla zorlanıyor (göç `c4f1a7d20b93`).
+- **SDD Ek B** — yeni uç nokta `GET /api/calisan/ozetim` (ufuk parametresi,
+  yanıt gövdesi) ve `POST /api/calisan/tercih`'in 409 yanıt kodu Ek B'nin
+  uç nokta tablosuna eklenmeli.
+
+### Dağıtım öncesi sayım — dağıtımdan önce sunucuda çalıştırılacak
+
+`alembic upgrade head` üretim veritabanında çalıştırılmadan önce şu sayım
+yapılmalı ve sonucu buraya (ya da dağıtım kaydına) geçilmeli. Sorgu artık
+`durum`u da taşır (final review bulgu 3): göç, bir kopya grubunun içinde
+BEKLEMEDE-DIŞI (onaylanmış/reddedilmiş) bir kayıt bulursa artık **otomatik
+silmez, DURUR** — operatörün önceden hangi (personel_id, tarih) çiftlerinin
+elle triaj gerektirdiğini bilmesi için `durum` sütunu sayımın bir parçası:
+
+```sql
+SELECT personel_id, tarih, count(*), array_agg(durum::text ORDER BY tercih_id) AS durumlar
+FROM tercih
+GROUP BY personel_id, tarih HAVING count(*) > 1;
+```
+
+Sonuç boş değilse VE herhangi bir grubun `durumlar`ı yalnızca BEKLEMEDE
+değilse (yani içinde ONAYLANDI/REDDEDILDI varsa), `alembic upgrade`
+**patlayacaktır** (göç kasıtlı olarak `RuntimeError` fırlatır) — o satırlar
+önce elle triaj edilmeden dağıtım yapılmamalı. Gruplar tamamen BEKLEMEDE
+ise göç eskisi gibi en yeni `tercih_id` dışındakileri siler ve devam eder —
+yerel geliştirme ortamında bu sayı şu ana dek hep 0 çıktı, ama üretim
+verisi farklı olabilir.
+
+### Sıradaki oturumun ilk işi
+
+On bir ağır çözücü test dosyasını (yukarıdaki `--ignore` listesi) sandbox
+dışında ya da uzatılmış zaman aşımıyla tek tek çalıştırıp bu turun
+regresyon yaratmadığını doğrulamak. Ardından üretim dağıtımı öncesi yukarıdaki
+sayım sorgusu gerçek sunucuda çalıştırılmalı.
+
+---
+
+## 2026-08-17 — Tur 10, İş 4: Ağırlık Kalibrasyonu — **KISMEN**
+
+### Ölçüm aracı önce KIRIKTI ve bunu üç ölçüm boyunca fark etmedim
+
+İlk araç `model_kur` + `CozucuAdaptoru.coz`'u doğrudan çağırıyordu. Üç farklı
+ağırlık kümesinde **birebir aynı sayı** çıktı (K3 = 21,0, fazla çalışma 0).
+Tur 9'da öğrendiğim işaret buydu: kurulum değişirken sonucun hiç değişmemesi.
+
+Sebep ağırlıklar değildi — `durum=cozum_yok`, **sıfır atama**. Ölçülen şey boş
+bir çizelgeydi: "0 saat fazla çalışma" boşluktan geliyordu, "21,0 sapma" ise
+sapma değil en büyük adil payın kendisiydi (yük sıfırken |0 − pay| = pay).
+
+**Kök neden ısıtma penceresi.** TD-5 ısıtma günlerinin SABİT GİRDİ olduğunu
+söyler; doğrudan çağrı onları karar değişkeni bırakıyordu. Yedi gün × otuz
+kişi × yirmi dört saatlik ek serbestlik, üzerinde talep bulunmayan ama bütün
+zorunlu kuralların işlediği bir arama uzayı açtı; çözücü **yüz yirmi saniyede
+bile** uygun çözüm bulamadı. Aynı dönem üretim yolunda altmış saniyede
+çözülüyor.
+
+**Ders:** ölçüm aracı üretim yolunu TAKLİT ETMEZ, ONU KULLANIR. Taklit ettiği
+anda ölçtüğü şey ürünün davranışı olmaktan çıkar. Yeni araç
+(`scripts/agirlik_kalibrasyonu.py`) `CozumServisi.baslat` + çözüm işçisini
+çağırır ve boş çözümü sessizce ölçmek yerine yüksek sesle reddeder.
+
+### Bir geri alma
+
+Kırık ölçüme dayanarak "T-07'nin belirtisi artık yeniden üretilmiyor"
+demiştim. **Yanlış.** Doğru ölçümde taban değerler: 7 kişi, 27 saat fazla
+çalışma — backlog'un yazdığı "on kişi 32 saat"e yakın. T-07 duruyor.
+
+### Ölçülen adaylar
+
+Dengeli gösterim haftası (2026-08-03 – 08-09), 60 sn, 30 personel:
+
+| Ağırlıklar | T-07 fazla çalışma | K3 azami / ortanca | Eşiği aşan | Toplam ceza |
+|---|---|---|---|---|
+| Taban: S2=10, S4=1 | 7 kişi / **27 sa** | 11,0 / 3,0 | 7/30 | 2059 |
+| A: S4=8 | 5 kişi / 31 sa | 16,0 / 3,0 | 6/30 | 3912 |
+| **B: S2=20, S4=4** | 6 kişi / **22 sa** | **11,0 / 2,0** | **3/30** | 3254 |
+| C: S2=40, S4=4 | 6 kişi / 36 sa | 11,0 / 2,0 | 3/30 | 5442 |
+
+**Seçilen: B (S2=20, S4=4).** Eşiği aşan kişi sayısı 7'den 3'e, ortanca sapma
+3,0'dan 2,0'a indi; fazla çalışma 27'den 22 saate. A ve C'nin ikisi de fazla
+çalışmayı kötüleştirdi — A çünkü S4 tek başına çok güçlendi, C çünkü S2
+ötekileri ezmeye başladı. S1 baskınlığı dört kurulumda da korunuyor
+(10000 > 5442, en kötü hâlde).
+
+### T-08 ayrıştırıldı: iyileşme SÜREDEN geliyor, kalibrasyondan değil
+
+İlk 300 sn ölçümü iki değişkeni birden değiştirdiği için yorumlanamazdı
+(hem yeni ağırlıklar hem uzun süre). Ayırt edici ölçüm koşuldu — hepsi
+**referans örneğinde** (40 personel × 28 gün), K3'ün kabul kriteri olarak
+tanımlı olduğu yerde:
+
+| Ağırlıklar | Limit | K3 azami | Eşiği aşan |
+|---|---|---|---|
+| S2=10, S4=1 (eski) | 60 sn | 25,00 | 10 |
+| **S2=20, S4=4 (yeni)** | **60 sn** | **22,00** | **10** |
+| S2=20, S4=4 (yeni) | 300 sn | **12,00** | **1** |
+
+**Kalibrasyonun payı: 25 → 22** (%12, aşan sayısı değişmedi).
+**Sürenin payı: 22 → 12** (%45, aşan sayısı 10'dan 1'e).
+
+Yani iyileşmenin neredeyse tamamı arama süresinden geliyor. T-08'in kendi
+uyarısı tam da buraya düşüyor: *"ölçüm koşulunu değiştirerek kriteri
+geçirmek yerine nedeni giderilmeli."* 300 saniye kriteri geçirmeye
+yaklaştırıyor ama nedeni gidermiyor — çözücü hâlâ baskın ağırlıklı S1'i
+erken halledip adalet hedeflerine geç sıra veriyor, yalnızca ona daha çok
+zaman tanınmış oluyor.
+
+**Bir gözlem daha:** 300 saniyede yük aralığı 32–65, pay aralığı 33–64,1.
+Yani otuz dokuz kişi payının içinde, kriteri düşüren **tek kişi** ve o da
+12 saatlik sapmayla. Ölçünün azami sapma mı yoksa dağılım mı olması
+gerektiği sorusu buradan doğuyor; Charter'ın kararıdır, burada yalnızca
+görünür kılınıyor.
+
+### K3'ün ölçüldüğü senaryo — bir yöntem hatası
+
+K3'ü önce **dengeli gösterim haftasında** ölçtüm ve 300 saniyenin hiçbir şey
+değiştirmediğini gördüm (11,0 → 11,0). Sebep: o senaryo 30 kişi × 7 gün ve
+zaten 60 saniyeden çok önce en iyi çözümüne ulaşıyor; fazladan süre satın
+alacak bir şey yok. T-08'in eğrisi ise **referans örneğinde** ölçülmüştü.
+
+Kabul kriterlerinin her biri BELİRLİ BİR ÖRNEK üzerinde tanımlıdır ve bu,
+ölçünün parçasıdır — eşiği kadar bağlayıcı. Aracı T-07 için kurup K3'ü de
+oraya iliştirmek yanlıştı; ikisi aynı senaryoda ölçülemez.
+
+### AÇIK: K3 hâlâ eşiği geçmiyor
+
+Azami sapma 11,0, eşik 8. Kalibrasyon iyileştirdi ama geçirmedi. T-08'in kendi
+teşhisi burada da geçerli: sapma çözücü süresine bağlı (60 sn'de 30, 900 sn'de
+7 ölçülmüştü). Ağırlık aramasını daha ileri götürmek yerine **zaman limiti
+kararının** verilmesi gerekiyor — T-08 zaten "ölçüm koşulunu değiştirerek
+kriteri geçirmek yerine nedeni giderilmeli" diyor ve bu karar proje
+yürütücüsünde.
+
+### Yapılmayan
+
+İş 5 (kapanış ölçümü + `PERFORMANS_NOTU.md` sürüm 3) — kalibrasyon
+sonuçlanmadığı için başlanmadı.
+
+---
+
+## 2026-08-17 — Dağıtım: Tur 9 — **TAMAMLANDI**
+
+Kesinti **10:37:31–10:38:17 (46 sn)** — bugüne kadarki en kısası. Kapsam dar
+olduğu için: **göç yok, yeni bağımlılık yok, frontend değişmedi.** Yalnız
+backend `rsync` + servis yeniden başlatma. `vera-rag` ve `energy-api`
+boyunca ayakta kaldı.
+
+Dağıtılan sürüm `1628c54` (= `origin/tur8-disa-aktarma`), çalışma ağacı temiz.
+
+### Uygulanan sıra
+
+1. Ön kontrol: bitmemiş çözüm işi **yok** (TAMAMLANDI 6, UYARILI 1), altı
+   servis aktif, `alembic current` = `b8d21f6a90c3` — **yerelle aynı**,
+   bekleyen göç yok.
+2. `systemctl stop vardiya-cozucu`, ardından `vardiya-api`.
+3. Yedek: `/opt/vardiya/yedek/vardiya-20260817-1037-tur9oncesi.dump`, **73K**.
+4. `rsync` backend (`.env`, `.venv`, `__pycache__`, `*.pyc` hariç);
+   `pip install -e ".[dev]"` → 0; `chown`.
+5. `systemctl start vardiya-api`, `vardiya-cozucu`.
+
+### Doğrulama
+
+| Denetim | Sonuç |
+|---|---|
+| Altı servis | hepsi `active` |
+| `127.0.0.1:8002/health` | `{"durum":"ok"}` |
+| `/` \| `/api/ben` \| olmayan rota | 200 \| 401 \| **404** |
+| `alembic current` | `b8d21f6a90c3 (head)` — değişmedi |
+| `journalctl` hata satırı | 0 |
+| `.env` sızıntı sayacı | 0 |
+
+**Turun asıl konusu sunucuda sınandı.** Son dönem için `GecmisSayaclar`
+çağrıldı: 90 günlük pencere (2026-05-19 .. 2026-08-17), **29 kişide gece
+saati birikmiş** (en yükseği 118 saat), `calisabilir_oran` **0,54 ile 1,00**
+arasında değişiyor. Yani hem birikim hem çalışabilirlik oranı gerçek veride
+işliyor — oranın 1,00'dan farklı çıkması İş 2'nin ölü kod olmadığının
+kanıtı.
+
+### Beklenen davranış değişikliği
+
+Mevcut yayınlanmış çizelgeler **değişmedi** (`atama` 1.282 satır, `sapma`
+tabloları korundu — bu turda tablo boşaltan göç yok). Ama **Analiz
+ekranındaki sapma sayıları büyüyecek**: ölçü artık tek dönem yerine doksan
+günü kapsıyor. Gerileme değil, ölçünün tanımının değişmesi; K3'ün 34'ten
+61,27'ye çıkması da aynı sebepten.
+
+### SSH yine kesildi
+
+Dağıtımdan önce SSH yedi denemede de zaman aşımına uğradı (biri ilk, altısı
+60 sn aralıklı); site bu süre boyunca 200 dönüyordu ve **port 443 açık, port
+22 filtreliydi** — yani makine sağlıklı, engelleme SSH'a özeldi. Muhtemel
+sebep bu oturumdaki yoğun bağlantı sayısının `fail2ban`i tetiklemesi.
+Denemeye ara verilince kendiliğinden düzeldi. Aynı belirti bir önceki
+dağıtımda da görüldü; **teşhis yöntemi kayda değer**: 443 açık + 22 kapalı
+ise sorun uygulamada değil erişimdedir.
+
+---
+
+## 2026-08-15 — Tur 9: Geçmiş Sayaçlar ve Kümülatif Adalet — **BİTTİ**
+
+Kaynak: `docs/turlar/CLAUDE_CODE_PROMPTU_TUR9.md`. **Dört iş bitti, İş 5 ve
+tur kapanış ölçümleri açık.** Doküman sürümleri doğrulandı: Charter **1.4**,
+SRS **1.25**, SDD **1.32**, Backlog **1.22**.
+
+### İş 1 — `GecmisSayaclar` · **BİTTİ**
+
+`app/services/gecmis_sayaclar.py`. Kaynak yayınlanmış sürümlerin atamaları;
+her dönem için **yalnız en son yayınlanan** sayılır (arşiv geçmişi iki kez
+sayardı, taslak henüz olmamış bir çizelgeyi geçmişe yazardı). Ufuk bir
+dönemin ortasına düşerse filtre **bloğun başladığı güne** bakar (TD-1) —
+döneme bakılsaydı ya tamamı sayılır ya hepsi düşerdi. Önbellek yok.
+
+Şekil ve aritmetik `app/kurallar/gecmis.py`de, veritabanı okuması serviste:
+kural katmanı servis katmanını içeri almaz.
+
+### İş 2 — Çalışabilirlik oranı · **BİTTİ**
+
+Aynı serviste (ufkun tanımı ikiye bölünmesin diye). Aktiflik aralığı +
+**yalnız tam gün** müsaitlik kayıtları; yarım gün izin günü düşürmez.
+Kaydı olmayan personel 1.0 sayılır — varsayılan 0.0 olsaydı hakkında bilgi
+bulunmayan kişi ölçünün tamamen dışına düşerdi.
+
+### İş 3 — S2/S3/S4 kümülatif ufka geçti · **BİTTİ**
+
+`adil_paylar` tek yer olarak kaldı ve `olcu` parametresi aldı. Geçmiş yük
+sabit terim (karar değişkeni değil), geçmiş pay hedefe ekleniyor, pay son
+adımda çalışabilirlik oranıyla ölçekleniyor.
+
+### İş 4 — H10'un devri türetiliyor · **BİTTİ**
+
+Türetilen kota yılı içi fazla çalışma **artı** kayıt alanı; `Baglam.
+yasal_devir` tek erişim noktası. Eşik bağlam kurucuda H10'un kendi kayıt
+satırından okunuyor — **çağıranlara parametre olarak bırakılmadı**, çünkü
+onu vermeyi unutan her yol sessizce eski davranışa döner ve kota olmadığı
+kadar boş görünürdü.
+
+Dört tüketici de (çözücü, ön kontrol, analiz, dışa aktarma) `baglam_olustur`
+üzerinden geçtiği için beşinci bir hesap yeri açılmadı.
+
+### Yol boyunca bulunan iki hata
+
+1. **`_turetilen_fazla_calisma` personel döngüsünün içindeydi.** Aynı ağır
+   sorgu kişi sayısı kadar koşuyordu; tam takım 10 dakikadan 25 dakikaya
+   çıktı. Pencere başına bir kez hesaplanacak şekilde düzeltildi (kota yılı
+   kişiye göre değişebildiği için önbellek `yil_bas` anahtarlı).
+2. **Ortak sapma teriminde `ust_sinir += gecmis`** parametreyi kalıcı
+   büyütüyordu: bir kişinin geçmişi sonraki herkesin üst sınırını şişirirdi.
+   Kişiye özel değişkene alındı.
+
+### AÇIK — İş 3'ün uçtan uca kabul testi yazılamadı
+
+Turun istediği "iki dönemi ardışık çözüp aynı kişinin yükünü karşılaştıran"
+test **üç denemede de ayırt edici olmadı** ve kaldırıldı. Nedeni koddaki bir
+eksiklik değil, **test veritabanının paylaşımlı olması**:
+
+- İlk hâli ufuk **kapalıyken de** geçiyordu. `baglam_olustur` veritabanındaki
+  tüm aktif personeli yükler; test veritabanında başka testlerden kalan 30+
+  kişi var ve nöbetler onlara dağılıyordu.
+- Havuz yetkinlikle kapatıldı, ölçüm yarışılan noktayla sınırlandı, S4'ün
+  çekişi `haftalik_hedef_saat=0` ile kaldırıldı — **üçünde de sonuç aynı
+  kaldı** (46'ya 41, yanlış yönde). İki kişi tek noktada üst üste yığılıyor.
+
+Mekanizma **14 birim testiyle** kanıtlı (`test_gecmis_sayaclar.py` 8,
+`test_kumulatif_adalet.py` 6): geçmiş yükün cezaya girdiği, yük ile hedefin
+birlikte ölçeklendiği, oranın payı küçülttüğü ve **yönün** doğru olduğu
+(yük > pay / yük < pay) dahil. Eksik olan uçtan uca kabuldür.
+
+**Karar proje yürütücüsünde:** kabul testi için izole bir test şeması mı
+açılsın, yoksa madde Tur 10'a mı bırakılsın?
+
+### Test takımı — 387 yeşil, ama önce yanlış okundu
+
+Tam takım **387 geçti** (373 + 14 yeni), 10 dk 14 sn. Süre eski seviyesinde:
+yukarıdaki N× sorgu hatası düzeltilmeseydi 25 dakikaydı.
+
+**Arada beş test kırık göründü ve bu bir YANILGIYDI.** Sebebi kodda değil,
+arka planda **iki tam pytest koşusunun aynı test veritabanına aynı anda
+vurmasıydı** — benim arka plan işlerini üst üste başlatmamdan.
+`StaleDataError: UPDATE ... expected to update 1 row(s); 0 were matched`
+bunun imzası. Tek koşuya inilince hepsi yeşil.
+
+Aynı kök neden kaldırılan kabul testini de açıklıyor olabilir: üç farklı
+kurulumda **birebir aynı sayılar** (46'ya 41) çıkmıştı ve kurulum
+değişirken sonucun hiç değişmemesi, ölçülen şeyin o senaryo olmadığına
+işaret ediyor.
+
+**Ders:** bu depoda testler paylaşımlı bir PostgreSQL şemasına yazıyor;
+ikinci bir koşu başlatmadan önce birincisinin bittiğinden emin ol.
+
+### İş 5 — gösterim verisi · **BİTTİ**
+
+Üç ardışık yayınlanmış dönem zaten vardı (H-2, H-1, H-0; dar hafta
+yayınlanmadığı için zincir orada kırılıyor). Eksik olan tek şey **ufkun
+ortasında işe başlamış personeldi**: herkes 365 gün önce başlıyordu, yani
+`calisabilir_oran` herkeste 1,0 çıkıyor ve İş 2 hiçbir ekranda görünmüyordu —
+kod çalışıyormuş gibi duruyordu. `GG-020` 45 gün önce başlatıldı, oranı 0,50.
+
+### Kabul testi geri getirildi ve **GEÇTİ**
+
+Silmek hataydı; `xfail` ile geri kondu, düzeltildi ve yeşile döndüğü için
+işaret kaldırıldı. Test gösterim verisi olmayan bir veritabanında **atlar**.
+
+**Dördüncü deneme neyi öğretti:** yön yanlış değildi, **karşılaştırma**
+yanlıştı. Test "en çok taşıyan" ile "en az taşıyan"ı seçiyordu ve ikisi
+farklı yetkinlik havuzlarındaydı (VS-001 vardiya şefi, GG-020 güvenlik
+görevlisi) — aynı nöbetler için yarışmayan iki kişinin gece saatini
+karşılaştırmak anlamsız. Üstelik "hafif" sayılan kişi tam da ufkun ortasında
+işe başlayandı; payı zaten yarılanmış, az taşıması **doğru davranış**.
+
+Aynı havuz içinde ve yalnız ufkun tamamında çalışabilenler arasında bakınca:
+
+| Havuz | En çok taşıyanlar → 3. dönem | En az taşıyanlar → 3. dönem |
+|---|---|---|
+| Vardiya Şefliği (2 kişi) | **16** | 23 |
+| Güvenlik (20 kişi) | **12,3** ort. | 14,2 ort. |
+
+Tekil kişi yerine üçte bir dilim karşılaştırılıyor: tek kişi çözücünün o
+dönemki eşitlik tercihine fazla duyarlı, dilim ortalaması eğilimi ölçer.
+
+### Kabul ölçümü — betik İKİ TURDUR KIRIKMIŞ
+
+`scripts/kabul_olcumu.py` çalıştırılınca iki ayrı yerde patladı; ikisi de bu
+turdan değil:
+
+1. `saatleri_araliklara_birlestir` **B-23'ten beri (Tur 8)** üç değer
+   döndürüyor, betik dört açıyordu. Tarih artık ayrı alan değil, başlangıç
+   damgasından türetiliyor (TD-1).
+2. `AtamaDegisikligi` **Tur 7'de (TD-16)** `surum_id` almayı bıraktı ve
+   `dogrula` tek değişiklik yerine bekleyen kümenin tamamını alır oldu.
+
+İkisi de düzeltildi. **Asıl bulgu betiğin kendisi değil:** SDD 5.9 bu betiği
+`GecmisSayaclar`ın dört tüketicisinden biri sayıyor, ama iki tur boyunca hiç
+koşmadığı için kimse fark etmedi. Turun kapanış listesinde olmasaydı bu tur
+da fark edilmeyecekti.
+
+### K1 / K3 ölçümü
+
+| Kriter | Eşik | Ölçülen | Durum |
+|---|---|---|---|
+| K1 — 40 personel × 28 gün | < 60 sn | **12,18 sn** | geçti |
+| K2 — zorunlu ihlal | 0 | 0 | geçti |
+| K3 — gece yükü sapması | ≤ 8 | **61,27** | kaldı |
+| K4 — açık gösterimi | ≥ 1 açık, tam bilgi | 147 aralık | geçti |
+| K5 — düzenleme doğrulaması | < 1 sn | 0,081 sn | geçti |
+
+**K1:** geçmiş sayaçlar model kurmaya eklendi ama artış eşiğin yarısının
+(30 sn) çok altında kaldı — durma koşulu oluşmadı.
+
+**K3 — Tur 10'un kalibrasyonuna not.** Değer 34'ten **61,27'ye çıktı**, yani
+kümülatif ufuk sapmayı **yukarı** taşıdı. Bu beklenen bir yöndür ve
+ağırlıklara dokunulmadı (turun talimatı). Dikkat edilmesi gereken şey
+şudur: **eşik ile ölçü artık aynı ufku kapsamıyor.** Charter 1.4'ün 8 gece
+saati eşiği TEK DÖNEM için kalibre edilmişti; ölçü ise artık doksan günü
+kapsıyor ve doğal olarak daha büyük bir mutlak sapma üretiyor. Tur 10 ya
+eşiği ufka orantılamalı ya da K3'ü dönem içi sapmayla ölçmelidir; ağırlık
+kalibrasyonu bu karardan önce yapılırsa yanlış hedefe ayarlanır.
+
+**Ulaşılabilirlik teşhisi:** "her havuz hedefe erişebiliyor" diyor —
+31 kişilik havuzda kişi başı tavan 42,58; 9 kişilik havuzda 177,78.
+
+### Çözücü–doğrulayıcı uyumu
+
+`test_cozucu_dogrulayici_uyumu_olcek.py` **24/24** geçiyor (6 dk 25 sn).
+Kümülatif ufuk iki yorumlayıcının aynı sayıyı üretmesini bozmadı.
+
+### Ters sıralı koşu — sıra bağımlılığı yok
+
+| Sıra | Sonuç |
+|---|---|
+| İleri | 363 geçti, 1 atlandı (3 dk 55 sn) |
+| Ters (`ls -r`) | **363 geçti, 1 atlandı** (3 dk 56 sn) |
+
+Ölçek testi (24 örnek, 6,5 dk) ikisinden de hariç tutuldu; tam takım zaten
+ayrıca koşuldu (387 geçti, 1 atlandı).
+
+`--reverse` bayrağı bu kurulumda yok (pytest-reverse kurulu değil); dosyalar
+`ls -r` ile ters sırada verildi. İlk denemede bayrak hata verdi ve yedek
+komut **çalışmadı**: `cmd | tail || yedek` yazılmıştı ve boru hattının çıkış
+kodu `tail`'inki (0) olduğu için `||` hiç tetiklenmedi. Kısa süre "koşuyor"
+diye rapor edildi; düzeltildi.
+
+### Turun bitiş kontrolü
+
+- [x] Tam takım geçiyor — 387 geçti, 1 atlandı (atlanan: kabul testi, test
+      veritabanında gösterim verisi yok)
+- [x] Ters sıralı koşu aynı sonucu veriyor
+- [x] `ruff` temiz (bu turda frontend değişmedi)
+- [x] Uyum testi 24/24
+- [x] Kabul ölçümü koşuldu; K1 = 12,18 sn
+- [x] K3 ayrıca kaydedildi: 34 → 61,27
+- [x] Ulaşılabilirlik teşhisi "her havuz hedefe erişebiliyor"
+
+### Tur 10'a taşınan iki soru
+
+1. **K3'ün eşiği ile ölçüsü aynı ufku kapsamıyor** (yukarıda). Ağırlık
+   kalibrasyonu bu karardan önce yapılırsa yanlış hedefe ayarlanır.
+2. **Kabul ölçümü betiği hiçbir otomatik koşumda değil.** SDD 5.9 onu
+   `GecmisSayaclar`ın dört tüketicisinden biri sayıyor ama iki tur boyunca
+   sessizce kırık kaldı. Takıma ya da CI'a alınması gerekir; aksi hâlde
+   "dört tüketici tek kaynaktan beslenir" sözleşmesi denetimsiz kalıyor.
+
+---
+
+## 2026-08-14 — Düzeltme: Excel çıktısı arayüze bağlanmamıştı — **BİTTİ, DAĞITILDI**
+
+**Tur 8 eksik teslim edilmişti.** Dört iş de bitmişti, testler yeşildi,
+uç noktalar sunucuda çalışıyordu — ama `xlsx` kelimesi frontend'de **hiç
+geçmiyordu**. Ekrandaki "Dışa Aktar" düğmesi hâlâ CSV üretiyordu, yani
+özellik uygulamadan **ulaşılamıyordu**. Proje yürütücüsü dışa aktardığı
+dosyaları gösterdi ve tabloların değişmediğini söyledi; gönderdiği iki
+görüntü de CSV'ydi (sekme adı `cizelge_2026-07-13_2026-07-19_s`,
+sütunlar `tarih, sicil, ad, …`).
+
+Turun promptundaki dört iş de backend biçimindeydi ve ben de yalnız
+backend'i yaptım. **Bir uç noktayı çağıran hiçbir şey yoksa iş bitmemiştir**
+— testin yeşil olması özelliğin erişilebilir olduğunu söylemiyor.
+
+### Yapılan
+
+- `api.cizelgeExcelIndir` / `api.analizExcelIndir` — ayrı bir ikili indirme
+  yolu. Ortak `istek` yardımcısı her gövdeyi JSON diye çözüyor, çalışma
+  kitabı JSON değil. **401 ele alışı aynı kaldı**: atlansaydı oturumu
+  kapanmış kullanıcı, sessizce inmeyen bir dosyayla baş başa kalırdı.
+- **Dosya adı `Content-Disposition`'dan** okunuyor, istemcide yeniden
+  kurulmuyor — ad sunucudaki `dosya_adi()`'nda tek yerde duruyor.
+- Çizelge ve Analiz ekranlarına **Excel** düğmesi; CSV düğmesinin etiketi
+  ne olduğunu söylüyor (ham veri). İndirme sırasında düğme "İndiriliyor…"
+  oluyor ve hata ekranın **mevcut** hata yüzeyine gidiyor, ikinci bir
+  duruma değil.
+- Üç yeni test (`src/api/client.test.ts`): ad başlıktan okunuyor, başlık
+  yoksa yedek ada düşüyor, 401 dinleyiciyi tetikliyor.
+
+**284 → 287 vitest**, `tsc -b` ve `oxlint` temiz.
+
+### Dağıtım
+
+Yalnız arayüz değişti; göç yok, servis durdurulmadı. `rsync` 35 dosya,
+ardından `chown`. Doğrulama, bir önceki turda öğrenilen tuzağa göre
+yapıldı — HTTP 200 kanıt değil (Caddy geri düşüşü):
+
+| Denetim | Sonuç |
+|---|---|
+| Canlı `index.html` paketi | `index-DnwLQ1gd.js` = yerel derleme |
+| Pakette `cizelge.xlsx` / `analiz.xlsx` | 1 / 1 eşleşme |
+| Pakette `Content-Disposition` | 1 eşleşme |
+| `web/assets` içinde kalan paket | tek (eski silindi) |
+
+---
+
+## 2026-08-14 — Dağıtım: Tur 7 + 8 — **TAMAMLANDI**
+
+Gösterim sunucusuna (46.225.109.40) çıkıldı. Kesinti **13:29:44–13:32:06
+(2 dk 22 sn)**. `vera-rag` ve `energy-api` boyunca ayakta kaldı — ikisinin
+de `ActiveEnterTimestamp` değeri 8 Ağustos'ta duruyor, yani hiç yeniden
+başlamadılar. Ortak PostgreSQL'e dokunulmadı.
+
+Dağıtılan sürüm `f4bcfc0` (= `origin/tur8-disa-aktarma`), çalışma ağacı
+temiz. Yordam yine yerelde derle + `rsync`; `deploy/DAGITIM.md` geçerli.
+
+### Uygulanan sıra
+
+1. Yerelde `npm run build`, `tsc -b` (0), **284 vitest**. Backend takımı
+   `c828261`'de 373 yeşildi; üzerine gelen tek commit yalnızca doküman
+   dosyalarına dokunduğu için yeniden koşturulmadı.
+2. Ön kontrol: bitmemiş çözüm işi **yok** (`cozum_isi` yalnız TAMAMLANDI 6
+   + UYARILI 1), beş servis de aktif, `alembic current` = `f2a8c561d94b`.
+3. `systemctl stop vardiya-cozucu`, ardından `vardiya-api`.
+4. Yedek: `/opt/vardiya/yedek/vardiya-20260814-1330-tur7ve8oncesi.dump`,
+   **70K**, `pg_restore -l` ile denetlendi (155 nesne, 19 tablo verisi).
+5. `rsync`: `frontend/dist/` → `web/` (37 dosya), `backend/` → `backend/`.
+   `.env`, `.venv`, `__pycache__`, `*.pyc` hariç tutuldu.
+6. `pip install -e ".[dev]"` → çıkış 0; **`openpyxl` 3.1.5** kuruldu (Tur
+   8'in yeni bağımlılığı, sunucuda yoktu). `chown -R vardiya:vardiya`.
+7. `alembic upgrade head` → iki göç koştu, çıkış 0.
+8. **`sapmalari_yenile` yedi sürümün hepsi için koşturuldu** — servisler
+   *açılmadan önce*, uygulama eksik veriyle görünmesin diye.
+9. `systemctl start vardiya-api`, `vardiya-cozucu`.
+
+### `alembic current` — önce / sonra
+
+```
+önce : f2a8c561d94b
+sonra: b8d21f6a90c3 (head)
+```
+
+### Göç doğrulaması — sayarak
+
+| Ölçü | Önce | Sonra |
+|---|---|---|
+| `atama` satırı | 1.117 | **1.117** |
+| `cizelge_surumu` / `personel` | 7 / 30 | 7 / 30 |
+| `kapsama_acigi` | 9 | **0 → 8** (yenilendi) |
+| `fazla_kadro` | 17 | **0 → 111** (yenilendi) |
+
+Dört sayı da doğrudan `psql` ile sayıldı. Yenileme sonrası 8 ve 111,
+`sapmalari_yenile`'nin yedi sürüm için döndürdüğü `SapmaOzeti`
+toplamlarıyla da örtüşüyor (`eksik_hucre` 0+7+0+0+0+0+1, `fazla_hucre`
+20+8+14+15+19+18+17) — fonksiyonun bildirdiği ile tabloda duran aynı.
+| `cizelge_surumu.damga` boş olan | — | **0** |
+
+`kapsama_acigi` sütunları artık `baslangic_zamani, bitis_zamani`; `tarih`,
+`baslangic`, `bitis` düştü. Toplam kişi-saat 8.136.
+
+**Sapma tablolarının boşalması göçün tasarımı gereğidir**, kayıp değil:
+`b8d21f6a90c3` satırları siler çünkü eski `tarih + ofsetsiz saat` şeklinden
+zaman damgasına birebir çeviri mümkün değil. Yeniden hesap atamalardan
+yapılır ve tek doğru kaynak zaten atamalardır.
+
+### Doğrulama
+
+- `systemctl is-active`: vardiya-api, vardiya-cozucu, vera-rag, energy-api,
+  postgresql, caddy → **altısı da active**
+- `http://127.0.0.1:8002/health` → `{"durum":"ok"}`
+- `GET /api/ben` kimliksiz → **401**
+- `https://vardiya.omerharmankaya.com/assets/index-BNyTOpfe.js` → **200**
+- `journalctl` (başlatmadan beri): **0 hata satırı**
+- Turun asıl konusu sınandı: `/api/surum/{id}/cizelge.xlsx` ve
+  `analiz.xlsx` rotaları kayıtlı, kimliksiz çağrıda **401** (404 değil —
+  yani rota var ve yetkilendirme çalışıyor)
+
+### `.env` denetimi
+
+`TEST_VERITABANI_URL` ve `VERI_TEMIZLIGINE_IZIN` sayısı: **0**. İkisi de
+sunucu `.env`'ine hiç yazılmadı.
+
+### Dağıtım sonrası ikinci tur doğrulama
+
+Dağıtımdan bir süre sonra hepsi yeniden sınandı; **SSH bir aralık
+erişilemez oldu** (üç deneme: iki `Operation timed out`, bir `Network is
+unreachable`), sonra kendiliğinden döndü. Uygulama bu süre boyunca ayakta
+kaldı — kesinti SSH katmanındaydı, servislerde değil. SSH dönünce:
+
+| Denetim | Sonuç |
+|---|---|
+| `kapsama_acigi` \| `fazla_kadro` | **8 \| 111** — `psql` ile sayıldı |
+| `alembic current` | `b8d21f6a90c3 (head)` |
+| Sunucudaki `disa_aktarma_servisi.py` | `_SAAT_BANDI` / `_EN_ACIK_SAAT` **var** — yani `c828261`'in biçim düzenlemesi gerçekten sunucuda |
+| `openpyxl` | 3.1.5 |
+| Altı servis | altısı da `active` |
+| `.env` sızıntı sayacı | 0 |
+
+**HTTP tarafında bir tuzak:** Caddy tek sayfa uygulaması için geri düşüş
+yapıyor, yani `/assets/...` altındaki **var olmayan** bir dosya da 200
+dönüyor (`/assets/BU-DOSYA-YOK-12345.js` → 200 ile doğrulandı). Paketin
+yerinde olduğunu "200 aldım" diye kanıtlamak bu yüzden geçersiz; doğru
+kanıt `index.html`'in işaret ettiği paket adının yerel derlemeyle
+eşleşmesi (`index-BNyTOpfe.js`) ve paket içeriğinde turun eklediği metnin
+bulunması (`Düzenlemek İçin Kopyala` → 1 eşleşme). `/api` altında geri
+düşüş yok: var olmayan rota 404, dışa aktarma rotaları 401 veriyor.
+
+---
+
+## 2026-08-14 — Tur 8: Dışa Aktarma — **BİTTİ**
+
+Kaynak: `docs/turlar/CLAUDE_CODE_PROMPTU_TUR8.md`. Dört iş, hepsi bitti.
+Çalışma `tur8-disa-aktarma` dalında yürüdü.
+
+Doküman sürümleri turun başında doğrulandı: Charter **1.4**, SRS **1.24**,
+SDD **1.31**, Backlog **1.21** — dördü de taşıyor.
+
+### İş 1 — B-23: sapma kayıtları zaman damgasına
+
+`kapsama_acigi` ve `fazla_kadro` `tarih` (DATE) + `baslangic`/`bitis` (TIME)
+yerine `baslangic_zamani`/`bitis_zamani` (TIMESTAMPTZ) taşıyor. Göç
+**`b8d21f6a90c3`**; sıfırdan koştu, geri alma yazıldı ve **denendi**.
+
+**Mevcut kayıtlar dönüştürülmedi, silindi.** Bu iki tablo bir çözümün
+çıktısıdır, kullanıcının girdiği veri değil; `sapmalari_yenile` bir sonraki
+çözümde ya da elle düzenlemede doğru biçimde yeniden yazar. Aynı karar Tur
+3'te talep göçünde de verildi.
+
+**Asıl kazanç birleştiricide.** `saatleri_araliklara_birlestir` artık gün
+sınırında **kesmiyor**. O kesme doğru olduğu için değil, depolama
+22.00–02.00'yi ifade edemediği için vardı; damga sınırı kendisi taşıdığı
+için bir açık artık bir kayıt.
+
+Sapma kaydının gün/aralık okuması `blok.ts`te **tek yere** toplandı
+(`sapmaGunu`, `sapmaEtiketi`, `sapmaSuresi`) — beş ayrı yerde `k.tarih`
+ayıklamak yerine. Sapma CSV'si ISO damgasına geçti ve `tarih` sütunu düştü
+(SRS 7.2).
+
+### İş 4 — DisaAktarmaServisi: ikinci hesap yok
+
+Veri mevcut okuma yüzeylerinden: kapsama oranı, toplam saat, adil pay ve
+sapma `AnalizServisi`'nden; açıklar kapsama kayıtlarından; fazla çalışma
+**H10'un kendi fonksiyonundan**.
+
+O fonksiyon kuralın `dogrula`sının içinde gömülüydü; paylaşılabilmesi için
+`h10_fazla_calisma_saatleri` olarak dışarı çıkarıldı — `s4_hedef_paylari`
+ile aynı kalıp. Dışa aktarma kendi toplamını hesaplasaydı dosyada,
+sistemin başka hiçbir yerinde bulunmayan ve doğruluğu denetlenemeyen bir
+sayı olurdu.
+
+Uç noktalar dosyayı **doğrudan** döndürüyor; iş kuyruğu kurulmadı.
+
+### İş 2 — Çizelgenin Excel çıktısı
+
+Üç sayfa: **Çizelge** (personel × gün), **Özet** (kişi başına toplam/gece/
+hafta sonu/fazla çalışma/kalan kota), **Ham veri** (blok başına satır, ISO
+damgası — CSV ile aynı içerik). Başlıkta dönem, sürüm, üretim tarihi,
+kapsama oranı ve toplam açık.
+
+**Hücre dolgusu bilgiyi tek başına taşımıyor.** Saat aralığı hücrede metin
+olarak da yazılı ve bir açıklama satırı dolgunun ne demek olduğunu
+söylüyor; renksiz basılan çıktı bilgi kaybetmiyor. Dolgu üç basamağa
+indirgendi (gece / kısmen gece / gündüz) — Excel hücresi sürekli bir
+gradient taşıyamaz, ve basamak sayısı zaten bilgi taşımıyor.
+
+### İş 3 — Analizin Excel çıktısı
+
+Dört sayfa: **Özet** (kapsama, toplam ceza, hedef bazında döküm),
+**Adalet** (kişi başına gece/hafta sonu/toplam saat + adil pay + sapma, üç
+grafik), **Kapsama açıkları**, **Ham veri**.
+
+**Grafiklerin referans çizgisi kişiye düşen ADİL PAY.** openpyxl'de
+"referans çizgisi" diye bir nesne yok; çubuk grafiğin üzerine ikinci bir
+çizgi grafik bindiriliyor. Çizgi kişiden kişiye değiştiği için düz yatay
+bir çizgi DEĞİL — zaten öyle olması yanlış olurdu (S2: hedef kişiye
+özeldir). Havuz ortalamasını dosyaya taşımak, ekranda bir kez yapılıp Tur
+6'da düzeltilen hatayı geri getirmek olurdu.
+
+### Kabul testleri
+
+`test_disa_aktarma.py`, **11 test**:
+
+- **Dosya ile ekran birebir aynı.** Toplam saat, adil pay, sapma, gece
+  saati ve gece adil payı `AnalizServisi`'nin döndürdüğüyle alan alan
+  karşılaştırılıyor; kapsama oranı başlık bloğunda aynı değerde.
+- **Gece yarısını aşan açık tek satırda okunuyor** — `22.00–02.00`, bölünmüş
+  değil.
+- Açık yokken sayfa bunu açıkça söylüyor (boş sayfa "açık yok" ile "rapor
+  üretilmedi" arasındaki farkı söylemez).
+- Uç noktalar gerçekten açılabilir bir çalışma kitabı döndürüyor.
+
+### Yeni bağımlılık
+
+`openpyxl==3.1.5`. Saf Python, derleme gerektirmez ve grafik üretebilir.
+Sürüm sabitlemesi diğerleriyle aynı sözleşmede.
+
+### DOKÜMAN BORCU — bir madde
+
+**SRS 7.2 — çizelge CSV'sinde `tarih` sütunu.** Sütun listesi `tarih`
+içermiyor ve gerekçesi yazılı ("blok başladığı gün başlangıç damgasından
+türetilir"), ama hemen altındaki paragraf "tarih sütunu … başa alınmıştır"
+diyor. İkisi aynı bölümde çelişiyor. Tur CSV'ye dokunmayı istemediği için
+çizelge CSV'si olduğu gibi bırakıldı (`tarih` duruyor). Sapma CSV'sinde
+çelişki yoktu; orada `tarih` kalktı.
+
+### Yerel veriye dokunuldu
+
+Göç sapma kayıtlarını sildiği için `sapmalari_yenile` bütün sürümlerde
+koşturuldu ve kayıtlar atamalardan yeniden hesaplandı (çözücü gerekmedi).
+Dar hafta yine 10 açık aralığı / 36 kişi-saat gösteriyor; sürüm 34'te 12
+aralık / 1.152 kişi-saat.
+
+### Turun bitiş kontrolü
+
+- [x] `pytest` tam takım **371 test geçiyor**
+- [x] `ruff`, `tsc -b`, `oxlint` temiz; **284 frontend testi** geçiyor
+- [x] Göç sıfırdan çalışıyor, geri alma yazılmış ve denenmiş
+- [x] Ekran ile dosyanın aynı sayıyı verdiğini gösteren test
+- [x] Gece yarısını aşan açık aralığının dosyada okunabildiğini gösteren test
+- [x] `EK_B_UC_NOKTALAR.md` yeniden üretildi — **70 uç nokta**, denetim temiz
+- [ ] `git status` temiz — dört kanonik doküman proje yürütücüsünde açık
+
+**Bir koşum yanılttı.** Tam takımın bir önceki koşumunda
+`test_kullanici_api`'de bir hata görünmüştü; testleri veritabanına dokunan
+başka işlerle **aynı anda** koşturmaktan geliyordu. Tek başına koşan takım
+371/371 geçiyor.
+
+### Örnek çıktılar
+
+`ornek-ciktilar/cizelge.xlsx` ve `ornek-ciktilar/analiz.xlsx` (dizin
+`.gitignore`'da — üretilebilir çıktı). Dar haftadan (20–26 Tem, sürüm 29)
+üretildi; kapsama sayfasında on açık aralığı var ve ilki gece yarısını
+aşıyor.
+
+**Gözle bakılacaklar:** hücre dolgusunun okunabilirliği, sütun
+genişliklerinin saat metnini kesip kesmediği (`08.00–16.00` iki satıra
+sarıyor; sütun 13 birim), grafiklerin referans çizgisinin görünürlüğü.
+
+### Ek iş — çıktılar örnek dosyalara göre düzenlendi
+
+Proje yürütücüsü `ornek-ciktilar/`e iki **hedef** dosya bıraktı
+(`cizelge_ornek.xlsx`, `analiz_ornek.xlsx`). Çıktı bunlara göre yeniden
+biçimlendi; farklar hücre hücre karşılaştırılarak kapatıldı.
+
+**Renk artık tek bir ölçüden geliyor.** Dolgu, bloğun **başladığı saatten**
+türeyen 13 adımlı bir bant: 13.00 en açık, 01.00 en koyu, arası sürekli.
+Önceki sürüm "gece / kısmen gece / gündüz" diye üç kovaya bölen **ayrı** bir
+ölçü kullanıyordu — yani aynı bilgi ekranda (SDD 6.3.3 renk bandı) ve
+dosyada iki farklı biçimde tanımlıydı. Artık ikisi aynı şeyi söylüyor.
+
+**Ceza dökümünün kaynağı düzeltildi.** Ham değerleri kuralların `dogrula`sını
+yeniden çağırarak üretmeyi denedim; S2/S3/S4'te ekrandakinden **farklı**
+sayılar çıktı (269/119/443 yerine 148/54/209). `dogrula` çözüm anının
+bağlamını bilmiyor. Döküm `analiz.ceza_dokumu`ya alındı — modülün başındaki
+"ikinci hesap yapılmaz" kuralının tam da uyardığı hataydı. Yeni bir test
+Σ(ham × ağırlık) = `toplam_ceza` eşitliğini kilitliyor.
+
+**Ölçü ayrımı dosyaya yazıldı.** "10 aralık" ile "36 kişi-saat" farklı
+şeylerdir (ardışık saatler tek kayıtta birleşir); ikisi de ayrı ayrı
+gösteriliyor ve aralarındaki fark bir not satırıyla söyleniyor. Kapsama
+sayfasına `Kişi-saat` sütunu eklendi.
+
+**Toplam satırları canlı formül** (`=SUM(...)`, `=C10*D10`): okuyucu satır
+süzdüğünde ya da ağırlık değiştirdiğinde sonucu dosyada görür.
+
+Ayrıca: Türkçe tarih (`20.07.2026`) ve ondalık virgül (`%96,9`) — ham veri
+sayfaları ISO kalır, orası makine için; nokta adı hücrede üç harfe kısaldı;
+adalet grafikleri üçten ikiye indi ve ölçülen değer ile adil pay **yan yana
+iki çubuk** oldu (önceki çizgi bindirmesi, adil pay kişiye özel olduğu için
+yanıltıcı bir "eğilim" görüntüsü veriyordu).
+
+**Örnekten bilerek sapılan iki nokta:**
+
+1. **Açık olan günün başlığı turuncu kalıyor**, örnekteki gibi düz yeşil
+   değil. Örnek başlık bandını baştan biçimlendirirken bu işareti düşürmüş
+   ama altındaki açıklama satırı ondan söz etmeyi sürdürüyor; işaret
+   kalkarsa açıklama yalan söyler.
+2. **S6/S8 adları ve S6 ağırlığı** örnektekinden farklı (`Çalışma deseni
+   tutarlılığı` / `Değişim minimizasyonu`, ağırlık 4). Ad kuralın kendi
+   `ad` alanından, ağırlık veritabanından geliyor — ekranda da aynısı
+   görünüyor. Excel'e özel kısa adlar yazmak tanımı ikiye bölerdi. Ağırlık
+   farkı örneğin üretildiği katalog durumundan; buradaki 4 değeri
+   `toplam_ceza` ile tutarlı.
+
+---
+
+## 2026-08-14 — Tur 7: Düzenleme Sistemi — **BİTTİ**
+
+Kaynak: bu turun promptu. **Altı iş de bitti.** Çalışma
+`tur7-duzenleme-sistemi` dalında yürüdü.
+
+Doküman sürümleri turun başında doğrulandı: Charter **1.4**, SRS **1.23**,
+SDD **1.30**, Backlog **1.20** — dördü de taşıyor.
+
+> **İSİM ÇAKIŞMASI.** Bu dosyada bir alttaki kayıt da "Tur 7" adını
+> taşıyordu (gösterim verisi ve tatil takvimi). O iş bir tur promptundan
+> değil doğrudan istekten doğdu; karışmasın diye **"Ara iş"** olarak
+> yeniden adlandırıldı. Numaralı Tur 7 budur.
+
+### İş 5 — yazdırma yalnızca ilk günü basıyordu · **BİTTİ**
+
+Teşhis doğrulandı, tahmin edilenden başkaydı. Önizleme `position: fixed` +
+`overflow: auto` bir kabın içinde duruyor, baskı CSS'i de yazdırma alanına
+`position: absolute` veriyordu. Üçü de öğeyi normal akıştan çıkarır ve **akış
+dışı içerik sayfalanmaz** — tarayıcı ilk sayfayı çizip durur. Tek tablolu
+çıktıda görünmüyordu (zaten bir sayfaya sığıyordu); Tur 6'da gün başına ayrı
+ızgaraya geçilince yedi günlük dönem tek sayfa basmaya başladı.
+
+Önizleme artık `document.body`'ye **portal** ile bağlanıyor, yani `#root`un
+kardeşi; baskıda `#root` tümüyle gizleniyor. Uygulama yerleşimden düştüğü
+için konumlandıracak bir şey kalmadı ve görünürlük hilesi de mutlak
+konumlandırma da kaldırıldı.
+
+jsdom sayfalama yapmaz, **"yedi sayfa çıktı" TEST EDİLEMEZ.** Test asıl
+bozulan şeyi kilitliyor: önizleme gövdenin çocuğu olmalı, çünkü baskı kuralı
+`#root`u gizleyerek çalışıyor.
+
+### İş 6 — haftalık görünüm okunmuyordu · **BİTTİ**
+
+Hücre artık saat aralığını **metin** olarak yazıyor ("08–16 GÜV"), altındaki
+üç piksellik **düz** çubuk bloğun günün neresinde durduğunu gösteriyor.
+
+Çubuk gradient değil: okunması gereken şey tam olarak **sınırdır**, gradient
+sürekli olduğu için onu belirsizleştirir — sürekliliğin bant için erdem
+olduğu yerde burada kusur. Çubuk saat rengini de taşımıyor; gündüz tonu
+(#E9E7D9) hücre zemininden (#E4E7E1) ayırt edilemiyor ve üç piksellik bir
+çubukta o fark tümüyle kayboluyor. "Gece mi gündüz mü" bilgisi zaten metinde.
+
+Düğüm sayısı hücre başına sabit kaldı; performans testinin sınırı 1.000'den
+**2.000**'e çıkarıldı (30 × 7 ölçümü ~1.400). Testin koruduğu şey bugünkü
+sayı değil, sayının **dilim sayısından bağımsız** kalmasıdır.
+
+### İş 2a + İş 3'ün sunucu tarafı — taslak oturum · **BİTTİ**
+
+`dogrula(surum_id, degisiklikler)` oturumun **tamamını** alıp aday çizelgeyi
+bellekte kuruyor ve **hiçbir şey yazmıyor** — işlem açmıyor, sapma
+tablolarına dokunmuyor.
+
+`kaydet(surum_id, degisiklikler, damga)` tek işlemde: `SELECT … FOR UPDATE`
+→ durum → damga → **yeniden doğrula** → uygula → sapmaları tazele → yeni
+damga. Kısmi kayıt yok; istemcinin "geçerliydi" bilgisine güvenilmiyor.
+
+`PUT /api/atama` kalktı, `POST /api/atama/kaydet` geldi.
+`EK_B_UC_NOKTALAR.md` yeniden üretildi — **68 uç nokta, denetim temiz.**
+
+**Göç `a3f5d81c7e42`** — `cizelge_surumu.damga`. Şema değişikliği, veri
+dönüştürmez, geri alınabilir. Var olan satırlara `gen_random_uuid()` ile
+**satır başına farklı** değer yazılır; tek adımda `server_default` verilseydi
+hepsi aynı değeri alır ve damga hiçbir şey ayırt etmezdi.
+
+**On bir yeni test** (`test_duzenleme_oturumu.py`) — turun istediği dördü:
+kaydetmeden çıkınca sürüm değişmiyor, damga çakışması ikinci kaydı
+reddediyor, yayınlanmış sürüm hem yordamda hem uç noktada korunuyor, ve
+**biriken değişikliklerin birlikte doğrulandığı** test.
+
+### Tasarımdan iki sapma — ikisi de gerekçeli
+
+1. **±7 günlük doğrulama penceresi kalktı.** O kısayol TEK değişiklik
+   varsayımına dayanıyordu; birden fazla değişiklikte kuralların göreceği
+   küme yanlış çıkardı. SDD 5.5'in kendi sözde kodu zaten dönem geneli
+   atamalar üzerinde çalışıyor.
+2. **Damga `guncelleme_zamani` değil ayrı bir sütun.** O alan satırın her
+   dokunuluşunda değişir (yayınlama, arşivleme) ve mikrosaniye duyarlılığıyla
+   JSON üzerinden gidip gelir; eşitlik karşılaştırması biçimlendirmeye
+   bağımlı hale gelirdi.
+
+### DOKÜMAN BORCU — **bir madde**
+
+**SDD 4.2.4 — `cizelge_surumu.damga`.** 5.5.1 `surum.damga`'dan ve
+`YENİ_DAMGA()`'dan söz ediyor, ama 4.2.4'teki alan listesinde böyle bir
+sütun yok. Sütun eklendi (göç `a3f5d81c7e42`), dokümana işlenmeli.
+
+### Yol boyunca iki tuzak
+
+**Test veritabanı göç görmemişti.** İlk koşumdaki 41 başarısızlığın tamamı
+bundandı. Şema bilinçli olarak `create_all` ile değil **göçle** kuruluyor
+(göçlerin kendisi de sınansın diye, conftest bunu belgeliyor); yeni bir göç
+eklendiğinde `VERITABANI_URL=$TEST_VERITABANI_URL alembic upgrade head` de
+koşturulmalı.
+
+**Kendi fikstürüm test kirliliği üretti ve yanlış teşhise yol açtı.** Yeni
+fikstür bütün kuralları global pasifleştirip commit ediyordu; `kural` tablosu
+bütün testlerce paylaşıldığı için sonraki testler kuralsız katalogla kalıyor
+ve **başarısızlık kümesi koşumdan koşuma değişiyordu**. Bu kirlilik varken
+`test_kimlik_api` ve `test_calisan_api` tek başlarına koşturulduğunda dokuz
+test düşüyordu ve bu, "önceden var olan bir sıra bağımlılığı" diye
+kaydedilmeye çok yakındı. Fikstür düzeltildikten sonra **ikisi de izolasyonda
+geçiyor** — böyle bir bağımlılık yok. Ders: paylaşılan tabloyu değiştiren bir
+fikstür, ölçtüğü şeyi de bozar.
+
+### Turun bitiş kontrolü — sunucu tarafı
+
+- [x] `pytest` tam takım **360 test geçiyor** — **ters dosya sırasında da**
+      (`ls tests/test_*.py | sort -r`), aynı 360. Sıra bağımlılığı yok
+- [x] `ruff check` ve `ruff format` temiz
+- [x] Taslak oturumun dört testi de yerinde
+- [x] Biriken değişikliklerin **birlikte** doğrulandığı test yazıldı
+- [x] `EK_B_UC_NOKTALAR.md` yeniden üretildi
+- [ ] Frontend testleri ve `tsc`/`oxlint` — arayüz işi yapılmadı
+
+### İş 1 — düzenleme ızgaranın üzerine taşındı · **BİTTİ**
+
+Boş satırda sürükle → blok; kenardan tut → uzat/kısalt; gövdeden tut → gün
+içinde kaydır **ya da başka personelin satırına bırak**; tıkla → menü (görev
+noktası, kilitle, sil).
+
+**SÜRÜKLEME SINIRA DAYANINCA DURUR.** Aralık artık uyarıyla işaretlenmiyor,
+**kırpılıyor**: asgarinin altına inen sürükleme asgaride, azaminin üstüne
+çıkan azamide duruyor. Değerler kural kataloğundan; kural pasifse kırpma da
+yok. Kullanıcı geçersiz bir seçimi tamamlayıp sonradan reddedilmiyor.
+
+**Silme menüde ve görünür.** Eski ekranda bir açılır listenin "— Boşalt —"
+seçeneğinin içine saklıydı; bir işlemi başka bir işlemin seçeneği yapmak onu
+bulunmaz kılar.
+
+Form paneli **ikincil yol** olarak yanda kaldı (SRS 5.6): tam saat değeri
+yazmak isteyen için, ızgaranın altında değil yanında.
+
+### İş 2b — oturum arayüzü · **BİTTİ**
+
+Değişiklikler istemcide birikiyor ve ızgarada anında görünüyor; her adımdan
+sonra sunucuya **oturumun tamamı** doğrulatılıyor ve sunucu hiçbir şey
+yazmıyor. Geri al / yinele birikimi ileri geri sürüyor. Kaydet tek istek
+gönderiyor ve damgayı taşıyor; yanıttaki yeni damga saklanıyor.
+
+Kirli oturumda **dönem ve sürüm seçicileri, Yeniden Çöz düğmesi kilitli** ve
+sekme kapatma `beforeunload` ile uyarılıyor (FR-6.8).
+
+**Kilit bilinçli olarak oturumun DIŞINDA** ve anında yazılıyor: kilit atamayı
+değiştirmez, yalnızca yeniden çözümde sabit girdi sayılıp sayılmayacağını
+belirler (FR-6.5). Oturuma alınsaydı kaydedilmemiş bir kilit "bu blok
+korunuyor" diye görünür ama yeniden çözüm onu görmezdi.
+
+### İş 3'ün arayüz tarafı · **BİTTİ**
+
+Yayınlanmış/arşiv sürümde ızgara salt okunur, düzenleme araçları çalışmıyor
+ve ekranın başında **nedenini söyleyen** bir şerit duruyor: yeni taslak
+türetilmesi gerektiği (FR-7.3). Sunucu tarafı zaten reddediyordu; araçların
+gizlenmesi tek başına yeterli değil, ama kullanıcının NEDEN
+düzenleyemediğini okuması gerekiyor — yoksa ızgaranın tepkisizliği hataya
+benziyor.
+
+### İş 4 — sonuç dili · **BİTTİ**
+
+Şerit önce cümleyi yazıyor: "Kapsama açığı 1 kişi azaldı; toplam saat dengesi
+1 saat bozuldu." Sayısal ceza dökümü **ayrıntı bağlantısının arkasında**.
+
+**Zorunlu ihlal varken başka hiçbir şey gösterilmiyor** — değişiklik
+uygulanmadığı için ceza dökümü gerçekleşmemiş bir durumu anlatır ve ikisini
+birlikte göstermek kullanıcıya iki farklı gerçeklik sunardı. "Kabul
+edilebilir" ile kırmızı uyarı artık aynı anda görünemiyor.
+
+### Bir dayanıklılık açığı — testte yakalandı
+
+Gövde sürüklemesinde imlecin hangi saatin üzerinde olduğu, şeridin kabına
+göre oranla bulunuyor. Kap **sıfır genişlikteyken** bölme `NaN` üretiyordu ve
+`NaN === NaN` **false** olduğu için "kıpırdamadı" kontrolü sessizce çöküyor,
+tek tık taşımaya dönüşüyordu. jsdom düzen hesaplamadığı için test bunu ilk
+denemede gösterdi; tarayıcıda da henüz yerleşmemiş bir kapta aynı şey olurdu.
+
+### Testte OLMAYAN davranışlar — gözle bakılmalı
+
+jsdom düzen (layout) hesaplamaz. Aşağıdakiler **test edilmedi**:
+
+- **Sürükleme akıcılığı.** Testler hücrelere doğrudan olay göndererek jestin
+  mantığını doğruluyor; imlecin gerçekten o hücrenin üzerinde olup olmadığını
+  doğrulamıyor.
+- **Taşımada tutulan saatin korunması.** Şeridin neresinden tutulduğu oranla
+  hesaplanıyor ve jsdom'da o oran hep sıfır; testler yalnızca SATIR
+  değişikliğini ölçüyor.
+- **Menünün konumu.** Şeridin altında açılıyor; dar sütunda ya da ızgaranın
+  sağ kenarında ekrandan taşabilir.
+
+### Turun bitiş kontrolü
+
+- [x] `pytest` tam takım **360 test geçiyor** — **ters dosya sırasında da**
+      (`ls tests/test_*.py | sort -r`), aynı 360. Sıra bağımlılığı yok
+- [x] `ruff check` ve `ruff format` temiz
+- [x] `tsc -b` ve `oxlint` temiz (4 uyarı, turdan önce de vardı)
+- [x] **284 frontend testi** geçiyor — karışık sırada da (`--sequence.shuffle`)
+- [x] Taslak oturumun dört testi de yerinde
+- [x] Biriken değişikliklerin **birlikte** doğrulandığı test yazıldı
+- [x] `EK_B_UC_NOKTALAR.md` yeniden üretildi
+- [ ] `git status` temiz — dört kanonik doküman proje yürütücüsünde açık
+
+### Sen ne göreceksin — şu üç ekranı kendi gözünle aç
+
+1. **Çizelge → Gün, boş bir satırda sürükle.** Asgariye dayandığında
+   sürüklemenin durduğunu hisset; önizleme "Asgari blok 4 saat (H1)" yazmalı.
+2. **Bir bloğu gövdesinden tutup başka personelin satırına bırak.** Kaynak
+   şerit sürükleme boyunca soluklaşıyor, önizleme hedef satırda çiziliyor.
+   Tuttuğun saatin korunup korunmadığına bak — bu testte ölçülemedi.
+3. **Bloğa tıkla.** Menü şeridin altında açılmalı; dar sütunda ya da
+   ızgaranın sağ kenarında ekrandan taşıyorsa söyle.
+
+Ayrıca **kaydetmeden dönem değiştirmeyi dene**: seçici kilitli olmalı ve
+"Önce değişiklikleri kaydedin ya da vazgeçin" demeli.
+
+---
+
+## 2026-08-14 — Ara iş: Gösterim Verisi ve Tatil Takvimi — **BİTTİ, DAĞITILDI**
+
+Sunucudaki demo verisi Tur 4 öncesindendi ("Demo Personel GG-001", 44 kişi,
+Müracaat noktası); göç onu olduğu gibi taşımıştı. İstenen yenileme sırasında
+üretecin kendisi de gözden geçirildi.
+
+### Önce tespit: istenenlerin çoğu zaten yazılıydı
+
+Gerçekçi adlar, izin ve talep demo verisi, resmi tatil üretimi, üretilmiş
+çizelgeler, pasif personel, devir bakiyeleri ve Özel Gün ekranındaki
+Ekle/Değiştir/Sil üçlüsü Tur 4/5'te yapılmıştı. Sunucu bunları hiç görmemişti.
+Gerçek eksik üç maddeydi ve üçü de karar gerektirdi.
+
+### Üç karar
+
+1. **Müracaat kapsam dışı kalır.** SRS 1.19 noktayı ve yetkinliği kaldırmış,
+   yükünü Güvenlik'e taşımıştı (3.3.3: "tek noktaya kapalı bir personel havuzu
+   kalmamıştır"). Geri getirmek SRS 3.3.2/3.3.3/3.3.4 ve Charter kadro
+   analizini değiştirirdi. **Doküman borcu doğmadı.**
+2. **Beş haftalık geçmiş, senaryo dönemlerinin YERİNE geçer.**
+3. **Dini bayramlar kütüphaneden gelir.**
+
+### Yeni dönem takvimi — geçmişe bakar
+
+Eskiden ileriye bakıyordu (dört haftalık sıkışık dönem, sonraki bayram
+haftası) ve ürün çoğunlukla yaşanmamış bir takvim gösteriyordu. Artık bugünü
+içeren hafta + önceki dördü, hepsi gerçek çözücüyle **60 sn** limitle
+çözülüyor. Yerel koşumun sonucu (bugün 14.08.2026):
+
+| Hafta | Tarih | Durum | Atama | Eksik kişi |
+|---|---|---|---|---|
+| H-4 | 13–19 Tem | yayınlandı | 151 | 0 |
+| H-3 | 20–26 Tem | **çözüldü** (yayınlanmadı) | 137 | **12** |
+| H-2 | 27 Tem–2 Ağu | yayınlandı | 163 | 0 |
+| H-1 | 3–9 Ağu | yayınlandı | 158 | 0 |
+| H-0 | 10–16 Ağu | arşiv + yayınlandı | 163 | 0 |
+
+**Kaldırılan senaryolardan ikisi bedelsiz korundu.** Kapsama açığı senaryosu
+dar haftaya (H-3) taşındı: yedi şeften beşi izinde, nokta kesintisiz dolu ve
+haftada 168 kişi-saat istiyor; kalan iki kişi günlük tavan ve haftalık izin
+günü altında en çok 132 verebiliyor. Eksik olan **saat değil kişi** — hiçbir
+blok uzunluğu kapatamaz (SRS TD-13). Ölçülen açık **12 kişi, tamamı Vardiya
+Şefliği'nde**. TD-8'in "çözüldü" durumu da o haftanın yayınlanmamasından
+geliyor. Kota senaryosu personel kaydındaki devir bakiyelerinde duruyor.
+
+**Kaybedilen:** fazla çalışma ve kota dönemleri ayrı dönem olarak yok; resmi
+tatilin çözüme etkisi artık üretim gününe bağlı (bugün 15 Temmuz H-4'e
+düşüyor, başka bir gün hiçbir haftaya düşmeyebilir).
+
+**Tercih penceresi.** Beş dönemin hepsi bugün veya geçmiş olunca açık pencere
+kalmıyordu ve Tercihler ekranı boş açılacaktı. Bugünü içeren haftanın
+penceresi açık bırakıldı (son tarih 16 Ağu). Devam eden bir hafta için tercih
+toplamak alışıldık değil; alternatifi özelliği hiç gösterememekti.
+
+### Resmi tatil takvimi — `holidays` kütüphanesi
+
+`app/services/tatil_takvimi.py` tek kaynak; `holidays==0.102` bağımlılık
+olarak eklendi. Üretilen: **27 gün / iki yıl**, Ramazan (3 gün) ve Kurban
+(4 gün) dahil, Türkçe adlarla.
+
+Eski üreteç dini bayramları bilinçli dışarıda bırakıyordu ve gerekçesi
+yazılıydı: "tahmini bir tarih yazmak, doğru sanılan yanlış bir veri
+üretirdi". İtiraz doğruydu, çözümü eksikti — tarihleri **elle yazmamak** ile
+**hiç yazmamak** aynı şey değil.
+
+Sekiz test kilitliyor. Tarihler teste GÖMÜLMEDİ (kütüphanenin bilgisi, sürümle
+düzelebilir); sınanan şey takvimin özellikleri: dini bayramın yıl içinde
+geriye kayması, çok günlü bayramın gün gün dönmesi, adların Türkçe olması,
+aynı günün iki kez dönmemesi (`ozel_gun` anahtarı tarihtir).
+
+### Üretecin sabit tarihleri kalktı
+
+`aktif_baslangic` 1 Ocak 2026'ya, pasif personelin kapanışı 31 Ocak 2026'ya
+sabitti. İkisi de bugüne göre hesaplanıyor — dosyanın zaten uyguladığı
+"BUGUNE GORE, sabit tarihlerle DEGIL" ilkesi bu iki satırda atlanmıştı.
+
+### Baskı çıktısındaki kırpma kusuru düzeltildi
+
+Tur 6'nın çıktısı gerçek kâğıtta denendi (PDF). Dar şeritlerde etiket
+kırpılıyordu — "22.00–05.00 G…" — ve gece yarısını aşan bloğun `›` işareti
+tam o kırpmanın içinde kayboluyordu. Ekranda ipucu metni kaybı telafi eder,
+kâğıtta edecek bir şey yok. Dört saatten dar şeritlerin etiketi artık şeridin
+yanına, gün sonuna dayananlarda soluna yazılıyor. Dört test eklendi.
+
+### Dağıtım — **YAPILDI** (14.08.2026, kesinti ~14 dk)
+
+Yedek: `/opt/vardiya/yedek/vardiya-20260814-0620-demo-oncesi.dump` (88K,
+155 nesne). Sıra: yedek → servisleri durdur → rsync → `chown` →
+`pip install -e .` → üreteç → başlat. Göç yok, şema değişmedi.
+
+**`VERI_TEMIZLIGINE_IZIN` `.env`'e HİÇ yazılmadı.** Değer tek seferlik
+komutun önüne konuldu (`app/veri_temizligi.py`'nin belgelediği kalıp), yani
+açılıp kapatılan bir kilit olmadı; sunucu bir sonraki kazara çalıştırmaya
+karşı korumasını hiçbir an kaybetmedi. `.env`'de satır yok, doğrulandı.
+
+Sunucudaki sonuç (yerel koşumla aynı yapı, çözücü sayıları farklı — 60 sn
+limitte arama belirlenimci değil):
+
+| Hafta | Durum | Atama | Eksik |
+|---|---|---|---|
+| H-4 13–19 Tem | yayınlandı | 159 | 0 |
+| H-3 20–26 Tem | **çözüldü** | 139 | **8** (yerelde 12) |
+| H-2 27 Tem–2 Ağu | yayınlandı | 165 | 0 |
+| H-1 3–9 Ağu | yayınlandı | 161 | 0 |
+| H-0 10–16 Ağu | arşiv + yayınlandı | 164 | 0 |
+
+Açığın tamamı yine Vardiya Şefliği'nde. 30 personel, 4 tercih, 12 izin,
+27 resmi tatil (13'ü Ramazan/Kurban), 343 gece yarısını aşan blok.
+Beş servis `active`, `journalctl`'de 0 hata, `/api/ben` kimliksiz 401.
+
+**Bir tuzak yakalandı.** İlk rsync frontend'de **0 dosya** aktardı: `dist/`
+baskı düzeltmesinden önce derlenmişti ve sunucudakiyle aynıydı. Yeniden
+derlenip gönderildi (`index-D5cG4Hsi.js`); yakalanmasaydı eski arayüz
+sessizce kalacaktı. Ders: `npm run build` ile rsync arasına başka bir
+kaynak değişikliği girerse rsync "değişiklik yok" der ve HAKLIDIR — yanlış
+olan derlemenin eskiliğidir.
+
+**Yönetim hesabı silinmedi**, doğrulandı: `omerharmankaya` (YONETIM),
+`yonetici1`, `yonetim1` üçü de aktif. DAGITIM.md'deki "demo yenilenirse
+yönetim hesabı yeniden kurulmalı" notu `HesapKapsami.PERSONELE_BAGLI`
+davranışından eskidir.
+
+### Açık kalan — çalışan paneli için hesap yok
+
+Temizlik **personel kaydına bağlı 1 hesabı** (1 açık oturumla) sildi; bu
+beklenen davranıştır (o hesap silinen personele bağlıydı). Sonuç: şu anda
+çalışan rolünde hiçbir hesap yok ve **çalışan paneli gösterilemez** —
+"Vardiyalarım", "sıradaki vardiya", tercih bildirimi ve FR-9.4'ün değişen
+gün işareti ancak çalışan hesabıyla görülür. Yeni personelden birine
+Kullanıcılar ekranından hesap açılmalı; parola belirlemek proje
+yürütücüsünün işi.
+
+---
+
+## 2026-08-13 — Dağıtım: Tur 1–6 birikimi — **TAMAMLANDI**
+
+Gösterim sunucusuna (46.225.109.40) çıkıldı. Kesinti penceresi
+**19:26–19:31 (~5 dk)**; `vera-rag`, `energy-api` ve ortak PostgreSQL'e
+dokunulmadı, üçü de boyunca ayakta kaldı.
+
+### Runbook'un üç varsayımı tutmadı — sıra buna göre düzeltildi
+
+**1. Sunucu kodu git ile çekmiyor.** `/opt/vardiya` bir git deposu değil
+(hiçbir alt dizininde `.git` yok), `frontend/` dizini yok (derlenmiş arayüz
+`web/` altında) ve sunucuda **Node kurulu değil**. Yani "git fetch + merge
+--ff-only" ve "sunucuda npm run build" adımları koşamazdı. Yürürlükteki
+yordam `deploy/DAGITIM.md`'de kayıtlı ve altı dağıtımdır aynı: **yerelde
+derle, `rsync` ile gönder, sonra `chown -R vardiya:vardiya`**. Bu, "dağıtım
+sunucunun çektiği koddan yapılır" cümlesini tersine çevirir — dağıtılan şey
+yerel çalışma ağacıdır, o yüzden önce `HEAD == origin/main == 4d8b5d7` ve
+`git status` boş olduğu doğrulandı.
+
+**2. Göç durumu farklıydı.** `alembic current` = `e7b2c4915d80`, yani:
+
+| Göç | Runbook | Gerçek |
+|---|---|---|
+| `d1f83a6c40b2` (talep → aralık) | bekliyor | zaten uygulanmış (12.08) |
+| `e7b2c4915d80` (kural parametre adları) | bekliyor, kodla gitmeli | zaten uygulanmış; sunucudaki kod da o dönemin koduydu, tutarlıydı |
+| `f2a8c561d94b` (atama → blok, `vardiya_tipi` düşer) | — | **bekleyen tek göç** |
+
+Dolayısıyla "eski kod / yeni parametre" `KeyError` penceresi bu dağıtımda
+hiç oluşmadı; risk yalnızca veri dönüşümü ve tablo düşürmedeydi.
+
+**3. `pg_dump "$VERITABANI_URL"` düşerdi.** Değer `postgresql+psycopg://`
+ile başlıyor — SQLAlchemy'nin biçimi, libpq'nun değil. `DAGITIM.md` bunu
+bir kez yaşanmış tuzak olarak kaydetmiş ("pg_dump düştü, alembic devam
+etti"). Kullanılan biçim:
+`PGURL=$(printf %s "$VERITABANI_URL" | sed 's|+psycopg||')`.
+Yedek dizini de `/root` değil `/opt/vardiya/yedek/`.
+
+Ayrıca runbook'un girişi "durdur → yedek", numaralı adımları "yedek →
+durdur" diyordu; girişteki sıra izlendi (çalışan servis yedeğin ortasında
+yazabilir).
+
+### Uygulanan sıra
+
+1. Yerelde `npm run build` + **231 vitest** + **341 pytest** (10 dk 28 sn)
+2. Bitmemiş çözüm işi kontrolü (yok) → `systemctl stop vardiya-cozucu`, `vardiya-api`
+3. **Parola rotasyonu** (aşağıda) — proje yürütücüsü koştu
+4. Yedek: `/opt/vardiya/yedek/vardiya-20260813-1928-tur6oncesi.dump`,
+   **85K**, `pg_restore -l` ile denetlendi: 165 nesne, 20 tablo verisi
+5. `rsync`: `frontend/dist/` → `web/` (35 dosya), `backend/` → `backend/`
+   (66 dosya). `--delete` yalnız iki dosya sildi: Tur 5'te kaldırılan
+   `app/services/vardiya_hesaplari.py` ve testi. `.env`, `.venv`,
+   `__pycache__` hariç tutuldu. Ardından `chown -R vardiya:vardiya`.
+6. `pip install -e .` → çıkış 0
+7. `alembic upgrade head` → tek göç koştu, çıkış 0
+
+### `alembic current` — önce / sonra
+
+```
+önce : e7b2c4915d80
+sonra: f2a8c561d94b (head)
+```
+
+### Göç doğrulaması — sayarak
+
+| Ölçü | Önce | Sonra |
+|---|---|---|
+| `atama` satırı | 3.051 | **3.051** |
+| toplam kişi-saat | 24.408,00 | **24.408,00** |
+| `talep` / `tercih` / `kural` | 21 / 4 / 20 | 21 / 4 / 20 |
+| `personel` / `cizelge_surumu` | 44 / 26 | 44 / 26 |
+| `vardiya_tipi` tablosu | var (3 satır) | **düştü** |
+
+`atama` sütunları `vardiya_tipi_id, tarih` yerine artık
+`baslangic_zamani, bitis_zamani`. **1.171 blok gece yarısını aşıyor** —
+mutlak eksenin var oluş nedeni sunucudaki gerçek veride de görünüyor.
+Kural parametreleri yerinde: `H1.asgari_blok_saat=4`,
+`H3.gece_esigi_saat=4`, `H9.azami_gunluk_saat=11`.
+
+### Doğrulama
+
+- `systemctl is-active`: vardiya-api, vardiya-cozucu, vera-rag,
+  energy-api, postgresql → **beşi de active**
+- `http://127.0.0.1:8002/health` → `{"durum":"ok"}`
+- `https://vardiya.omerharmankaya.com/` → yeni paket sunuluyor
+  (`index-DdDLnrHO.js` 200); `web/assets` içinde eski paket kalmadı
+- `GET /api/ben` kimliksiz → **401** (API Caddy üzerinden erişilebilir,
+  yetkilendirme çalışıyor)
+- `journalctl` (başlatmadan beri): **0 hata satırı**
+- Kural kataloğu salt okunur sınandı: 20 kural satırı → 20 kural nesnesi
+  kuruldu, parametre okuma hatası yok
+
+**Runbook'ta yanlış olan bir kontrol:** `curl https://.../health` API'ye
+gitmiyor. Caddy yalnızca `/api/*`'i vekilliyor, `/health` SPA'ya düşüyor ve
+`index.html` dönüyor. API'nin sağlık ucu kök altında (`/health`), yani
+dışarıdan erişilebilir değil. Doğru kontrol ya yerelden `127.0.0.1:8002`
+ya da `/api/ben` → 401.
+
+### Parola rotasyonu
+
+Dağıtım sırasında `vardiya` veritabanı kullanıcısının parolası değiştirildi.
+Nedeni: bu oturumda koşulan bir şema kontrolü psycopg hatası verdi ve hata
+mesajı bağlantı dizesinin tamamını, parolayı da içerecek biçimde bastı.
+Rotasyonu proje yürütücüsü koştu (`\password`, komut satırına yazılmadı);
+`.env` güncellendi, eski parolanın kopyasını taşıyan `/opt/vardiya/.env.yedek`
+silindi. Yeni parola, göçten ÖNCE `alembic current` ve `pg_dump` ile
+doğrulandı — yedeğin başarısı aynı zamanda rotasyonun sınavı oldu.
+
+Bundan sonra sunucuya gönderilen her komutun çıktısı
+`sed -E 's#://[^@]*@#://***@#g'` süzgecinden geçirildi.
+
+### Açık kalan — `S6.desen_toleransi_saat` kural kaydında yok
+
+Kural kataloğu sınandığında tek eksik bu çıktı. **Arıza değil:** kod
+`self.parametreler.get("desen_toleransi_saat", varsayılan)` ile okuyor,
+yani çözücü varsayılanla çalışır. Etkisi yalnızca Kural ekranında: bu
+parametre okuma kipinde `—`, düzenleme kipinde boş kutu görünür. Kalıcı
+çözüm ya ekrandan bir değer kaydetmek ya da kaydı ekleyen küçük bir göç.
+Tur 5'in göçü `H1` ve `H3` için bu satırları yazmıştı, `S6` atlanmış.
+
+### `.env` — yasaklı iki değişken yok
+
+`TEST_VERITABANI_URL` ve `VERI_TEMIZLIGINE_IZIN` sunucuda tanımlı değil,
+doğrulandı. Gösterim verisi yenileme (`demo_veri_uret.py --reset`) bu
+dağıtımın parçası DEĞİLDİR ve yapılmadı — ayrı karar olarak bekliyor.
+Sunucudaki veri hâlâ eski senaryo: **44 kişilik kadro**, göçle blok
+kaydına çevrilmiş 3.051 atama. Tur 4/5'in 30 kişilik senaryoları yalnızca
+üreteçten gelir.
+
+### Geri dönüş kullanılmadı
+
+Hiçbir adımda geri alınmadı. Gerekseydi: `alembic downgrade e7b2c4915d80`
+(geri alma yazılı ve denenmiş), tutmazsa
+`pg_restore -c -d "$PGURL" /opt/vardiya/yedek/vardiya-20260813-1928-tur6oncesi.dump`.
+
+---
+
 ## 2026-08-13 — Tur 6: Saat Görünümleri ve Arayüz — **BİTTİ**
 
 Kaynak: `docs/turlar/CLAUDE_CODE_PROMPTU_TUR6.md`. Altı iş, hepsi bitti.

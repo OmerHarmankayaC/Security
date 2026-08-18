@@ -68,18 +68,30 @@ class DonemOzetiOku(BaseModel):
     hic alamaz, dolayisiyla kendi sayisi kalici olarak 0 ve "ortalamanin
     altinda" gorunur. Bu yuzden havuz uyeligi ayrica tasinir ve arayuz,
     havuz disindaki calisana o karsilastirmayi hic gostermez.
+
+    KIYASIN REFERANSI ADIL PAYDIR, ekip ortalamasi degil. Erisilebilirligi
+    kisitli bir havuz tek ortalamaya vuruldugunda kalici olarak sapmali
+    gorunur (bkz. schemas/analiz.py, KisiSayisiOku.pay). Ekip ortalamasi
+    ikincil baglam olarak tasinmaya devam eder.
+
+    `ufuk` YANITIN ICINDE tasinir: iki ufkun sayilari farklidir ve hangisinin
+    okundugu belirsiz kalirsa sayi yanlis okunur (SDD 6.3.4).
     """
 
+    ufuk: Literal["donem", "adalet"] = "donem"
     # Birim SAAT (SRS S2, S3): blok sureleri cozumun ciktisi oldugundan
     # sayima dayali bir olcu tanimsizdir.
     gece_saati: float
     ekip_ortalama_gece: float
+    adil_pay_gece: float | None
     gece_havuzunda: bool
     hafta_sonu_saati: float
     ekip_ortalama_hafta_sonu: float
+    adil_pay_hafta_sonu: float | None
     hafta_sonu_havuzunda: bool
     toplam_saat: float
     ekip_ortalama_saat: float
+    hedef_saat: float
 
 
 class VardiyalarimOku(BaseModel):
@@ -97,7 +109,10 @@ class VardiyalarimOku(BaseModel):
     # FR-9.4 ucuncu tur; `vardiyalar`dan ayri tutulur (bkz. KaldirilanGunOku).
     kaldirilan_gunler: list[KaldirilanGunOku]
     siradaki: VardiyamOku | None
-    ozet: DonemOzetiOku | None
+    # `ozet` BURADA DEGIL: /api/calisan/ozetim uc noktasinda. Ozet bir tam
+    # AnalizServisi.hesapla() odemesi ve panelin her acilisi onu odemek
+    # zorunda degil - calisan Vardiyalarim sekmesine bakarken hesap hic
+    # calismaz.
 
 
 class AcikDonemOku(BaseModel):

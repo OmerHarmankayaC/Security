@@ -28,10 +28,11 @@ from app.schemas.cozum import (
     CozumOku,
 )
 from app.schemas.dogrulama import (
-    AtamaDegisikligiIstek,
     CezaKalemiOku,
+    DogrulamaIstegi,
     DogrulamaSonucuOku,
     IhlalOku,
+    KaydetIstegi,
 )
 from app.schemas.on_kontrol import BulguOku, OnKontrolIstek, OnKontrolYaniti
 from app.schemas.surum import (
@@ -55,9 +56,11 @@ from app.services.cozum_servisi import (
 )
 from app.services.dogrulama_servisi import (
     AtamaDegisikligi,
+    DamgaCakismasiError,
     DogrulamaServisi,
     DogrulamaSonucu,
     SurumTaslakDegilError,
+    ZorunluIhlalError,
 )
 from app.services.on_kontrol_servisi import OnKontrolServisi
 from app.services.surum_servisi import (
@@ -170,15 +173,17 @@ def cozum_karari(is_id: int, istek: CozumKarariIstek, oturum: Oturum) -> CozumKa
     )
 
 
-def _degisiklige_cevir(istek: AtamaDegisikligiIstek) -> AtamaDegisikligi:
-    return AtamaDegisikligi(
-        surum_id=istek.surum_id,
-        personel_id=istek.personel_id,
-        tarih=istek.tarih,
-        baslangic_saati=istek.baslangic_saati,
-        bitis_saati=istek.bitis_saati,
-        nokta_id=istek.nokta_id,
-    )
+def _degisikliklere_cevir(istek: DogrulamaIstegi) -> list[AtamaDegisikligi]:
+    return [
+        AtamaDegisikligi(
+            personel_id=d.personel_id,
+            tarih=d.tarih,
+            baslangic_saati=d.baslangic_saati,
+            bitis_saati=d.bitis_saati,
+            nokta_id=d.nokta_id,
+        )
+        for d in istek.degisiklikler
+    ]
 
 
 def _ihlali_cevir(i: Ihlal) -> IhlalOku:
@@ -191,7 +196,7 @@ def _ihlali_cevir(i: Ihlal) -> IhlalOku:
     )
 
 
-def _sonucu_cevir(sonuc: DogrulamaSonucu) -> DogrulamaSonucuOku:
+def _sonucu_cevir(sonuc: DogrulamaSonucu, *, damga: str | None = None) -> DogrulamaSonucuOku:
     return DogrulamaSonucuOku(
         kabul_edilebilir=sonuc.kabul_edilebilir,
         zorunlu_ihlaller=[_ihlali_cevir(i) for i in sonuc.zorunlu_ihlaller],
@@ -208,14 +213,16 @@ def _sonucu_cevir(sonuc: DogrulamaSonucu) -> DogrulamaSonucuOku:
             for k in sonuc.ceza_dokumu
         ],
         uyarilar=[_ihlali_cevir(i) for i in sonuc.uyarilar],
+        damga=damga,
     )
 
 
 @router.post("/atama/dogrula", response_model=DogrulamaSonucuOku)
-def atama_dogrula(istek: AtamaDegisikligiIstek, oturum: Oturum) -> DogrulamaSonucuOku:
+def atama_dogrula(istek: DogrulamaIstegi, oturum: Oturum) -> DogrulamaSonucuOku:
+    """Oturumun tamamini degerlendirir; HICBIR SEY YAZMAZ (SDD 5.5)."""
     servis = DogrulamaServisi(oturum)
     try:
-        sonuc = servis.dogrula(_degisiklige_cevir(istek))
+        sonuc = servis.dogrula(istek.surum_id, _degisikliklere_cevir(istek))
     except SurumTaslakDegilError as hata:
         raise HTTPException(status_code=409, detail=str(hata)) from hata
     if sonuc is None:
@@ -223,18 +230,32 @@ def atama_dogrula(istek: AtamaDegisikligiIstek, oturum: Oturum) -> DogrulamaSonu
     return _sonucu_cevir(sonuc)
 
 
-@router.put("/atama", response_model=DogrulamaSonucuOku)
-def atama_guncelle(istek: AtamaDegisikligiIstek, oturum: Oturum) -> DogrulamaSonucuOku:
+@router.post("/atama/kaydet", response_model=DogrulamaSonucuOku)
+def atama_kaydet(istek: KaydetIstegi, oturum: Oturum) -> DogrulamaSonucuOku:
+    """Biriken degisikliklerin tamamini TEK ISLEMDE yazar (SDD 5.5.1).
+
+    409'un uc ayri nedeni vardir ve ucu de kullaniciya farkli sey soyler:
+    surum yayinlanmis (yeni taslak turetilmeli), damga cakismis (baska biri
+    kaydetmis) ya da zorunlu kisit ihlali var (degisiklik gecersiz).
+    """
     servis = DogrulamaServisi(oturum)
     try:
-        sonuc = servis.uygula(_degisiklige_cevir(istek))
+        yanit = servis.kaydet(istek.surum_id, _degisikliklere_cevir(istek), istek.damga)
     except SurumTaslakDegilError as hata:
         raise HTTPException(status_code=409, detail=str(hata)) from hata
-    if sonuc is None:
+    except DamgaCakismasiError as hata:
+        raise HTTPException(status_code=409, detail=str(hata)) from hata
+    except ZorunluIhlalError as hata:
+        sonuc = DogrulamaSonucuOku(
+            kabul_edilebilir=False,
+            zorunlu_ihlaller=[_ihlali_cevir(i) for i in hata.ihlaller],
+            ceza_degisimi=0.0,
+        )
+        raise HTTPException(status_code=409, detail=sonuc.model_dump(mode="json")) from hata
+    if yanit is None:
         raise HTTPException(status_code=404, detail="Cizelge surumu bulunamadi")
-    if not sonuc.kabul_edilebilir:
-        raise HTTPException(status_code=409, detail=_sonucu_cevir(sonuc).model_dump(mode="json"))
-    return _sonucu_cevir(sonuc)
+    sonuc, yeni_damga = yanit
+    return _sonucu_cevir(sonuc, damga=yeni_damga)
 
 
 @router.post("/atama/kilit", response_model=AtamaOku)

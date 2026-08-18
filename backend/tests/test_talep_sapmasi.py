@@ -127,6 +127,15 @@ def senaryo() -> dict:
         oturum.close()
 
 
+def _damga(surum_id: int) -> str:
+    """Kaydetme oturumun basindaki damgayi ister (SDD 5.5.1)."""
+    oturum = OturumYerel()
+    try:
+        return oturum.get(CizelgeSurumu, surum_id).damga
+    finally:
+        oturum.close()
+
+
 def _sapmalar(surum_id: int) -> tuple[int, int]:
     """(toplam eksik kisi, toplam fazla kisi)."""
     oturum = OturumYerel()
@@ -158,13 +167,16 @@ def test_elle_atama_kaldirmak_kapsama_acigini_tazeler(senaryo: dict) -> None:
 
     oturum = OturumYerel()
     try:
-        DogrulamaServisi(oturum).uygula(
-            AtamaDegisikligi(
-                surum_id=senaryo["surum_id"],
-                personel_id=senaryo["sef"],
-                tarih=senaryo["gun"],
-                nokta_id=None,
-            )
+        DogrulamaServisi(oturum).kaydet(
+            senaryo["surum_id"],
+            [
+                AtamaDegisikligi(
+                    personel_id=senaryo["sef"],
+                    tarih=senaryo["gun"],
+                    nokta_id=None,
+                )
+            ],
+            _damga(senaryo["surum_id"]),
         )
         oturum.commit()
     finally:
@@ -179,15 +191,18 @@ def test_elle_fazla_kadro_yazmak_kalici_iz_birakir(senaryo: dict) -> None:
     """Sizin senaryonuz: sefi Guvenlik'e cekmek -> Seflik 0/1, Guvenlik 3/2."""
     oturum = OturumYerel()
     try:
-        DogrulamaServisi(oturum).uygula(
-            AtamaDegisikligi(
-                surum_id=senaryo["surum_id"],
-                personel_id=senaryo["sef"],
-                tarih=senaryo["gun"],
-                baslangic_saati=_BAS,
-                bitis_saati=_BITIS,
-                nokta_id=senaryo["guvenlik_id"],
-            )
+        DogrulamaServisi(oturum).kaydet(
+            senaryo["surum_id"],
+            [
+                AtamaDegisikligi(
+                    personel_id=senaryo["sef"],
+                    tarih=senaryo["gun"],
+                    baslangic_saati=_BAS,
+                    bitis_saati=_BITIS,
+                    nokta_id=senaryo["guvenlik_id"],
+                )
+            ],
+            _damga(senaryo["surum_id"]),
         )
         oturum.commit()
     finally:
@@ -204,28 +219,34 @@ def test_sapma_geri_alindiginda_satirlar_da_silinir(senaryo: dict) -> None:
     oturum = OturumYerel()
     try:
         servis = DogrulamaServisi(oturum)
-        servis.uygula(
-            AtamaDegisikligi(
-                surum_id=senaryo["surum_id"],
-                personel_id=senaryo["sef"],
-                tarih=senaryo["gun"],
-                baslangic_saati=_BAS,
-                bitis_saati=_BITIS,
-                nokta_id=senaryo["guvenlik_id"],
-            )
+        servis.kaydet(
+            senaryo["surum_id"],
+            [
+                AtamaDegisikligi(
+                    personel_id=senaryo["sef"],
+                    tarih=senaryo["gun"],
+                    baslangic_saati=_BAS,
+                    bitis_saati=_BITIS,
+                    nokta_id=senaryo["guvenlik_id"],
+                )
+            ],
+            _damga(senaryo["surum_id"]),
         )
         oturum.commit()
         assert _sapmalar(senaryo["surum_id"]) == (1, 1)
 
-        servis.uygula(
-            AtamaDegisikligi(
-                surum_id=senaryo["surum_id"],
-                personel_id=senaryo["sef"],
-                tarih=senaryo["gun"],
-                baslangic_saati=_BAS,
-                bitis_saati=_BITIS,
-                nokta_id=senaryo["seflik_id"],
-            )
+        servis.kaydet(
+            senaryo["surum_id"],
+            [
+                AtamaDegisikligi(
+                    personel_id=senaryo["sef"],
+                    tarih=senaryo["gun"],
+                    baslangic_saati=_BAS,
+                    bitis_saati=_BITIS,
+                    nokta_id=senaryo["seflik_id"],
+                )
+            ],
+            _damga(senaryo["surum_id"]),
         )
         oturum.commit()
     finally:
@@ -245,15 +266,18 @@ def test_fazla_kadro_kapsama_oranini_bozmaz(senaryo: dict) -> None:
         # Guvenlik'e ekleyemedigimiz icin sefi tasiyoruz ve sonra Seflik'i
         # yeniden dolduramayiz - bu yuzden burada eksik de olusur. Olculen
         # sey oranin FAZLADAN etkilenmemesi: eksik 1 iken oran 2/3 olmali.
-        DogrulamaServisi(oturum).uygula(
-            AtamaDegisikligi(
-                surum_id=senaryo["surum_id"],
-                personel_id=senaryo["sef"],
-                tarih=senaryo["gun"],
-                baslangic_saati=_BAS,
-                bitis_saati=_BITIS,
-                nokta_id=senaryo["guvenlik_id"],
-            )
+        DogrulamaServisi(oturum).kaydet(
+            senaryo["surum_id"],
+            [
+                AtamaDegisikligi(
+                    personel_id=senaryo["sef"],
+                    tarih=senaryo["gun"],
+                    baslangic_saati=_BAS,
+                    bitis_saati=_BITIS,
+                    nokta_id=senaryo["guvenlik_id"],
+                )
+            ],
+            _damga(senaryo["surum_id"]),
         )
         oturum.commit()
         analiz = AnalizServisi(oturum).hesapla(senaryo["surum_id"])

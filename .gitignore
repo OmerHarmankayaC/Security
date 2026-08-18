@@ -38,3 +38,7 @@ build/
 
 # Claude Code kisisel/yerel ayarlar (izin listesi vb.) - launch.json paylasilir
 .claude/settings.local.json
+
+# Ornek Excel ciktilari: turun sonunda kullanicinin gozle bakmasi icin
+# uretilir, depoda tutulmaz (uretilebilir cikti).
+ornek-ciktilar/

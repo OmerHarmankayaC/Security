@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState, type PropsWithChildren } from 'react'
+import { useCallback, useEffect, useMemo, useState, type PropsWithChildren } from 'react'
 import { api, ApiHatasi } from '../api/client'
 import type {
   Atama,
+  BlokDegisikligi,
   CizelgeSurumu,
   Donem,
   DogrulamaSonucu,
@@ -23,9 +24,24 @@ import { cn } from '../lib/utils'
 import { belirtmeHaliEki, buyukHarf } from '../lib/metin'
 import { sayiBicimle } from '../lib/sayi'
 import { blokSinirlariniOku } from '../lib/kuralParametre'
+import {
+  BOS_OTURUM,
+  adimlariEkle,
+  atamalariUygula,
+  bekleyenler,
+  blokDegisikligi,
+  geriAl,
+  geriAlinabilirMi,
+  kirliMi,
+  tasimaAdimlari,
+  yenidenUygula,
+  yenidenUygulanabilirMi,
+  type Oturum,
+} from '../lib/duzenlemeOturumu'
+import { sonucuOzetle } from '../lib/sonucDili'
 import { saatRengi } from '../lib/saatRengi'
-import { BASLANGIC_SAATLERI, BITIS_SAATLERI, saatiYaz } from '../lib/talepAraligi'
-import { saatEtiketi } from '../lib/blok'
+import { BASLANGIC_SAATLERI, BITIS_SAATLERI } from '../lib/talepAraligi'
+import { saatEtiketi, sapmaGunu } from '../lib/blok'
 import {
   bugunIso,
   donemAraligiBicimle,
@@ -73,6 +89,7 @@ type Gorunum = 'gun' | 'hafta'
 
 export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }: Props) {
   const [donemler, setDonemler] = useState<Donem[]>([])
+  const [excelIniyor, setExcelIniyor] = useState(false)
   const [surumler, setSurumler] = useState<CizelgeSurumu[]>([])
   const [surumId, setSurumId] = useState<number | null>(null)
 
@@ -104,6 +121,11 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
   const [seciliBitis, setSeciliBitis] = useState<number | null>(null)
   const [seciliNoktaId, setSeciliNoktaId] = useState<string>(BOSALT_DEGERI)
   const [dogrulamaSonucu, setDogrulamaSonucu] = useState<DogrulamaSonucu | null>(null)
+  // TASLAK DÜZENLEME OTURUMU (SRS TD-16). Değişiklikler burada birikir;
+  // sunucuya yazma yalnızca Kaydet ile olur.
+  const [oturum, setOturum] = useState<Oturum>(BOS_OTURUM)
+  const [damga, setDamga] = useState<string | null>(null)
+  const [kaydediliyor, setKaydediliyor] = useState(false)
   const [panelYukleniyor, setPanelYukleniyor] = useState(false)
   const [panelHata, setPanelHata] = useState<string | null>(null)
 
@@ -185,6 +207,20 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
 
   useEffect(surumYukle, [surumId])
 
+  /**
+   * Sürüm değişince oturum SIFIRLANIR ve yeni damga alınır.
+   *
+   * Damga, kullanıcının düzenlemeye başladığı andaki sürüm hâlini gösterir;
+   * kaydederken geri gönderilir. Başka bir oturum arada kaydetmişse damga
+   * değişmiş olur ve kayıt reddedilir (SDD 5.5.1).
+   */
+  useEffect(() => {
+    setOturum(BOS_OTURUM)
+    setDogrulamaSonucu(null)
+    setSeciliHucre(null)
+    setDamga(surumler.find((s) => s.surum_id === surumId)?.damga ?? null)
+  }, [surumId, surumler])
+
   const donem = donemler.find((d) => d.donem_id === donemId) ?? null
   const surum = surumler.find((s) => s.surum_id === surumId) ?? null
 
@@ -212,10 +248,13 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
   const acikNoktalar = useMemo(() => {
     const indeks = new Map<string, Map<number, number>>()
     for (const k of kapsamaAcigi) {
-      let gun = indeks.get(k.tarih)
+      // Açık başladığı güne sayılır (B-23 sonrası: gün, başlangıç
+      // damgasından türetilir).
+      const tarih = sapmaGunu(k)
+      let gun = indeks.get(tarih)
       if (!gun) {
         gun = new Map()
-        indeks.set(k.tarih, gun)
+        indeks.set(tarih, gun)
       }
       gun.set(k.nokta_id, (gun.get(k.nokta_id) ?? 0) + k.eksik_sayi)
     }
@@ -239,15 +278,26 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
     )
   }, [gunler, bugun])
 
+  /**
+   * Izgaranın GÖRDÜĞÜ atamalar: sürümün atamaları + biriken değişiklikler.
+   *
+   * Değişiklik bırakıldığı anda burada görünür; sunucu yanıtı beklenmez
+   * (SRS TD-16). Kaydedilmemiş bloklar negatif kimlik taşır.
+   */
+  const gosterilenAtamalar = useMemo(
+    () => atamalariUygula(atamalar, bekleyenler(oturum)),
+    [atamalar, oturum],
+  )
+
   // Süzgeçten ÖNCEKİ liste — alttaki "36 personelin 10'u gösteriliyor"
   // satırının paydası budur; süzgeç değiştikçe payda oynamamalı.
   const tumIzgaraPersonelleri = useMemo(() => {
-    const idler = new Set(atamalar.map((a) => a.personel_id))
+    const idler = new Set(gosterilenAtamalar.map((a) => a.personel_id))
     return [...idler]
       .map((id) => personelMap.get(id))
       .filter((p): p is Personel => p !== undefined)
       .sort((a, b) => a.ad_soyad.localeCompare(b.ad_soyad, 'tr'))
-  }, [atamalar, personelMap])
+  }, [gosterilenAtamalar, personelMap])
 
   // Nokta süzgeci personeli DÖNEM BOYUNCA o noktada çalışanlarla sınırlar.
   // Gün bazında daraltmak, günler arasında gezinirken satırların altından
@@ -255,9 +305,11 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
   const noktaPersonelleri = useMemo(() => {
     if (seciliSuzgecNoktaId === null) return null
     return new Set(
-      atamalar.filter((a) => a.nokta_id === seciliSuzgecNoktaId).map((a) => a.personel_id),
+      gosterilenAtamalar
+        .filter((a) => a.nokta_id === seciliSuzgecNoktaId)
+        .map((a) => a.personel_id),
     )
-  }, [atamalar, seciliSuzgecNoktaId])
+  }, [gosterilenAtamalar, seciliSuzgecNoktaId])
 
   const izgaraPersonelleri = useMemo(
     () =>
@@ -276,16 +328,16 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
   const izgaraAtamalari = useMemo(
     () =>
       seciliSuzgecNoktaId === null
-        ? atamalar
-        : atamalar.filter((a) => a.nokta_id === seciliSuzgecNoktaId),
-    [atamalar, seciliSuzgecNoktaId],
+        ? gosterilenAtamalar
+        : gosterilenAtamalar.filter((a) => a.nokta_id === seciliSuzgecNoktaId),
+    [gosterilenAtamalar, seciliSuzgecNoktaId],
   )
 
   const atamaIndeksi = useMemo(() => {
     const indeks = new Map<string, Atama>()
-    for (const a of atamalar) indeks.set(`${a.personel_id}|${a.tarih}`, a)
+    for (const a of gosterilenAtamalar) indeks.set(`${a.personel_id}|${a.tarih}`, a)
     return indeks
-  }, [atamalar])
+  }, [gosterilenAtamalar])
 
   const atamaBul = (personelId: number, tarih: string): Atama | undefined =>
     atamaIndeksi.get(`${personelId}|${tarih}`)
@@ -296,75 +348,37 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
     setSeciliBaslangic(mevcut ? Number(mevcut.baslangic_zamani.slice(11, 13)) : null)
     setSeciliBitis(mevcut ? bitisSaatiOku(mevcut) : null)
     setSeciliNoktaId(mevcut ? String(mevcut.nokta_id) : BOSALT_DEGERI)
-    setDogrulamaSonucu(null)
     setPanelHata(null)
-  }
-
-  const istekGovdesiOlustur = (
-    ustDeger?: { baslangic: number; bitis: number; noktaId: string },
-  ) => {
-    if (!seciliHucre || surumId === null) return null
-    const bas = ustDeger ? ustDeger.baslangic : seciliBaslangic
-    const bit = ustDeger ? ustDeger.bitis : seciliBitis
-    const nokta = ustDeger ? ustDeger.noktaId : seciliNoktaId
-    return {
-      surum_id: surumId,
-      personel_id: seciliHucre.personelId,
-      tarih: seciliHucre.tarih,
-      baslangic_saati: bas === null ? null : saatiYaz(bas),
-      bitis_saati: bit === null ? null : saatiYaz(bit),
-      nokta_id: nokta === BOSALT_DEGERI ? null : Number(nokta),
-    }
-  }
-
-  const dogrula = async () => {
-    const govde = istekGovdesiOlustur()
-    if (!govde) return
-    setPanelYukleniyor(true)
-    setPanelHata(null)
-    try {
-      const sonuc = await api.atamaDogrula(govde)
-      setDogrulamaSonucu(sonuc)
-    } catch (e) {
-      setPanelHata(e instanceof Error ? e.message : 'Doğrulama başarısız')
-    } finally {
-      setPanelYukleniyor(false)
-    }
   }
 
   /**
-   * Sürükleme bırakıldığında (İş 4).
+   * Oturuma adım ekler ve SUNUCUYA DOĞRULATIR (SRS TD-16).
    *
-   * Seçim panele yazılır ve DOĞRULAMA İSTEĞİ GÖNDERİLİR — değişiklik
-   * uygulanmaz. Sürüklemenin doğrudan yazması, kullanıcının farkında olmadan
-   * çizelgeyi değiştirmesi demek olurdu; panel "Uygula" ile arada durur.
-   * Görev noktası o günün mevcut bloğundan devralınır (SRS H1: nokta blok
-   * boyunca tektir); blok yoksa kullanıcı noktayı seçene kadar doğrulama
-   * yapılamaz, çünkü sunucu üçünün birlikte dolu olmasını şart koşar.
+   * Değişiklik ızgarada anında görünür — sunucunun yanıtı beklenmez. Yanıt
+   * geldiğinde yalnızca SONUÇ ŞERİDİ tazelenir; değişikliğin kendisi zaten
+   * uygulanmıştır ve kaydedilene kadar yalnızca istemcide durur.
+   *
+   * İstek son adımı değil BİRİKİMİN TAMAMINI taşır: tek tek geçerli olan iki
+   * değişiklik birlikte bir kuralı bozabilir (SDD 5.5).
    */
-  const surukleyerekTanimla = async (personelId: number, baslangic: number, bitis: number) => {
-    if (!seciliGun || surumId === null) return
-    const mevcut = atamaBul(personelId, seciliGun)
-    const noktaId = mevcut ? String(mevcut.nokta_id) : BOSALT_DEGERI
-    setSeciliHucre({ personelId, tarih: seciliGun })
-    setSeciliBaslangic(baslangic)
-    setSeciliBitis(bitis)
-    setSeciliNoktaId(noktaId)
-    setDogrulamaSonucu(null)
-    setPanelHata(null)
-    if (noktaId === BOSALT_DEGERI) return
-
-    setPanelYukleniyor(true)
-    try {
-      const sonuc = await api.atamaDogrula({
-        surum_id: surumId,
-        personel_id: personelId,
-        tarih: seciliGun,
-        baslangic_saati: saatiYaz(baslangic),
-        bitis_saati: saatiYaz(bitis),
-        nokta_id: Number(noktaId),
+  const adimlariIsle = useCallback(
+    (adimlar: BlokDegisikligi[]) => {
+      if (surumId === null) return
+      setOturum((mevcut) => {
+        const yeni = adimlariEkle(mevcut, adimlar)
+        void dogrulamayiTazele(surumId, bekleyenler(yeni))
+        return yeni
       })
-      setDogrulamaSonucu(sonuc)
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [surumId],
+  )
+
+  const dogrulamayiTazele = async (id: number, bekleyen: BlokDegisikligi[]) => {
+    setPanelYukleniyor(true)
+    setPanelHata(null)
+    try {
+      setDogrulamaSonucu(await api.atamaDogrula({ surum_id: id, degisiklikler: bekleyen }))
     } catch (e) {
       setPanelHata(e instanceof Error ? e.message : 'Doğrulama başarısız')
     } finally {
@@ -372,39 +386,146 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
     }
   }
 
-  const uygula = async () => {
-    const govde = istekGovdesiOlustur()
-    if (!govde) return
-    setPanelYukleniyor(true)
-    setPanelHata(null)
-    try {
-      const sonuc = await api.atamaGuncelle(govde)
-      setDogrulamaSonucu(sonuc)
-      surumYukle()
-    } catch (e) {
-      if (e instanceof ApiHatasi && e.detay && typeof e.detay === 'object') {
-        setDogrulamaSonucu(e.detay as DogrulamaSonucu)
-      } else {
-        setPanelHata(e instanceof Error ? e.message : 'Değişiklik uygulanamadı')
-      }
-    } finally {
-      setPanelYukleniyor(false)
-    }
+  // --- Izgaranın beş eylemi (İş 1) -----------------------------------------
+
+  const blokTanimla = (personelId: number, baslangic: number, bitis: number) => {
+    if (!seciliGun) return
+    // Görev noktası: o günün mevcut bloğundan devralınır (SRS H1 — nokta blok
+    // boyunca tektir). Blok yoksa ilk nokta seçilir; kullanıcı menüden
+    // değiştirebilir. Noktasız bir blok sunucuya gönderilemez.
+    const mevcut = atamaBul(personelId, seciliGun)
+    const noktaId = mevcut?.nokta_id ?? seritNoktalari[0]?.nokta_id
+    if (noktaId === undefined) return
+    hucreSec(personelId, seciliGun)
+    adimlariIsle([blokDegisikligi(personelId, seciliGun, { baslangic, bitis, noktaId })])
   }
 
-  const kilidiDegistir = async () => {
-    if (!seciliHucre || surumId === null) return
-    const mevcut = atamaBul(seciliHucre.personelId, seciliHucre.tarih)
+  const blokTasi = (
+    kaynakId: number,
+    hedefId: number,
+    baslangic: number,
+    bitis: number,
+  ) => {
+    if (!seciliGun) return
+    const kaynak = atamaBul(kaynakId, seciliGun)
+    if (!kaynak) return
+    const aralik = { baslangic, bitis, noktaId: kaynak.nokta_id }
+    hucreSec(hedefId, seciliGun)
+    // Aynı satırda kaydırma da "taşıma"dır; kaynakla hedef aynı olduğunda
+    // kaldırma adımı gereksizdir ve atlanır.
+    adimlariIsle(
+      kaynakId === hedefId
+        ? [blokDegisikligi(hedefId, seciliGun, aralik)]
+        : tasimaAdimlari(kaynakId, hedefId, seciliGun, aralik),
+    )
+  }
+
+  const noktaDegistir = (personelId: number, noktaId: number) => {
+    if (!seciliGun) return
+    const mevcut = atamaBul(personelId, seciliGun)
     if (!mevcut) return
-    setPanelYukleniyor(true)
+    adimlariIsle([
+      blokDegisikligi(personelId, seciliGun, {
+        baslangic: Number(mevcut.baslangic_zamani.slice(11, 13)),
+        bitis: bitisSaatiOku(mevcut),
+        noktaId,
+      }),
+    ])
+  }
+
+  const blokSil = (personelId: number) => {
+    if (!seciliGun) return
+    adimlariIsle([blokDegisikligi(personelId, seciliGun, null)])
+  }
+
+  /**
+   * Kilit oturumun DIŞINDADIR ve anında yazılır.
+   *
+   * Kilit atamanın kendisini değiştirmez; yalnızca yeniden çözümde sabit
+   * girdi sayılıp sayılmayacağını belirler (FR-6.5) ve hiçbir kuralı
+   * etkilemez. Oturuma alınsaydı, kaydedilmemiş bir kilit "bu blok korunuyor"
+   * diye görünür ama yeniden çözüm onu görmezdi.
+   */
+  const kilidiDegistir = async (personelId: number, kilitli: boolean) => {
+    if (surumId === null || !seciliGun) return
     setPanelHata(null)
     try {
-      await api.atamaKilitAyarla(surumId, seciliHucre.personelId, seciliHucre.tarih, !mevcut.kilitli)
+      await api.atamaKilitAyarla(surumId, personelId, seciliGun, kilitli)
       surumYukle()
     } catch (e) {
       setPanelHata(e instanceof Error ? e.message : 'Kilit değiştirilemedi')
+    }
+  }
+
+  // --- Oturum eylemleri (İş 2b) --------------------------------------------
+
+  const geriAlEylemi = () => {
+    if (surumId === null) return
+    setOturum((mevcut) => {
+      const yeni = geriAl(mevcut)
+      void dogrulamayiTazele(surumId, bekleyenler(yeni))
+      return yeni
+    })
+  }
+
+  const yenidenUygulaEylemi = () => {
+    if (surumId === null) return
+    setOturum((mevcut) => {
+      const yeni = yenidenUygula(mevcut)
+      void dogrulamayiTazele(surumId, bekleyenler(yeni))
+      return yeni
+    })
+  }
+
+  const oturumuAt = () => {
+    setOturum(BOS_OTURUM)
+    setDogrulamaSonucu(null)
+    setPanelHata(null)
+  }
+
+  /**
+   * Kaydedilmemiş değişiklikle sekmeyi kapatmaya çalışan kullanıcı uyarılır
+   * (FR-6.8).
+   *
+   * Tarayıcı kendi metnini gösterir; `preventDefault` uyarıyı tetiklemenin
+   * standart yoludur. Ekran İÇİ geçişler (dönem/sürüm değiştirme, yeniden
+   * çözme) ayrıca korunuyor: ilgili denetimler oturum kirliyken kapalı.
+   */
+  useEffect(() => {
+    if (!kirliMi(oturum)) return
+    const uyar = (e: BeforeUnloadEvent) => e.preventDefault()
+    window.addEventListener('beforeunload', uyar)
+    return () => window.removeEventListener('beforeunload', uyar)
+  }, [oturum])
+
+  const kaydet = async () => {
+    if (surumId === null || damga === null) return
+    setKaydediliyor(true)
+    setPanelHata(null)
+    try {
+      const sonuc = await api.atamaKaydet({
+        surum_id: surumId,
+        damga,
+        degisiklikler: bekleyenler(oturum),
+      })
+      // Sunucu YENİ damgayı döndürür; bir sonraki kayıt onunla korunur.
+      if (sonuc.damga) setDamga(sonuc.damga)
+      setOturum(BOS_OTURUM)
+      setDogrulamaSonucu(null)
+      surumYukle()
+    } catch (e) {
+      if (e instanceof ApiHatasi && e.status === 409) {
+        // 409'un üç nedeni var ve üçü de kullanıcıya başka şey söyler.
+        setPanelHata(
+          typeof e.detay === 'string'
+            ? e.detay
+            : 'Kaydedilemedi: değişiklikler zorunlu bir kuralı bozuyor.',
+        )
+      } else {
+        setPanelHata(e instanceof Error ? e.message : 'Kaydedilemedi')
+      }
     } finally {
-      setPanelYukleniyor(false)
+      setKaydediliyor(false)
     }
   }
 
@@ -428,15 +549,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
   const surumDuzenlenebilir =
     surum !== null && (surum.durum === 'taslak' || surum.durum === 'cozuldu')
 
-  // Sunucunun kurali: vardiya ve nokta BIRLIKTE dolu ya da BIRLIKTE bos
-  // (schemas/dogrulama.py). Yarim cift 422 doner, o yuzden hic gonderilmez.
-  const secimGonderilebilir =
-    surumDuzenlenebilir &&
-    (seciliBaslangic === null) === (seciliNoktaId === BOSALT_DEGERI) &&
-    (seciliBaslangic === null) === (seciliBitis === null)
-
   const seciliPersonel = seciliHucre ? personelMap.get(seciliHucre.personelId) : null
-  const seciliMevcutAtama = seciliHucre ? atamaBul(seciliHucre.personelId, seciliHucre.tarih) : null
 
   return (
     <AppShell
@@ -479,10 +592,29 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
               </button>
             ))}
           </div>
+          {/* EXCEL SUNUCUDAN, CSV TARAYICIDAN. Çalışma kitabı biçimlemeyi
+              (saat bandı dolgusu, formüller, grafik) taşır; onu istemcide
+              kurmak biçimin ikinci bir tanımı olurdu. CSV ham veridir ve
+              zaten elde duran veriden üretilir. */}
+          <Buton
+            varyant="ikincil"
+            disabled={surum === null || excelIniyor}
+            title="Çizelge + özet + ham veri, biçimlenmiş çalışma kitabı"
+            onClick={() => {
+              if (!surum) return
+              setExcelIniyor(true)
+              api
+                .cizelgeExcelIndir(surum.surum_id, surum.surum_no)
+                .catch(() => setHata('Excel dosyası indirilemedi.'))
+                .finally(() => setExcelIniyor(false))
+            }}
+          >
+            {excelIniyor ? 'İndiriliyor…' : 'Excel'}
+          </Buton>
           <Buton
             varyant="ikincil"
             disabled={disaAktarmaVerisi === null}
-            title="Uzun biçim CSV + talep sapması dosyası"
+            title="Uzun biçim CSV + talep sapması dosyası (ham veri)"
             onClick={() => disaAktarmaVerisi && csvDisaAktar(disaAktarmaVerisi)}
           >
             CSV
@@ -495,9 +627,41 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
           >
             Yazdır
           </Buton>
+          {/* OTURUM ÇUBUĞU (SRS FR-6.7, FR-6.8). Kaydedilmemiş değişiklik
+              varken sayısı görünür; Kaydet tek istek gönderir. */}
+          {surumDuzenlenebilir && kirliMi(oturum) && (
+            <>
+              <span className="mono-caps rounded-sm bg-signal-soft px-2 py-1 text-signal">
+                {bekleyenler(oturum).length} KAYDEDİLMEMİŞ
+              </span>
+              <Buton
+                varyant="ikincil"
+                disabled={!geriAlinabilirMi(oturum) || kaydediliyor}
+                title="Son değişikliği geri al"
+                onClick={geriAlEylemi}
+              >
+                Geri Al
+              </Buton>
+              <Buton
+                varyant="ikincil"
+                disabled={!yenidenUygulanabilirMi(oturum) || kaydediliyor}
+                title="Geri alınan değişikliği yeniden uygula"
+                onClick={yenidenUygulaEylemi}
+              >
+                Yinele
+              </Buton>
+              <Buton varyant="hayalet" disabled={kaydediliyor} onClick={oturumuAt}>
+                Vazgeç
+              </Buton>
+              <Buton varyant="birincil" disabled={kaydediliyor} onClick={kaydet}>
+                {kaydediliyor ? 'Kaydediliyor…' : 'Kaydet'}
+              </Buton>
+            </>
+          )}
           <Buton
             varyant="birincil"
-            disabled={donemId === null}
+            disabled={donemId === null || kirliMi(oturum)}
+            title={kirliMi(oturum) ? 'Önce değişiklikleri kaydedin ya da vazgeçin' : undefined}
             onClick={() => donemId !== null && yenidenCozIste(donemId)}
           >
             Yeniden Çöz
@@ -519,6 +683,10 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
             <select
               id="donem-sec"
               className={SECIM_SINIFI}
+              // Kirli oturumda dönem/sürüm değiştirmek birikimi sessizce
+              // atardı; kullanıcı önce kaydeder ya da vazgeçer (FR-6.8).
+              disabled={kirliMi(oturum)}
+              title={kirliMi(oturum) ? 'Önce değişiklikleri kaydedin ya da vazgeçin' : undefined}
               value={donemId ?? ''}
               onChange={(e) => donemIdSec(e.target.value ? Number(e.target.value) : null)}
             >
@@ -536,6 +704,8 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
             <select
               id="surum-sec"
               className={SECIM_SINIFI}
+              disabled={kirliMi(oturum)}
+              title={kirliMi(oturum) ? 'Önce değişiklikleri kaydedin ya da vazgeçin' : undefined}
               value={surumId ?? ''}
               onChange={(e) => setSurumId(e.target.value ? Number(e.target.value) : null)}
             >
@@ -550,6 +720,22 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
       </Kart>
 
       {hata && <p className="text-sm text-signal">{hata}</p>}
+
+      {/* YAYINLANMIŞ SÜRÜM SALT OKUNURDUR (SRS FR-6.9). Araçların gizlenmesi
+          tek başına yeterli değil — sunucu isteği ayrıca reddeder (SDD
+          5.5.2) — ama kullanıcının NEDEN düzenleyemediğini burada okuması
+          gerekir, yoksa ızgaranın tepkisizliği hataya benzer. */}
+      {surum !== null && !surumDuzenlenebilir && (
+        <p className="m-0 rounded-sm border-l-2 border-accent bg-accent-soft px-4 py-3 text-sm text-ink">
+          <strong className="font-medium">
+            {SURUM_DURUM_METNI[surum.durum] ?? surum.durum} durumundaki sürüm salt okunur.
+          </strong>{' '}
+          Değişiklik için Sürümler ekranında bu sürümün{' '}
+          <strong className="font-medium">“Düzenlemek İçin Kopyala”</strong> düğmesini kullanın —
+          çizelge olduğu gibi yeni taslağa taşınır. “Boş Taslak Aç” atamasız bir sürüm üretir ve
+          çizelgeyi çözücü sıfırdan yazar (FR-7.3).
+        </p>
+      )}
 
       {/* Süzgeç ve ölçüm şeridi. Solda ızgarayı daraltan süzgeçler, sağda
           sürümün üç ölçüsü. */}
@@ -680,7 +866,11 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                 duzenlenebilir={surumDuzenlenebilir}
                 seciliPersonelId={seciliHucre?.personelId ?? null}
                 onSatirSec={(personelId) => hucreSec(personelId, seciliGun)}
-                onBlokTanimla={surukleyerekTanimla}
+                onBlokTanimla={blokTanimla}
+                onBlokTasi={blokTasi}
+                onNoktaDegistir={noktaDegistir}
+                onKilitDegistir={kilidiDegistir}
+                onBlokSil={blokSil}
               />
             )}
           </>
@@ -726,207 +916,106 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
         )}
       </Kart>
 
-      {seciliHucre && seciliPersonel && (
-        <Kart>
-          <KartEtiketi>atama düzenle</KartEtiketi>
-          <div className="flex flex-col gap-4">
-            <p className="text-sm text-ink">
-              {seciliPersonel.ad_soyad} — {gunKisaltmasiVeNumarasi(seciliHucre.tarih)}
-            </p>
-            <div className="flex flex-wrap items-end gap-4">
-              {/* BLOK SEÇİLMEZ, TANIMLANIR (SDD 6.3.3). Gün ızgarasında
-                  sürükleyerek de tanımlanır; bu iki alan aynı değeri taşır,
-                  sürükleme onları doldurur. */}
-              <div className="flex flex-col gap-1">
-                <label htmlFor="baslangic-sec" className="text-sm text-ink-muted">
-                  Başlangıç
-                </label>
-                <select
-                  id="baslangic-sec"
-                  className={SECIM_SINIFI}
-                  value={seciliBaslangic === null ? BOSALT_DEGERI : String(seciliBaslangic)}
-                  onChange={(e) => {
-                    if (e.target.value === BOSALT_DEGERI) {
-                      setSeciliBaslangic(null)
-                      setSeciliBitis(null)
-                      setSeciliNoktaId(BOSALT_DEGERI)
-                      return
-                    }
-                    const saat = Number(e.target.value)
-                    setSeciliBaslangic(saat)
-                    // Bitiş boşsa asgari blok süresi kadar bir blok önerilir;
-                    // değer kural kataloğundan gelir, koda gömülmez (İş 4).
-                    if (seciliBitis === null) {
-                      const varsayilan = sinirlar.asgariSaat ?? 8
-                      setSeciliBitis(((saat + varsayilan - 1) % 24) + 1)
-                    }
-                  }}
-                  disabled={!surumDuzenlenebilir}
-                >
-                  <option value={BOSALT_DEGERI}>— Boşalt —</option>
-                  {BASLANGIC_SAATLERI.map((s) => (
-                    <option key={s} value={s}>
-                      {saatEtiketi(s)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex flex-col gap-1">
-                <label htmlFor="bitis-sec" className="text-sm text-ink-muted">
-                  Bitiş
-                </label>
-                <select
-                  id="bitis-sec"
-                  className={SECIM_SINIFI}
-                  value={seciliBitis === null ? BOSALT_DEGERI : String(seciliBitis)}
-                  onChange={(e) =>
-                    setSeciliBitis(e.target.value === BOSALT_DEGERI ? null : Number(e.target.value))
-                  }
-                  disabled={!surumDuzenlenebilir || seciliBaslangic === null}
-                >
-                  <option value={BOSALT_DEGERI}>—</option>
-                  {BITIS_SAATLERI.map((s) => (
-                    <option key={s} value={s}>
-                      {saatEtiketi(s)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex flex-col gap-1">
-                <label htmlFor="nokta-sec" className="text-sm text-ink-muted">
-                  Görev Noktası
-                </label>
-                <select
-                  id="nokta-sec"
-                  className={SECIM_SINIFI}
-                  value={seciliNoktaId}
-                  onChange={(e) => setSeciliNoktaId(e.target.value)}
-                  disabled={!surumDuzenlenebilir || seciliBaslangic === null}
-                >
-                  <option value={BOSALT_DEGERI}>—</option>
-                  {noktalar.map((n) => (
-                    <option key={n.nokta_id} value={n.nokta_id}>
-                      {n.ad}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <Buton
-                varyant="ikincil"
-                onClick={dogrula}
-                disabled={panelYukleniyor || !secimGonderilebilir}
-              >
-                Doğrula
-              </Buton>
-              <Buton
-                varyant="birincil"
-                onClick={uygula}
-                disabled={panelYukleniyor || !secimGonderilebilir}
-              >
-                Uygula
-              </Buton>
-              {seciliMevcutAtama && (
-                <Buton
-                  varyant="hayalet"
-                  onClick={kilidiDegistir}
-                  disabled={panelYukleniyor || !surumDuzenlenebilir}
-                >
-                  {seciliMevcutAtama.kilitli ? 'Kilidi Aç' : 'Kilitle'}
-                </Buton>
-              )}
-            </div>
+      {/* Sonuç şeridi ve ikincil form YAN YANA: ızgaranın altında ayrı bir
+          kutu değil. Kullanıcı hangi hücreye ne yaptığını ızgarada görürken
+          sonucu da aynı bakışta okumalı. */}
+      {(dogrulamaSonucu !== null || panelHata !== null || seciliHucre !== null) && (
+        <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+          <Kart>
+            <KartEtiketi>sonuç</KartEtiketi>
+            {panelHata && <p className="m-0 text-sm text-signal">{panelHata}</p>}
+            {panelYukleniyor && !dogrulamaSonucu && (
+              <p className="m-0 text-sm text-ink-muted">Değerlendiriliyor…</p>
+            )}
+            {dogrulamaSonucu && <SonucSeridi sonuc={dogrulamaSonucu} personelMap={personelMap} />}
+          </Kart>
 
-            {!surumDuzenlenebilir ? (
-              <p className="text-sm text-ink-muted">
-                {SURUM_DURUM_METNI[surum?.durum ?? ''] ?? 'Bu'} durumdaki bir sürüm düzenlenemez.
-                Değişiklik için Sürümler ekranından taslak türetin.
+          {seciliHucre && seciliPersonel && (
+            <Kart>
+              <KartEtiketi>saat gir</KartEtiketi>
+              {/* İKİNCİL YOL (SRS 5.6). Birincil yol ızgaradır; bu form tam
+                  değer yazmak isteyen kullanıcı içindir. */}
+              <p className="m-0 text-sm text-ink">
+                {seciliPersonel.ad_soyad} — {gunKisaltmasiVeNumarasi(seciliHucre.tarih)}
               </p>
-            ) : (
-              !secimGonderilebilir && (
-                <p className="text-sm text-signal">
-                  Çalışma saatleri ve görev noktası birlikte seçilmeli. Hücreyi boşaltmak için
-                  başlangıcı “— Boşalt —” yapın.
-                </p>
-              )
-            )}
-
-            {panelHata && <p className="text-sm text-signal">{panelHata}</p>}
-
-            {dogrulamaSonucu && (
-              <div>
-                <p className="text-sm text-ink">
-                  {dogrulamaSonucu.kabul_edilebilir
-                    ? 'Kabul edilebilir.'
-                    : 'Zorunlu kısıt ihlali — reddedildi.'}{' '}
-                  Ceza değişimi:{' '}
-                  <Sayi>
-                    {dogrulamaSonucu.agirlikli_ceza_degisimi > 0 ? '+' : ''}
-                    {sayiBicimle(dogrulamaSonucu.agirlikli_ceza_degisimi, 0)}
-                  </Sayi>
-                </p>
-
-                {dogrulamaSonucu.zorunlu_ihlaller.length > 0 && (
-                  <ul className="m-0 mt-1 flex list-none flex-col gap-1 p-0">
-                    {dogrulamaSonucu.zorunlu_ihlaller.map((ihlal, i) => (
-                      <li key={i} className="text-sm text-signal">
-                        {ihlal.kural_kimlik} — {ihlal.aciklama}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-
-                {dogrulamaSonucu.uyarilar.length > 0 && (
-                  <ul className="m-0 mt-2 flex list-none flex-col gap-1 p-0">
-                    {dogrulamaSonucu.uyarilar.map((uyari, i) => (
-                      <li key={i} className="border-l-2 border-signal pl-3 text-sm text-signal">
-                        {uyari.aciklama}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-
-                {dogrulamaSonucu.ceza_dokumu.length > 0 && (
-                  <table className="mt-3 w-full border-collapse text-sm">
-                    <thead>
-                      <tr className="text-ink-muted">
-                        <th className="py-1 text-left font-normal">Hedef</th>
-                        <th className="py-1 text-right font-normal">Ham</th>
-                        <th className="py-1 text-right font-normal">Ağırlık</th>
-                        <th className="py-1 text-right font-normal">Ağırlıklı</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {dogrulamaSonucu.ceza_dokumu.map((kalem) => (
-                        <tr key={kalem.kural_kimlik} className="border-t border-rule">
-                          <td className="py-1 text-ink">
-                            <span className="font-mono text-ink-muted">{kalem.kural_kimlik}</span>{' '}
-                            {kalem.ad}
-                          </td>
-                          <td className="py-1 text-right">
-                            <Sayi>
-                              {kalem.ham_fark > 0 ? '+' : ''}
-                              {sayiBicimle(kalem.ham_fark, 1)}
-                            </Sayi>
-                          </td>
-                          <td className="py-1 text-right text-ink-muted">
-                            <Sayi>{sayiBicimle(kalem.agirlik, 0)}</Sayi>
-                          </td>
-                          <td className="py-1 text-right">
-                            <Sayi>
-                              {kalem.agirlikli_fark > 0 ? '+' : ''}
-                              {sayiBicimle(kalem.agirlikli_fark, 0)}
-                            </Sayi>
-                          </td>
-                        </tr>
+              <div className="mt-3 flex flex-col gap-3">
+                <div className="flex gap-2">
+                  <label className="flex flex-1 flex-col gap-1 text-sm text-ink-muted">
+                    Başlangıç
+                    <select
+                      className={SECIM_SINIFI}
+                      value={seciliBaslangic ?? ''}
+                      disabled={!surumDuzenlenebilir}
+                      onChange={(e) => setSeciliBaslangic(Number(e.target.value))}
+                    >
+                      <option value="">—</option>
+                      {BASLANGIC_SAATLERI.map((x) => (
+                        <option key={x} value={x}>
+                          {saatEtiketi(x)}
+                        </option>
                       ))}
-                    </tbody>
-                  </table>
-                )}
+                    </select>
+                  </label>
+                  <label className="flex flex-1 flex-col gap-1 text-sm text-ink-muted">
+                    Bitiş
+                    <select
+                      className={SECIM_SINIFI}
+                      value={seciliBitis ?? ''}
+                      disabled={!surumDuzenlenebilir || seciliBaslangic === null}
+                      onChange={(e) => setSeciliBitis(Number(e.target.value))}
+                    >
+                      <option value="">—</option>
+                      {BITIS_SAATLERI.map((x) => (
+                        <option key={x} value={x}>
+                          {saatEtiketi(x)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <label className="flex flex-col gap-1 text-sm text-ink-muted">
+                  Görev Noktası
+                  <select
+                    className={SECIM_SINIFI}
+                    value={seciliNoktaId}
+                    disabled={!surumDuzenlenebilir}
+                    onChange={(e) => setSeciliNoktaId(e.target.value)}
+                  >
+                    <option value={BOSALT_DEGERI}>—</option>
+                    {noktalar.map((n) => (
+                      <option key={n.nokta_id} value={n.nokta_id}>
+                        {n.ad}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Buton
+                  varyant="ikincil"
+                  disabled={
+                    !surumDuzenlenebilir ||
+                    seciliBaslangic === null ||
+                    seciliBitis === null ||
+                    seciliNoktaId === BOSALT_DEGERI
+                  }
+                  onClick={() => {
+                    if (seciliBaslangic === null || seciliBitis === null) return
+                    adimlariIsle([
+                      blokDegisikligi(seciliHucre.personelId, seciliHucre.tarih, {
+                        baslangic: seciliBaslangic,
+                        bitis: seciliBitis,
+                        noktaId: Number(seciliNoktaId),
+                      }),
+                    ])
+                  }}
+                >
+                  Uygula
+                </Buton>
               </div>
-            )}
-          </div>
-        </Kart>
+            </Kart>
+          )}
+        </div>
       )}
+
     </AppShell>
   )
 }
@@ -1013,5 +1102,112 @@ function Lejant({ children, sinif }: PropsWithChildren<{ sinif: string }>) {
       <span className={cn('size-3.5 shrink-0 rounded-xs', sinif)} />
       {children}
     </span>
+  )
+}
+
+
+/**
+ * Sonuç şeridi — ÖNCE GÜNDELİK DİL, sayı ayrıntının arkasında (SRS FR-6.4).
+ *
+ * Zorunlu ihlal ile "kabul edilebilir" AYNI ANDA GÖRÜNMEZ: ikisi aynı anda
+ * doğru olamaz ve eski ekranda üç ayrı yöne bakan üç işaret vardı.
+ */
+function SonucSeridi({
+  sonuc,
+  personelMap,
+}: {
+  sonuc: DogrulamaSonucu
+  personelMap: Map<number, Personel>
+}) {
+  const [dokumAcik, setDokumAcik] = useState(false)
+  const ozet = sonucuOzetle(sonuc)
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p
+        className={cn(
+          'm-0 text-sm',
+          ozet.tur === 'engellendi' ? 'font-medium text-signal' : 'text-ink',
+        )}
+      >
+        {ozet.cumle}
+      </p>
+
+      {ozet.ihlaller.length > 0 && (
+        <ul className="m-0 flex list-none flex-col gap-1 p-0">
+          {ozet.ihlaller.map((ihlal, i) => (
+            <li key={i} className="border-l-2 border-signal pl-3 text-sm text-signal">
+              <span className="font-mono">{ihlal.kural_kimlik}</span> — {ihlal.aciklama}
+              {ihlal.personel_id !== null && personelMap.get(ihlal.personel_id) && (
+                <span className="text-ink-muted">
+                  {' '}
+                  ({personelMap.get(ihlal.personel_id)!.ad_soyad})
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {ozet.uyarilar.length > 0 && (
+        <ul className="m-0 flex list-none flex-col gap-1 p-0">
+          {ozet.uyarilar.map((uyari, i) => (
+            <li key={i} className="border-l-2 border-rule-strong pl-3 text-sm text-ink-muted">
+              {uyari.aciklama}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {ozet.dokum.length > 0 && (
+        <div>
+          <button
+            type="button"
+            className="text-sm text-accent underline underline-offset-2"
+            aria-expanded={dokumAcik}
+            onClick={() => setDokumAcik(!dokumAcik)}
+          >
+            {dokumAcik ? 'Ceza dökümünü gizle' : 'Ceza dökümünü göster'}
+          </button>
+          {dokumAcik && (
+            <table className="mt-2 w-full border-collapse text-sm">
+              <thead>
+                <tr className="text-ink-muted">
+                  <th className="py-1 text-left font-normal">Hedef</th>
+                  <th className="py-1 text-right font-normal">Ham</th>
+                  <th className="py-1 text-right font-normal">Ağırlık</th>
+                  <th className="py-1 text-right font-normal">Ağırlıklı</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ozet.dokum.map((kalem) => (
+                  <tr key={kalem.kural_kimlik} className="border-t border-rule">
+                    <td className="py-1 text-ink">
+                      <span className="font-mono text-ink-muted">{kalem.kural_kimlik}</span>{' '}
+                      {kalem.ad}
+                    </td>
+                    <td className="py-1 text-right">
+                      <Sayi>
+                        {kalem.ham_fark > 0 ? '+' : ''}
+                        {sayiBicimle(kalem.ham_fark, 1)}
+                      </Sayi>
+                    </td>
+                    <td className="py-1 text-right text-ink-muted">
+                      <Sayi>{sayiBicimle(kalem.agirlik, 0)}</Sayi>
+                    </td>
+                    <td className="py-1 text-right">
+                      <Sayi>
+                        {kalem.agirlikli_fark > 0 ? '+' : ''}
+                        {sayiBicimle(kalem.agirlikli_fark, 0)}
+                      </Sayi>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+    </div>
   )
 }

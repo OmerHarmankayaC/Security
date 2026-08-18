@@ -1,9 +1,8 @@
 import { useMemo } from 'react'
 import type { Atama, GorevNoktasi, Personel } from '@/api/types'
-import { blokEtiketi, gununParcalari } from '@/lib/blok'
+import { blokEtiketi, gununParcalari, sapmaEtiketi, sapmaGunu } from '@/lib/blok'
 import type { CizelgeVerisi } from '@/lib/disaAktarma'
 import { aralikGradyani } from '@/lib/saatRengi'
-import { araligiYaz } from '@/lib/talepAraligi'
 import { buyukHarf, kisalt } from '@/lib/metin'
 import {
   donemAraligiBicimle,
@@ -79,7 +78,7 @@ export function YazdirilabilirCizelge({
     () =>
       kapsamaAcigi
         .slice()
-        .sort((a, b) => a.tarih.localeCompare(b.tarih) || a.nokta_id - b.nokta_id),
+        .sort((a, b) => sapmaGunu(a).localeCompare(sapmaGunu(b)) || a.nokta_id - b.nokta_id),
     [kapsamaAcigi],
   )
   const toplamEksik = acikSatirlari.reduce((toplam, k) => toplam + k.eksik_sayi, 0)
@@ -88,7 +87,7 @@ export function YazdirilabilirCizelge({
     () =>
       fazlaKadro
         .slice()
-        .sort((a, b) => a.tarih.localeCompare(b.tarih) || a.nokta_id - b.nokta_id),
+        .sort((a, b) => sapmaGunu(a).localeCompare(sapmaGunu(b)) || a.nokta_id - b.nokta_id),
     [fazlaKadro],
   )
   const toplamFazla = fazlaSatirlari.reduce((toplam, f) => toplam + f.fazla_sayi, 0)
@@ -150,10 +149,10 @@ export function YazdirilabilirCizelge({
                 {acikSatirlari.map((k) => (
                   <tr key={k.acik_id}>
                     <td className="border border-neutral-400 px-2 py-0.5 text-[8pt]">
-                      {tarihBicimle(k.tarih)}
+                      {tarihBicimle(sapmaGunu(k))}
                     </td>
                     <td className="border border-neutral-400 px-2 py-0.5 text-[8pt]">
-                      {araligiYaz(k.baslangic, k.bitis)}
+                      {sapmaEtiketi(k)}
                     </td>
                     <td className="border border-neutral-400 px-2 py-0.5 text-[8pt]">
                       {noktaMap.get(k.nokta_id)?.ad ?? '—'}
@@ -197,10 +196,10 @@ export function YazdirilabilirCizelge({
               {fazlaSatirlari.map((f) => (
                 <tr key={f.fazla_id}>
                   <td className="border border-neutral-400 px-2 py-0.5 text-[8pt]">
-                    {tarihBicimle(f.tarih)}
+                    {tarihBicimle(sapmaGunu(f))}
                   </td>
                   <td className="border border-neutral-400 px-2 py-0.5 text-[8pt]">
-                    {araligiYaz(f.baslangic, f.bitis)}
+                    {sapmaEtiketi(f)}
                   </td>
                   <td className="border border-neutral-400 px-2 py-0.5 text-[8pt]">
                     {noktaMap.get(f.nokta_id)?.ad ?? '—'}
@@ -319,29 +318,58 @@ function PersonelSatiri({
         <div className="h-[13pt]" />
         {parcalar.map(({ blok, parca }) => {
           const uzunluk = parca.bitis - parca.baslangic
+          const metin = `${parca.oncekiGundenGeliyor ? '‹' : ''}${blokEtiketi(
+            blok.baslangic_zamani,
+            blok.bitis_zamani,
+          )} ${kisalt(noktaMap.get(blok.nokta_id)?.ad ?? '')}${
+            parca.sonrakiGuneTasiyor ? '›' : ''
+          }`
+          // DAR ŞERİDİN ETİKETİ DIŞARI TAŞAR. "22.00–05.00 GÜV" 6pt Mono ile
+          // yaklaşık dört saat genişliğinde yer kaplıyor; iki saatlik bir
+          // parçanın içine sığmayınca kırpılıyor ve kâğıtta "22.00–05.00 G…"
+          // kalıyordu — üstelik gece yarısını aşan bloğun `›` işareti de tam
+          // o kırpmanın içinde kayboluyordu. Ekranda ipucu metni bu kaybı
+          // telafi eder, kâğıtta telafi edecek bir şey yok.
+          //
+          // Eşik ölçüye göre: dört saatten dar parçalarda metin şeridin
+          // yanına konur. Gün sonuna dayanmış bir parçada sağda yer
+          // kalmadığı için sola yazılır.
+          const dar = uzunluk < 4
+          const solaYaz = dar && parca.bitis > 20
           return (
-            <div
-              key={blok.atama_id}
-              className={cn(
-                'absolute inset-y-[1px] flex items-center justify-center overflow-hidden border border-neutral-500',
-                parca.oncekiGundenGeliyor && 'border-l-0',
-                parca.sonrakiGuneTasiyor && 'border-r-0',
+            <div key={blok.atama_id}>
+              <div
+                className={cn(
+                  'absolute inset-y-[1px] flex items-center justify-center overflow-hidden border border-neutral-500',
+                  parca.oncekiGundenGeliyor && 'border-l-0',
+                  parca.sonrakiGuneTasiyor && 'border-r-0',
+                )}
+                style={{
+                  left: `${(parca.baslangic / 24) * 100}%`,
+                  width: `${(uzunluk / 24) * 100}%`,
+                  backgroundImage: aralikGradyani(parca.baslangic, parca.bitis),
+                }}
+              >
+                {/* Metin şeridin bilgisidir; band yalnızca destekler. Tarayıcı
+                    arka plan basmıyorsa kâğıtta kalan tek şey budur. */}
+                {!dar && (
+                  <span className="truncate bg-white/80 px-0.5 font-mono text-[6pt] leading-none">
+                    {metin}
+                  </span>
+                )}
+              </div>
+              {dar && (
+                <span
+                  className="pointer-events-none absolute inset-y-0 flex items-center px-0.5 font-mono text-[6pt] leading-none whitespace-nowrap"
+                  style={
+                    solaYaz
+                      ? { right: `${((24 - parca.baslangic) / 24) * 100}%` }
+                      : { left: `${(parca.bitis / 24) * 100}%` }
+                  }
+                >
+                  {metin}
+                </span>
               )}
-              style={{
-                left: `${(parca.baslangic / 24) * 100}%`,
-                width: `${(uzunluk / 24) * 100}%`,
-                backgroundImage: aralikGradyani(parca.baslangic, parca.bitis),
-              }}
-            >
-              {/* Metin şeridin bilgisidir; band yalnızca destekler. Tarayıcı
-                  arka plan basmıyorsa kâğıtta kalan tek şey budur. */}
-              <span className="truncate bg-white/80 px-0.5 font-mono text-[6pt] leading-none">
-                {parca.oncekiGundenGeliyor && '‹'}
-                {blokEtiketi(blok.baslangic_zamani, blok.bitis_zamani)}
-                {' '}
-                {kisalt(noktaMap.get(blok.nokta_id)?.ad ?? '')}
-                {parca.sonrakiGuneTasiyor && '›'}
-              </span>
             </div>
           )
         })}

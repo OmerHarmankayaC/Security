@@ -30,6 +30,7 @@ const SURUM: CizelgeSurumu = {
   yayin_zamani: null,
   olusturma_zamani: '2026-02-01T09:00:00Z',
   guncelleme_zamani: '2026-02-01T09:00:00Z',
+  damga: 'd1',
   toplam_ceza: 912,
   kapsama_acigi_sayisi: 0,
   fazla_kadro_sayisi: 0,
@@ -99,9 +100,8 @@ const ATAMALAR: Atama[] = [
 function acik(id: number, tarih: string, bas: number, nokta: number, eksik: number): KapsamaAcigi {
   return {
     acik_id: id,
-    tarih,
-    baslangic: `${String(bas).padStart(2, '0')}:00:00`,
-    bitis: `${String((bas + 8) % 24).padStart(2, '0')}:00:00`,
+    baslangic_zamani: `${tarih}T${String(bas).padStart(2, '0')}:00:00+03:00`,
+    bitis_zamani: `${tarih}T${String((bas + 8) % 24).padStart(2, '0')}:00:00+03:00`,
     nokta_id: nokta,
     eksik_sayi: eksik,
   }
@@ -276,5 +276,67 @@ describe('YazdirilabilirCizelge — baskı kancaları', () => {
     ciz([])
     expect(screen.getAllByRole('table')[0]).toBeDefined()
     expect(screen.getByText('Bu sürümde kapsama açığı yok.')).toBeDefined()
+  })
+})
+
+describe('YazdirilabilirCizelge — dar şeridin etiketi (baskı kusuru)', () => {
+  function darBlok(bas: number, sure: number): Atama {
+    const bit = (bas + sure) % 24
+    const bitGun = bas + sure >= 24 ? '03' : '02'
+    return {
+      atama_id: 90,
+      personel_id: 1,
+      baslangic_zamani: `2026-02-02T${String(bas).padStart(2, '0')}:00:00+03:00`,
+      bitis_zamani: `2026-02-${bitGun}T${String(bit).padStart(2, '0')}:00:00+03:00`,
+      tarih: '2026-02-02',
+      sure_saat: sure,
+      nokta_id: 20,
+      kilitli: false,
+      kaynak: 'cozucu',
+    }
+  }
+
+  /** Şeridin KENDİSİ (konumlandırılmış, gradientli kutu). */
+  function seritKutusu(container: HTMLElement, metin: string): HTMLElement {
+    const kutu = [...container.querySelectorAll<HTMLElement>('td div[style*="width"]')].find((d) =>
+      d.style.backgroundImage.includes('linear-gradient'),
+    )
+    if (!kutu) throw new Error(`Şerit bulunamadı: ${metin}`)
+    return kutu
+  }
+
+  it('geniş şeritte etiket şeridin İÇİNDE durur', () => {
+    const { container } = ciz([darBlok(8, 8)])
+    expect(seritKutusu(container, '08.00–16.00').textContent).toContain('08.00–16.00')
+  })
+
+  it('dar şeritte etiket şeridin DIŞINA çıkar — kırpılmaz', () => {
+    // İki saatlik bir parça 6pt Mono ile "10.00–12.00 GÜV"ü taşıyamaz.
+    const { container } = ciz([darBlok(10, 2)])
+    expect(seritKutusu(container, '10.00–12.00').textContent).toBe('')
+    // Metin kayıp DEĞİL: şeridin bittiği yerden itibaren yazılır.
+    const etiket = [...container.querySelectorAll<HTMLElement>('span')].find((s) =>
+      s.textContent?.includes('10.00–12.00'),
+    )
+    expect(etiket).toBeDefined()
+    expect(etiket!.style.left).toBe(`${(12 / 24) * 100}%`)
+    expect(etiket!.className).toContain('whitespace-nowrap')
+  })
+
+  it('gün sonuna dayanan dar şeritte etiket SOLA yazılır', () => {
+    // 22.00–05.00: başladığı günde 22–24 arası iki saat kalır ve sağda yer
+    // yoktur; etiket sağa yazılsaydı sayfa kenarında kırpılırdı.
+    const { container } = ciz([darBlok(22, 7)])
+    const etiket = [...container.querySelectorAll<HTMLElement>('span')].find((s) =>
+      s.textContent?.includes('22.00–05.00'),
+    )
+    expect(etiket).toBeDefined()
+    expect(etiket!.style.right).toBe(`${((24 - 22) / 24) * 100}%`)
+    expect(etiket!.style.left).toBe('')
+  })
+
+  it('dar şeritte de gece yarısı işareti metne dahildir', () => {
+    const { container } = ciz([darBlok(22, 7)])
+    expect(container.textContent).toContain('22.00–05.00 GÜV›')
   })
 })

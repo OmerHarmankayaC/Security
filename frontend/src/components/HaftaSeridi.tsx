@@ -1,24 +1,26 @@
 import { useMemo } from 'react'
 import type { Atama, GorevNoktasi, KapsamaAcigi, Personel } from '@/api/types'
-import { blokEtiketi, gununParcalari } from '@/lib/blok'
+import { blokEtiketi, blokKisaEtiketi, gununParcalari, sapmaGunu } from '@/lib/blok'
+import { kisalt } from '@/lib/metin'
 import { sayiBicimle } from '@/lib/sayi'
-import { KILIT_DOKUSU, saatGradyani, saatRengi } from '@/lib/saatRengi'
 import { gunBasligiParcalari, haftaSonuMu, tarihBicimle } from '@/lib/tarih'
 import { cn } from '@/lib/utils'
 
 /**
  * Hafta şeridi — İKİNCİL GÖRÜNÜM (SDD 6.3.3, Tur 6 İş 2).
  *
- * Satırlarda personel, sütunlarda günler; her gün hücresi yirmi dört dilimlik
- * bir mini şerittir ve dolu saatler boyalıdır. Yedi gün × yirmi dört saat yüz
- * altmış sekiz sütun eder ve tek ekrana sığmaz — iki görünüm bu yüzden vardır.
- * Bir gün hücresine tıklandığında o günün ızgarasına geçilir.
+ * Satırlarda personel, sütunlarda günler. Yedi gün × yirmi dört saat yüz altmış
+ * sekiz sütun eder ve tek ekrana sığmaz — iki görünüm bu yüzden vardır. Bir gün
+ * hücresine tıklandığında o günün ızgarasına geçilir.
  *
- * MİNİ ŞERİT TEK ÖĞEDİR. Her dilim ayrı bir DOM düğümü yapılsaydı otuz
- * personel × yedi gün × yirmi dört dilim beş bin düğümden fazla ederdi ve
- * sayfa boğulurdu. Dilimler bir CSS gradientinin sert duraklarıyla çizilir
- * (`lib/saatRengi.ts`, `saatGradyani`): hücre başına düşen düğüm sayısı
- * DİLİM SAYISINDAN BAĞIMSIZ olarak birdir.
+ * HÜCRE ARTIK RENK BANDI DEĞİL, METİN (Tur 7 İş 6). Yirmi dört dilimlik
+ * gradient kullanımda okunmadı: ekrana bakan kişi kimin ne zaman çalıştığını
+ * göremiyor, yalnızca bulanık bantlar görüyordu. Hücre şimdi saat aralığını
+ * yazıyor ("08–16 GÜV") ve altındaki üç piksellik DÜZ çubuk bloğun günün
+ * neresinde durduğunu gösteriyor. Ayrıntı `MiniSerit`te.
+ *
+ * Yüz altmış sekiz sütunlu yatay kaydırma denenmedi ve denenmeyecek:
+ * kullanılabilir olmaz.
  */
 
 const AD_SUTUNU = 'w-[200px] min-w-[200px] max-w-[200px]'
@@ -58,7 +60,9 @@ export function HaftaSeridi({
   const gunlukAcik = useMemo(() => {
     const indeks = new Map<string, number>()
     for (const k of kapsamaAcigi) {
-      indeks.set(k.tarih, (indeks.get(k.tarih) ?? 0) + k.eksik_sayi)
+      // Açık başladığı güne sayılır (SRS TD-1 ile aynı sözleşme).
+      const gun = sapmaGunu(k)
+      indeks.set(gun, (indeks.get(gun) ?? 0) + k.eksik_sayi)
     }
     return indeks
   }, [kapsamaAcigi])
@@ -154,10 +158,25 @@ export function HaftaSeridi({
 }
 
 /**
- * Bir (personel, gün) hücresi: yirmi dört dilimlik mini şerit, TEK ÖĞE.
+ * Bir (personel, gün) hücresi: SAAT ARALIĞI METNİ + konum çubuğu.
  *
- * Düğüm sayısı: hücre başına bir `td` ve bir `button`. Dilimler `button`ın
- * arka planındaki gradientten gelir, ayrı düğüm üretmezler.
+ * ÖNCEKİ HÂLİ OKUNMUYORDU. Hücre yirmi dört dilimlik bir renk bandıydı ve
+ * ekrana bakan kişi kimin ne zaman çalıştığını göremiyordu — yalnızca
+ * bulanık bantlar. Bilgiyi taşıyan şey rengin tonu değil, **sayının
+ * kendisidir**; band en fazla onu destekler.
+ *
+ * ÇUBUK DÜZ, GRADIENT DEĞİL. Okunması gereken şey tam olarak bloğun
+ * SINIRIDIR: nerede başlıyor, nerede bitiyor. Gradient sürekli olduğu için
+ * sınırı belirsizleştirir — bandın erdemi olan süreklilik, burada tam
+ * olarak kusurdur. Çubuk ayrıca saat rengini de taşımaz: gündüz tonları
+ * (#E9E7D9) hücre zemininden (#E4E7E1) ayırt edilemiyor ve üç piksellik
+ * bir çubukta o fark tümüyle kayboluyor. Rengin söyleyeceği "gece mi
+ * gündüz mü" bilgisini metin zaten söylüyor.
+ *
+ * Düğüm sayısı hücre başına sabit ve KÜÇÜKTÜR: metin + ray + en çok iki
+ * çubuk. Dilim başına düğüm üretilseydi otuz personel × yedi gün × yirmi
+ * dört dilim beş binden fazla düğüm ederdi (Tur 6 İş 2'nin ölçümü); o sınır
+ * hâlâ geçerli ve testle korunuyor.
  */
 function MiniSerit({
   gun,
@@ -172,28 +191,42 @@ function MiniSerit({
   adSoyad: string
   onSec: () => void
 }) {
-  const { zemin, baslik, kilitli, dolu } = useMemo(() => {
+  const { metin, noktaKisa, cubuklar, baslik, kilitli, dolu } = useMemo(() => {
     const parcalar = gununParcalari(bloklar, gun)
-    const dilimler: (string | null)[] = Array.from({ length: 24 }, () => null)
     const satirlar: string[] = []
+    const barlar: { sol: number; genislik: number }[] = []
+    const etiketler: string[] = []
     let kilit = false
+
     for (const { blok, parca } of parcalar) {
-      for (let saat = parca.baslangic; saat < parca.bitis; saat += 1) {
-        dilimler[saat] = saatRengi(saat)
-      }
+      barlar.push({
+        sol: (parca.baslangic / 24) * 100,
+        genislik: ((parca.bitis - parca.baslangic) / 24) * 100,
+      })
       if (blok.kilitli) kilit = true
       const nokta = noktaMap.get(blok.nokta_id)?.ad ?? ''
+      // Etiket bloğun TAMAMINI yazar, o günkü parçasını değil (SRS TD-13);
+      // önceki günden gelen parçada `‹` ile nereden geldiği belirtilir.
+      const kisa = blokKisaEtiketi(blok.baslangic_zamani, blok.bitis_zamani)
+      etiketler.push(parca.oncekiGundenGeliyor ? `‹${kisa}` : kisa)
       const devam = parca.oncekiGundenGeliyor
         ? ' (önceki günden)'
         : parca.sonrakiGuneTasiyor
           ? ' (ertesi güne)'
           : ''
-      satirlar.push(
-        `${blokEtiketi(blok.baslangic_zamani, blok.bitis_zamani)} · ${nokta}${devam}`,
-      )
+      satirlar.push(`${blokEtiketi(blok.baslangic_zamani, blok.bitis_zamani)} · ${nokta}${devam}`)
     }
+
+    // Nokta kısaltması yalnızca TEK blok varken sığar; ikinci bir parça
+    // (önceki günden taşan blok) varsa iki saat aralığı zaten satırı
+    // doldurur ve nokta ayrıntı görünümünde kalır.
+    const tekNokta =
+      parcalar.length === 1 ? kisalt(noktaMap.get(parcalar[0]!.blok.nokta_id)?.ad ?? '') : ''
+
     return {
-      zemin: saatGradyani(dilimler),
+      metin: etiketler.join(' '),
+      noktaKisa: tekNokta,
+      cubuklar: barlar,
       baslik: satirlar.length
         ? `${adSoyad} · ${tarihBicimle(gun)}\n${satirlar.join('\n')}`
         : `${adSoyad} · ${tarihBicimle(gun)} · atama yok`,
@@ -204,23 +237,39 @@ function MiniSerit({
 
   return (
     <td
-      className={cn(
-        'border-b border-rule p-1',
-        HUCRE_YUKSEKLIGI,
-        haftaSonuMu(gun) && 'bg-sunken',
-      )}
+      className={cn('border-b border-rule p-0.5', HUCRE_YUKSEKLIGI, haftaSonuMu(gun) && 'bg-sunken')}
     >
       <button
         type="button"
-        className={cn(
-          'block h-5 w-full rounded-xs border',
-          dolu ? 'border-rule-strong' : 'border-rule bg-surface',
-        )}
-        style={{ backgroundImage: kilitli ? `${KILIT_DOKUSU}, ${zemin}` : zemin }}
+        className="flex h-full w-full flex-col justify-center gap-1 rounded-xs px-1 hover:bg-accent-soft"
         title={baslik}
         aria-label={baslik}
         onClick={onSec}
-      />
+      >
+        <span
+          className={cn(
+            'block truncate text-center font-mono text-mono-kucuk leading-none',
+            dolu ? 'text-ink' : 'text-ink-muted',
+          )}
+        >
+          {dolu ? metin : '–'}
+          {noktaKisa && <span className="ml-1 text-ink-muted">{noktaKisa}</span>}
+        </span>
+        {/* Ray günün tamamı, çubuk bloğun kapladığı bölüm. Üç piksel: göz
+            bunu bir ölçek olarak okur, ikinci bir veri satırı olarak değil. */}
+        <span className="relative block h-[3px] w-full rounded-xs bg-rule">
+          {cubuklar.map((c, i) => (
+            <span
+              key={i}
+              className={cn(
+                'absolute inset-y-0 rounded-xs',
+                kilitli ? 'bg-accent' : 'bg-ink',
+              )}
+              style={{ left: `${c.sol}%`, width: `${c.genislik}%` }}
+            />
+          ))}
+        </span>
+      </button>
     </td>
   )
 }

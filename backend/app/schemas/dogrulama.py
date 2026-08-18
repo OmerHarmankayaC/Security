@@ -1,4 +1,4 @@
-"""/api/atama/dogrula ve /api/atama semalari (SDD 5.5, SRS FR-6.x)."""
+"""/api/atama/dogrula ve /api/atama/kaydet semalari (SDD 5.5, SRS FR-6.x)."""
 
 from datetime import date, time
 
@@ -7,8 +7,12 @@ from pydantic import BaseModel, Field, model_validator
 from app.kurallar.zaman_araligi import tam_saat_mi
 
 
-class AtamaDegisikligiIstek(BaseModel):
+class BlokDegisikligi(BaseModel):
     """Cizelge izgarasindaki bir (personel, gun) satirina yazilan BLOK (SDD 6.3.3).
+
+    Oturumun TEK BIR adimi. `surum_id` tasimaz - o, degisiklikleri saran
+    istegin uzerindedir; her adima tekrar yazilsaydi ayni oturumun adimlari
+    farkli surumlere isaret edebilirdi.
 
     Blok katalogu kalktigi icin istek bir vardiya tipi secmez; baslangic ve
     bitis SAATINI verir (SRS TD-13). Ucu de bos ise o gunun blogu
@@ -23,7 +27,6 @@ class AtamaDegisikligiIstek(BaseModel):
     gune tasar - `zaman_araligi` modulundeki sozlesmenin aynisi.
     """
 
-    surum_id: int
     personel_id: int
     tarih: date
     baslangic_saati: time | None = None
@@ -31,7 +34,7 @@ class AtamaDegisikligiIstek(BaseModel):
     nokta_id: int | None = None
 
     @model_validator(mode="after")
-    def _ucu_birlikte_doluysa_ya_da_bossa(self) -> "AtamaDegisikligiIstek":
+    def _ucu_birlikte_doluysa_ya_da_bossa(self) -> "BlokDegisikligi":
         alanlar = (self.baslangic_saati, self.bitis_saati, self.nokta_id)
         dolu = [a for a in alanlar if a is not None]
         if dolu and len(dolu) != len(alanlar):
@@ -43,6 +46,34 @@ class AtamaDegisikligiIstek(BaseModel):
             if saat is not None and not tam_saat_mi(saat):
                 raise ValueError("Blok saatleri saat başında olmalı (örnek: 08.00).")
         return self
+
+
+class DogrulamaIstegi(BaseModel):
+    """Oturumun O ANA KADAR biriken TAMAMI (SRS TD-16).
+
+    Istek son degisikligi degil butun birikimi tasir. Tek tek gecerli olan
+    iki degisiklik birlikte bir kurali bozabilir: iki ayri gune yapilan
+    uzatma, ayri ayri haftalik tavani asmazken birlikte asar. Son degisikligi
+    tek basina dogrulamak bunu kacirir.
+
+    Bos liste gecerlidir: "hicbir degisiklik yokken durum nedir" sorusu
+    anlamlidir ve ekran acilisinda taban olarak kullanilir.
+    """
+
+    surum_id: int
+    degisiklikler: list[BlokDegisikligi] = Field(default_factory=list)
+
+
+class KaydetIstegi(DogrulamaIstegi):
+    """Kaydetme: dogrulama istegi + SURUM DAMGASI (SDD 5.5.1).
+
+    Damga, kullanicinin duzenlemeye basladigi andaki surum halini gosterir.
+    Sunucudaki damga degismisse baska bir oturum ayni surumu kaydetmistir ve
+    istek reddedilir; sessizce uzerine yazmak digerinin isini iz birakmadan
+    yok ederdi.
+    """
+
+    damga: str
 
 
 class IhlalOku(BaseModel):
@@ -65,6 +96,10 @@ class CezaKalemiOku(BaseModel):
 
 class DogrulamaSonucuOku(BaseModel):
     kabul_edilebilir: bool
+    # Kaydetme yanitinda YENI damga doner; istemci bir sonraki kayit icin
+    # bunu tasir. Dogrulama yanitinda bos kalir - dogrulama hicbir sey
+    # yazmadigi icin damgayi da degistirmez.
+    damga: str | None = None
     zorunlu_ihlaller: list[IhlalOku]
     # Ham (agirliksiz) toplam. Korunuyor ama arayuzun gostermesi gereken
     # deger `agirlikli_ceza_degisimi`: ham toplam, farkli birimlerdeki

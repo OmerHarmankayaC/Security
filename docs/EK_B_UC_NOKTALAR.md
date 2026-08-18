@@ -113,6 +113,8 @@ listeliyordu ve kimlik doğrulama turunu hiç içermiyordu.
 | `/api/surum` | POST | yonetici + yonetim | Yayinlanmis surumden taslak turetme (FR-7.3) |
 | `/api/surum/karsilastir` | GET | yonetici + yonetim | Iki surum arasindaki fark (FR-7.5) |
 | `/api/surum/{surum_id}/atama` | GET | yonetici + yonetim | Surumun atamalari |
+| `/api/surum/{surum_id}/cizelge.xlsx` | GET | yonetici + yonetim | Cizelgenin uc sayfali Excel ciktisi: Cizelge, Ozet, Ham veri (FR-8.5) |
+| `/api/surum/{surum_id}/analiz.xlsx` | GET | yonetici + yonetim | Analizin dort sayfali, grafikli Excel ciktisi (FR-8.9) |
 | `/api/surum/{surum_id}/fazla-kadro` | GET | yonetici + yonetim | Talepten fazla kadro yazilmis hucreler (SRS 4.3 S1 ust siniri) |
 | `/api/surum/{surum_id}/kapsama-acigi` | GET | yonetici + yonetim | Surumun kapsama aciklari (FR-5.3) |
 | `/api/surum/{surum_id}/kopyala` | POST | yonetici + yonetim | Arsivden taslak kopyalama (FR-7.6) |
@@ -133,8 +135,8 @@ listeliyordu ve kimlik doğrulama turunu hiç içermiyordu.
 
 | Uç Nokta | Yöntem | Gereken Rol | İşlev |
 | --- | --- | --- | --- |
-| `/api/atama` | PUT | yonetici + yonetim | Dogrulanmis manuel degisikligin uygulanmasi (FR-6.1); sapma tablolarini tazeler |
-| `/api/atama/dogrula` | POST | yonetici + yonetim | Manuel degisikligin kural dogrulamasi (FR-6.2); ceza dokumu ve uyarilarla |
+| `/api/atama/dogrula` | POST | yonetici + yonetim | Duzenleme oturumunun TAMAMININ kural dogrulamasi (FR-6.2, TD-16); hicbir sey yazmaz |
+| `/api/atama/kaydet` | POST | yonetici + yonetim | Oturumdaki degisikliklerin TEK ISLEMDE uygulanmasi (FR-6.8); surum damgasi cakismasinda ve yayinlanmis surumde reddedilir |
 | `/api/atama/kilit` | POST | yonetici + yonetim | Atamanin kilitlenmesi (FR-6.5) |
 
 ## Analiz (FR-8.x)

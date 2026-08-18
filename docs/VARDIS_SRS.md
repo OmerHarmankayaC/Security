@@ -45,6 +45,9 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 13.08.2026 | S4'ün sapma ölçüsü, S2 ve S3'ün kullandığı taban/tavan yöntemine çevrildi; üç adalet hedefi artık aynı yöntemi kullanıyor | 1.20 |
 | Ömer HARMANKAYA | 13.08.2026 | H1 ve H9'daki "gün d" ifadesi bloğun başlangıç gününe bağlandı; takvim günü sayımı gece yarısını aşan blokta günlük tavanı hiç tetiklemiyordu. 3.3.6'daki müracaat satırı ve blok sayısına dayalı toplam kaldırıldı | 1.21 |
 | Ömer HARMANKAYA | 13.08.2026 | 7.2'deki çizelge dışa aktarma biçimi saat modeline göre yeniden yazıldı; vardiya tipi ve gece bayrağı alanları kaldırıldı, başlangıç ve bitiş ISO damgasına çevrildi | 1.22 |
+| Ömer HARMANKAYA | 14.08.2026 | Manuel düzenleme taslak oturum modeline geçirildi (5.6): değişiklikler anında görünür ve geri alınabilir, sunucuya yalnızca kaydetmeyle yazılır; blok taşıma ve yayınlanmış sürümün salt okunurluğu gereksinim olarak yazıldı; TD-16 eklendi | 1.23 |
+| Ömer HARMANKAYA | 14.08.2026 | Çizelgenin ve analizin Excel çıktısı gereksinim olarak tanımlandı (FR-8.5, FR-8.9); dosya yapısı ve biçimlendirme kuralları 7.2'ye yazıldı | 1.24 |
+| Ömer HARMANKAYA | 14.08.2026 | Adalet ufkunun tanımı tamamlandı: geçmiş yükün ve hedefin birlikte ölçeklenmesi, ufuk içinde kısmen çalışabilir personel için payın orantılanması ve erişilebilirliğin bugünkü tanımdan alınması TD-6'ya yazıldı | 1.25 |
 
 
 
@@ -202,6 +205,31 @@ Dönem öncesi birikimin hesaba katılması iki ayrı ufuk gerektirir ve bunlar 
 Ufkun "son N dönem" olarak tanımlanmaması bilinçlidir: dönem uzunluğu değişkendir (bir hafta ile bir ay arasında) ve aynı sayı farklı kurulumlarda farklı uzunlukta pencereler üretirdi. "Kota yılının başından bugüne" tanımı ise ufku ocak ayında sıfırlayıp aralıkta on iki aya çıkarır; yıl başında ağır gece yükü alan bir personelin bu yükü şubatta hiç görünmez.
 
 **Birikim türetilir, saklanmaz.** İki ufkun de kaynağı yayınlanmış sürümlerin atamalarıdır; ayrı bir sayaç tablosunda tutulmaz. Saklanan sayaç, bir dönem yeniden çözüldüğünde veya bir sürüm arşive alındığında bayatlar. Tek istisna personel kaydındaki devir bakiyesidir: sistemin kota yılının başından beri her şeyi bilmediği durumu karşılar ve türetilen değere eklenir.
+
+Bir dönemin birden çok yayınlanmış sürümü bulunabilir; sayım her dönem için **en son yayınlanan** sürümü kullanır. Ufuk bir dönemin ortasına düşerse o dönemin yalnızca pencereye giren günleri sayılır; blok başladığı güne yazılır (TD-1).
+
+**Yük ile hedef birlikte ölçeklenir.** Adalet ölçüsü, ufuk boyunca taşınan yükü ufuk boyunca düşen payla karşılaştırır. Dönem içi yükü ufuk boyunca hesaplanmış bir payla karşılaştırmak, kişiyi hiç yapmadığı bir işin hesabını verirken göstermek olur:
+
+```
+gece_yuku[p]  = geçmiş_gece[p] + dönem içi gece saati
+pay_gece[p]   = ( geçmiş gerçekleşen gece saati + dönem gece talebi )
+                erişebilenler arasında bölünerek, p'nin payları toplamı
+```
+
+Geçmiş için talep değil **gerçekleşen** saat kullanılır: geçmiş dönemlerin talep tanımları o günden bu yana değişmiş olabilir ve sistemin elindeki kesin bilgi kimin ne kadar çalıştığıdır.
+
+**Pay, çalışabilirlik oranıyla ölçeklenir.** Ufkun tamamında çalışabilir olmayan personel — arada işe başlamış, uzun izne ayrılmış veya aktifliği sona ermiş olan — tam pay ile ölçülemez. Böyle bir personel yükün tamamını taşıyamaz ve tam payla karşılaştırıldığında kalıcı olarak hedefin altında görünür; sapma hiçbir çizelgeyle kapatılamaz.
+
+```
+calisabilir_oran[p] = ufuk içinde p'nin çalışabilir olduğu gün / ufuk gün sayısı
+pay[p] ← pay[p] · calisabilir_oran[p]
+```
+
+Çalışabilirlik, personelin aktiflik tarih aralığından ve tam gün kapsayan müsaitlik kayıtlarından hesaplanır.
+
+Bu, aynı hatanın üçüncü biçimidir ve ilk ikisi bu projede yaşanmıştır: önce gece talebi bulunan hiçbir noktada çalışamayan personel paydada sayılıyordu, sonra erişilebilirliği kısıtlı havuz tek ortalamaya vuruluyordu. Üçünde de ölçü, hiçbir çizelgeyle kapatılamayan bir sapma raporlayarak ayırt ediciliğini kaybediyordu.
+
+**Erişilebilirlik bugünkü tanımdan alınır.** Bir personelin geçmişte hangi noktalarda çalışabildiği kayıt altında değildir; yetkinlik tanımı o günden bu yana değişmiş olabilir. Sayım bu nedenle güncel yetkinlikleri kullanır. Yaklaşıklık bilinçlidir; alternatifi yetkinlik değişikliklerinin tarihçesini tutmaktır ve kazandıracağı kesinlik bu maliyeti karşılamaz.
 
 ### TD-7 — Haftalık saat penceresi
 
@@ -848,14 +876,33 @@ seçenek kullanıcıya yeni bir zaman limiti sorularak sunulur ve arayüzde
 
 | Kimlik | Gereksinim | Öncelik |
 | --- | --- | --- |
-| FR-6.1 | Sistem, taslak durumdaki bir çizelge üzerinde atamaların elle değiştirilmesine imkân vermelidir. | Zorunlu |
-| FR-6.2 | Sistem, her manuel değişiklikten sonra tüm zorunlu kısıtları yeniden değerlendirmeli ve ihlal edilen kuralları listelemelidir. | Zorunlu |
+| FR-6.1 | Sistem, taslak durumdaki bir çizelge üzerinde çalışma bloklarının doğrudan çizelge üzerinde oluşturulmasına, süresinin değiştirilmesine, kaldırılmasına ve başka bir personele taşınmasına imkân vermelidir. | Zorunlu |
+| FR-6.2 | Sistem, her değişiklikten sonra tüm zorunlu kısıtları yeniden değerlendirmeli ve ihlal edilen kuralları listelemelidir. Değerlendirme, o ana kadar biriken bütün değişikliklerin birlikte uygulandığı durum üzerinden yapılır. | Zorunlu |
 | FR-6.3 | Sistem, ihlal bildiriminde kuralın kimliğini, ilgili personeli, tarihi ve ihlalin gerekçesini anlaşılır bir cümleyle vermelidir. | Zorunlu |
-| FR-6.4 | Sistem, manuel değişikliğin esnek hedef cezalarına etkisini de göstermelidir. | Yüksek |
-| FR-6.5 | Sistem, belirli atamaların kilitlenmesine imkân vermeli; kilitli atamalar yeniden çözümde değiştirilmemelidir. | Zorunlu |
+| FR-6.4 | Sistem, değişikliğin sonucunu önce gündelik dille bildirmeli, sayısal ceza dökümünü isteğe bağlı ayrıntı olarak sunmalıdır. | Yüksek |
+| FR-6.5 | Sistem, belirli blokların kilitlenmesine imkân vermeli; kilitli bloklar yeniden çözümde değiştirilmemelidir. | Zorunlu |
 | FR-6.6 | Manuel doğrulama, çözücü modeliyle aynı kural tanımından beslenmelidir. | Zorunlu |
+| FR-6.7 | Sistem, yapılan değişikliklerin sırayla geri alınmasına ve yeniden uygulanmasına imkân vermelidir. | Zorunlu |
+| FR-6.8 | Değişiklikler çizelge sürümüne yalnızca kullanıcı kaydettiğinde yazılmalıdır. Kaydedilmeden bırakılan bir düzenleme oturumu sürümü değiştirmez; kullanıcı kaydedilmemiş değişikliklerle ekrandan ayrılmadan önce uyarılır. | Zorunlu |
+| FR-6.9 | Yayınlanmış bir çizelge sürümü üzerinde değişiklik yapılamaz. Değişiklik gerektiğinde yayınlanmış sürümden yeni bir taslak türetilir (FR-7.3). | Zorunlu |
 
+**Düzenleme çizelgenin üzerinde yapılır.** Blok, ızgarada sürükleyerek oluşturulur; kenarından tutularak uzatılır veya kısaltılır, gövdesinden tutularak gün içinde kaydırılır ya da başka bir personelin satırına taşınır. Ayrı bir form üzerinden saat girişi, tam değer yazmak isteyen kullanıcı için ikincil bir yol olarak bulunur; birincil yol değildir.
 
+Değişiklik bırakıldığı anda ızgarada görünür. Zorunlu kısıt ihlali doğuran bir değişiklik **uygulanmaz**: blok eski hâline döner ve hangi kuralın neden bozulduğu bloğun yanında bildirilir. Esnek hedef etkisi değişikliği engellemez.
+
+**Blok taşıma**, hedef personelin görev noktasının ön koşulunu taşımasını (H8) ve o saatlerde müsait olmasını (H7) gerektirir; taşıma bu iki kuralın ihlaline yol açıyorsa uygulanmaz.
+
+### TD-16 — Taslak düzenleme oturumu
+
+Düzenleme, sürüme her değişiklikte yazan bir işlem dizisi değil, **kaydedilene kadar biriken bir oturumdur**.
+
+Değişiklikler istemcide tutulur ve ızgarada anında görünür; geri alma ve yeniden uygulama bu birikimi ileri geri sürer. Sunucuya yazma tek bir noktada olur: kullanıcı kaydettiğinde, biriken bütün değişiklikler tek işlemde uygulanır. Kaydedilmeden kapatılan bir oturum sürümü hiç değiştirmez.
+
+**Doğrulama yine sunucuda kalır.** Her değişiklikte sunucuya bir doğrulama isteği gider ve istek, o ana kadar biriken değişikliklerin tamamını taşır; sunucu bunları sürümün üzerine düşünsel olarak uygular ve sonucu döndürür, hiçbir şey yazmaz. Kural değerlendirmesinin istemciye taşınması, kuralın ikinci bir yerde tanımlanması anlamına gelirdi — bu projede birkaç kez bedeli ödenmiş bir kalıptır (FR-6.6).
+
+Değerlendirmenin biriken değişikliklerin **tamamı** üzerinden yapılması zorunludur. Tek tek değişiklikler ayrı ayrı geçerli olsa da birlikte bir kuralı bozabilirler: iki ayrı gün için yapılan iki değişiklik, tek başına haftalık tavanı aşmazken birlikte aşar.
+
+Kaydetme, sürümün kullanıcı düzenlemeye başladığından beri değişmediğini doğrular. Değişmişse kayıt reddedilir ve kullanıcıya durum bildirilir; sessizce üzerine yazmak, başka bir kullanıcının işini iz bırakmadan yok eder.
 
 ## 5.7 Sürüm ve Yayın Yönetimi
 
@@ -878,10 +925,11 @@ seçenek kullanıcıya yeni bir zaman limiti sorularak sunulur ve arayüzde
 | FR-8.2 | Sistem, kişi başına gece, hafta sonu ve toplam saat sayılarını tablo halinde raporlamalıdır. | Zorunlu |
 | FR-8.3 | Sistem, iş yükü dağılımını en yüklü ve en az yüklü personel arasındaki fark üzerinden ölçmelidir. | Yüksek |
 | FR-8.4 | Sistem, onaylanmış tercihlerin karşılanma oranını raporlamalıdır. | Yüksek |
-| FR-8.5 | Sistem, çizelgeyi CSV veya Excel formatında dışa aktarabilmelidir. | Zorunlu |
+| FR-8.5 | Sistem, çizelgeyi hem makine okunur (CSV) hem insan okunur (Excel) biçimde dışa aktarabilmelidir. Excel çıktısı çizelgenin kendisini taşır: personel × gün düzeninde, hücrede çalışma saatleri ve görev noktası, saatin gün içindeki konumunu gösteren biçimlendirmeyle. | Zorunlu |
 | FR-8.6 | Sistem, kural bazlı ihlal ve ceza dökümünü raporlamalıdır. | Yüksek |
 | FR-8.7 | Sistem, çizelgenin kapsama açıklarını ayrı bir dosya olarak dışa aktarabilmelidir. Talep karşılama esnek hedef olarak tanımlandığından (S1) açıkları içermeyen bir çıktı çizelgeyi olduğundan tam gösterir. | Zorunlu |
 | FR-8.8 | Sistem, çizelgenin yazdırılabilir bir görünümünü üretebilmelidir. Görünüm personel × gün matrisi biçiminde olmalı, başlığında dönem, sürüm ve üretim tarihi bulunmalı, kapsama açıkları tablonun altında listelenmelidir. | Yüksek |
+| FR-8.9 | Sistem, analiz sonuçlarını tek bir dosyada dışa aktarabilmelidir. Dosya hem okunmaya hazır bir özet (tablolar ve grafikler) hem de üzerinde çalışılabilir ham veri içermelidir. | Yüksek |
 
 
 
@@ -1125,3 +1173,36 @@ Aşağıdaki tablo, proje tanım dokümanındaki hedefleri bu dokümandaki gerek
 ## 9.1 Kapsam Dışı Gereksinimler
 
 Aşağıdaki işlevler bu sürümün kapsamı dışındadır ve gereksinim olarak tanımlanmamıştır: izin talebi ve onay iş akışı, bordro ve puantaj, vardiya takası, personel bildirimleri, mobil uygulama, kurum sistemlerine entegrasyon, eş zamanlı düzenleme, geçmiş dönemlerden devreden kümülatif adalet, çelişen zorunlu kısıtlarda otomatik çakışma teşhisi.
+
+**Çizelge dışa aktarma (Excel):**
+
+CSV makine okunur çıktıdır ve olduğu gibi kalır; Excel çıktısı insan okunur
+olandır. İkisi birbirinin yerine geçmez — biri başka bir sisteme veri taşır,
+diğeri masaya konur ve bakılır.
+
+Dosya üç sayfa taşır:
+
+| Sayfa | İçerik |
+| --- | --- |
+| Çizelge | Personel × gün. Hücrede çalışma saatleri ve görev noktası kısaltması; hücre dolgusu saatin gün içindeki konumunu gösterir (gece koyu, gündüz açık). Kapsama açığı bulunan günler işaretlidir |
+| Özet | Personel başına toplam saat, gece saati, hafta sonu saati, fazla çalışma saati ve kalan yıllık kota |
+| Ham veri | Blok başına bir satır, başlangıç ve bitiş tam ISO zaman damgasıyla — CSV çıktısının aynısı |
+
+Başlık bölümünde dönem, sürüm numarası, üretim tarihi, kapsama oranı ve toplam
+açık bulunur. Renklendirme tek başına bilgi taşımaz: saat aralığı hücrede metin
+olarak da yazılıdır ve bir açıklama satırı dolgunun ne anlama geldiğini söyler.
+Çıktının renksiz yazdırılması bilgi kaybettirmez.
+
+**Analiz dışa aktarma (Excel):**
+
+| Sayfa | İçerik |
+| --- | --- |
+| Özet | Kapsama oranı, toplam ceza ve hedef bazında ceza dökümü |
+| Adalet | Personel başına gece saati, hafta sonu saati ve toplam saat; her biri için kişiye düşen adil pay ve sapma. Grafikler bu sayfada yer alır |
+| Kapsama açıkları | Gün, saat aralığı, görev noktası, eksik kişi sayısı |
+| Ham veri | Yukarıdaki tabloların biçimlendirilmemiş hâli |
+
+Grafiklerin referans çizgisi kişiye düşen adil paydır, havuz ortalaması değil
+(bölüm 4.3, S2). İki ölçü karışık uzunluklu bir çizelgede farklı sonuç verir ve
+ortalamayı göstermek S2'nin açıkça reddettiği ölçüyü ekrana taşımak olur.
+

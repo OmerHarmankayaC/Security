@@ -1,7 +1,9 @@
 import type {
   Analiz,
+  Ufuk,
   Atama,
-  AtamaDegisikligiIstek,
+  DogrulamaIstegi,
+  KaydetIstegi,
   Ben,
   Bina,
   CalisanTercihListesi,
@@ -11,6 +13,7 @@ import type {
   CozumKarariYaniti,
   Donem,
   DogrulamaSonucu,
+  DonemOzeti,
   GorevNoktasi,
   FazlaKadro,
   KapsamaAcigi,
@@ -86,6 +89,33 @@ async function istek<T>(yol: string, secenekler?: RequestInit): Promise<T> {
   return (await yanit.json()) as T
 }
 
+/**
+ * İkili dosya indirir (Excel çıktısı, FR-8.5/FR-8.9).
+ *
+ * `istek` gövdeyi JSON diye çözer; çalışma kitabı JSON değildir, o yüzden
+ * ayrı bir yol gerekti. Ama 401 ELE ALIŞI AYNI KALIR — oturum düşmesi her
+ * yerde tek dinleyiciden duyulur; burada atlanırsa kullanıcı, oturumu
+ * kapandığı hâlde sessizce inmeyen bir dosyayla baş başa kalırdı.
+ *
+ * Dosya adını sunucu söyler (`Content-Disposition`). İstemcinin adı kendi
+ * kurması, aynı adın iki yerde tanımlanması demekti.
+ */
+async function dosyaIndir(yol: string, yedekAd: string): Promise<void> {
+  const yanit = await fetch(yol)
+  if (!yanit.ok) {
+    if (yanit.status === 401) _oturumDustuDinleyicisi?.()
+    throw new ApiHatasi(yanit.status, null)
+  }
+  const bildirim = yanit.headers.get('Content-Disposition') ?? ''
+  const eslesme = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(bildirim)
+  const url = URL.createObjectURL(await yanit.blob())
+  const baglanti = document.createElement('a')
+  baglanti.href = url
+  baglanti.download = eslesme?.[1] ? decodeURIComponent(eslesme[1]) : yedekAd
+  baglanti.click()
+  URL.revokeObjectURL(url)
+}
+
 const gonder = <T>(yol: string, govde: unknown, yontem: 'POST' | 'PUT' = 'POST') =>
   istek<T>(yol, { method: yontem, body: JSON.stringify(govde) })
 
@@ -107,6 +137,11 @@ export const api = {
   // doğru kalıyor (bkz. backend göç a4d92c15e807).
   surumFazlaKadro: (surumId: number) =>
     istek<FazlaKadro[]>(`/api/surum/${surumId}/fazla-kadro`),
+
+  cizelgeExcelIndir: (surumId: number, surumNo: number) =>
+    dosyaIndir(`/api/surum/${surumId}/cizelge.xlsx`, `cizelge_surum${surumNo}.xlsx`),
+  analizExcelIndir: (surumId: number, surumNo: number) =>
+    dosyaIndir(`/api/surum/${surumId}/analiz.xlsx`, `analiz_surum${surumNo}.xlsx`),
 
   personelListele: () => istek<Personel[]>('/api/personel'),
   noktaListele: () => istek<GorevNoktasi[]>('/api/nokta'),
@@ -134,10 +169,13 @@ export const api = {
       ...(karar === 'devam' && zamanLimitiSaniye ? { zaman_limiti_saniye: zamanLimitiSaniye } : {}),
     }),
 
-  atamaDogrula: (istekGovdesi: AtamaDegisikligiIstek) =>
+  // Oturumun TAMAMINI gönderir ve hiçbir şey yazmaz (SDD 5.5).
+  atamaDogrula: (istekGovdesi: DogrulamaIstegi) =>
     gonder<DogrulamaSonucu>('/api/atama/dogrula', istekGovdesi),
-  atamaGuncelle: (istekGovdesi: AtamaDegisikligiIstek) =>
-    gonder<DogrulamaSonucu>('/api/atama', istekGovdesi, 'PUT'),
+  // Biriken değişikliklerin tek işlemde uygulanması (SDD 5.5.1). Yanıt YENİ
+  // damgayı taşır; istemci bir sonraki kayıt için onu saklar.
+  atamaKaydet: (istekGovdesi: KaydetIstegi) =>
+    gonder<DogrulamaSonucu>('/api/atama/kaydet', istekGovdesi),
   atamaKilitAyarla: (
     surumId: number,
     personelId: number,
@@ -254,7 +292,10 @@ export const api = {
     ),
 
   // --- Analiz (FR-8.x) ---------------------------------------------------
-  analizGetir: (surumId: number) => istek<Analiz>(`/api/analiz/${surumId}`),
+  // Ufuk SEÇİMLE gelir; varsayılan dönem içidir çünkü kabul kriteri onu
+  // ölçer (Charter 1.5) ve ekran ilk açıldığında o sayıyı göstermelidir.
+  analizGetir: (surumId: number, ufuk: Ufuk = 'donem') =>
+    istek<Analiz>(`/api/analiz/${surumId}?ufuk=${ufuk}`),
 
   // --- Çalışan Paneli (SDD 6.1, Ek B; SRS FR-9.x) -------------------------
   // Hiçbiri `personel_id` GÖNDERMEZ ve göndermemelidir: hangi personelin
@@ -262,6 +303,10 @@ export const api = {
   // Kimliği burada taşımak, sunucunun onu yok saydığı bilinse bile,
   // "istemci kimliği seçiyor" izlenimi verirdi.
   calisanVardiyalarim: () => istek<Vardiyalarim>('/api/calisan/vardiyalarim'),
+  // Özet ayrı çağrıdır: bir tam analiz hesabı ödediği için Dönem Özetim
+  // sekmesi açılmadan çalışmaz. `null` = henüz yayınlanmış çizelge yok.
+  calisanOzetim: (ufuk: Ufuk = 'donem') =>
+    istek<DonemOzeti | null>(`/api/calisan/ozetim?ufuk=${ufuk}`),
   calisanTercihlerim: () => istek<CalisanTercihListesi>('/api/calisan/tercih'),
   calisanTercihBildir: (govde: {
     tarih: string

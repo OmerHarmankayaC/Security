@@ -6,6 +6,7 @@ yolu tercih_bildir'dir ve yalniz bir Tercih kaydi dogurur.
 
 from datetime import date, time
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.kurallar.zaman_araligi import saat_kumesi
@@ -31,6 +32,19 @@ from app.services.atama_donusumu import atama_kaydina_cevir
 class TercihDonemiBulunamadiError(Exception):
     """Bildirilmek istenen tarih hicbir donemin icine dusmuyor ya da o
     donemin tercih bildirim penceresi kapanmis (router 400'e cevirir)."""
+
+
+class TercihKararlanmisError(Exception):
+    """O gun icin zaten KARARLANMIS (onaylanmis/reddedilmis) bir tercih var;
+    ustune yazmak yonetici kararini sessizce silerdi (router 409'a cevirir).
+
+    Final review bulgu 4: AYNI hata, YARIS DURUMUNDA da firlatilir. Iki es
+    zamanli istek de `personel_ve_tarihe_gore_getir` ile "mevcut yok" gorup
+    INSERT'e girebilir; ikincisi `uq_tercih_personel_tarih`e (goc
+    c4f1a7d20b93) carpar ve bu IntegrityError yakalanmazsa 500 uretirdi.
+    Kullaniciya gorunen sonuc aynidir: "bu gun icin baska bir kayit var,
+    tekrar dene" - check-then-act'in kazanan/kaybeden ayrimi disari sizmaz.
+    """
 
 
 class CalisanServisi:
@@ -67,7 +81,6 @@ class CalisanServisi:
             vardiyalar=[],
             kaldirilan_gunler=[],
             siradaki=None,
-            ozet=None,
         )
 
         donem = self.donem.guncel_donemi_bul(bugun)
@@ -105,7 +118,6 @@ class CalisanServisi:
             vardiyalar=vardiyalar,
             kaldirilan_gunler=kaldirilan_gunler,
             siradaki=siradaki,
-            ozet=self._donem_ozeti(personel_id, yayinlanan.surum_id),
         )
 
     def _vardiyalari_olustur(
@@ -181,12 +193,32 @@ class CalisanServisi:
             )
         return vardiyalar, kaldirilan_gunler
 
-    def _donem_ozeti(self, personel_id: int, surum_id: int) -> DonemOzetiOku | None:
+    def donem_ozetim(
+        self, personel_id: int, ufuk: str = "donem", *, bugun: date | None = None
+    ) -> DonemOzetiOku | None:
+        """FR-9.5 ozetinin kendi uc noktasi. `ufuk` dogrudan AnalizServisi'ne
+        gecer - ikinci bir adalet formulu YAZILMAZ, tanim tek yerde kalir.
+
+        None: aktif donem yok, yayinlanmis surum yok ya da analiz hesaplanamadi.
+        Personel yoklugu burada AYRISTIRILMAZ; panel o duruma vardiyalarim
+        cagrisinda zaten duser."""
+        bugun = bugun if bugun is not None else date.today()
+        donem = self.donem.guncel_donemi_bul(bugun)
+        if donem is None:
+            return None
+        yayinlanan = self.surum.yayinlanan_getir(donem.donem_id)
+        if yayinlanan is None:
+            return None
+        return self._donem_ozeti(personel_id, yayinlanan.surum_id, ufuk)
+
+    def _donem_ozeti(
+        self, personel_id: int, surum_id: int, ufuk: str = "donem"
+    ) -> DonemOzetiOku | None:
         """FR-9.5: AnalizServisi'nin (SDD 5.7) mevcut hesaplarinin yeniden
         kullanimi - burada yalniz bu personelin kendi degeri + ekip
         ortalamasi (tekil deger) client'a cikar, digerlerinin kirilimi
         cikmaz (bkz. schemas/calisan.py docstring'i)."""
-        analiz = AnalizServisi(self.oturum).hesapla(surum_id)
+        analiz = AnalizServisi(self.oturum).hesapla(surum_id, ufuk)
         if analiz is None:
             return None
 
@@ -219,14 +251,18 @@ class CalisanServisi:
         )
 
         return DonemOzetiOku(
+            ufuk=ufuk,
             gece_saati=gece,
             ekip_ortalama_gece=ekip_gece,
+            adil_pay_gece=gece_kaydi.pay if gece_kaydi is not None else None,
             gece_havuzunda=gece_kaydi is not None,
             hafta_sonu_saati=hs,
             ekip_ortalama_hafta_sonu=ekip_hs,
+            adil_pay_hafta_sonu=hs_kaydi.pay if hs_kaydi is not None else None,
             hafta_sonu_havuzunda=hs_kaydi is not None,
             toplam_saat=saat.toplam_saat if saat is not None else 0.0,
             ekip_ortalama_saat=ekip_saat,
+            hedef_saat=saat.hedef_saat if saat is not None else 0.0,
         )
 
     # --- Tercih bildirimi / Tercihlerim (FR-9.6, FR-3.x) ---------------------
@@ -328,15 +364,39 @@ class CalisanServisi:
         if donem.tercih_son_tarihi < date.today():
             raise TercihDonemiBulunamadiError("Bu donem icin tercih bildirim penceresi kapandi")
 
-        kayit = self.tercih.olustur(
-            personel_id=personel_id,
-            donem_id=donem.donem_id,
-            tarih=veri.tarih,
-            tip=veri.tip,
-            tercih_baslangic=veri.tercih_baslangic,
-            tercih_bitis=veri.tercih_bitis,
-            calisan_notu=veri.calisan_notu,
-        )
+        mevcut = self.tercih.personel_ve_tarihe_gore_getir(personel_id, veri.tarih)
+        if mevcut is not None:
+            if mevcut.durum is not TercihDurumu.BEKLEMEDE:
+                raise TercihKararlanmisError(
+                    "Bu gun icin kararlanmis bir tercihin var; degistirmek icin yoneticine basvur"
+                )
+            kayit = self.tercih.guncelle(
+                mevcut.tercih_id,
+                tip=veri.tip,
+                tercih_baslangic=veri.tercih_baslangic,
+                tercih_bitis=veri.tercih_bitis,
+                calisan_notu=veri.calisan_notu,
+            )
+            assert kayit is not None  # az once okundu
+        else:
+            try:
+                kayit = self.tercih.olustur(
+                    personel_id=personel_id,
+                    donem_id=donem.donem_id,
+                    tarih=veri.tarih,
+                    tip=veri.tip,
+                    tercih_baslangic=veri.tercih_baslangic,
+                    tercih_bitis=veri.tercih_bitis,
+                    calisan_notu=veri.calisan_notu,
+                )
+            except IntegrityError as hata:
+                # Yaris durumu (bkz. TercihKararlanmisError docstring'i):
+                # buradaki `mevcut is None` kontrolu ile bu INSERT arasinda
+                # baska bir istek ayni gune kayit acmis olabilir.
+                raise TercihKararlanmisError(
+                    "Bu gun icin az once baska bir tercih kaydedildi; "
+                    "sayfayi yenileyip tekrar dene"
+                ) from hata
 
         return CalisanTercihOku(
             tercih_id=kayit.tercih_id,

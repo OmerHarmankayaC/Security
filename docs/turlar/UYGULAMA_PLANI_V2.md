@@ -12,10 +12,10 @@ geçerlidir ve aşağıda yalnızca **değişen veya eklenen** kurallar yazılm�
 
 ```
 docs/
-  BOTAS_..._ProjectCharter.md      kanonik
-  BOTAS_..._SRS.md                 kanonik
-  BOTAS_..._SDD.md                 kanonik
-  BOTAS_..._Backlog.md             kanonik
+  VARDIS_ProjectCharter.md      kanonik
+  VARDIS_SRS.md                 kanonik
+  VARDIS_SDD.md                 kanonik
+  VARDIS_Backlog.md             kanonik
   SAATLIK_GECIS_KARARLARI.md       hazırlık girdisi (kanonik değil)
   turlar/
     UYGULAMA_PLANI.md              birinci aşama planı (kapandı)
@@ -30,10 +30,10 @@ her şey `docs/turlar/` altındadır; depo kökünde plan veya prompt dosyası
 bulunmaz.
 
 Referans dokümanlar (`docs/` altında):
-- `BOTAS_Vardiya_Cizelgeleme_ProjectCharter.md` — Proje Tanım Dokümanı
-- `BOTAS_Vardiya_Cizelgeleme_SRS.md` — Yazılım Gereksinim Belirtimi
-- `BOTAS_Vardiya_Cizelgeleme_SDD.md` — Yazılım Tasarım Dokümanı
-- `BOTAS_Vardiya_Cizelgeleme_Backlog.md` — Ürün Backlog'u ve Karar Günlüğü
+- `VARDIS_ProjectCharter.md` — Proje Tanım Dokümanı
+- `VARDIS_SRS.md` — Yazılım Gereksinim Belirtimi
+- `VARDIS_SDD.md` — Yazılım Tasarım Dokümanı
+- `VARDIS_Backlog.md` — Ürün Backlog'u ve Karar Günlüğü
 
 Hazırlık girdisi (kanonik değil): `docs/SAATLIK_GECIS_KARARLARI.md`.
 
@@ -182,29 +182,45 @@ yeni K3 ve K4 tanımlarıyla koşulmuş.
 **Kabul:** Bir dönem baştan sona arayüzden kurulup çözülebiliyor ve çizelge saat
 düzeyinde okunabiliyor.
 
-## Tur 7 — Geçmiş Sayaçlar ve Kümülatif Adalet
+## Tur 7 — Düzenleme Sistemi, Haftalık Görünüm ve Yazdırma
 
-**Hedef:** saatlik düzenin ekranlara yansıması.
+**Hedef:** çizelge üzerinde değişiklik yapmanın baştan tasarlanması.
 
-**Dayanak:** SDD 6.3; TASARIM_REFERANSI 4.
+Kullanıcı sistemi gerçek kullanımda denedi ve düzenlemenin çalışmadığını
+bildirdi: panel ızgaradan kopuk, iki adımlı onay gereksiz, ceza dili okunmuyor,
+silme gizli. Tasarım SRS 5.6 ve TD-16'da yeniden yazıldı.
 
-- Talep ekranı: aralık girişi (başlangıç–bitiş–sayı), gün tipi başına satırlar.
-- Çizelge ızgarası: değişken uzunluklu blok gösterimi. Hücre artık sabit üç renkten
-  biri değil; renk başlangıç saati bandından hesaplanır. TASARIM_REFERANSI'ndaki
-  vardiya renk rampası bu turda yeniden tanımlanır.
-- Kural ekranı: yeni parametreler (günlük tavan, fazla çalışma eşiği, yıllık kota,
-  desen toleransı, adalet ufku).
-- Analiz: saat birimine hizalanmış metrikler + kişi başı fazla çalışma ve kalan
-  kota göstergesi.
-- Personel ekranı: devir bakiyesi alanı.
+- Düzenleme ızgaranın üzerine taşınır: sürükle-oluştur, kenardan uzat, gövdeden
+  kaydır, başka personele taşı, tıkla-menü. Form ikincil kalır.
+- Taslak oturum: değişiklikler istemcide birikir, anında görünür, geri alınabilir;
+  sunucuya yalnız kaydetmeyle yazılır. Doğrulama sunucuda kalır ve **biriken
+  değişikliklerin tamamı** üzerinden yapılır.
+- Kaydetme tek işlem, sürüm damgasıyla korunur, kaydetme anında doğrulama
+  tekrarlanır.
+- Yayınlanmış sürüm salt okunur — kilit hem arayüzde hem sunucuda.
+- Sonuç önce gündelik dille bildirilir; ceza dökümü ayrıntıda kalır.
+- Yazdırma hatası: yalnızca ilk gün basılıyor, dönemin tamamı basılmalı.
+- Haftalık görünüm okunur hâle gelir: saat metni + ince düz konum çubuğu.
 
-**Kabul:** Bir dönem baştan sona arayüzden kurulup çözülebiliyor: bloklar
-tanımlanıyor, talep aralık olarak giriliyor, çizelge okunabilir biçimde
-görüntüleniyor, analiz ekranında kota göstergesi doğru sayıları veriyor.
+**Kabul:** Kaydetmeden çıkılan oturum sürümü değiştirmiyor; damga çakışması
+reddediliyor; yayınlanmış sürümde doğrudan gönderilen istek de reddediliyor;
+yedi günlük dönem yedi sayfa yazdırıyor.
 
----
+## Tur 8 — Analiz ve Dışa Aktarma
 
-## Tur 8 — Gösterim Verisinin Tamamlanması
+**Hedef:** analiz ekranının iyileştirilmesi ve dışa aktarmanın kullanılabilir
+hâle gelmesi (madde 1 ve 9).
+
+- Çizelgenin renkli ve açıklamalı Excel çıktısı.
+- Analiz için diyagramlı rapor; ham veri de erişilebilir kalır.
+- **B-23 bu turdan önce kapatılmalı**: kapsama açığı ve fazla kadro kayıtları
+  hâlâ tarih ve ofsetsiz saat taşıyor; gece yarısını aşan bir açık aralığı dışa
+  aktarmada okunamıyor.
+
+**Kabul:** Excel çıktısı çizelgeyi okunabilir biçimde veriyor; analiz raporu hem
+görsel hem ham veri taşıyor.
+
+## Tur 9 — Geçmiş Sayaçlar ve Kümülatif Adalet
 
 **Hedef:** Tur 4 ve Tur 5'te kurulan senaryoların üzerine, kümülatif davranışı
 gösteren tarihsel derinlik.
@@ -222,7 +238,7 @@ görüyor ve bu Analiz ekranında okunabiliyor.
 
 ---
 
-## Tur 9 — Kalibrasyon, Ölçüm ve Kapanış
+## Tur 10 — Kalibrasyon, Ölçüm ve Kapanış
 
 **Hedef:** ağırlıkların yeniden kalibrasyonu ve altı kabul kriterinin yeniden
 ölçülmesi.

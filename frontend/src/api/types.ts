@@ -19,6 +19,16 @@ export interface CizelgeSurumu {
   yayin_zamani: string | null
   olusturma_zamani: string
   guncelleme_zamani: string
+  /**
+   * Sürüm damgası — eş zamanlı düzenlemeyi yakalar (SRS TD-16, SDD 5.5.1).
+   *
+   * Kullanıcı düzenlemeye başlarken bu değeri alır, kaydederken geri
+   * gönderir. Damga değişmişse başka bir oturum aynı sürümü değiştirmiştir
+   * ve kayıt reddedilir; sessizce üzerine yazmak diğerinin işini iz
+   * bırakmadan yok ederdi. İstemci için ANLAMSIZ bir dizedir — yorumlanmaz,
+   * yalnızca taşınır.
+   */
+  damga: string
   // SDD 6.3.5 — Sürümler ekranının liste satırı bu ikisini de gösterir.
   // Hiç çözülmemiş bir taslakta toplam_ceza null olur.
   toplam_ceza: number | null
@@ -83,9 +93,14 @@ export interface Atama {
 
 export interface KapsamaAcigi {
   acik_id: number
-  tarih: string
-  baslangic: string
-  bitis: string
+  /**
+   * ZAMAN DAMGASI (B-23). Önceki hâli `tarih` + ofsetsiz `baslangic`/`bitis`
+   * taşıyordu; o gösterimde 22.00–02.00 gibi bir aralık tek kayıtta duramıyor
+   * ve dosyaya ISO damgası olarak yazılamıyordu. Aralık artık gün sınırını
+   * kendisi taşır; kaydın hangi güne ait olduğu başlangıç damgasından okunur.
+   */
+  baslangic_zamani: string
+  bitis_zamani: string
   nokta_id: number
   eksik_sayi: number
 }
@@ -93,9 +108,8 @@ export interface KapsamaAcigi {
 /** Bir noktaya talepten fazla kişi atanmış olması (SRS 4.3 S1 üst sınırı). */
 export interface FazlaKadro {
   fazla_id: number
-  tarih: string
-  baslangic: string
-  bitis: string
+  baslangic_zamani: string
+  bitis_zamani: string
   nokta_id: number
   fazla_sayi: number
 }
@@ -226,6 +240,9 @@ export interface DogrulamaSonucu {
    *  (kapsama açığı, fazla kadro). Zorunlu ihlal DEĞİLDİR — değişiklik
    *  uygulanır, karar kullanıcıya bırakılır (SDD 5.5). */
   uyarilar: Ihlal[]
+  /** Kaydetme yanıtında YENİ damga; doğrulama yanıtında null (hiçbir şey
+   *  yazılmadığı için damga da değişmez). */
+  damga?: string | null
 }
 
 /**
@@ -236,13 +253,29 @@ export interface DogrulamaSonucu {
  * edemez (SDD 6.3.1). Bitiş başlangıçtan küçük ya da eşitse blok gece yarısını
  * aşar.
  */
-export interface AtamaDegisikligiIstek {
-  surum_id: number
+export interface BlokDegisikligi {
   personel_id: number
   tarih: string
   baslangic_saati: string | null
   bitis_saati: string | null
   nokta_id: number | null
+}
+
+/**
+ * Doğrulama isteği: oturumun O ANA KADAR biriken TAMAMI (SRS TD-16).
+ *
+ * Son değişikliği değil bütün birikimi taşır. Tek tek geçerli olan iki
+ * değişiklik birlikte bir kuralı bozabilir: iki ayrı güne yapılan uzatma,
+ * ayrı ayrı haftalık tavanı aşmazken birlikte aşar.
+ */
+export interface DogrulamaIstegi {
+  surum_id: number
+  degisiklikler: BlokDegisikligi[]
+}
+
+/** Kaydetme: doğrulama isteği + sürüm damgası (SDD 5.5.1). */
+export interface KaydetIstegi extends DogrulamaIstegi {
+  damga: string
 }
 
 // --- Tanımlar (Sprint 3 Ara İş) --------------------------------------------
@@ -418,9 +451,8 @@ export interface SaatDengesi {
 
 /** Analiz ekranının fazla kadro satırı — adlarıyla birlikte (NFR-5). */
 export interface FazlaKadroKalemi {
-  tarih: string
-  baslangic: string
-  bitis: string
+  baslangic_zamani: string
+  bitis_zamani: string
   nokta_id: number
   nokta_ad: string
   fazla_sayi: number
@@ -442,6 +474,51 @@ export interface Analiz {
   bina_degisim_sayisi: KisiSayisi[]
   ceza_dokumu: Record<string, number> | null
   toplam_ceza: number | null
+  /** ARALIK SAYISI ile KİŞİ-SAAT ayrı ölçülerdir (SDD 6.3.4): ardışık saatler
+   *  tek kayıtta birleştiği için satır sayısı yükü anlatmaz. İkisi karıştırıldı
+   *  ve dışa aktarma başlığında yanlış sayı gösterildi. */
+  karsilanmayan_kisi_saat: number
+  acik_aralik_sayisi: number
+  kota_durumu: KotaDurumu[]
+  ceza_kalemleri: AnalizCezaKalemi[]
+  kumulatif_degisim: KumulatifDegisim
+  /** Hangi ufkun ölçüldüğü. İki ufkun sayıları farklıdır ve hangisine
+   *  bakıldığı belirsiz kalırsa tablo yanlış okunur. */
+  ufuk: Ufuk
+}
+
+export type Ufuk = 'donem' | 'adalet'
+
+/** H10: kişi başına yıllık fazla çalışma ve kalan kota. Sunucu SIRALI
+ *  gönderir — sınıra dayanan üstte; kartın amacı listeyi değil riski
+ *  göstermek (SDD 6.3.4). */
+export interface KotaDurumu {
+  personel_id: number
+  ad_soyad: string
+  fazla_calisma_saat: number
+  kalan_kota_saat: number
+}
+
+/** Analiz ekranının ceza dökümü satırı (SDD 6.3.4). Doğrulama sonucundaki
+ *  `CezaKalemi`den AYRIDIR: o bir değişikliğin FARKINI taşır, bu ise sürümün
+ *  mevcut durumunu. Ham değer kuralın kendi biriminde (kişi-saat, saat, gün);
+ *  ağırlıklı ceza amaç fonksiyonuna girendir. İkisinin tek sütunda
+ *  gösterilmesi, toplamın satırların toplamı olmadığı bir tablo üretir. */
+export interface AnalizCezaKalemi {
+  kimlik: string
+  ad: string
+  ham_deger: number
+  agirlik: number
+  agirlikli_ceza: number
+}
+
+/** Kümülatif adaletin vaadi sapmanın küçük olması değil, ZAMANLA küçülmesidir
+ *  (Charter 5, K3). Önceki yayınlanmış dönem yoksa alanlar null kalır —
+ *  sıfır yazmak "değişim olmadı" anlamına gelirdi. */
+export interface KumulatifDegisim {
+  onceki_surum_id: number | null
+  onceki_ortalama_sapma: number | null
+  simdiki_ortalama_sapma: number | null
 }
 
 // --- Çalışan Paneli (SDD 6.1, Ek B; SRS FR-9.x) -----------------------------
@@ -479,18 +556,24 @@ export interface KaldirilanGun {
 }
 
 export interface DonemOzeti {
+  /** Hangi ufkun okunduğu (SDD 6.3.4); yanıtın içinde taşınır. */
+  ufuk: Ufuk
   /** Birim SAAT (SRS S2, S3). */
   gece_saati: number
   ekip_ortalama_gece: number
+  /** KIYASIN REFERANSI: kişiye düşen adil pay. Havuz dışındaysa null. */
+  adil_pay_gece: number | null
   // SRS S2/S3'teki uygun havuz (P_gece / P_hs) üyeliği. Havuz dışındaki
   // çalışan o vardiyaları yetkinliği gereği hiç alamaz; karşılaştırma
   // anlamsız olduğu için gösterilmez (SDD 5.7).
   gece_havuzunda: boolean
   hafta_sonu_saati: number
   ekip_ortalama_hafta_sonu: number
+  adil_pay_hafta_sonu: number | null
   hafta_sonu_havuzunda: boolean
   toplam_saat: number
   ekip_ortalama_saat: number
+  hedef_saat: number
 }
 
 export interface Vardiyalarim {
@@ -507,7 +590,6 @@ export interface Vardiyalarim {
   vardiyalar: Vardiyam[]
   kaldirilan_gunler: KaldirilanGun[]
   siradaki: Vardiyam | null
-  ozet: DonemOzeti | null
 }
 
 export interface AcikDonem {

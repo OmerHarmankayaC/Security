@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import type { KaldirilanGun, Vardiyalarim, Vardiyam } from '@/api/types'
 import { Kart, KartEtiketi, Rozet, Sayi } from '@/components/app-ui'
-import { buyukHarf } from '@/lib/metin'
+import { benzersizKisaltma, buyukHarf, kisalt } from '@/lib/metin'
 import { sayiBicimle } from '@/lib/sayi'
 import {
   bugunIso,
@@ -61,6 +61,13 @@ export function VardiyalarimEkrani({ veri }: Props) {
   const kaldirilanMap = useMemo(
     () => new Map(veri.kaldirilan_gunler.map((k) => [k.tarih, k])),
     [veri.kaldirilan_gunler],
+  )
+  // Nokta adları ızgarada kısaltmayla durur; kısaltmalar bu dönemin nokta
+  // kümesi içinde BENZERSİZ olacak şekilde türetilir (slice(0,3) iki noktayı
+  // aynı gösteriyordu).
+  const kisaltmalar = useMemo(
+    () => benzersizKisaltma(veri.vardiyalar.map((v) => v.nokta_ad)),
+    [veri.vardiyalar],
   )
 
   // Liste görünümü vardiyaları ve kaldırılan günleri tarih sırasıyla birlikte
@@ -181,7 +188,7 @@ export function VardiyalarimEkrani({ veri }: Props) {
               >
                 <Sayi className="text-sayi-orta font-semibold">{g.slice(-2)}</Sayi>
                 <span className="etiket-caps">
-                  {v ? buyukHarf(v.nokta_ad.slice(0, 3)) : '–'}
+                  {v ? (kisaltmalar.get(v.nokta_ad) ?? kisalt(v.nokta_ad)) : '–'}
                 </span>
                 {/* Hücrenin TAMAMINI boyamak yerine bloğun kendi bandı ince
                     bir şerit olarak altta durur: gün numarası ve nokta
@@ -221,7 +228,10 @@ export function VardiyalarimEkrani({ veri }: Props) {
             <span className="font-mono">24</span>
             <span>saat bandı</span>
           </span>
-          <LegendOgesi renk="bg-accent" etiket="Değişen gün" />
+          <span className="flex items-center gap-1.5">
+            <span className="h-[3px] w-6 bg-accent" />
+            Değişen gün
+          </span>
         </div>
       </Kart>
 
@@ -374,15 +384,6 @@ function ListeSatiri({
         </span>
       )}
     </li>
-  )
-}
-
-function LegendOgesi({ renk, etiket }: { renk: string; etiket: string }) {
-  return (
-    <span className="flex items-center gap-1.5">
-      <span className={cn('size-3 rounded-xs', renk)} />
-      {etiket}
-    </span>
   )
 }
 

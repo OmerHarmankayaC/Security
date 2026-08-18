@@ -33,6 +33,7 @@ const SURUM: CizelgeSurumu = {
   yayin_zamani: null,
   olusturma_zamani: '2026-02-01T09:00:00Z',
   guncelleme_zamani: '2026-02-01T09:00:00Z',
+  damga: 'd1',
   toplam_ceza: 912,
   kapsama_acigi_sayisi: 2,
   fazla_kadro_sayisi: 0,
@@ -72,13 +73,18 @@ function atama(id: number, personelId: number, tarih: string, vId: number, nId: 
   }
 }
 
+function gunSonrasi(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + 1)
+  return d.toISOString().slice(0, 10)
+}
+
 function acik(id: number, tarih: string, vId: number, nId: number, eksik: number): KapsamaAcigi {
   const bas = vId === 11 ? 0 : 8
   return {
     acik_id: id,
-    tarih,
-    baslangic: `${String(bas).padStart(2, '0')}:00:00`,
-    bitis: `${String((bas + 8) % 24).padStart(2, '0')}:00:00`,
+    baslangic_zamani: `${tarih}T${String(bas).padStart(2, '0')}:00:00+03:00`,
+    bitis_zamani: `${bas + 8 >= 24 ? gunSonrasi(tarih) : tarih}T${String((bas + 8) % 24).padStart(2, '0')}:00:00+03:00`,
     nokta_id: nId,
     eksik_sayi: eksik,
   }
@@ -88,9 +94,8 @@ function fazla(id: number, tarih: string, vId: number, nId: number, sayi: number
   const bas = vId === 11 ? 0 : 8
   return {
     fazla_id: id,
-    tarih,
-    baslangic: `${String(bas).padStart(2, '0')}:00:00`,
-    bitis: `${String((bas + 8) % 24).padStart(2, '0')}:00:00`,
+    baslangic_zamani: `${tarih}T${String(bas).padStart(2, '0')}:00:00+03:00`,
+    bitis_zamani: `${bas + 8 >= 24 ? gunSonrasi(tarih) : tarih}T${String((bas + 8) % 24).padStart(2, '0')}:00:00+03:00`,
     nokta_id: nId,
     fazla_sayi: sayi,
   }
@@ -259,8 +264,8 @@ describe('kapsamaAcigiCsvOlustur', () => {
     const acikSatirlari = [acik(1, '2026-02-02', 11, 20, 2), acik(2, '2026-02-05', 10, 21, 1)]
     const veri = satirlar(kapsamaAcigiCsvOlustur(veriKur([], acikSatirlari)))
     expect(veri).toHaveLength(acikSatirlari.length + 1)
-    expect(veri[0]).toBe('tarih;baslangic;bitis;gorev_noktasi;tur;kisi_sayisi')
-    expect(veri[1]).toBe('2026-02-02;00.00;08.00;Güvenlik;eksik;2')
+    expect(veri[0]).toBe('baslangic;bitis;gorev_noktasi;tur;kisi_sayisi')
+    expect(veri[1]).toBe('2026-02-02T00:00:00+03:00;2026-02-02T08:00:00+03:00;Güvenlik;eksik;2')
   })
 
   it('açık yokken başlık satırı kalır — sıfır satır "açık yok" demektir', () => {
@@ -268,20 +273,21 @@ describe('kapsamaAcigiCsvOlustur', () => {
     // çıktıyla açığı olmayan bir çizelgeyi ayırt edilemez kılardı.
     const veri = satirlar(kapsamaAcigiCsvOlustur(veriKur([], [])))
     expect(veri).toHaveLength(1)
-    expect(veri[0]).toBe('tarih;baslangic;bitis;gorev_noktasi;tur;kisi_sayisi')
+    expect(veri[0]).toBe('baslangic;bitis;gorev_noktasi;tur;kisi_sayisi')
   })
 
   it('açık dosyası da BOM ve noktalı virgül taşır', () => {
     const csv = kapsamaAcigiCsvOlustur(veriKur([], [acik(1, '2026-02-02', 11, 20, 2)]))
     expect(csv.startsWith(UTF8_BOM)).toBe(true)
-    expect(satirlar(csv)[1]!.split(';')).toHaveLength(6)
+    expect(satirlar(csv)[1]!.split(';')).toHaveLength(5)
   })
 
   it('tarihe göre sıralar', () => {
     const csv = kapsamaAcigiCsvOlustur(
       veriKur([], [acik(1, '2026-02-09', 10, 20, 1), acik(2, '2026-02-02', 10, 20, 1)]),
     )
-    expect(satirlar(csv).slice(1).map((s) => s.split(';')[0]!)).toEqual([
+    // Sıralama artık DAMGAYA göre; günü damganın tarih bölümü verir.
+    expect(satirlar(csv).slice(1).map((s) => s.split(';')[0]!.slice(0, 10))).toEqual([
       '2026-02-02',
       '2026-02-09',
     ])
@@ -320,16 +326,16 @@ describe('talep sapması dosyası — iki yön tek dosyada', () => {
       veriKur([], [acik(1, '2026-02-02', 11, 20, 2)], [], [fazla(1, '2026-02-03', 10, 21, 1)]),
     )
     const veri = satirlar(csv)
-    expect(veri[0]).toBe('tarih;baslangic;bitis;gorev_noktasi;tur;kisi_sayisi')
-    expect(veri).toContain('2026-02-02;00.00;08.00;Güvenlik;eksik;2')
-    expect(veri).toContain('2026-02-03;08.00;16.00;Vardiya Şefliği;fazla;1')
+    expect(veri[0]).toBe('baslangic;bitis;gorev_noktasi;tur;kisi_sayisi')
+    expect(veri).toContain('2026-02-02T00:00:00+03:00;2026-02-02T08:00:00+03:00;Güvenlik;eksik;2')
+    expect(veri).toContain('2026-02-03T08:00:00+03:00;2026-02-03T16:00:00+03:00;Vardiya Şefliği;fazla;1')
   })
 
   it('kişi sayısı her iki yönde de POZİTİF kalır', () => {
     // "eksik_sayi = 2, tur = fazla" okunamayan bir satır olurdu; sütun adı
     // yönü değil büyüklüğü taşır, yönü `tur` söyler.
     const csv = kapsamaAcigiCsvOlustur(veriKur([], [], [], [fazla(1, '2026-02-02', 11, 20, 3)]))
-    expect(satirlar(csv)[1]).toBe('2026-02-02;00.00;08.00;Güvenlik;fazla;3')
+    expect(satirlar(csv)[1]).toBe('2026-02-02T00:00:00+03:00;2026-02-02T08:00:00+03:00;Güvenlik;fazla;3')
   })
 
   it('yalnızca fazla kadro varken de dosya üretilir', () => {
@@ -350,7 +356,7 @@ describe('talep sapması dosyası — iki yön tek dosyada', () => {
     )
     const tarihler = satirlar(csv)
       .slice(1)
-      .map((s) => s.split(';')[0])
+      .map((s) => s.split(';')[0]!.slice(0, 10))
     expect(tarihler).toEqual(['2026-02-03', '2026-02-10', '2026-02-20'])
   })
 })
