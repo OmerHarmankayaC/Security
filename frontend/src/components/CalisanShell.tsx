@@ -53,13 +53,19 @@ export function CalisanShell({
               {yetkinlikler.length > 0 ? ` · ${yetkinlikler.join(', ')}` : ''}
             </p>
           </div>
+          {/* flex + justify-between: 375px'te bu satırın TAM İKİ çocuğu
+              olmalı (bilgi grubu | eylem grubu) — üçüncü bir doğrudan çocuk
+              justify-between'i üçe böler ve etiketi değerinden koparır,
+              bu yüzden dönem etiketi + tarihi kendi sarmalayıcısına alındı. */}
           <div className="flex items-end justify-between gap-4 sm:block sm:shrink-0 sm:text-right">
-            <p className="etiket-caps m-0 text-chrome-ink-muted">{buyukHarf('Dönem')}</p>
-            <p className="m-0 mt-1 font-mono text-sayi-orta font-semibold text-chrome-ink">
-              {donemBaslangic && donemBitis
-                ? buyukHarf(donemAraligiBicimle(donemBaslangic, donemBitis))
-                : '—'}
-            </p>
+            <div>
+              <p className="etiket-caps m-0 text-chrome-ink-muted">{buyukHarf('Dönem')}</p>
+              <p className="m-0 mt-1 font-mono text-sayi-orta font-semibold text-chrome-ink">
+                {donemBaslangic && donemBitis
+                  ? buyukHarf(donemAraligiBicimle(donemBaslangic, donemBitis))
+                  : '—'}
+              </p>
+            </div>
             {/* Oturum eylemleri üst çubukta, dönem bilgisinin altında:
                 mobil öncelikli tek sütunda ayrı bir menü açmak, üç sekmelik
                 bir panelde taşıdığından fazla yapı olurdu. */}
@@ -81,6 +87,9 @@ export function CalisanShell({
             </div>
           </div>
         </div>
+        {/* overflow-x-auto: taşan sekmeler kaydırılabilir olsun diye; yan etki
+            olarak dikey eksen de 'auto' sayılır ve odak halkası kırpılabilir —
+            burada kabul edilebilir (NFR-7, sekmelerin erişilebilirliği kritik). */}
         <nav className="mx-auto flex max-w-[720px] gap-6 overflow-x-auto px-6">
           {SEKMELER.map((sekme) => (
             <button
