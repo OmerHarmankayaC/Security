@@ -54,3 +54,40 @@ export function kisalt(ad: string): string {
       : kelimeler[0]!.slice(0, 3)
   return buyukHarf(ham)
 }
+
+/**
+ * Bir ad kümesinin BENZERSİZ ızgara kısaltmaları.
+ *
+ * `kisalt()` tek başına çakışabilir: tek kelimeli adlarda ilk üç harf aynı
+ * düşerse ("Güvenlik" ve "Güvence" ikisi de "GÜV" verir) ya da çok kelimeli
+ * adlarda kelime baş harfleri aynı düşerse ("Ana Kapı" ve "Arka Kapı" ikisi
+ * de "AK" verir) ızgarada iki farklı nokta aynı görünür ve çalışan hangi
+ * noktaya gittiğini okuyamaz.
+ *
+ * Çakışanlara adın SONRAKİ ayırt edici harfi eklenir. Sonuç giriş sırasından
+ * bağımsızdır: adlar önce sıralanır.
+ */
+export function benzersizKisaltma(adlar: string[]): Map<string, string> {
+  const sirali = [...new Set(adlar)].sort((a, b) => a.localeCompare(b, 'tr'))
+  const sonuc = new Map<string, string>()
+  const kullanilan = new Set<string>()
+  for (const ad of sirali) {
+    let aday = kisalt(ad)
+    const harfler = buyukHarf(ad).replace(/\s+/g, '')
+    let i = aday.length
+    while (kullanilan.has(aday) && i < harfler.length) {
+      aday = kisalt(ad) + harfler[i]
+      i += 1
+    }
+    // Harfler tükendiyse sayı ekle: iki ad birebir aynı olamaz (Set), ama
+    // aynı harflerden oluşabilir.
+    let sayac = 2
+    while (kullanilan.has(aday)) {
+      aday = `${kisalt(ad)}${sayac}`
+      sayac += 1
+    }
+    kullanilan.add(aday)
+    sonuc.set(ad, aday)
+  }
+  return sonuc
+}
