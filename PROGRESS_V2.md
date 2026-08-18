@@ -9,6 +9,72 @@ başlar.
 
 ---
 
+## 2026-08-18 — Çalışan paneli: nihai inceleme ve düzeltme dalgası — **TAMAMLANDI**
+
+Turun tamamı tek parça olarak incelendi (görev incelemelerinin yapısal olarak
+göremediği şeyler için). **Altı Important bulgu** çıktı, hepsi tek düzeltme
+dalgasında kapatıldı: `5351a38`, `d3dd62f`, `84e2460`, `e7eb81a`. Kapsamlı
+re-review: hepsi giderilmiş, yeni Critical/Important yok.
+
+### Bulgular — neden görev incelemeleri kaçırdı
+
+1. **`ufuk=adalet` seçilince toplam saat genişlemiyordu.**
+   `analiz_servisi.py:338-351` saat dengesini ufuktan bağımsız kuruyor; gece
+   ve hafta sonu 90 güne açılırken toplam saat dönem içinde kalıyor. Ekran
+   "SON 90 GÜN" başlığı altında dönemin 40 saatini, yanında 96 saat geceyi
+   gösteriyordu. Etiket bizim dosyamızda, anlambilim Tur 10'un dosyasında —
+   hiçbir görev incelemesi ikisini birden görmedi. `analiz_servisi.py` kapsam
+   dışı olduğu için **sunum tarafında** kapatıldı: Toplam Saat kartında
+   kaçırılamaz bir uyarı ve cümle içinde "(dönem içi, 90 günü değil)".
+   **Asıl tutarsızlık Tur 10 iş kolunda duruyor.**
+2. Rozet "Ortalamanın Üstünde" diyordu, oysa kartın referansı adil paya
+   geçmişti → "Adil Payın Üstünde/Altında".
+3. **Göç, onaylanmış bir tercihi sessizce silebiliyordu.** En büyük
+   `tercih_id` korunuyordu, `durum`a bakılmadan. Karar alınmış bir satır daha
+   eski kalırsa yönetici kararı geri dönüşsüz gidiyordu ve onaylı tercihler
+   çözücüye girdi olarak akıyor. Yeni politika: kopya grubunda BEKLEMEDE
+   olmayan satır varsa **göç durur**, etkilenen `(personel_id, tarih)`
+   çiftlerini adlarıyla bildirir, hiçbir şey silinmez.
+4. Yönetici tarafındaki `POST /api/tercih` yeni tekillik kısıtına karşı
+   korumasızdı (500). İki yazma yolu da artık `IntegrityError` yakalayıp
+   temiz 409 dönüyor — bu aynı zamanda eşzamanlı çift gönderim yarışını da
+   kapattı.
+5. Tarih alanının varsayılanı kendi `min` sınırının altında kalıyordu;
+   dönem başlamışsa çalışan hiçbir şeye dokunmadan geçmişe tercih
+   bildirebiliyordu. Varsayılan artık `min` ile aynı fonksiyondan geliyor.
+6. **Ufuk testi boştu:** `ufuk`, `hesapla`'ya hiç geçirilmese de geçiyordu,
+   çünkü fixture'da önceki yayınlanmış dönem yoktu ve iki ufuk aynı sayıyı
+   üretiyordu. Geçmiş dönemli fixture eklendi; test artık iki ufkun gerçekten
+   farklı sayı ürettiğini doğruluyor. `adil_pay_*`, `hedef_saat`,
+   `gece_havuzunda` de artık sınanıyor.
+
+### Dağıtım öncesi — GÜNCELLENDİ
+
+Göç artık kararlanmış tercih içeren kopya grubunda **durur**. Sunucuda
+çalıştırılacak sayım sorgusu `durum`u da raporlamalı (bu turun Görev 8
+kaydındaki SQL güncellendi). Sorgu boş dönmüyorsa, göç uygulanmadan önce o
+günler elle ayıklanmalı.
+
+### Ertelenen (park edilmiş) — birleştirmeyi engellemez
+
+- `DonemOzetimEkrani.tsx:54` — kart etiket satırı `mb-4`→`mb-1` koşulsuz
+  değişti; uyarı taşımayan üç kart hâlinde 12px daha sıkı duruyor. Yalnız
+  görsel, testi yok.
+- `tanim.py:392-397` — `except IntegrityError` hangi kısıtın düştüğüne
+  bakmıyor; olmayan bir FK ile gelen POST artık 500 yerine yanıltıcı bir 409
+  dönüyor. `hata.orig` kısıt adına daraltmak sonraki turun işi.
+
+### Doğrulama (birleşmiş ağaç üzerinde)
+
+```
+frontend: 30 dosya, 319 test — hepsi geçti; lint temiz; tsc çıkış 0
+backend:  270 geçti, 1 atlandı (11 ağır çözücü dosyası HARİÇ — bkz. Görev 8)
+```
+
+`tur8-disa-aktarma` → `main` birleştirmesi: `15345ef`.
+
+---
+
 ## 2026-08-18 — Görev 8: Tam takım doğrulama ve kayıt — **TAMAMLANDI**
 
 Çalışan paneli düzeltme turunun (yedi görev, on commit: `5e2b7de` (Görev 1),
