@@ -39,20 +39,21 @@ export function CalisanShell({
   return (
     <div className="min-h-svh bg-canvas text-ink">
       <header className="bg-chrome-base">
-        <div className="mx-auto flex max-w-[720px] items-start justify-between gap-6 px-6 py-6">
-          <div>
+        <div className="mx-auto flex max-w-[720px] flex-col gap-4 px-6 py-6 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+          <div className="min-w-0">
             {/* Çalışan panelinde ekran adı yoktur; üst çubuğun taşıdığı ad
                 bu iskeletin `başlık/ekran`ıdır. */}
             <p className="m-0 text-baslik-ekran font-semibold text-chrome-ink">{adSoyad}</p>
             {/* Yalnızca sicil mono: yetkinlik adları ("Güvenlik", "İlk Yardım")
                 düz metindir (TASARIM_REFERANSI.md — "Düz cümle asla Mono
-                değildir"). */}
-            <p className="m-0 mt-0.5 text-mono-kucuk text-chrome-ink-muted">
+                değildir"). min-w-0 + truncate: yetkinlik listesi uzadığında
+                375px'te dönem bloğunu sıkıştırıyordu (NFR-7). */}
+            <p className="m-0 mt-0.5 truncate text-mono-kucuk text-chrome-ink-muted">
               <span className="font-mono">{sicilNo}</span>
               {yetkinlikler.length > 0 ? ` · ${yetkinlikler.join(', ')}` : ''}
             </p>
           </div>
-          <div className="shrink-0 text-right">
+          <div className="flex items-end justify-between gap-4 sm:block sm:shrink-0 sm:text-right">
             <p className="etiket-caps m-0 text-chrome-ink-muted">{buyukHarf('Dönem')}</p>
             <p className="m-0 mt-1 font-mono text-sayi-orta font-semibold text-chrome-ink">
               {donemBaslangic && donemBitis
@@ -80,7 +81,7 @@ export function CalisanShell({
             </div>
           </div>
         </div>
-        <nav className="mx-auto flex max-w-[720px] gap-6 px-6">
+        <nav className="mx-auto flex max-w-[720px] gap-6 overflow-x-auto px-6">
           {SEKMELER.map((sekme) => (
             <button
               key={sekme}
