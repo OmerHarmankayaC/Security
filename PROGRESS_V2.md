@@ -114,17 +114,25 @@ aşağıdakiler bir sonraki doküman geçişinde işlenmeli:
 ### Dağıtım öncesi sayım — dağıtımdan önce sunucuda çalıştırılacak
 
 `alembic upgrade head` üretim veritabanında çalıştırılmadan önce şu sayım
-yapılmalı ve sonucu buraya (ya da dağıtım kaydına) geçilmeli:
+yapılmalı ve sonucu buraya (ya da dağıtım kaydına) geçilmeli. Sorgu artık
+`durum`u da taşır (final review bulgu 3): göç, bir kopya grubunun içinde
+BEKLEMEDE-DIŞI (onaylanmış/reddedilmiş) bir kayıt bulursa artık **otomatik
+silmez, DURUR** — operatörün önceden hangi (personel_id, tarih) çiftlerinin
+elle triaj gerektirdiğini bilmesi için `durum` sütunu sayımın bir parçası:
 
 ```sql
-SELECT personel_id, tarih, count(*) FROM tercih
+SELECT personel_id, tarih, count(*), array_agg(durum::text ORDER BY tercih_id) AS durumlar
+FROM tercih
 GROUP BY personel_id, tarih HAVING count(*) > 1;
 ```
 
-Sonuç boş değilse, göçün kaç satır sileceği (kopya grubu başına en yeni
-`tercih_id` dışındakiler) sayıya dökülüp kayda geçmeden `alembic upgrade`
-çalıştırılmaz — yerel geliştirme ortamında bu sayı şu ana dek hep 0 çıktı,
-ama üretim verisi farklı olabilir.
+Sonuç boş değilse VE herhangi bir grubun `durumlar`ı yalnızca BEKLEMEDE
+değilse (yani içinde ONAYLANDI/REDDEDILDI varsa), `alembic upgrade`
+**patlayacaktır** (göç kasıtlı olarak `RuntimeError` fırlatır) — o satırlar
+önce elle triaj edilmeden dağıtım yapılmamalı. Gruplar tamamen BEKLEMEDE
+ise göç eskisi gibi en yeni `tercih_id` dışındakileri siler ve devam eder —
+yerel geliştirme ortamında bu sayı şu ana dek hep 0 çıktı, ama üretim
+verisi farklı olabilir.
 
 ### Sıradaki oturumun ilk işi
 
