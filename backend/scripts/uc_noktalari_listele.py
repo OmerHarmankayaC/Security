@@ -34,9 +34,10 @@ from fastapi.routing import APIRoute  # noqa: E402
 
 from app.guvenlik import (  # noqa: E402
     calisan_yetkisi,
+    hesap_yonetimi_yetkisi,
+    idare_yetkisi,
     oturum_baglami,
-    yonetici_yetkisi,
-    yonetim_yetkisi,
+    sistem_yoneticisi_yetkisi,
 )
 from app.main import app  # noqa: E402
 
@@ -44,12 +45,14 @@ EK_B = Path(__file__).resolve().parents[2] / "docs" / "EK_B_UC_NOKTALAR.md"
 
 # Kapi fonksiyonu -> dokumanda yazan rol adi.
 _KAPI_ADLARI = {
-    yonetim_yetkisi: "yonetim",
+    # SIRA ONEMLI: en dar kapi once aranir (bkz. `_rol`).
+    sistem_yoneticisi_yetkisi: "sistem_yoneticisi",
+    hesap_yonetimi_yetkisi: "hesap_yoneticisi + sistem_yoneticisi",
     # ROLLER KAPSAYICIDIR (SRS 5.10): yonetim, yoneticinin kapisindan da
     # gecer. Belge bunu boyle yazar ve etiket TEK YERDE durur - betik
     # "yonetici" yazip belge "yonetici + yonetim" yazdiginda, --denetle
     # yalniz (yol, yontem) karsilastirdigi icin fark gorunmez kalirdi.
-    yonetici_yetkisi: "yonetici + yonetim",
+    idare_yetkisi: "idare ve ustu",
     calisan_yetkisi: "calisan",
     oturum_baglami: "giris yapmis her rol",
 }
@@ -176,10 +179,17 @@ def _ortak_onek(a: str, b: str) -> int:
 
 
 def _sayilari_tazele(metin: list[str], satirlar: list[tuple[str, str, str]]) -> list[str]:
+    """Toplam sayiyi ve OZET TABLOSUNU yeniden kurar.
+
+    Ozet tablosu satir satir guncellenemez: kapi adlari degistiginde (uc
+    rolden dorde gecerken oldugu gibi) eski etiketler tabloda kalir ve yeni
+    olanlar hic eklenmez. Tablonun govdesi bu yuzden tamamen degistirilir.
+    """
     from collections import Counter
 
     sayac = Counter(rol for _, _, rol in satirlar)
     cikti: list[str] = []
+    ozet_govdesinde = False
     for satir in metin:
         if satir.startswith("**Toplam ") and "uç nokta" in satir:
             satir = re.sub(
@@ -187,10 +197,22 @@ def _sayilari_tazele(metin: list[str], satirlar: list[tuple[str, str, str]]) -> 
                 f"**Toplam {len(satirlar)} uç nokta.**",
                 satir,
             )
-        else:
-            ozet = re.match(r"^\|\s*(.+?)\s*\|\s*\d+\s*\|\s*$", satir)
-            if ozet and ozet.group(1) in sayac:
-                satir = f"| {ozet.group(1)} | {sayac[ozet.group(1)]} |"
+            cikti.append(satir)
+            continue
+        if satir.startswith("| Kapı |"):
+            ozet_govdesinde = True
+            cikti.append(satir)
+            continue
+        if ozet_govdesinde:
+            if satir.startswith("| --- |"):
+                cikti.append(satir)
+                # Govde: en cok uc noktali kapi ustte.
+                for kapi, adet in sayac.most_common():
+                    cikti.append(f"| {kapi} | {adet} |")
+                continue
+            if satir.startswith("|"):
+                continue  # eski govde satiri — atilir
+            ozet_govdesinde = False
         cikti.append(satir)
     return cikti
 

@@ -138,7 +138,7 @@ def test_calisan_rolu_yonetici_uc_noktalarina_erisemez() -> None:
 def test_yonetici_rolu_hesap_yonetimine_erisemez() -> None:
     """SRS 5.10: yonetici "kullanici hesaplarini yonetemez". Arayuzun
     Kullanicilar ekranini hic gostermemesi bunun yerine gecmez."""
-    istemci = oturumlu_istemci(Rol.YONETICI)
+    istemci = oturumlu_istemci(Rol.IDARE)
     kacaklar = []
     for yontem, yol in _uc_noktalar():
         if not yol.startswith(_YONETIM_ON_EKI):
@@ -151,7 +151,7 @@ def test_yonetici_rolu_hesap_yonetimine_erisemez() -> None:
 def test_yonetici_rolu_kendi_islevlerine_erisir() -> None:
     """Kapinin gereginden dar olmadigi da olculur: yonetici, hesap yonetimi
     disindaki her seye girebilmelidir (SRS 5.10)."""
-    istemci = oturumlu_istemci(Rol.YONETICI)
+    istemci = oturumlu_istemci(Rol.IDARE)
     for yol in ("/api/personel", "/api/yetkinlik", "/api/donem", "/api/kural"):
         assert istemci.get(yol).status_code == 200, yol
 
@@ -160,7 +160,7 @@ def test_yonetim_rolu_yoneticinin_yetkilerini_de_tasir() -> None:
     """Roller kapsayicidir (SRS 5.10): yonetim, yoneticinin yetkilerini
     icerir. Yalniz hesap yonetimine erisip tanimlara erisememek, dokumanin
     tersini soylerdi."""
-    istemci = oturumlu_istemci(Rol.YONETIM)
+    istemci = oturumlu_istemci(Rol.HESAP_YONETICISI)
     assert istemci.get("/api/personel").status_code == 200
     assert istemci.get("/api/kullanici").status_code == 200
 
@@ -174,7 +174,7 @@ def test_parola_borclu_kullanici_yalniz_borcunu_odeyebilir() -> None:
     from app.db import OturumYerel
     from app.models.kimlik import Kullanici
 
-    istemci = oturumlu_istemci(Rol.YONETIM)
+    istemci = oturumlu_istemci(Rol.HESAP_YONETICISI)
     oturum = OturumYerel()
     try:
         kullanici = oturum.query(Kullanici).one()

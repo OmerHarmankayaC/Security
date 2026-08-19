@@ -11,11 +11,11 @@ Bu servisin butun yollari yalniz yonetim rolune aciktir; kapiyi
 
 import re
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.kayit import olay
-from app.models.kimlik import Kullanici, Rol
+from app.models.kimlik import HESAP_YONETEN_ROLLER, Kullanici, Rol
 from app.repositories.tanim import PersonelDeposu
 from app.services import parola as parola_araclari
 from app.services.oturum_servisi import OturumServisi
@@ -65,6 +65,27 @@ class KendiHesabiError(ValueError):
     birakamaz."""
 
 
+class HesapYonetmeYetkisiYokError(ValueError):
+    """Isteyen rol hesap yonetemez (SRS 5.10: idare hesap uc noktalarina
+    erisemez). Uc noktadaki rol kapisinin IKINCI katmani; kapisiz eklenen
+    bir uc nokta bu kontrolle yine de durur."""
+
+
+class SistemYoneticisineDokunulamazError(ValueError):
+    """Hesap yoneticisi, sistem yoneticisi rolundeki hesabi degistiremez ve
+    o rolde hesap acamaz (FR-10.12). Rol atamasi da bir dokunustur: kendi
+    ustunde hesap acabilen bir rol, yetki tirmanmasini tek adimda yapar."""
+
+
+class SonSistemYoneticisiError(ValueError):
+    """Sistemde en az bir ETKIN sistem yoneticisi kalmalidir (FR-10.12).
+
+    `KendiHesabiError`den AYRI bir kuraldir: o kazayi onler, bu iki kisinin
+    birbirini kapatmasini. Yalniz biri olsaydi, iki sistem yoneticisi
+    sirayla digerini dusurup sistemde sifir yetkili birakabilirdi.
+    """
+
+
 class KullaniciServisi:
     def __init__(self, oturum: Session) -> None:
         self.oturum = oturum
@@ -88,6 +109,12 @@ class KullaniciServisi:
         *,
         isteyen: Kullanici | None = None,
     ) -> Kullanici:
+        # `isteyen` YOKSA kurulum betigi cagiriyordur (FR-10.10): ilk hesap
+        # arayuz disi bir adimla acilir ve o anda yetki soracak bir oturum
+        # bulunmaz. Arayuzden gelen her cagri isteyeni tasir.
+        if isteyen is not None:
+            self._hesap_yonetebilir_mi(isteyen)
+            self._sistem_yoneticisine_dokunma_hakki(isteyen, rol)
         ad = self._adi_dogrula(kullanici_adi)
         self._benzersizligi_dogrula(ad)
         self._personel_baglantisini_dogrula(rol, personel_id)
@@ -130,6 +157,12 @@ class KullaniciServisi:
         personel_id_verildi: bool = False,
     ) -> Kullanici:
         kullanici = self._getir(kullanici_id)
+        self._hesap_yonetebilir_mi(isteyen)
+        # HEM MEVCUT HEM ATANACAK rol denetlenir: sistem yoneticisini
+        # dusurmek de, birini sistem yoneticisi yapmak da ayni yetkiyi ister.
+        self._sistem_yoneticisine_dokunma_hakki(isteyen, kullanici.rol)
+        if rol is not None:
+            self._sistem_yoneticisine_dokunma_hakki(isteyen, rol)
 
         if kullanici.kullanici_id == isteyen.kullanici_id and (
             (rol is not None and rol is not kullanici.rol) or aktif is False
@@ -142,6 +175,9 @@ class KullaniciServisi:
             raise KendiHesabiError
 
         yeni_rol = rol if rol is not None else kullanici.rol
+        self._son_sistem_yoneticisini_koru(
+            kullanici, yeni_rol, kullanici.aktif if aktif is None else aktif
+        )
         yeni_personel = personel_id if personel_id_verildi else kullanici.personel_id
         self._personel_baglantisini_dogrula(
             yeni_rol, yeni_personel, mevcut_kullanici_id=kullanici.kullanici_id
@@ -179,6 +215,8 @@ class KullaniciServisi:
         self, kullanici_id: int, yeni_parola: str, *, isteyen: Kullanici
     ) -> Kullanici:
         kullanici = self._getir(kullanici_id)
+        self._hesap_yonetebilir_mi(isteyen)
+        self._sistem_yoneticisine_dokunma_hakki(isteyen, kullanici.rol)
         kullanici.parola_ozeti = parola_araclari.ozetle(yeni_parola)
         kullanici.parola_degistirmeli = True
         # Kilit de kalkar: parolasi sifirlanan kullanicinin eski parolayla
@@ -198,6 +236,40 @@ class KullaniciServisi:
         return kullanici
 
     # --- Yardimcilar --------------------------------------------------------
+
+    # --- FR-10.12 korumalari ------------------------------------------------
+
+    def _hesap_yonetebilir_mi(self, isteyen: Kullanici) -> None:
+        if isteyen.rol not in HESAP_YONETEN_ROLLER:
+            raise HesapYonetmeYetkisiYokError
+
+    def _sistem_yoneticisine_dokunma_hakki(self, isteyen: Kullanici, hedef_rol: Rol) -> None:
+        """Hedef (mevcut ya da atanacak) rol sistem yoneticisiyse, yalniz
+        sistem yoneticisi dokunabilir."""
+        if hedef_rol is Rol.SISTEM_YONETICISI and isteyen.rol is not Rol.SISTEM_YONETICISI:
+            raise SistemYoneticisineDokunulamazError
+
+    def _etkin_sistem_yoneticisi_sayisi(self, haric: int | None = None) -> int:
+        sorgu = (
+            select(func.count())
+            .select_from(Kullanici)
+            .where(Kullanici.rol == Rol.SISTEM_YONETICISI, Kullanici.aktif.is_(True))
+        )
+        if haric is not None:
+            sorgu = sorgu.where(Kullanici.kullanici_id != haric)
+        return int(self.oturum.execute(sorgu).scalar() or 0)
+
+    def _son_sistem_yoneticisini_koru(
+        self, kullanici: Kullanici, yeni_rol: Rol, aktif: bool
+    ) -> None:
+        """Bu degisiklik sistemi sifir etkin sistem yoneticisiyle birakir mi?"""
+        if kullanici.rol is not Rol.SISTEM_YONETICISI or not kullanici.aktif:
+            return  # zaten sayima girmiyordu
+        hala_yetkili = yeni_rol is Rol.SISTEM_YONETICISI and aktif
+        if hala_yetkili:
+            return
+        if self._etkin_sistem_yoneticisi_sayisi(haric=kullanici.kullanici_id) == 0:
+            raise SonSistemYoneticisiError
 
     def _getir(self, kullanici_id: int) -> Kullanici:
         kullanici = self.oturum.get(Kullanici, kullanici_id)

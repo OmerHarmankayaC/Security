@@ -56,7 +56,7 @@ def yonetim_hesabi_var_mi(oturum) -> bool:  # noqa: ANN001 - Session
     return (
         oturum.execute(
             select(Kullanici.kullanici_id).where(
-                Kullanici.rol == Rol.YONETIM, Kullanici.aktif.is_(True)
+                Kullanici.rol == Rol.HESAP_YONETICISI, Kullanici.aktif.is_(True)
             )
         ).first()
         is not None
@@ -79,7 +79,7 @@ def hesap_ac(
     edilirdi.
     """
     servis = KullaniciServisi(oturum)
-    kullanici = servis.olustur(kullanici_adi, parola, Rol.YONETIM)
+    kullanici = servis.olustur(kullanici_adi, parola, Rol.HESAP_YONETICISI)
     # Servis, yonetimin BASKASI icin actigi hesaba parola degistirme borcu
     # yukler (FR-10.7). Burada varsayilan olarak kaldirilir: parolayi yazan
     # kisi hesabin sahibidir, kendi sectigi parolayi ilk giriste yeniden

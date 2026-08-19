@@ -24,8 +24,8 @@ import { TanimlarEkrani } from './TanimlarEkrani'
  */
 
 const BEN: Ben = {
-  kullanici_adi: 'yonetim',
-  rol: 'yonetim',
+  kullanici_adi: 'hesap_yoneticisi',
+  rol: 'hesap_yoneticisi',
   parola_degistirmeli: false,
   personel_id: null,
   ad_soyad: null,

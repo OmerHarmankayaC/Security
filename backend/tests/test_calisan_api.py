@@ -385,7 +385,7 @@ def test_yonetici_rolu_calisan_panelinden_gecemez() -> None:
     verisine erisim personel kaydina bagli AYRI bir yetkidir. Yonetim
     rolunun buradan gecmesi, kimin verisinin donecegini yanitsiz birakirdi."""
     pg_yoksa_atla()
-    istemci = oturumlu_istemci(Rol.YONETIM)
+    istemci = oturumlu_istemci(Rol.HESAP_YONETICISI)
     assert istemci.get("/api/calisan/vardiyalarim").status_code == 403
 
 

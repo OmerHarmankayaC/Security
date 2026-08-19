@@ -71,7 +71,7 @@ def _senaryo(oturum) -> tuple[int, int]:  # noqa: ANN001 - Session
     yonetim = Kullanici(
         kullanici_adi=_benzersiz("tmz-yonetim").lower(),
         parola_ozeti="x",
-        rol=Rol.YONETIM,
+        rol=Rol.HESAP_YONETICISI,
         personel_id=None,
     )
     oturum.add_all([calisan, yonetim])

@@ -22,7 +22,7 @@ PAROLA = "yeterince-uzun-parola"
 @pytest.fixture
 def istemci() -> TestClient:
     pg_yoksa_atla()
-    return oturumlu_istemci(Rol.YONETIM)
+    return oturumlu_istemci(Rol.HESAP_YONETICISI)
 
 
 def _personel(ad: str = "Hesap Testi Personeli") -> int:
@@ -42,7 +42,7 @@ def _personel(ad: str = "Hesap Testi Personeli") -> int:
 
 
 def _olustur(istemci: TestClient, ad: str, **fazlasi):
-    govde = {"kullanici_adi": ad, "parola": PAROLA, "rol": "yonetici", **fazlasi}
+    govde = {"kullanici_adi": ad, "parola": PAROLA, "rol": "idare", **fazlasi}
     return istemci.post("/api/kullanici", json=govde)
 
 
@@ -106,9 +106,9 @@ def test_kisa_parola_reddedilir(istemci: TestClient) -> None:
 
 def test_rol_atanabilir(istemci: TestClient) -> None:
     kullanici_id = _olustur(istemci, "rol-degisen").json()["kullanici_id"]
-    yanit = istemci.put(f"/api/kullanici/{kullanici_id}", json={"rol": "yonetim"})
+    yanit = istemci.put(f"/api/kullanici/{kullanici_id}", json={"rol": "hesap_yoneticisi"})
     assert yanit.status_code == 200
-    assert yanit.json()["rol"] == "yonetim"
+    assert yanit.json()["rol"] == "hesap_yoneticisi"
 
 
 def test_calisan_rolune_gecis_personel_baglantisi_ister(istemci: TestClient) -> None:
@@ -181,9 +181,9 @@ def test_yonetim_kendi_hesabini_kapatamaz_ve_rolunu_dusuremez(istemci: TestClien
         oturum.close()
 
     assert istemci.put(f"/api/kullanici/{id_}", json={"aktif": False}).status_code == 400
-    assert istemci.put(f"/api/kullanici/{id_}", json={"rol": "yonetici"}).status_code == 400
+    assert istemci.put(f"/api/kullanici/{id_}", json={"rol": "idare"}).status_code == 400
     # Kendi hesabinda baska bir degisiklik yasak degil.
-    assert istemci.put(f"/api/kullanici/{id_}", json={"rol": "yonetim"}).status_code == 200
+    assert istemci.put(f"/api/kullanici/{id_}", json={"rol": "hesap_yoneticisi"}).status_code == 200
 
 
 def test_bulunmayan_kullanici_404(istemci: TestClient) -> None:

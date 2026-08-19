@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.config import ayarlar
 from app.db import oturum_al
-from app.models.kimlik import Rol
+from app.models.kimlik import HESAP_YONETEN_ROLLER, IDARE_VE_USTU, Rol
 from app.services.oturum_servisi import CEREZ_ADI, OturumBaglami, OturumServisi
 
 VeriOturumu = Annotated[Session, Depends(oturum_al)]
@@ -119,12 +119,21 @@ def _rol_kapisi(*izinli: Rol):  # noqa: ANN202 - FastAPI bagimliligi dondurur
     return kapi
 
 
-# Yonetici arayuzunun tamami. Rol kapsayicidir (SRS 5.10): yonetim, yoneticinin
-# yetkilerini icerir.
-yonetici_yetkisi = _rol_kapisi(Rol.YONETICI, Rol.YONETIM)
+# Yonetici arayuzunun tamami: tanimlar, cozum, surum, analiz, musaitlik.
+# Rol kapsayicidir (SRS 5.10): sistem yoneticisi hesap yoneticisinin, hesap
+# yoneticisi idarenin yetkilerini icerir.
+idare_yetkisi = _rol_kapisi(*IDARE_VE_USTU)
 
-# Yalniz hesap yonetimi (FR-10.5). Yonetici rolu BURAYA GIREMEZ.
-yonetim_yetkisi = _rol_kapisi(Rol.YONETIM)
+# HESAP UC NOKTALARI (FR-10.5). IDARE BURAYA GIREMEZ ve bu, dort rollu
+# duzenin en kritik ayrimidir: cizelgeyi kuran kisinin parola sifirlamasi
+# icin bir neden yok. Ayrim yalnizca burada degil SERVISTE de denetlenir
+# (services/kullanici_servisi.py) - tek katmanli bir kontrol, ileride
+# eklenecek bir uc noktanin kapisiz kalmasiyla sessizce delinir.
+hesap_yonetimi_yetkisi = _rol_kapisi(*HESAP_YONETEN_ROLLER)
+
+# Yalniz sistem yoneticisi. Hesap yoneticisinin dokunamayacagi islemler
+# (sistem yoneticisi hesaplarinin degistirilmesi) icin.
+sistem_yoneticisi_yetkisi = _rol_kapisi(Rol.SISTEM_YONETICISI)
 
 
 def calisan_yetkisi(baglam: GirisYapan) -> OturumBaglami:

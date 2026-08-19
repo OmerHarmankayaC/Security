@@ -25,14 +25,15 @@ interface Props {
 
 const ROLLER: { deger: Rol; etiket: string; aciklama: string }[] = [
   { deger: 'calisan', etiket: 'Çalışan', aciklama: 'Yalnız kendi çizelgesi, özeti ve tercihleri' },
-  { deger: 'yonetici', etiket: 'Yönetici', aciklama: 'Vardiya yöneticisinin bütün işlevleri' },
-  { deger: 'yonetim', etiket: 'Yönetim', aciklama: 'Yöneticinin yetkileri + hesap yönetimi' },
+  { deger: 'idare', etiket: 'Yönetici', aciklama: 'Vardiya yöneticisinin bütün işlevleri' },
+  { deger: 'hesap_yoneticisi', etiket: 'Yönetim', aciklama: 'Yöneticinin yetkileri + hesap yönetimi' },
 ]
 
 const ROL_ETIKETI: Record<Rol, string> = {
   calisan: 'Çalışan',
-  yonetici: 'Yönetici',
-  yonetim: 'Yönetim',
+  idare: 'İdare',
+  hesap_yoneticisi: 'Hesap yöneticisi',
+  sistem_yoneticisi: 'Sistem yöneticisi',
 }
 
 const ALAN_SINIFI =

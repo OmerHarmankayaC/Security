@@ -369,7 +369,7 @@ def test_olmayan_personele_baglanan_hesap_400_alir() -> None:
     from app.models.kimlik import Rol
 
     pg_yoksa_atla()
-    yonetim = yetkili_istemci(Rol.YONETIM)
+    yonetim = yetkili_istemci(Rol.HESAP_YONETICISI)
     yanit = yonetim.post(
         "/api/kullanici",
         json={

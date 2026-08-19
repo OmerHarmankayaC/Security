@@ -175,7 +175,9 @@ def _bagimlilik_ezmelerini_temizle():  # noqa: ANN202 - pytest fixture
     app.dependency_overrides.clear()
 
 
-def yetkili_istemci(rol: Rol = Rol.YONETIM, *, personel_id: int | None = None) -> TestClient:
+def yetkili_istemci(
+    rol: Rol = Rol.HESAP_YONETICISI, *, personel_id: int | None = None
+) -> TestClient:
     """Verilen rolde giris yapmis sayilan istemci (oturum cozumu ezilir).
 
     Kullanici nesnesi veritabanina YAZILMAZ; kapilarin okudugu alanlari
@@ -219,7 +221,9 @@ def senaryo_verisini_temizle(oturum: Session) -> None:
     oturum.commit()
 
 
-def oturumlu_istemci(rol: Rol = Rol.YONETIM, *, personel_id: int | None = None) -> TestClient:
+def oturumlu_istemci(
+    rol: Rol = Rol.HESAP_YONETICISI, *, personel_id: int | None = None
+) -> TestClient:
     """Verilen rolde bir hesap acip giris yapmis bir istemci dondurur.
 
     Istemci `https://testserver` konusur: oturum cerezi uretimde Secure

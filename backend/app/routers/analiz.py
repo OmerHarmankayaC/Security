@@ -8,14 +8,14 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.db import oturum_al
-from app.guvenlik import yonetici_yetkisi
+from app.guvenlik import idare_yetkisi
 from app.schemas.analiz import AnalizOku
 from app.services.analiz_servisi import AnalizServisi
 from app.services.disa_aktarma_servisi import DisaAktarmaServisi, dosya_adi
 
 # Analiz raporlari butun personelin gece/hafta sonu/saat kirilimini tasir;
 # yonetici yetkisi ister (SRS 5.10).
-router = APIRouter(prefix="/api", tags=["analiz"], dependencies=[Depends(yonetici_yetkisi)])
+router = APIRouter(prefix="/api", tags=["analiz"], dependencies=[Depends(idare_yetkisi)])
 
 Oturum = Annotated[Session, Depends(oturum_al)]
 

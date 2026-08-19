@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db import oturum_al
-from app.guvenlik import yonetici_yetkisi
+from app.guvenlik import idare_yetkisi
 from app.models.girdi import TERCIH_GUN_TEKILLIGI
 from app.repositories.tanim import SilmeSonucu, TanimDeposu
 from app.schemas.girdi import (
@@ -61,7 +61,7 @@ from app.services.tanim_servisi import (
 # Butun tanim uc noktalari yonetici yetkisi ister (SRS 5.10: calisan rolu
 # tanim, cozum ve yayin islevlerine erisemez). Kapi ROUTER duzeyinde: bu
 # dosyaya sonradan eklenen bir uc noktanin kapisiz kalmasi mumkun degil.
-router = APIRouter(prefix="/api", tags=["tanim"], dependencies=[Depends(yonetici_yetkisi)])
+router = APIRouter(prefix="/api", tags=["tanim"], dependencies=[Depends(idare_yetkisi)])
 
 Oturum = Annotated[Session, Depends(oturum_al)]
 

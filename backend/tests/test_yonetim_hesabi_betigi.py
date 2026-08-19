@@ -85,7 +85,7 @@ def test_hesap_yonetim_rolunde_acilir_ve_parola_ozetlenir(oturum) -> None:  # no
     kullanici = hesap_ac(oturum, ad, PAROLA)
     oturum.flush()
 
-    assert kullanici.rol is Rol.YONETIM
+    assert kullanici.rol is Rol.HESAP_YONETICISI
     assert kullanici.aktif is True
     # Parola ozetlenmis: satirda duz metin YOK, ama dogrulama caliyor.
     assert PAROLA not in kullanici.parola_ozeti
@@ -160,7 +160,7 @@ def test_kullanicilar_arasinda_kurulum_hesabi_ayricalikli_degil(oturum) -> None:
     kayit = oturum.query(Kullanici).filter(Kullanici.kullanici_adi == ad).one()
     sutunlar = {s.name for s in Kullanici.__table__.columns}
     assert "kurulum" not in " ".join(sutunlar)
-    assert kayit.rol is Rol.YONETIM
+    assert kayit.rol is Rol.HESAP_YONETICISI
 
 
 def test_varsayilan_kullanici_adi_admin() -> None:

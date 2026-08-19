@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db import oturum_al
-from app.guvenlik import GirisYapan, yonetim_yetkisi
+from app.guvenlik import GirisYapan, hesap_yonetimi_yetkisi
 from app.models.kimlik import Kullanici
 from app.repositories.tanim import PersonelDeposu
 from app.schemas.kullanici import (
@@ -26,6 +26,7 @@ from app.schemas.kullanici import (
     ParolaSifirla,
 )
 from app.services.kullanici_servisi import (
+    HesapYonetmeYetkisiYokError,
     KendiHesabiError,
     KullaniciAdiGecersizError,
     KullaniciAdiKullanimdaError,
@@ -34,11 +35,13 @@ from app.services.kullanici_servisi import (
     PersonelBaglantisiGerekliError,
     PersonelBulunamadiError,
     PersonelZatenBagliError,
+    SistemYoneticisineDokunulamazError,
+    SonSistemYoneticisiError,
 )
 from app.services.parola import ParolaKuraliError
 
 router = APIRouter(
-    prefix="/api/kullanici", tags=["kullanici"], dependencies=[Depends(yonetim_yetkisi)]
+    prefix="/api/kullanici", tags=["kullanici"], dependencies=[Depends(hesap_yonetimi_yetkisi)]
 )
 
 Oturum = Annotated[Session, Depends(oturum_al)]
@@ -46,6 +49,25 @@ Oturum = Annotated[Session, Depends(oturum_al)]
 # Servis, kullaniciya gosterilebilir metni istisnanin icinde tasir; hepsi
 # 400'e cevrilir. Ayri ayri yazilsalardi yeni bir kural eklendiginde
 # router'da karsiliginin unutulmasi 500 uretirdi.
+# FR-10.12'nin uc korumasi 403 doner, 400 DEGIL: istek gecerli, YETKI yok.
+# 400 dondurmek arayuze "girdiyi duzelt" dedirtirdi; duzeltilecek bir girdi
+# yok, yapilamayacak bir islem var.
+_YETKI_HATALARI = (
+    HesapYonetmeYetkisiYokError,
+    SistemYoneticisineDokunulamazError,
+    SonSistemYoneticisiError,
+)
+
+_YETKI_METNI = {
+    HesapYonetmeYetkisiYokError: "Hesap yonetimi icin yetkiniz yok",
+    SistemYoneticisineDokunulamazError: (
+        "Sistem yoneticisi hesaplarini yalnizca sistem yoneticisi degistirebilir"
+    ),
+    SonSistemYoneticisiError: (
+        "Sistemde en az bir etkin sistem yoneticisi kalmali; bu hesap dusurulemez"
+    ),
+}
+
 _ISTEK_HATALARI = (
     KullaniciAdiGecersizError,
     KullaniciAdiKullanimdaError,
@@ -90,6 +112,8 @@ def olustur(veri: KullaniciOlustur, baglam: GirisYapan, oturum: Oturum) -> Kulla
             veri.personel_id,
             isteyen=baglam.kullanici,
         )
+    except _YETKI_HATALARI as hata:
+        raise HTTPException(status_code=403, detail=_YETKI_METNI[type(hata)]) from hata
     except _ISTEK_HATALARI as hata:
         raise HTTPException(status_code=400, detail=str(hata)) from hata
     return _oku(kullanici, oturum)
@@ -115,6 +139,8 @@ def guncelle(
             status_code=400,
             detail="Kendi rolunuzu degistiremez ve kendi hesabinizi devre disi birakamazsiniz",
         ) from hata
+    except _YETKI_HATALARI as hata:
+        raise HTTPException(status_code=403, detail=_YETKI_METNI[type(hata)]) from hata
     except _ISTEK_HATALARI as hata:
         raise HTTPException(status_code=400, detail=str(hata)) from hata
     return _oku(kullanici, oturum)
@@ -132,6 +158,8 @@ def parola_sifirla(
         )
     except KullaniciBulunamadiError as hata:
         raise HTTPException(status_code=404, detail="Kullanici bulunamadi") from hata
+    except _YETKI_HATALARI as hata:
+        raise HTTPException(status_code=403, detail=_YETKI_METNI[type(hata)]) from hata
     except _ISTEK_HATALARI as hata:
         raise HTTPException(status_code=400, detail=str(hata)) from hata
     return _oku(kullanici, oturum)

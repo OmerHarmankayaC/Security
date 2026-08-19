@@ -6,8 +6,8 @@ import { OturumBaglami } from '@/components/OturumBaglami'
 import { KullanicilarEkrani } from './KullanicilarEkrani'
 
 const BEN: Ben = {
-  kullanici_adi: 'yonetim',
-  rol: 'yonetim',
+  kullanici_adi: 'hesap_yoneticisi',
+  rol: 'hesap_yoneticisi',
   parola_degistirmeli: false,
   personel_id: null,
   ad_soyad: null,
@@ -16,8 +16,8 @@ const BEN: Ben = {
 const KULLANICILAR: Kullanici[] = [
   {
     kullanici_id: 1,
-    kullanici_adi: 'yonetim',
-    rol: 'yonetim',
+    kullanici_adi: 'hesap_yoneticisi',
+    rol: 'hesap_yoneticisi',
     personel_id: null,
     ad_soyad: null,
     aktif: true,
@@ -37,7 +37,7 @@ const KULLANICILAR: Kullanici[] = [
   {
     kullanici_id: 3,
     kullanici_adi: 'eski.hesap',
-    rol: 'yonetici',
+    rol: 'idare',
     personel_id: null,
     ad_soyad: null,
     aktif: false,
@@ -70,7 +70,7 @@ function ekraniCiz() {
       {/* Kabuk üst çubuğu çalışan iş göstergesini taşıyor; sağlayıcısı
           olmadan AppShell çizilemez (SDD 6.1). */}
       <AktifIsSaglayici>
-        <KullanicilarEkrani ekranSec={vi.fn()} kendiKullaniciAdi="yonetim" />
+        <KullanicilarEkrani ekranSec={vi.fn()} kendiKullaniciAdi="hesap_yoneticisi" />
       </AktifIsSaglayici>
     </OturumBaglami.Provider>,
   )

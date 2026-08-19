@@ -15,8 +15,9 @@ export type { NavOgesi }
 
 const ROL_ETIKETI: Record<Rol, string> = {
   calisan: 'Çalışan',
-  yonetici: 'Yönetici',
-  yonetim: 'Yönetim',
+  idare: 'İdare',
+  hesap_yoneticisi: 'Hesap yöneticisi',
+  sistem_yoneticisi: 'Sistem yöneticisi',
 }
 
 interface AppShellProps {

@@ -46,9 +46,9 @@ function ekraniAc(aktifIs: CozumIsi | null) {
     <OturumBaglami.Provider
       value={{
         ben: {
-          kullanici_adi: 'yonetici',
+          kullanici_adi: 'idare',
           ad_soyad: 'Yönetici',
-          rol: 'yonetici',
+          rol: 'idare',
           personel_id: null,
           parola_degistirmeli: false,
         },
@@ -158,9 +158,9 @@ describe('Çalışan iş göstergesi (SRS FR-4.11)', () => {
       <OturumBaglami.Provider
         value={{
           ben: {
-            kullanici_adi: 'yonetici',
+            kullanici_adi: 'idare',
             ad_soyad: 'Yönetici',
-            rol: 'yonetici',
+            rol: 'idare',
             personel_id: null,
             parola_degistirmeli: false,
           },

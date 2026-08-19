@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.db import oturum_al
-from app.guvenlik import yonetici_yetkisi
+from app.guvenlik import idare_yetkisi
 from app.kurallar.temel import Ihlal
 from app.repositories.sonuc import (
     AtamaDeposu,
@@ -71,7 +71,7 @@ from app.services.surum_servisi import (
 
 # Cozum, manuel duzenleme, surum ve yayin islevlerinin tamami yonetici
 # yetkisi ister (SRS 5.10). Kapi router duzeyinde bagli.
-router = APIRouter(prefix="/api", tags=["cizelge"], dependencies=[Depends(yonetici_yetkisi)])
+router = APIRouter(prefix="/api", tags=["cizelge"], dependencies=[Depends(idare_yetkisi)])
 
 Oturum = Annotated[Session, Depends(oturum_al)]
 

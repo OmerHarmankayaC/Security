@@ -59,7 +59,7 @@ def _kullanici_olustur(
     kullanici_adi: str,
     *,
     parola: str = PAROLA,
-    rol: Rol = Rol.YONETICI,
+    rol: Rol = Rol.IDARE,
     aktif: bool = True,
     parola_degistirmeli: bool = False,
     personel_id: int | None = None,
@@ -105,12 +105,12 @@ def _giris(istemci: TestClient, kullanici_adi: str, parola: str = PAROLA):
 
 
 def test_giris_cerez_yazar_ve_rolu_dondurur(istemci: TestClient) -> None:
-    _kullanici_olustur("giris-mutlu", rol=Rol.YONETIM)
+    _kullanici_olustur("giris-mutlu", rol=Rol.HESAP_YONETICISI)
 
     yanit = _giris(istemci, "giris-mutlu")
 
     assert yanit.status_code == 200
-    assert yanit.json()["rol"] == "yonetim"
+    assert yanit.json()["rol"] == "hesap_yoneticisi"
     assert yanit.json()["parola_degistirmeli"] is False
 
     cerez = yanit.headers["set-cookie"]

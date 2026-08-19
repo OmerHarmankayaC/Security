@@ -20,18 +20,33 @@ from app.models.ortak import ZamanDamgasi, ZamanDamgasiKarisimi
 
 
 class Rol(enum.StrEnum):
-    """SRS 5.10'daki uc rol.
+    """SRS 5.10'daki DORT rol.
 
-    Roller KAPSAYICI degil, ayri degerlerdir: `YONETIM`, `YONETICI`nin
-    yetkilerini icerir ama bu iceri alma veritabaninda degil yetkilendirme
-    katmaninda (app/services/yetki.py) tanimlanir - siralamayi veriye
-    gomsek, yeni bir rol eklendiginde siralamanin nereye girecegi sessiz bir
-    karara donusurdu.
+    Roller KAPSAYICI degil, ayri degerlerdir: `SISTEM_YONETICISI`,
+    `HESAP_YONETICISI`nin yetkilerini icerir ama bu iceri alma veritabaninda
+    degil yetkilendirme katmaninda (app/guvenlik.py) tanimlanir - siralamayi
+    veriye gomsek, yeni bir rol eklendiginde siralamanin nereye girecegi
+    sessiz bir karara donusurdu.
+
+    IDARE ILE HESAP_YONETICISI AYRIMI bu surumun asil konusu (SRS 5.10):
+    vardiya planlamak ile hesap acmak farkli islerdir. Onceki uc rollu
+    duzende ikisi tek roldeydi ve cizelgeyi kuran kisi, ihtiyac duymadigi
+    bir yetkiyi - parola sifirlamayi - tasiyordu.
     """
 
     CALISAN = "calisan"
-    YONETICI = "yonetici"
-    YONETIM = "yonetim"
+    IDARE = "idare"
+    HESAP_YONETICISI = "hesap_yoneticisi"
+    SISTEM_YONETICISI = "sistem_yoneticisi"
+
+
+# Yonetici arayuzune giren roller (SRS 5.10). Hesap uc noktalari BU KUMEYE
+# DEGIL, asagidakine bakar.
+IDARE_VE_USTU = frozenset({Rol.IDARE, Rol.HESAP_YONETICISI, Rol.SISTEM_YONETICISI})
+
+# Hesap yonetimi yetkisi (FR-10.5). IDARE BURAYA GIREMEZ - dort rollu
+# duzenin en kritik ayrimi budur.
+HESAP_YONETEN_ROLLER = frozenset({Rol.HESAP_YONETICISI, Rol.SISTEM_YONETICISI})
 
 
 class Kullanici(Base, ZamanDamgasiKarisimi):

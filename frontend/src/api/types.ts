@@ -624,7 +624,11 @@ export interface CalisanTercihListesi {
 
 // --- Kimlik ve hesaplar (SRS 5.10, FR-10.x) --------------------------------
 
-export type Rol = 'calisan' | 'yonetici' | 'yonetim'
+/**
+ * SRS 5.10'daki dört rol. Kapsayıcılık BURADA DEĞİL `lib/yetki.ts`'de
+ * tanımlıdır; tip yalnız değerleri sayar.
+ */
+export type Rol = 'calisan' | 'idare' | 'hesap_yoneticisi' | 'sistem_yoneticisi'
 
 /** `/api/ben` — giriş yapan kullanıcının kendi tanımı. */
 export interface Ben {

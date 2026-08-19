@@ -77,7 +77,7 @@ def test_yonetim_hesabi_personelsiz_acilabilir(oturum: Session) -> None:
         Kullanici(
             kullanici_adi="kimlik-yonetim",
             parola_ozeti=ozetle(_PAROLA),
-            rol=Rol.YONETIM,
+            rol=Rol.HESAP_YONETICISI,
         )
     )
     oturum.flush()
@@ -89,7 +89,7 @@ def test_kullanici_adi_benzersizdir(oturum: Session) -> None:
             Kullanici(
                 kullanici_adi="kimlik-tekrar",
                 parola_ozeti=ozetle(_PAROLA),
-                rol=Rol.YONETICI,
+                rol=Rol.IDARE,
             )
         )
     with pytest.raises(IntegrityError):
@@ -105,7 +105,7 @@ def test_varsayilanlar_hesabi_acik_ve_kilitsiz_dogurur(oturum: Session) -> None:
     kullanici = Kullanici(
         kullanici_adi="kimlik-varsayilan",
         parola_ozeti=ozetle(_PAROLA),
-        rol=Rol.YONETICI,
+        rol=Rol.IDARE,
     )
     oturum.add(kullanici)
     oturum.flush()
@@ -121,7 +121,7 @@ def test_oturum_kayit_edilir_ve_kullaniciya_baglidir(oturum: Session) -> None:
     kullanici = Kullanici(
         kullanici_adi="kimlik-oturumlu",
         parola_ozeti=ozetle(_PAROLA),
-        rol=Rol.YONETICI,
+        rol=Rol.IDARE,
     )
     oturum.add(kullanici)
     oturum.flush()

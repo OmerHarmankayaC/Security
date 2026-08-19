@@ -19,15 +19,15 @@ describe('yuzeySec', () => {
 
   it('rolü kendi yüzeyine götürür (SRS 5.10)', () => {
     expect(yuzeySec(ben('calisan'))).toBe('calisan')
-    expect(yuzeySec(ben('yonetici'))).toBe('yonetici')
-    expect(yuzeySec(ben('yonetim'))).toBe('yonetici')
+    expect(yuzeySec(ben('idare'))).toBe('idare')
+    expect(yuzeySec(ben('hesap_yoneticisi'))).toBe('idare')
   })
 
   it('parola borcu her rolde diğer her şeyin önüne geçer (FR-10.7)', () => {
     // Sunucu da diğer uç noktaları kapatıyor; arayüz kullanıcıyı boş
     // ekranlarla baş başa bırakmasın diye doğrudan borcun ödeneceği yere
     // götürür. Üç rolde de aynı, çünkü borç role bağlı değil.
-    for (const rol of ['calisan', 'yonetici', 'yonetim'] as const) {
+    for (const rol of ['calisan', 'idare', 'hesap_yoneticisi'] as const) {
       expect(yuzeySec(ben(rol, true))).toBe('parola')
     }
   })
@@ -38,14 +38,14 @@ describe('navGruplari', () => {
     const kullanicilariIceriyor = (rol: Rol) =>
       navGruplari(rol).some((g) => g.ogeler.includes('Kullanıcılar'))
 
-    expect(kullanicilariIceriyor('yonetim')).toBe(true)
-    expect(kullanicilariIceriyor('yonetici')).toBe(false)
+    expect(kullanicilariIceriyor('hesap_yoneticisi')).toBe(true)
+    expect(kullanicilariIceriyor('idare')).toBe(false)
     expect(kullanicilariIceriyor('calisan')).toBe(false)
   })
 
   it('yöneticinin menüsü yönetiminkinin alt kümesidir (roller kapsayıcı)', () => {
-    const yoneticininkiler = navGruplari('yonetici').flatMap((g) => g.ogeler)
-    const yonetiminkiler = navGruplari('yonetim').flatMap((g) => g.ogeler)
+    const yoneticininkiler = navGruplari('idare').flatMap((g) => g.ogeler)
+    const yonetiminkiler = navGruplari('hesap_yoneticisi').flatMap((g) => g.ogeler)
     for (const oge of yoneticininkiler) {
       expect(yonetiminkiler).toContain(oge)
     }
@@ -55,14 +55,14 @@ describe('navGruplari', () => {
     // navGruplari yeni bir dizi döndürmeliydi; ortak NAV_GRUPLARI'na
     // eklemek, bir kez yönetim rolüyle çağrıldıktan sonra yöneticiye de
     // Kullanıcılar menüsünü gösterirdi.
-    navGruplari('yonetim')
-    expect(navGruplari('yonetici').some((g) => g.ogeler.includes('Kullanıcılar'))).toBe(false)
+    navGruplari('hesap_yoneticisi')
+    expect(navGruplari('idare').some((g) => g.ogeler.includes('Kullanıcılar'))).toBe(false)
   })
 })
 
 describe('yuzeyBasligi', () => {
   it('her yüzeye ayrı bir sekme başlığı verir', () => {
-    const basliklar = (['giris', 'parola', 'calisan', 'yonetici'] as const).map(yuzeyBasligi)
+    const basliklar = (['giris', 'parola', 'calisan', 'idare'] as const).map(yuzeyBasligi)
     expect(new Set(basliklar).size).toBe(basliklar.length)
     for (const baslik of basliklar) expect(baslik.startsWith('Vardiya')).toBe(true)
   })

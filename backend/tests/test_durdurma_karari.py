@@ -405,7 +405,7 @@ def test_gecici_sonuc_hicbir_okuma_yuzeyine_sizmaz(
     finally:
         oturum.close()
 
-    istemci = yetkili_istemci(Rol.YONETICI)
+    istemci = yetkili_istemci(Rol.IDARE)
     assert istemci.get(f"/api/surum/{surum_id}/atama").json() == []
     assert istemci.get(f"/api/surum/{surum_id}/kapsama-acigi").json() == []
     assert istemci.get(f"/api/surum/{surum_id}/fazla-kadro").json() == []
@@ -431,7 +431,7 @@ def test_aktif_uc_karar_bekleyen_isi_de_dondurur(
     ekrandayken durdurup unutursa is sessizce askida kalmasin."""
     is_id = _durdurulmus_is(kurulum["donem_id"], monkeypatch)
 
-    istemci = yetkili_istemci(Rol.YONETICI)
+    istemci = yetkili_istemci(Rol.IDARE)
     aktif = istemci.get("/api/cozum/aktif").json()
     assert aktif is not None
     assert aktif["is_id"] == is_id
@@ -458,8 +458,8 @@ def test_aktif_uc_calisan_rolune_kapali(kurulum: dict[str, int]) -> None:
         yetkili_istemci(Rol.CALISAN, personel_id=personel_id).get("/api/cozum/aktif").status_code
         == 403
     )
-    assert yetkili_istemci(Rol.YONETICI).get("/api/cozum/aktif").status_code == 200
-    assert yetkili_istemci(Rol.YONETIM).get("/api/cozum/aktif").status_code == 200
+    assert yetkili_istemci(Rol.IDARE).get("/api/cozum/aktif").status_code == 200
+    assert yetkili_istemci(Rol.HESAP_YONETICISI).get("/api/cozum/aktif").status_code == 200
 
 
 # --- Uc noktalar --------------------------------------------------------------
@@ -477,7 +477,7 @@ def test_kuyruktaki_isin_durdurulmasi_dogrudan_iptaldir(kurulum: dict[str, int])
     finally:
         oturum.close()
 
-    istemci = yetkili_istemci(Rol.YONETICI)
+    istemci = yetkili_istemci(Rol.IDARE)
     yanit = istemci.post(f"/api/cozum/{is_id}/durdur", json={})
     assert yanit.status_code == 200
     govde = yanit.json()
@@ -510,7 +510,7 @@ def test_cozulurken_durdurma_karar_noktasi_dogurur(
     sorulur (SRS FR-4.9)."""
     is_id = _durdurulmus_is(kurulum["donem_id"], monkeypatch)
 
-    istemci = yetkili_istemci(Rol.YONETICI)
+    istemci = yetkili_istemci(Rol.IDARE)
     govde = istemci.get(f"/api/cozum/{is_id}").json()
     assert govde["durum"] == "durduruldu"
     assert govde["kullanilabilir_sonuc_var"] is True
@@ -532,12 +532,12 @@ def test_sonlanmis_isin_durdurulmasi_anlasilir_hata_verir(
     finally:
         oturum.close()
 
-    yanit = yetkili_istemci(Rol.YONETICI).post(f"/api/cozum/{is_id}/durdur", json={})
+    yanit = yetkili_istemci(Rol.IDARE).post(f"/api/cozum/{is_id}/durdur", json={})
     assert yanit.status_code == 409
     assert "iptal" in yanit.json()["detail"].lower()
 
     assert (
-        yetkili_istemci(Rol.YONETICI).post("/api/cozum/999999/durdur", json={}).status_code == 404
+        yetkili_istemci(Rol.IDARE).post("/api/cozum/999999/durdur", json={}).status_code == 404
     )
 
 
@@ -545,7 +545,7 @@ def test_karar_ucu_uc_secenegi_de_kabul_eder(
     kurulum: dict[str, int], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     is_id = _durdurulmus_is(kurulum["donem_id"], monkeypatch)
-    istemci = yetkili_istemci(Rol.YONETICI)
+    istemci = yetkili_istemci(Rol.IDARE)
 
     yanit = istemci.post(f"/api/cozum/{is_id}/karar", json={"karar": "at"})
     assert yanit.status_code == 200
@@ -564,7 +564,7 @@ def test_karar_ucu_zaman_limitini_yalniz_devamda_kabul_eder(
     sifirdan isler. "Kullan"/"at" bir arama baslatmadigi icin oradaki bir
     sure degeri sessizce yok sayilirdi."""
     is_id = _durdurulmus_is(kurulum["donem_id"], monkeypatch)
-    istemci = yetkili_istemci(Rol.YONETICI)
+    istemci = yetkili_istemci(Rol.IDARE)
 
     yanit = istemci.post(
         f"/api/cozum/{is_id}/karar", json={"karar": "at", "zaman_limiti_saniye": 30}

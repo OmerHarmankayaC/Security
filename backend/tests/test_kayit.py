@@ -43,7 +43,7 @@ def _kullanici(kullanici_adi: str, *, aktif: bool = True) -> None:
             Kullanici(
                 kullanici_adi=kullanici_adi,
                 parola_ozeti=ozetle(PAROLA),
-                rol=Rol.YONETICI,
+                rol=Rol.IDARE,
                 aktif=aktif,
             )
         )
@@ -71,7 +71,7 @@ def test_basarili_giris_kaydedilir(temiz, caplog: pytest.LogCaptureFixture) -> N
     metin = _metin(caplog)
     assert "olay=giris_basarili" in metin
     assert "kullanici=kayit-basarili" in metin
-    assert "rol=yonetici" in metin
+    assert "rol=idare" in metin
 
 
 def test_basarisiz_giris_nedeniyle_birlikte_kaydedilir(
@@ -124,18 +124,18 @@ def test_hesap_yonetimi_islemleri_yapaniyla_birlikte_kaydedilir(
     """ "Kim yapti" olmadan bir hesap yonetimi kaydi yarim kalirdi: neyin
     degistigi bilinir ama sorumlusu bilinmezdi."""
     pg_yoksa_atla()
-    istemci = oturumlu_istemci(Rol.YONETIM)
+    istemci = oturumlu_istemci(Rol.HESAP_YONETICISI)
     ad = f"kayit{uuid.uuid4().hex[:8]}"
 
     with caplog.at_level(logging.INFO, logger=KAYITCI):
         yanit = istemci.post(
             "/api/kullanici",
-            json={"kullanici_adi": ad, "parola": PAROLA, "rol": "yonetici"},
+            json={"kullanici_adi": ad, "parola": PAROLA, "rol": "idare"},
         )
         assert yanit.status_code == 201
         kullanici_id = yanit.json()["kullanici_id"]
 
-        istemci.put(f"/api/kullanici/{kullanici_id}", json={"rol": "yonetim"})
+        istemci.put(f"/api/kullanici/{kullanici_id}", json={"rol": "hesap_yoneticisi"})
         istemci.put(f"/api/kullanici/{kullanici_id}", json={"aktif": False})
         istemci.post(
             f"/api/kullanici/{kullanici_id}/parola-sifirla",

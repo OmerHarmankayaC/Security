@@ -1,4 +1,7 @@
 import type { Ben, Rol } from '@/api/types'
+
+/** Hesap uç noktalarına giren roller (SRS 5.10, FR-10.5). */
+export const HESAP_YONETEN_ROLLER: readonly Rol[] = ['hesap_yoneticisi', 'sistem_yoneticisi']
 import { NAV_GRUPLARI, type NavGrubu } from '@/components/nav'
 
 /**
@@ -14,7 +17,7 @@ import { NAV_GRUPLARI, type NavGrubu } from '@/components/nav'
  * kullanıcıya erişemeyeceği bir şeyi göstermemek içindir.
  */
 
-export type Yuzey = 'giris' | 'parola' | 'calisan' | 'yonetici'
+export type Yuzey = 'giris' | 'parola' | 'calisan' | 'idare'
 
 export function yuzeySec(ben: Ben | null): Yuzey {
   if (ben === null) return 'giris'
@@ -22,7 +25,7 @@ export function yuzeySec(ben: Ben | null): Yuzey {
   // kapatır; arayüz kullanıcıyı boş ekranlarla baş başa bırakmasın diye
   // doğrudan borcun ödeneceği yere götürür.
   if (ben.parola_degistirmeli) return 'parola'
-  return ben.rol === 'calisan' ? 'calisan' : 'yonetici'
+  return ben.rol === 'calisan' ? 'calisan' : 'idare'
 }
 
 /** Sekme başlığı — yüzeyle BİRLİKTE seçilir ki yeni yüzey eklendiğinde
@@ -35,7 +38,7 @@ export function yuzeyBasligi(yuzey: Yuzey): string {
       return 'Vardiya — Parola'
     case 'calisan':
       return 'Vardiya — Çalışan'
-    case 'yonetici':
+    case 'idare':
       return 'Vardiya — Admin'
   }
 }
@@ -45,6 +48,9 @@ export function navGruplari(rol: Rol): NavGrubu[] {
   // Künye HER ROLE açıktır: projenin ne olduğunu ve kimin geliştirdiğini
   // söyler, veri taşımaz. Menünün en altında, kendi başlığı olmadan durur.
   const kunye: NavGrubu = { baslik: null, ogeler: ['Künye'] }
-  if (rol !== 'yonetim') return [...NAV_GRUPLARI, kunye]
+  // KULLANICILAR EKRANI İDAREYE GÖRÜNMEZ (SRS 5.10). Menüden gizlemek
+  // yetkilendirme DEĞİLDİR (FR-10.4) — kapı sunucudadır; buradaki gizleme
+  // yalnızca kullanıcıya erişemeyeceği bir yolu göstermemek içindir.
+  if (!HESAP_YONETEN_ROLLER.includes(rol)) return [...NAV_GRUPLARI, kunye]
   return [...NAV_GRUPLARI, { baslik: 'YÖNETİM', ogeler: ['Kullanıcılar'] }, kunye]
 }
