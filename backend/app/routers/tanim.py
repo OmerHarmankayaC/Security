@@ -7,7 +7,7 @@ cagirir, sonucu JSON'a cevirir. Is mantigi burada yer almaz.
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -365,14 +365,10 @@ def kural_guncelle(kimlik: str, veri: KuralGuncelle, servis: Servis) -> KuralOku
 
 
 @router.get("/musaitlik", response_model=list[MusaitlikOku])
-def musaitlik_listele(servis: Servis, oturum: Oturum) -> list[MusaitlikOku]:
-    # Belgesi olan kayitlar TEK SORGUDA okunur; satir basina sorgu otuz
-    # kayitta otuz gidis donus ederdi.
-    belgeliler = BelgeServisi(oturum).belgesi_olan_izinler()
+def musaitlik_listele(servis: Servis) -> list[MusaitlikOku]:
+    # `belge_var` artik satirin kendisinden okunur; ayri sorgu gerekmez.
     return [
-        MusaitlikOku.model_validate(m).model_copy(
-            update={"belge_var": m.musaitlik_id in belgeliler}
-        )
+        MusaitlikOku.model_validate(m).model_copy(update={"belge_var": m.belge_icerik is not None})
         for m in servis.musaitlik.tumunu_getir()
     ]
 
@@ -406,12 +402,9 @@ async def izin_belgesi_yukle(
 ) -> BelgeOku:
     icerik = await dosya.read()
     try:
-        belge = BelgeServisi(oturum).yukle(
-            musaitlik_id,
-            dosya.filename or "belge",
-            dosya.content_type or "application/octet-stream",
-            icerik,
-        )
+        # `dosya.content_type` KULLANILMAZ: istemcinin bildirdigi tiptir ve
+        # kullanici girdisidir. Servis tipi icerigin imzasindan okur.
+        kayit = BelgeServisi(oturum).yukle(musaitlik_id, dosya.filename or "belge", icerik)
     except BelgeTipiKabulEdilmediError as hata:
         raise HTTPException(
             status_code=415,
@@ -419,24 +412,12 @@ async def izin_belgesi_yukle(
         ) from hata
     except BelgeCokBuyukError as hata:
         raise HTTPException(status_code=413, detail="Dosya cok buyuk; azami 5 MB.") from hata
-    if belge is None:
+    if kayit is None:
         raise HTTPException(status_code=404, detail="Izin kaydi bulunamadi")
     return BelgeOku(
-        dosya_adi=belge.dosya_adi, icerik_tipi=belge.icerik_tipi, boyut_bayt=belge.boyut_bayt
-    )
-
-
-@router.get("/musaitlik/{musaitlik_id}/belge")
-def izin_belgesi_indir(musaitlik_id: int, oturum: Oturum) -> Response:
-    belge = BelgeServisi(oturum).getir(musaitlik_id)
-    if belge is None:
-        raise HTTPException(status_code=404, detail="Bu izin kaydinda belge yok")
-    return Response(
-        content=belge.icerik,
-        media_type=belge.icerik_tipi,
-        # `inline` DEGIL `attachment`: tarayicinin belgeyi kendi baglaminda
-        # acmasi yerine indirmesi istenir.
-        headers={"Content-Disposition": f'attachment; filename="{belge.dosya_adi}"'},
+        dosya_adi=kayit.belge_adi or "",
+        icerik_tipi=kayit.belge_tipi or "",
+        boyut_bayt=kayit.belge_boyut or 0,
     )
 
 

@@ -34,6 +34,7 @@ from fastapi.routing import APIRoute  # noqa: E402
 
 from app.guvenlik import (  # noqa: E402
     calisan_yetkisi,
+    giris_yapan,
     hesap_yonetimi_yetkisi,
     idare_yetkisi,
     oturum_baglami,
@@ -54,6 +55,13 @@ _KAPI_ADLARI = {
     # yalniz (yol, yontem) karsilastirdigi icin fark gorunmez kalirdi.
     idare_yetkisi: "idare ve ustu",
     calisan_yetkisi: "calisan",
+    # `giris_yapan` = gecerli oturum + parola borcu yok (FR-10.7).
+    # `oturum_baglami` = yalniz gecerli oturum. Ikisi de "giris yapmis her
+    # rol"dur; ONCEDEN YALNIZ IKINCISI TANIMLIYDI ve `giris_yapan` ile
+    # korunan bir uc nokta belgede "**yok** (acik)" gorunuyordu — kapisi
+    # olan bir ucun kapisiz raporlanmasi, kapisiz kalmasindan daha
+    # tehlikelidir cunku denetim onu yakalamaz.
+    giris_yapan: "giris yapmis her rol",
     oturum_baglami: "giris yapmis her rol",
 }
 

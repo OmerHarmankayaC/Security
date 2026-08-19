@@ -45,6 +45,25 @@ class Musaitlik(Base, ZamanDamgasiKarisimi):
     tip: Mapped[MusaitlikTipi]
     not_: Mapped[str | None] = mapped_column("not", default=None)
 
+    # --- Dayanak belge (SRS FR-2.7, TD-17; SDD 4.2.1, 5.10) ----------------
+    #
+    # AYRI TABLO DEGIL SUTUN. Kayit silindiginde belge AYNI ISLEMDE gider ve
+    # yetim satir ihtimali tanimsizlasir; ayri tabloda bu, yabanci anahtarin
+    # ON DELETE CASCADE'ine bagli bir AYAR olurdu, bir kural degil.
+    #
+    # ICERIK VERITABANINDA (bytea), dosya sisteminde degil: sistem yedegi
+    # veritabani yedegidir (SDD 3.4.5) ve disarida tutulan dosyalar yedege
+    # girmez - bir gun sessizce kaybolurlar ve kayboldugunu gosteren hicbir
+    # belirti olmaz.
+    #
+    # BELGE SAGLIK VERISI OLABILIR (doktor raporu): okuma yetkisi rol
+    # kapisiyla degil KAYDIN SAHIPLIGIYLE belirlenir ve her erisim kayda
+    # gecer (routers/belge.py).
+    belge_adi: Mapped[str | None] = mapped_column(default=None)
+    belge_tipi: Mapped[str | None] = mapped_column(default=None)
+    belge_boyut: Mapped[int | None] = mapped_column(default=None)
+    belge_icerik: Mapped[bytes | None] = mapped_column(LargeBinary, default=None)
+
 
 # Kisit ADI tek yerde: yakalayan taraf (routers/tanim.py) hangi kisidin
 # dustugunu metinden ayirt eder ve yabanci anahtar ihlalini yanlislikla
@@ -73,39 +92,8 @@ class Tercih(Base, ZamanDamgasiKarisimi):
     ret_gerekcesi: Mapped[str | None] = mapped_column(default=None)
 
 
-class MusaitlikBelgesi(Base, ZamanDamgasiKarisimi):
-    """Bir izin kaydina eklenen belge (doktor raporu, izin dilekcesi).
-
-    AYRI TABLO, `musaitlik` sutunu DEGIL. Izin listesi her ekranda okunur ve
-    ikili icerigi ayni satirda tasimak, belgeyi hic istemeyen sorgulari da
-    ona baglardi. Bire bir iliski `musaitlik_id` uzerindeki benzersizlik
-    kisitiyla zorlanir: bir izin kaydinin en fazla bir belgesi olur.
-
-    ICERIK VERITABANINDA DURUR (bytea), dosya sisteminde degil. Projenin
-    yedekleme yordami `pg_dump`tir (deploy/DAGITIM.md) ve dosya sistemi ondan
-    HARICTIR; belgeler diske yazilsaydi yedegi alinmayan bir veri turu dogar
-    ve bu ancak geri yukleme gununde fark edilirdi.
-
-    SAGLIK VERISI OLABILIR (doktor raporu): okuma yetkisi kayit sahibine ve
-    yonetici tarafina sinirlidir, bkz. routers/girdi.py.
-    """
-
-    __tablename__ = "musaitlik_belgesi"
-    __table_args__ = (UniqueConstraint("musaitlik_id", name="uq_musaitlik_belgesi_musaitlik"),)
-
-    belge_id: Mapped[int] = mapped_column(primary_key=True)
-    musaitlik_id: Mapped[int] = mapped_column(ForeignKey("musaitlik.musaitlik_id"))
-    # Kullanicinin yukledigi ad; indirmede bu adla sunulur.
-    dosya_adi: Mapped[str]
-    # MIME tipi; taranan ad degil, KABUL EDILEN tiplerden biri (servis dogrular).
-    icerik_tipi: Mapped[str]
-    boyut_bayt: Mapped[int]
-    icerik: Mapped[bytes] = mapped_column(LargeBinary)
-
-
 __all__ = [
     "TERCIH_GUN_TEKILLIGI",
-    "MusaitlikBelgesi",
     "Musaitlik",
     "MusaitlikDilimi",
     "MusaitlikTipi",

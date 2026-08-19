@@ -131,7 +131,7 @@ def test_hesap_yoneticisi_sistem_yoneticisine_dokunamaz(oturum) -> None:  # noqa
         servis.parola_sifirla(sistem.kullanici_id, PAROLA, isteyen=hesapci)
 
 
-def test_hesap_yoneticisi_sistem_yoneticisi_hesabi_ACAMAZ(oturum) -> None:  # noqa: ANN001
+def test_hesap_yoneticisi_sistem_yoneticisi_hesabi_acamaz(oturum) -> None:  # noqa: ANN001
     """Rol atamasi da bir dokunustur: hesap yoneticisi kendi ustunde bir
     hesap acabilseydi, yetki tirmanmasi tek adimda yapilirdi."""
     hesapci = _hesap(oturum, Rol.HESAP_YONETICISI)
@@ -141,7 +141,7 @@ def test_hesap_yoneticisi_sistem_yoneticisi_hesabi_ACAMAZ(oturum) -> None:  # no
         servis.olustur(f"y-{uuid.uuid4().hex[:8]}", PAROLA, Rol.SISTEM_YONETICISI, isteyen=hesapci)
 
 
-def test_idare_hesap_islemlerine_SERVIS_DUZEYINDE_de_giremez(oturum) -> None:  # noqa: ANN001
+def test_idare_hesap_islemlerine_servis_duzeyinde_de_giremez(oturum) -> None:  # noqa: ANN001
     """Uc noktadaki rol kapisi tek katman degildir.
 
     Kapi yalnizca yonlendiricide olsaydi, sonradan eklenen bir uc nokta

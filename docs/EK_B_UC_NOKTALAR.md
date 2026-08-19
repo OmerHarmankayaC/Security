@@ -48,7 +48,7 @@ listeliyordu ve kimlik doğrulama turunu hiç içermiyordu.
 | `/api/cikis` | POST | giris yapmis her rol | Oturum kaydinin silinmesi (FR-10.3) |
 | `/api/giris` | POST | **yok** (acik) | Kullanici adi ve parola ile giris (FR-10.1) |
 | `/api/musaitlik/{musaitlik_id}/belge` | DELETE | idare ve ustu | Izin belgesinin silinmesi (FR-2.8) |
-| `/api/musaitlik/{musaitlik_id}/belge` | GET | idare ve ustu | Izin belgesinin indirilmesi; her erisim kayda gecer (TD-17) |
+| `/api/musaitlik/{musaitlik_id}/belge` | GET | giris yapmis her rol | Izin belgesinin indirilmesi; her erisim kayda gecer (TD-17) |
 | `/api/musaitlik/{musaitlik_id}/belge` | POST | idare ve ustu | Izin belgesinin yuklenmesi; MIME beyaz listesi ve boyut tavani (FR-2.7) |
 | `/api/parola-degistir` | POST | giris yapmis her rol | Kullanicinin kendi parolasini degistirmesi (FR-10.7) |
 
@@ -167,10 +167,10 @@ listeliyordu ve kimlik doğrulama turunu hiç içermiyordu.
 
 | Kapı | Uç nokta sayısı |
 | --- | --- |
-| idare ve ustu | 61 |
+| idare ve ustu | 60 |
+| giris yapmis her rol | 4 |
 | calisan | 4 |
 | hesap_yoneticisi + sistem_yoneticisi | 4 |
-| giris yapmis her rol | 3 |
 | **yok** (acik) | 2 |
 
 Kimlik doğrulaması gerektirmeyen iki uç nokta bilinçlidir: `/health`

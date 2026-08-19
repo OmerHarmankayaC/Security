@@ -92,7 +92,7 @@ class TestGeciciParola:
 
 
 class TestCalisanHesaplari:
-    def test_personel_basina_hesap_acar_ve_parolayi_DONER(self, oturum) -> None:  # noqa: ANN001
+    def test_personel_basina_hesap_acar_ve_parolayi_doner(self, oturum) -> None:  # noqa: ANN001
         p = _personel(oturum, "Ali Veli")
         sonuc = HesapKurulumu(oturum).calisan_hesaplari_ac()
 
@@ -101,7 +101,7 @@ class TestCalisanHesaplari:
         assert acilan[0].kullanici_adi == kullanici_adi_turet(p.sicil_no)
         assert len(acilan[0].gecici_parola) >= ASGARI_UZUNLUK
 
-    def test_parola_HICBIR_ALANDA_saklanmaz(self, oturum) -> None:  # noqa: ANN001
+    def test_parola_hicbir_alanda_saklanmaz(self, oturum) -> None:  # noqa: ANN001
         p = _personel(oturum, "Ayse Yilmaz")
         sonuc = HesapKurulumu(oturum).calisan_hesaplari_ac()
         parola = next(s.gecici_parola for s in sonuc if s.personel_id == p.personel_id)
@@ -120,7 +120,7 @@ class TestCalisanHesaplari:
         assert kullanici.parola_degistirmeli is True
         assert kullanici.rol is Rol.CALISAN
 
-    def test_hesabi_olan_personel_ATLANIR(self, oturum) -> None:  # noqa: ANN001
+    def test_hesabi_olan_personel_atlanir(self, oturum) -> None:  # noqa: ANN001
         p = _personel(oturum, "Zeynep Ak")
         kurulum = HesapKurulumu(oturum)
         kurulum.calisan_hesaplari_ac()
@@ -159,5 +159,5 @@ class TestParolaSifirlama:
         assert kullanici.basarisiz_deneme == 0
         assert kullanici.kilit_bitis is None
 
-    def test_olmayan_hesapta_None_doner(self, oturum) -> None:  # noqa: ANN001
+    def test_olmayan_hesapta_none_doner(self, oturum) -> None:  # noqa: ANN001
         assert HesapKurulumu(oturum).parolayi_sifirla("boyle-bir-hesap-yok") is None

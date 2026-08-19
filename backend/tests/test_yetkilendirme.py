@@ -98,6 +98,14 @@ def test_acik_uc_noktalar_oturumsuz_calisir() -> None:
     )
 
 
+# ROLE DEGIL SAHIPLIGE BAGLI UCLAR (SDD 5.10). Calisan bu ucu cagirabilir;
+# durduran sey rol kapisi degil, kaydin sahibi olup olmadigidir. Rol kapisi
+# bu ayrimi ifade edemez, bu yuzden buradaki toplu taramanin disinda kalir
+# ve kendi testinde (tests/test_belge_erisimi.py::TestSahiplik) sinanir —
+# orada calisanin BASKASININ belgesine erisemedigi ayrica dogrulanir.
+_SAHIPLIGE_BAGLI = {("GET", "/api/musaitlik/{musaitlik_id}/belge")}
+
+
 # --- Rol ayrimi (FR-10.4) ---------------------------------------------------
 
 
@@ -130,6 +138,8 @@ def test_calisan_rolu_yonetici_uc_noktalarina_erisemez() -> None:
             continue
         if yol.startswith(_CALISAN_ON_EKI):
             continue  # calisanin kendi yuzeyi
+        if (yontem, yol) in _SAHIPLIGE_BAGLI:
+            continue  # rol degil SAHIPLIK ayirir; ayrica sinaniyor
         if _ornek_istek(istemci, yontem, yol).status_code != 403:
             kacaklar.append((yontem, yol))
     assert kacaklar == []

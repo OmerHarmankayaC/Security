@@ -57,7 +57,6 @@ from sqlalchemy.orm import Session
 from app.db import OturumYerel
 from app.models.girdi import (
     Musaitlik,
-    MusaitlikBelgesi,
     MusaitlikDilimi,
     MusaitlikTipi,
     Tercih,
@@ -848,15 +847,11 @@ def _ornek_belgeleri_ekle(oturum: Session) -> int:
         .all()
     )
     for izin in izinler:
-        oturum.add(
-            MusaitlikBelgesi(
-                musaitlik_id=izin.musaitlik_id,
-                dosya_adi=kaynak.name,
-                icerik_tipi="image/png",
-                boyut_bayt=len(icerik),
-                icerik=icerik,
-            )
-        )
+        # Belge artik AYRI TABLODA DEGIL satirin icinde (SDD 4.2.1).
+        izin.belge_adi = kaynak.name
+        izin.belge_tipi = "image/png"
+        izin.belge_boyut = len(icerik)
+        izin.belge_icerik = icerik
     return len(izinler)
 
 

@@ -536,9 +536,7 @@ def test_sonlanmis_isin_durdurulmasi_anlasilir_hata_verir(
     assert yanit.status_code == 409
     assert "iptal" in yanit.json()["detail"].lower()
 
-    assert (
-        yetkili_istemci(Rol.IDARE).post("/api/cozum/999999/durdur", json={}).status_code == 404
-    )
+    assert yetkili_istemci(Rol.IDARE).post("/api/cozum/999999/durdur", json={}).status_code == 404
 
 
 def test_karar_ucu_uc_secenegi_de_kabul_eder(
