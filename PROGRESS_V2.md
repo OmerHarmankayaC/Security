@@ -9,6 +9,72 @@ başlar.
 
 ---
 
+## 2026-08-19 — Dağıtım: çalışan paneli turu — **TAMAMLANDI**
+
+Kapsam: çalışan paneli düzeltme turu, K3'ün dağılım ölçüsüne çevrilmesi,
+çözücü zaman limitinin 300 sn'ye çıkması ve analiz servisindeki saat dengesi
+düzeltmesi. **Bir göç var** (`c4f1a7d20b93`), frontend yeniden derlendi.
+
+### Sıra
+
+1. Ön sayım — göçün duracağı durum var mı diye:
+   ```sql
+   SELECT personel_id, tarih, count(*), array_agg(durum::text ORDER BY tercih_id)
+   FROM tercih GROUP BY personel_id, tarih HAVING count(*) > 1;
+   -- (0 rows)
+   ```
+   **Üretimde kopya tercih YOK.** Göç kararlanmış tercih bulmadı, hiçbir satır
+   silmedi.
+2. `systemctl stop vardiya-cozucu`, ardından `vardiya-api`.
+3. Yedek: `/opt/vardiya/yedek/vardiya-20260819-0802.dump`, **69K**.
+4. `rsync` frontend (`dist/`) + backend; `pip install -e ".[dev]"`; `chown`.
+5. `alembic upgrade head` → `c4f1a7d20b93`, servisler kapalıyken.
+6. `systemctl start vardiya-api`, `vardiya-cozucu`.
+
+### Doğrulama
+
+| Denetim | Sonuç |
+|---|---|
+| Servisler | `vardiya-api` ve `vardiya-cozucu` **active** |
+| `alembic current` | `c4f1a7d20b93 (head)` |
+| Tekillik kısıtı | `uq_tercih_personel_tarih` veritabanında var |
+| `127.0.0.1:8002/health` | `{"durum":"ok"}` |
+| **`/api/calisan/ozetim`** | **401** — 404 değil, yani yeni kod canlı |
+| `/api/calisan/vardiyalarim` | 401 |
+| `journalctl -p err` (5 dk) | 0 satır |
+| Frontend | 08:03'te güncellendi, `index-BfeeUNZo.js` |
+
+Uç noktanın 401 dönmesi kasten aranan işaret: 404 dönseydi eski kod
+duruyor olurdu. Kısıtın varlığı da ayrıca sorgulandı — göç çıktısına
+güvenilmedi.
+
+### Dağıtım rehberinde bulunan eksik
+
+Bölüm 10'daki "Kod güncellemesi" bloğu `RSYNC_RSH` export'unu taşımıyordu.
+`ssh` komutları bayrağı kendi satırında taşıyor, rsync taşımıyor; anahtar
+ajanda yüklü değilse `Permission denied (publickey)` veriyor ve bu dağıtımda
+tam olarak bu yaşandı. Blok düzeltildi (15.4'e gönderme, depo kökünden
+koşulma uyarısı ve `cd ..` dahil).
+
+### Bu turda değişen davranış
+
+- Çözücü zaman limiti varsayılanı **60 → 300 sn**. Arayüzdeki alan da 300
+  ile açılıyor. Mevcut işler etkilenmez; yeni işler daha uzun arar.
+- Çalışan panelinde dönem özeti ayrı uç noktadan geliyor; Vardiyalarım
+  sekmesi artık analiz hesabı ödemiyor.
+- Analiz ekranındaki **saat dengesi sayıları değişecek** — hedef ile yük
+  artık aynı pencereden okunuyor. Gerileme değil, önceki sayının bozuk
+  olmasının düzeltilmesi.
+
+### AÇIK
+
+K3, yeni dağılım ölçüsü ve 300 sn limitle sunucuda **henüz ölçülmedi**.
+`PERFORMANS_NOTU.md` sürüm 3 hâlâ eski tanımı (azami sapma ≤ 8) ve eski
+limiti anlatıyor; Charter 1.6 ile çelişiyor. Ölçüm yapılmadan sürüm 4
+yazılamaz.
+
+---
+
 ## 2026-08-18 — Ağır çözücü testleri: doğrulama açığı kapandı — **TAMAMLANDI**
 
 Çalışan paneli turu boyunca sandbox zaman aşımı yüzünden hiç koşmayan 11 ağır
