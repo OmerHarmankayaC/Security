@@ -50,9 +50,24 @@ vi.mock('../api/client', () => ({
 // sorgular ayni metni iki kez buluyor.
 afterEach(cleanup)
 
+// Sınırdaki kişinin kotasını DEVİR doldurdu: bu dönemde eşiği hiç aşmadı.
+// Kartın en zor okunan hâli budur ve düzeltmeden önce "fazla çalışma 0,0 sa ·
+// kalan 5,0 sa" olarak görünüyordu.
 const KOTA: KotaDurumu[] = [
-  { personel_id: 1, ad_soyad: 'Sınırdaki Kişi', fazla_calisma_saat: 240, kalan_kota_saat: 5 },
-  { personel_id: 2, ad_soyad: 'Rahat Kişi', fazla_calisma_saat: 10, kalan_kota_saat: 200 },
+  {
+    personel_id: 1,
+    ad_soyad: 'Sınırdaki Kişi',
+    devir_saat: 265,
+    fazla_calisma_saat: 0,
+    kalan_kota_saat: 5,
+  },
+  {
+    personel_id: 2,
+    ad_soyad: 'Rahat Kişi',
+    devir_saat: 60,
+    fazla_calisma_saat: 10,
+    kalan_kota_saat: 200,
+  },
 ]
 
 const KALEMLER: AnalizCezaKalemi[] = [
@@ -84,6 +99,7 @@ function analiz(ek: Partial<Analiz> = {}): Analiz {
     karsilanmayan_kisi_saat: 36,
     acik_aralik_sayisi: 10,
     kota_durumu: KOTA,
+    yillik_kota_saat: 270,
     ceza_kalemleri: KALEMLER,
     kumulatif_degisim: DEGISIM,
     ufuk: 'donem',
@@ -133,6 +149,19 @@ describe('Analiz ekranı — kota kartı', () => {
     expect(screen.queryByText('Rahat Kişi')).toBeNull()
     expect(screen.getByText(/kalan kotası 40 saatin altında/)).toBeDefined()
   })
+
+  it('devri AYRI sütunda gösterir ve kalanın nereden çıktığını yazar', async () => {
+    ekraniKur()
+
+    // Sınırdaki kişinin bu dönem fazlası SIFIR; kotayı devir doldurdu.
+    // Devir yazılmadığında satır hesap hatası gibi okunuyordu.
+    expect(await screen.findByText(/DEVİR/)).toBeDefined()
+    expect(screen.getByText(/BU DÖNEM/)).toBeDefined()
+    expect(screen.getByText(/265,0 sa/)).toBeDefined()
+    expect(screen.getByText(/kalan = kota − devir − bu dönem/)).toBeDefined()
+    // Kota sunucudan gelir; ekran sabit 270 taşımaz.
+    expect(screen.getByText(/Yıllık kota 270 saat/)).toBeDefined()
+  })
 })
 
 describe('Analiz ekranı — ceza dökümü', () => {
@@ -150,6 +179,15 @@ describe('Analiz ekranı — kümülatif değişim', () => {
   it('sapma azalıyorsa bunu söyler', async () => {
     ekraniKur()
     expect((await screen.findAllByText(/azalıyor/)).length).toBeGreaterThan(0)
+  })
+
+  it('ölçünün ne olduğunu kartın kendisi söyler', async () => {
+    // Kart yalnız "önceki 12,50 · şimdi 9,25" yazdığında iki sayının neyi
+    // ölçtüğü yalnız modeli bilene açıktı.
+    ekraniKur()
+    expect(
+      await screen.findByText(/kişi başına gece saatinin adil paydan/),
+    ).toBeDefined()
   })
 
   it('önceki dönem yoksa SIFIR yazmaz, yokluğu söyler', async () => {

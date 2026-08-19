@@ -7,6 +7,7 @@ import { Buton, BuyukRakam, Kart, KartEtiketi, Sayi } from '../components/app-ui
 import { Input } from '@/components/ui/input'
 import { cn } from '../lib/utils'
 import { buyukHarf } from '../lib/metin'
+import { hedefAdi } from '../lib/sonucDili'
 import { bugunIso, donemAraligiBicimle, gunEkle } from '../lib/tarih'
 import {
   AZAMI_DONEM_GUN,
@@ -56,7 +57,14 @@ function CezaDokumu({ girdiler, azami }: { girdiler: [string, number][]; azami: 
     <ul className="m-0 flex list-none flex-col gap-2 p-0">
       {girdiler.map(([kimlik, deger]) => (
         <li key={kimlik} className="flex items-center gap-3 py-1 text-sm">
-          <span className="w-28 shrink-0 text-ink-muted">{kimlik}</span>
+          {/* HEDEFİN ADI ÖNCE, KİMLİK YANINDA. Liste yalnız "S1, S1f, S2…"
+              yazdığında hangi hedefin ne kadar cezalandığı yalnız kural
+              kataloğunu ezbere bilene açıktı. Kimlik yine durur: kural
+              kataloğuyla ve dışa aktarmayla eşleşmesi gereken şey odur. */}
+          <span className="flex w-52 shrink-0 items-baseline gap-2">
+            <span className="text-ink">{hedefAdi(kimlik)}</span>
+            <span className="font-mono text-xs text-ink-muted">{kimlik}</span>
+          </span>
           <span className="h-2 flex-1 overflow-hidden rounded-sm bg-sunken">
             <span
               className={kimlik === 'S1' ? 'block h-full bg-signal' : 'block h-full bg-accent'}

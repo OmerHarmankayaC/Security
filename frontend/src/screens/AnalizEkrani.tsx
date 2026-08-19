@@ -484,7 +484,7 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
             </Kart>
           )}
 
-          <KotaKarti satirlar={analiz.kota_durumu} />
+          <KotaKarti satirlar={analiz.kota_durumu} yillikKota={analiz.yillik_kota_saat} />
           <CezaDokumu kalemler={analiz.ceza_kalemleri} toplam={analiz.toplam_ceza} />
           <KumulatifDegisimKarti degisim={analiz.kumulatif_degisim} />
         </>
@@ -655,8 +655,18 @@ function AdaletGrafigi({
     sırayı kullanıyor.
 
     Kartın amacı listeyi göstermek değil RİSKİ göstermek: otuz kişilik bir
-    tabloda kimin sınıra yaklaştığı, tam liste basıldığında kaybolur. */
-function KotaKarti({ satirlar }: { satirlar: KotaDurumu[] }) {
+    tabloda kimin sınıra yaklaştığı, tam liste basıldığında kaybolur.
+
+    DEVİR AYRI SÜTUNDUR. Kalan kota yılın tamamından, "bu dönem" ise yalnız
+    bu dönemden gelir; ikisi ayrılmadığında kotası devirden dolmuş kişi
+    "0,0 sa fazla çalışma · 5,0 sa kalan" olarak görünüyordu. */
+function KotaKarti({
+  satirlar,
+  yillikKota,
+}: {
+  satirlar: KotaDurumu[]
+  yillikKota: number
+}) {
   const RISK_ESIGI = 40
   const riskliler = satirlar.filter((k) => k.kalan_kota_saat <= RISK_ESIGI)
   const gosterilen = riskliler.length > 0 ? riskliler : satirlar.slice(0, 5)
@@ -670,10 +680,10 @@ function KotaKarti({ satirlar }: { satirlar: KotaDurumu[] }) {
         <p className="text-sm text-ink-muted">Kota bilgisi yok.</p>
       ) : (
         <>
-          <table className="w-full min-w-[420px] border-collapse">
+          <table className="w-full min-w-[520px] border-collapse">
             <thead>
               <tr className="bg-sunken">
-                {['PERSONEL', 'FAZLA ÇALIŞMA', 'KALAN KOTA'].map((b) => (
+                {['PERSONEL', 'DEVİR', 'BU DÖNEM', 'KALAN KOTA'].map((b) => (
                   <th
                     key={b}
                     className="mono-caps whitespace-nowrap px-3 py-2 text-left text-ink-muted"
@@ -687,6 +697,9 @@ function KotaKarti({ satirlar }: { satirlar: KotaDurumu[] }) {
               {gosterilen.map((k) => (
                 <tr key={k.personel_id} className="border-t border-rule">
                   <td className="px-3 py-2 text-ink">{k.ad_soyad}</td>
+                  <td className="px-3 py-2">
+                    <Sayi className="text-ink-muted">{sayiBicimle(k.devir_saat, 1)} sa</Sayi>
+                  </td>
                   <td className="px-3 py-2">
                     <Sayi className="text-ink">{sayiBicimle(k.fazla_calisma_saat, 1)} sa</Sayi>
                   </td>
@@ -704,7 +717,15 @@ function KotaKarti({ satirlar }: { satirlar: KotaDurumu[] }) {
               ))}
             </tbody>
           </table>
+          {/* KARTIN ARİTMETİĞİ YAZILI OLMALI. Devir sütunu eklenene kadar
+              kotası devirden dolmuş bir kişi "bu dönem 0,0 sa · kalan 5,0 sa"
+              olarak görünüyordu ve satır hesap hatası gibi okunuyordu. */}
           <p className="mt-3 text-xs text-ink-muted">
+            Yıllık kota {sayiBicimle(yillikKota, 0)} saat; kalan = kota − devir − bu dönem.
+            "Bu dönem", haftalık eşiği aşan saattir — sıfır olması kişinin bu dönemde
+            eşiği aşmadığı anlamına gelir, kotasının boş olduğu anlamına değil.
+          </p>
+          <p className="mt-1 text-xs text-ink-muted">
             {riskliler.length > 0
               ? `${riskliler.length} kişinin kalan kotası ${RISK_ESIGI} saatin altında.`
               : `Kimse sınıra yakın değil; en az kalanı olan ${gosterilen.length} kişi gösteriliyor.`}
@@ -787,7 +808,7 @@ function KumulatifDegisimKarti({ degisim }: { degisim: KumulatifDegisim }) {
   const { onceki_ortalama_sapma: onceki, simdiki_ortalama_sapma: simdiki } = degisim
   return (
     <Kart>
-      <KartEtiketi>kümülatif değişim · önceki yayınlanmış döneme göre</KartEtiketi>
+      <KartEtiketi>gece yükü adaleti · önceki yayınlanmış döneme göre</KartEtiketi>
       {simdiki === null ? (
         <p className="text-sm text-ink-muted">Ölçüme giren personel yok.</p>
       ) : onceki === null ? (
@@ -822,6 +843,16 @@ function KumulatifDegisimKarti({ degisim }: { degisim: KumulatifDegisim }) {
           </span>
         </div>
       )}
+      {/* ÖLÇÜNÜN ADI KARTIN İÇİNDE OLMALI. Kart yalnız "önceki 4,07 · şimdi
+          3,91" yazdığında iki sayının neyi ölçtüğü yalnız modeli bilene
+          açıktı; ekranda anlamı olmayan bir sayı, olmayan sayıdan kötüdür. */}
+      <p className="mt-3 text-xs text-ink-muted">
+        Ölçü, <strong className="font-medium text-ink">kişi başına gece saatinin adil paydan
+        ortalama sapması</strong>dır: 0 sa, herkesin gece yükünün payına eşit olması demektir.
+        Her dönem kendi içinde ölçülür; sayının dönemden döneme küçülmesi, gece yükünün
+        zamanla eşitlendiği anlamına gelir. Kümülatif adaletin vaadi sapmanın küçük olması
+        değil, ZAMANLA küçülmesidir.
+      </p>
     </Kart>
   )
 }

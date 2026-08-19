@@ -2538,3 +2538,68 @@ bir kayma. Bu turda ağırlıklara dokunulmadı.
 Sunucuda **üç göç** birikmiş olacak: `b6e2f81d3c07`, `c9a4b7e21f38` (Tur 2)
 ve `d1f83a6c40b2` (bu tur). Sonuncusu veri dönüştürüyor; dağıtımdan önce
 yedek alınmalı. Dağıtım kararı proje yürütücüsünde.
+
+---
+
+## Tur 12 — üç okunabilirlik düzeltmesi (Analiz ve Çözüm ekranları)
+
+Üçü de aynı kusurun farklı yüzleri: ekranda **anlamı ancak modeli bilene
+açık olan bir sayı** duruyordu.
+
+### 1. Çözüm ekranı hedefleri kimlikle listeliyordu
+
+Sonuç özeti "S1 · S1f · S2 …" yazıyordu; hangi hedefin ne kadar cezalandığı
+kural kataloğunu ezbere bilmeyi gerektiriyordu. Artık kısa ad önce, kimlik
+yanında küçük punto ile duruyor (`lib/sonucDili.ts` → `hedefAdi`). Kimlik
+kaldırılmadı: dışa aktarma ve kural kataloğuyla eşleşmesi gereken şey odur.
+
+### 2. Kota kartındaki "0" hesap hatası gibi okunuyordu
+
+Kart, kalan kotası en az olanı en üste alır. Kotası **devirden** dolmuş bir
+kişi için satır "fazla çalışma 0,0 sa · kalan kota 5,0 sa" görünüyordu:
+sayılar doğruydu ama satır kendi içinde çelişkili okunuyordu, çünkü iki sütun
+**iki ayrı ufku** ölçüyor — kalan kota yılın tamamını, fazla çalışma yalnız
+bu dönemi.
+
+`KotaDurumuOku` artık `devir_saat` taşıyor, `AnalizOku` da `yillik_kota_saat`.
+Kart dört sütunlu: PERSONEL · DEVİR · BU DÖNEM · KALAN KOTA, altında
+aritmetiği yazan bir dipnot. Kotanın sayısı ekranda sabit değil sunucudan
+geliyor; kural parametresi değişirse dipnot sessizce yanlış kalmasın.
+
+Excel'deki "Personel Özeti" sayfası da aynı hâldeydi; oraya da devir sütunu
+eklendi ve başlıklara ufuk yazıldı. TOPLAM satırı artık aralık yerine **açık
+sütun listesi** topluyor: devir ve kalan kota kişi başına tavan kalıntısıdır,
+toplamlarının anlamı yok — aralık yazılıydı ve yeni sütun eklendiği anda
+sessizce toplama giriyordu.
+
+Bu arada dışa aktarma servisi kota üçlüsünü **kendisi hesaplamayı bıraktı**;
+analiz servisinden okuyor. Aynı hesabın iki yerde durması dosyanın kendi
+yorum satırlarının reddettiği şeydi.
+
+### 3. Kümülatif değişim kartı ölçüsünü adlandırmıyordu
+
+Kart "önceki 4,07 · şimdi 3,91 · ↓ azalıyor" yazıyordu; **neyin** azaldığı
+yalnız "kümülatif değişim" başlığından çıkarılamıyordu. Başlık "gece yükü
+adaleti — önceki yayınlanmış döneme göre" oldu ve ölçünün tanımı kartın
+içine yazıldı: kişi başına gece saatinin adil paydan ortalama sapması, 0 sa
+tam eşitlik. Hesap değişmedi.
+
+### Sınama
+
+Arka uç: `test_analiz_api.py`'ye devirli senaryo (donem içi fazlası gerçekten
+sıfır, kotayı devir doldurmuş), `test_disa_aktarma.py`'ye sütun sırası ve
+TOPLAM satırının hangi sütunları topladığı. Ön yüz: kota kartının devir
+sütunu ve dipnotu, kümülatif kartın ölçü tanımı, Çözüm ekranının hedef
+adları. 340 vitest + hafif arka uç takımı (307) geçti; ağır takım ayrıca
+koşturuldu.
+
+### DOKÜMAN BORCU — iki madde
+
+1. **SDD 6.3.4 — kota kartı dört sütunlu.** Devir ayrı sütun; `AnalizOku`
+   artık `yillik_kota_saat` taşıyor. SDD'deki kart tarifi üç sütun anlatıyor.
+2. **SDD 5.8 / Excel "Personel Özeti" sayfası.** Sütun listesi sekize çıktı
+   ve TOPLAM satırının hangi sütunları topladığı artık bir sözleşme
+   (`_OZET_TOPLANAN_SUTUNLAR`); SDD bunu yazmıyor.
+
+Önceki turun üç maddesi (SRS FR-1.3, SDD 4.2.1 alan listesi, Ek B) **hâlâ
+açık**.

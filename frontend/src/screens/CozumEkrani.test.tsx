@@ -93,6 +93,17 @@ describe('CozumEkrani — karar paneli (SDD 6.3.2)', () => {
     expect(screen.getByText('KAPSAMA AÇIĞI')).toBeDefined()
   })
 
+  it('hedefleri ADIYLA listeler, yalnız kimlikle değil', async () => {
+    // "S1, S4" tek başına yalnız kural kataloğunu ezbere bilene bir şey
+    // söylüyordu; kimlik yine durur, çünkü katalogla ve dışa aktarmayla
+    // eşleşmesi gereken şey odur.
+    const { container } = ekraniAc(DURDURULMUS)
+    await waitFor(() => expect(screen.getByText('KARAR BEKLENİYOR')).toBeDefined())
+
+    expect(container.textContent).toContain('kapsama açığı')
+    expect(container.textContent).toContain('toplam saat dengesi')
+  })
+
   it('"kaldığı yerden devam" DEMEZ', async () => {
     // Çözücü sonlandırıldıktan sonra iç arama durumu geri yüklenemez;
     // devam, yeni bir aramanın ipucuyla başlatılmasıdır (SDD 5.4.1).

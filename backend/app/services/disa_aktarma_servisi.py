@@ -27,11 +27,8 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 from sqlalchemy.orm import Session
 
-from app.kurallar.kayit_defteri import kurallari_yukle
 from app.kurallar.zaman_araligi import aralik_metni, gece_saat_sayisi, saat_metni
-from app.kurallar.zorunlu import h10_fazla_calisma_saatleri
 from app.models.sonuc import CizelgeSurumu
-from app.repositories.kural import KuralDeposu
 from app.repositories.sonuc import (
     AtamaDeposu,
     CizelgeSurumuDeposu,
@@ -42,8 +39,6 @@ from app.repositories.sonuc import (
 from app.repositories.tanim import GorevNoktasiDeposu, PersonelDeposu
 from app.schemas.analiz import AnalizOku
 from app.services.analiz_servisi import AnalizServisi
-from app.services.atama_donusumu import atama_kayitlarina_cevir
-from app.services.baglam_kurucu import baglam_olustur
 
 # --- Bicimleme sabitleri --------------------------------------------------
 
@@ -182,11 +177,19 @@ class _Baglam:
     personel_adi: dict[int, str]
     personel_sicil: dict[int, str]
     nokta_adi: dict[int, str]
+    devir: dict[int, float]
     fazla_calisma: dict[int, float]
     kalan_kota: dict[int, float]
     # ARALIK SAYISI ile KISI-SAAT ayri olculerdir; ikisi de raporda durur.
     karsilanmayan_kisi_saat: int
     ceza_kalemleri: list[tuple[str, str, float, float]]
+
+
+#: Personel Ozeti sayfasinda TOPLAM satirina giren sutunlar. Devir (6) ve
+#: kalan kota (8) disaridadir: ikisi de kisi basina tavan kalintisidir ve
+#: toplamlarinin anlami yok. Aralik yerine acik liste, cunku aralik
+#: yazildiginda yeni bir sutun eklendigi anda sessizce toplama giriyordu.
+_OZET_TOPLANAN_SUTUNLAR = (3, 4, 5, 7)
 
 
 class DisaAktarmaServisi:
@@ -199,7 +202,6 @@ class DisaAktarmaServisi:
         self.fazla = FazlaKadroDeposu(oturum)
         self.personel = PersonelDeposu(oturum)
         self.nokta = GorevNoktasiDeposu(oturum)
-        self.kural = KuralDeposu(oturum)
         self.analiz = AnalizServisi(oturum)
 
     def _baglami_kur(self, surum_id: int) -> _Baglam | None:
@@ -217,20 +219,15 @@ class DisaAktarmaServisi:
         gun_sayisi = (donem.bitis_tarihi - donem.baslangic_tarihi).days + 1
         gunler = [donem.baslangic_tarihi + timedelta(days=i) for i in range(gun_sayisi)]
 
-        # FAZLA CALISMA VE KOTA H10'UN KENDI FONKSIYONUNDAN. Burada yeniden
-        # hesaplansaydi dosyada, sistemin baska hicbir yerinde bulunmayan bir
-        # sayi olurdu ve dogrulugunu kimse denetleyemezdi.
-        baglam = baglam_olustur(self.oturum, donem, yalniz_aktif=False)
-        kayitlar = atama_kayitlarina_cevir(atamalar)
-        kurallar = kurallari_yukle(self.kural.aktif_kurallari_getir())
-        h10 = next((k for k in kurallar if k.kimlik == "H10"), None)
-        esik = float(h10.parametreler.get("fazla_calisma_esigi", 45)) if h10 else 45.0
-        kota = float(h10.parametreler.get("yillik_fazla_kotasi", 270)) if h10 else 270.0
-        fazla_calisma = h10_fazla_calisma_saatleri(kayitlar, baglam, esik)
-        kalan = {
-            p: max(kota - baglam.devir_fazla_calisma_saat(p) - fazla_calisma.get(p, 0.0), 0.0)
-            for p in baglam.personel
-        }
+        # KOTA UCLUSU ANALIZ SERVISINDEN. Bir sure burada yeniden
+        # hesaplaniyordu; ayni hesabin iki yerde durmasi bu projede birkac kez
+        # bedelini odetti (SDD 6.3.4: ekran, dosya ve servis ayni sayiyi
+        # vermek zorunda). DEVIR de tasinir: dosyada yalniz donem fazlasi ile
+        # kalan kota yan yana durdugunda, kotasi devirden dolmus kisi
+        # "fazla calisma 0,0 - kalan 5,0" olarak okunuyordu.
+        devir = {k.personel_id: k.devir_saat for k in analiz.kota_durumu}
+        fazla_calisma = {k.personel_id: k.fazla_calisma_saat for k in analiz.kota_durumu}
+        kalan = {k.personel_id: k.kalan_kota_saat for k in analiz.kota_durumu}
 
         aciklar = list(self.kapsama.surume_gore_getir(surum_id))
 
@@ -253,6 +250,7 @@ class DisaAktarmaServisi:
             personel_adi={p.personel_id: p.ad_soyad for p in self.personel.tumunu_getir()},
             personel_sicil={p.personel_id: p.sicil_no for p in self.personel.tumunu_getir()},
             nokta_adi={n.nokta_id: n.ad for n in self.nokta.tumunu_getir()},
+            devir=devir,
             fazla_calisma=fazla_calisma,
             kalan_kota=kalan,
             karsilanmayan_kisi_saat=analiz.karsilanmayan_kisi_saat,
@@ -385,7 +383,11 @@ class DisaAktarmaServisi:
             "Toplam saat",
             "Gece saati",
             "Hafta sonu saati",
-            "Fazla çalışma",
+            # DEVIR ile BU DONEM AYRI SUTUN. Kalan kota yilin tamamindan,
+            # fazla calisma yalniz bu donemden gelir; tek sutunda durduklarinda
+            # satir kendi icinde celiskili okunuyordu.
+            "Devir (önceki dönemler)",
+            "Fazla çalışma (bu dönem)",
             "Kalan yıllık kota",
         ]
         _baslik_satiri(sayfa, satir, basliklar)
@@ -403,23 +405,27 @@ class DisaAktarmaServisi:
             sayfa.cell(r, 3, round(denge.toplam_saat, 1))
             sayfa.cell(r, 4, round(gece.get(denge.personel_id, 0.0), 1))
             sayfa.cell(r, 5, round(hafta_sonu.get(denge.personel_id, 0.0), 1))
-            sayfa.cell(r, 6, round(b.fazla_calisma.get(denge.personel_id, 0.0), 1))
-            sayfa.cell(r, 7, round(b.kalan_kota.get(denge.personel_id, 0.0), 1))
+            sayfa.cell(r, 6, round(b.devir.get(denge.personel_id, 0.0), 1))
+            sayfa.cell(r, 7, round(b.fazla_calisma.get(denge.personel_id, 0.0), 1))
+            sayfa.cell(r, 8, round(b.kalan_kota.get(denge.personel_id, 0.0), 1))
 
         # TOPLAM satiri CANLI FORMUL. Sabit bir sayi yazsaydik, okuyucu bir
-        # satiri silip suzdugunde toplam sessizce yanlis kalirdi. Kalan kota
-        # (7. sutun) toplanmaz: kisi basina tavan kalintisidir, toplaminin
-        # anlami yok.
+        # satiri silip suzdugunde toplam sessizce yanlis kalirdi.
+        #
+        # TOPLANAN SUTUNLAR ACIKCA SAYILIR. Devir (6) ve kalan kota (8)
+        # toplanmaz: ikisi de kisi basina tavan kalintisidir ve toplamlarinin
+        # anlami yok. Aralik olarak yazildiklarinda yeni bir sutun eklendigi
+        # anda sessizce toplama giriyorlardi.
         if b.analiz.saat_dagilimi:
             son = satir + len(b.analiz.saat_dagilimi) + 1
             sayfa.cell(son, 2, "TOPLAM").font = _KOYU_VERI
-            for sutun in range(3, 7):
+            for sutun in _OZET_TOPLANAN_SUTUNLAR:
                 harf = get_column_letter(sutun)
                 hucre = sayfa.cell(son, sutun, f"=SUM({harf}{satir + 1}:{harf}{son - 1})")
                 hucre.font = _KOYU_VERI
             sayfa.cell(son, 1).font = _KOYU_VERI
         sayfa.freeze_panes = sayfa.cell(satir + 1, 1)
-        _genislikleri_ayarla(sayfa, [12, 28, 14, 13, 17, 15, 18])
+        _genislikleri_ayarla(sayfa, [12, 28, 14, 13, 17, 20, 20, 18])
 
     def _sayfa_ham_cizelge(self, sayfa: Worksheet, b: _Baglam) -> None:
         """CSV ciktisiyla AYNI icerik (SRS 7.2): blok basina bir satir."""

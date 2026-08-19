@@ -56,10 +56,18 @@ class KotaDurumuOku(BaseModel):
 
     Kartin amaci listeyi degil RISKI gostermek (SDD 6.3.4): sirali gelir,
     kotasi tukenmeye yakin olan ustte.
+
+    DEVIR AYRI ALANDIR. Kalan kota YILIN tamamindan hesaplanir, fazla_calisma_saat
+    ise yalniz BU DONEMIN fazlasidir. Ikisi ayrilmadiginda kartta "fazla calisma
+    0,0 sa - kalan kota 5,0 sa" gibi kendi icinde celiskili okunan bir satir
+    cikiyordu: tuketimin nereden geldigi ancak devir yazildiginda gorunur.
     """
 
     personel_id: int
     ad_soyad: str
+    #: Yilin onceki bolumunden devreden fazla calisma (personel kaydindan).
+    devir_saat: float = 0.0
+    #: YALNIZ bu donemde esigi asan saat.
     fazla_calisma_saat: float
     kalan_kota_saat: float
 
@@ -128,6 +136,10 @@ class AnalizOku(BaseModel):
     karsilanmayan_kisi_saat: int = 0
     acik_aralik_sayisi: int = 0
     kota_durumu: list[KotaDurumuOku] = Field(default_factory=list)
+    #: H10'un yillik fazla calisma kotasi (saat). Kart kalan kotayi neye gore
+    #: soyledigini yazabilsin diye gonderilir; ekranin sabit 270 tasimasi,
+    #: kural parametresi degistiginde sessizce yanlis olurdu.
+    yillik_kota_saat: float = 270.0
     ceza_kalemleri: list[CezaKalemiOku] = Field(default_factory=list)
     kumulatif_degisim: KumulatifDegisimOku = Field(default_factory=KumulatifDegisimOku)
     # Hangi ufkun olculdugu (SDD 6.3.4 ufuk anahtari): "donem" | "adalet".

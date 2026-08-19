@@ -455,3 +455,46 @@ def test_ekran_ile_dosya_ayni_kaynaktan_besleniyor(senaryo: dict) -> None:
         ham, agirlik = dosya_kalemleri[kalem.kimlik]
         assert ham == pytest.approx(round(kalem.ham_deger, 1))
         assert agirlik == pytest.approx(kalem.agirlik)
+
+
+def test_ozet_sayfasi_devri_ayri_sutunda_tasir(senaryo: dict) -> None:
+    """Devir ile donem fazlasi AYRI sutunlarda ve toplam yalniz dogru sutunlari toplar.
+
+    Tek sutunda durduklarinda, kotasi devirden dolmus bir kisi dosyada
+    "fazla calisma 0,0 - kalan kota 5,0" olarak okunuyordu; ekranda ayni
+    satir duzeltildi, dosya geride kalmamali (SDD 6.3.4).
+
+    Devirin TOPLAM satirina girmemesi ayri bir sarttir: kisi basina tavan
+    kalintisi toplanmaz, tıpkı kalan kota gibi.
+    """
+    oturum = OturumYerel()
+    try:
+        analiz = AnalizServisi(oturum).hesapla(senaryo["surum_id"])
+    finally:
+        oturum.close()
+    assert analiz is not None
+
+    ozet = _kitap(senaryo["surum_id"], "cizelge")["Özet"]
+    basliklar = [h.value for h in next(ozet.iter_rows(min_row=4, max_row=4))]
+    assert "Devir (önceki dönemler)" in basliklar
+    assert "Fazla çalışma (bu dönem)" in basliklar
+
+    devirler = {k.personel_id: k.devir_saat for k in analiz.kota_durumu}
+    fazlalar = {k.personel_id: k.fazla_calisma_saat for k in analiz.kota_durumu}
+    satirlar = {satir[1].value: satir for satir in ozet.iter_rows(min_row=6) if satir[1].value}
+    for denge in analiz.saat_dagilimi:
+        satir = satirlar.get(denge.ad_soyad)
+        if satir is None:
+            continue
+        assert satir[5].value == pytest.approx(round(devirler[denge.personel_id], 1))
+        assert satir[6].value == pytest.approx(round(fazlalar[denge.personel_id], 1))
+
+    # TOPLAM satiri: devir (F) ve kalan kota (H) sutunlarinda formul YOK.
+    toplam = next(
+        (s for s in ozet.iter_rows(min_row=6) if s[1].value == "TOPLAM"),
+        None,
+    )
+    assert toplam is not None
+    assert str(toplam[6].value).startswith("=SUM")
+    assert toplam[5].value is None
+    assert toplam[7].value is None

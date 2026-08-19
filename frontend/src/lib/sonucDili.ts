@@ -43,6 +43,22 @@ const HEDEF_DILI: Record<string, HedefDili> = {
   S8: { konu: 'önceki sürümden sapma', birim: 'atama' },
 }
 
+/**
+ * Kural kimliğinin ekranda okunacak kısa adı.
+ *
+ * Çözüm ekranının ceza dökümü yalnız "S1, S1f, S2…" yazıyordu: hangi hedefin
+ * ne kadar cezalandığı yalnız kural kataloğunu ezbere bilene açıktı. Adlar
+ * BURADAN gelir, katalogtaki `ad` alanından değil — katalog adı kuralın
+ * tanımıdır ("Kişi başına toplam çalışma saatinin adil paydan sapması"),
+ * bir çubuk grafiğin etiketi değil.
+ *
+ * Bilinmeyen kimlik kendi kimliğiyle döner: yeni bir kural eklendiğinde
+ * ekran boş etiket göstermez, kimliği gösterir.
+ */
+export function hedefAdi(kimlik: string): string {
+  return HEDEF_DILI[kimlik]?.konu ?? kimlik
+}
+
 export type SonucTuru = 'engellendi' | 'degisiklik-yok' | 'iyilesti' | 'bozuldu' | 'karisik'
 
 export interface SonucOzeti {

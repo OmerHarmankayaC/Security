@@ -5,6 +5,7 @@ beklenen degeri elle hesaplanip dogrulanir; canli PostgreSQL gerektirir.
 
 import uuid
 from datetime import UTC, date, datetime, time, timedelta
+from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
@@ -225,3 +226,90 @@ def test_analiz_metrikleri_dogru_hesaplanir(istemci: TestClient) -> None:
 
     assert govde["ceza_dokumu"] == {"S1": 1000.0, "S2": 234.0}
     assert govde["toplam_ceza"] == pytest.approx(1234.0)
+
+
+def test_kota_satirinda_devir_ayri_yazilir(istemci: TestClient) -> None:
+    """Kotayi DEVIR doldurmussa satir bunu gosterir (SDD 6.3.4).
+
+    Kart, kalan kotasi en az olani en uste alir. Devir yazilmadiginda o satir
+    "fazla calisma 0,0 sa - kalan kota 5,0 sa" olarak cikiyor ve hesap
+    hatasi gibi okunuyordu: tuketimin yilin onceki bolumunden geldigi
+    gorunmuyordu. Bu senaryoda donem ici fazla calisma GERCEKTEN sifirdir
+    (32 saat < 45 saatlik esik); anlamli olan devirdir.
+    """
+    on_ek = _benzersiz("kota")
+    oturum = OturumYerel()
+    try:
+        senaryo_verisini_temizle(oturum)
+
+        nokta = GorevNoktasi(ad=f"Nokta-{on_ek}")
+        oturum.add(nokta)
+        devirli = Personel(
+            ad_soyad=f"Devirli-{on_ek}",
+            sicil_no=_benzersiz("KO1"),
+            haftalik_hedef_saat=40,
+            aktif_baslangic=date(2026, 1, 1),
+            devir_fazla_calisma_saat=Decimal("265"),
+        )
+        temiz = Personel(
+            ad_soyad=f"Temiz-{on_ek}",
+            sicil_no=_benzersiz("KO2"),
+            haftalik_hedef_saat=40,
+            aktif_baslangic=date(2026, 1, 1),
+        )
+        oturum.add_all([devirli, temiz])
+        oturum.flush()
+
+        donem = Donem(
+            baslangic_tarihi=date(2026, 9, 7),
+            bitis_tarihi=date(2026, 9, 13),
+            tercih_son_tarihi=date(2026, 8, 31),
+        )
+        oturum.add(donem)
+        oturum.flush()
+
+        surum = CizelgeSurumu(
+            donem_id=donem.donem_id, surum_no=1, durum=CizelgeSurumuDurumu.COZULDU
+        )
+        oturum.add(surum)
+        oturum.flush()
+
+        # Dort gun x 8 saat = 32 saat: haftalik esigin (45) ALTINDA.
+        for i in range(4):
+            oturum.add(
+                Atama(
+                    surum_id=surum.surum_id,
+                    personel_id=devirli.personel_id,
+                    baslangic_zamani=datetime.combine(
+                        date(2026, 9, 7) + timedelta(days=i), time(8, 0)
+                    ),
+                    bitis_zamani=datetime.combine(
+                        date(2026, 9, 7) + timedelta(days=i), time(16, 0)
+                    ),
+                    nokta_id=nokta.nokta_id,
+                    kaynak=AtamaKaynagi.COZUCU,
+                )
+            )
+
+        oturum.commit()
+        surum_id = surum.surum_id
+        devirli_id = devirli.personel_id
+        temiz_id = temiz.personel_id
+    finally:
+        oturum.rollback()
+        oturum.close()
+
+    govde = istemci.get(f"/api/analiz/{surum_id}").json()
+
+    assert govde["yillik_kota_saat"] == pytest.approx(270.0)
+    satirlar = {k["personel_id"]: k for k in govde["kota_durumu"]}
+
+    # SIRA RISKE GORE: kalan kotasi en az olan en ustte.
+    assert govde["kota_durumu"][0]["personel_id"] == devirli_id
+
+    assert satirlar[devirli_id]["devir_saat"] == pytest.approx(265.0)
+    assert satirlar[devirli_id]["fazla_calisma_saat"] == pytest.approx(0.0)
+    assert satirlar[devirli_id]["kalan_kota_saat"] == pytest.approx(5.0)
+
+    assert satirlar[temiz_id]["devir_saat"] == pytest.approx(0.0)
+    assert satirlar[temiz_id]["kalan_kota_saat"] == pytest.approx(270.0)

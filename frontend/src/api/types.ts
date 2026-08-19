@@ -484,6 +484,10 @@ export interface Analiz {
   karsilanmayan_kisi_saat: number
   acik_aralik_sayisi: number
   kota_durumu: KotaDurumu[]
+  /** H10'un yıllık fazla çalışma kotası (saat). Kart kalan kotayı neye göre
+   *  söylediğini yazsın diye sunucudan gelir; ekranın sabit 270 taşıması,
+   *  kural parametresi değiştiğinde sessizce yanlış olurdu. */
+  yillik_kota_saat: number
   ceza_kalemleri: AnalizCezaKalemi[]
   kumulatif_degisim: KumulatifDegisim
   /** Hangi ufkun ölçüldüğü. İki ufkun sayıları farklıdır ve hangisine
@@ -499,6 +503,9 @@ export type Ufuk = 'donem' | 'adalet'
 export interface KotaDurumu {
   personel_id: number
   ad_soyad: string
+  /** Yılın önceki bölümünden devreden fazla çalışma. */
+  devir_saat: number
+  /** YALNIZ bu dönemde eşiği aşan saat. */
   fazla_calisma_saat: number
   kalan_kota_saat: number
 }

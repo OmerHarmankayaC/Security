@@ -76,14 +76,11 @@ class AnalizServisi:
         self.personel = PersonelDeposu(oturum)
         self.kural = KuralDeposu(oturum)
 
-    def _kota_durumu(
-        self, atamalar: list, baglam: Baglam, personel_satirlari: Sequence[Personel]
-    ) -> list[KotaDurumuOku]:
-        """H10: kisi basina fazla calisma ve kalan kota, RISKE gore sirali.
+    def _h10_parametreleri(self) -> tuple[float, float]:
+        """H10'un haftalik esigi ve yillik kotasi (saat).
 
-        Fazla calisma H10'un KENDI fonksiyonundan okunur; burada yeniden
-        hesaplansaydi ekranda, sistemin baska hicbir yerinde bulunmayan bir
-        sayi olurdu (SDD 5.8 ile ayni gerekce).
+        Kural katalogundan okunur, ekrana da bu deger gider: kotanin sayisi
+        iki yerde yazili olsaydi parametre degistiginde biri geride kalirdi.
         """
         h10 = next(
             (k for k in kurallari_yukle(self.kural.aktif_kurallari_getir()) if k.kimlik == "H10"),
@@ -91,13 +88,34 @@ class AnalizServisi:
         )
         esik = float(h10.parametreler.get("fazla_calisma_esigi", 45)) if h10 else 45.0
         kota = float(h10.parametreler.get("yillik_fazla_kotasi", 270)) if h10 else 270.0
+        return esik, kota
 
+    def _kota_durumu(
+        self,
+        atamalar: list,
+        baglam: Baglam,
+        personel_satirlari: Sequence[Personel],
+        esik: float,
+        kota: float,
+    ) -> list[KotaDurumuOku]:
+        """H10: kisi basina fazla calisma ve kalan kota, RISKE gore sirali.
+
+        Fazla calisma H10'un KENDI fonksiyonundan okunur; burada yeniden
+        hesaplansaydi ekranda, sistemin baska hicbir yerinde bulunmayan bir
+        sayi olurdu (SDD 5.8 ile ayni gerekce).
+
+        DEVIR de gonderilir. Kalan kota devir + donem fazlasindan cikar ama
+        satirda yalniz donem fazlasi yaziliydi: kotasi devirden dolmus bir
+        kisi ekranda "fazla calisma 0,0 - kalan 5,0" olarak gorunuyor ve
+        satir hesap hatasi gibi okunuyordu.
+        """
         fazlalar = h10_fazla_calisma_saatleri(atamalar, baglam, esik)
         adlar = {p.personel_id: p.ad_soyad for p in personel_satirlari}
         satirlar = [
             KotaDurumuOku(
                 personel_id=p,
                 ad_soyad=adlar.get(p, str(p)),
+                devir_saat=round(baglam.devir_fazla_calisma_saat(p), 1),
                 fazla_calisma_saat=round(fazlalar.get(p, 0.0), 1),
                 kalan_kota_saat=round(
                     max(kota - baglam.devir_fazla_calisma_saat(p) - fazlalar.get(p, 0.0), 0.0), 1
@@ -215,6 +233,7 @@ class AnalizServisi:
         ]
 
         personel_satirlari: Sequence[Personel] = self.personel.tumunu_getir()
+        h10_esigi, yillik_kota = self._h10_parametreleri()
 
         # --- Kapsama orani (FR-8.1, SDD 5.7): ATAMA KAYITLARINDAN.
         #
@@ -416,7 +435,10 @@ class AnalizServisi:
             ufuk=ufuk,
             karsilanmayan_kisi_saat=karsilanmayan,
             acik_aralik_sayisi=len(aciklar),
-            kota_durumu=self._kota_durumu(atamalar, baglam, personel_satirlari),
+            kota_durumu=self._kota_durumu(
+                atamalar, baglam, personel_satirlari, h10_esigi, yillik_kota
+            ),
+            yillik_kota_saat=yillik_kota,
             ceza_kalemleri=self._ceza_kalemleri(ceza_dokumu),
             kumulatif_degisim=self._kumulatif_degisim(surum, donem, baglam, atamalar),
             kapsama_orani=kapsama_orani,
