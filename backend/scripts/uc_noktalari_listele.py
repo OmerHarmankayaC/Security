@@ -10,9 +10,17 @@ ya da EKSIK kalan bir uc nokta listelemedigini gorunur kilmaktir.
 Kullanim:
     python scripts/uc_noktalari_listele.py            # yol/yontem/rol tablosu
     python scripts/uc_noktalari_listele.py --denetle  # Ek B ile karsilastir
+    python scripts/uc_noktalari_listele.py --yaz      # Ek B'yi yerinde tazele
 
 `--denetle`, dokumanda olmayan ya da dokumanda olup uygulamada bulunmayan
 her satiri yazar ve fark varsa 1 ile cikar.
+
+`--yaz`, tablolari yonlendirme tablosundan yeniden kurar. ISLEV METNI
+KORUNUR: her (yol, yontem) icin dokumanda yazan islev metni tasinir, yeni
+bir uc nokta icin `TANIMLANACAK` birakilir ve insan doldurur. Boylece
+"uretilmistir" sozu tutulur ama elle yazilan sutun kaybolmaz. Toplam sayi
+ve kapi basina ozet tablosu da yeniden hesaplanir - bunlar elle
+guncellendiginde geride kaliyordu (dokumanda 68 yaziyorken 70 satir vardi).
 """
 
 import argparse
@@ -37,7 +45,11 @@ EK_B = Path(__file__).resolve().parents[2] / "docs" / "EK_B_UC_NOKTALAR.md"
 # Kapi fonksiyonu -> dokumanda yazan rol adi.
 _KAPI_ADLARI = {
     yonetim_yetkisi: "yonetim",
-    yonetici_yetkisi: "yonetici",
+    # ROLLER KAPSAYICIDIR (SRS 5.10): yonetim, yoneticinin kapisindan da
+    # gecer. Belge bunu boyle yazar ve etiket TEK YERDE durur - betik
+    # "yonetici" yazip belge "yonetici + yonetim" yazdiginda, --denetle
+    # yalniz (yol, yontem) karsilastirdigi icin fark gorunmez kalirdi.
+    yonetici_yetkisi: "yonetici + yonetim",
     calisan_yetkisi: "calisan",
     oturum_baglami: "giris yapmis her rol",
 }
@@ -69,6 +81,20 @@ def uc_noktalar() -> list[tuple[str, str, str]]:
     return sorted(satirlar)
 
 
+ISLEV_YOKSA = "TANIMLANACAK"
+
+
+def _belgedeki_islevler() -> dict[tuple[str, str], str]:
+    """(yol, yontem) -> elle yazilmis islev metni."""
+    desen = re.compile(r"^\|\s*`([^`]+)`\s*\|\s*([A-Z]+)\s*\|[^|]*\|\s*(.*?)\s*\|\s*$")
+    islevler: dict[tuple[str, str], str] = {}
+    for satir in EK_B.read_text(encoding="utf-8").splitlines():
+        eslesme = desen.match(satir)
+        if eslesme:
+            islevler[(eslesme.group(1), eslesme.group(2))] = eslesme.group(3)
+    return islevler
+
+
 def _belgedeki_uclar() -> set[tuple[str, str]]:
     """Ek B tablolarindaki (yol, yontem) ikilileri."""
     desen = re.compile(r"^\|\s*`([^`]+)`\s*\|\s*([A-Z]+)\s*\|")
@@ -80,12 +106,114 @@ def _belgedeki_uclar() -> set[tuple[str, str]]:
     return bulunanlar
 
 
+_SATIR = re.compile(r"^\|\s*`([^`]+)`\s*\|\s*([A-Z]+)\s*\|")
+
+
+def _satir_yaz(yol_: str, yontem: str, rol: str, islev: str) -> str:
+    return f"| `{yol_}` | {yontem} | {rol} | {islev} |"
+
+
+def _tazele(satirlar: list[tuple[str, str, str]]) -> tuple[list[str], list[str]]:
+    """Ek B'yi yerinde tazeler. Doner: (yeni satirlar, uyarilar).
+
+    Belge TEK tablo degil; uc noktalar bolumlere ayrilmis birden cok tabloda
+    durur. Bu yuzden tablolar yeniden KURULMAZ, yerinde guncellenir: var olan
+    her satirin rolu uygulamadan tazelenir, eksik uc nokta ise yolu en cok
+    benzeyen satirin yanina SIRALI olarak sokulur. Boylece bolumlendirme
+    korunur ve islev sutunu kaybolmaz.
+    """
+    islevler = _belgedeki_islevler()
+    uygulamada = {(y, m_): r for y, m_, r in satirlar}
+    metin = EK_B.read_text(encoding="utf-8").splitlines()
+    uyarilar: list[str] = []
+
+    # 1) Var olan satirlarin rolunu tazele, uygulamada olmayanlari isaretle.
+    cikti: list[str] = []
+    belgede: set[tuple[str, str]] = set()
+    for satir in metin:
+        e = _SATIR.match(satir)
+        if not e:
+            cikti.append(satir)
+            continue
+        anahtar = (e.group(1), e.group(2))
+        belgede.add(anahtar)
+        if anahtar not in uygulamada:
+            uyarilar.append(f"belgede var, uygulamada YOK: {e.group(2)} {e.group(1)}")
+            cikti.append(satir)
+            continue
+        cikti.append(_satir_yaz(*anahtar, uygulamada[anahtar], islevler.get(anahtar, ISLEV_YOKSA)))
+
+    # 2) Eksik uc noktalari, yolu en cok benzeyen satirin bulundugu tabloya
+    #    sirali olarak sok.
+    for anahtar in sorted(set(uygulamada) - belgede):
+        yol_, yontem = anahtar
+        aday = None
+        for i, satir in enumerate(cikti):
+            e = _SATIR.match(satir)
+            if e and _ortak_onek(e.group(1), yol_) > 0 and (e.group(1), e.group(2)) > anahtar:
+                aday = i
+                break
+        if aday is None:
+            uyarilar.append(f"yeri bulunamadi, elle eklenmeli: {yontem} {yol_}")
+            continue
+        cikti.insert(aday, _satir_yaz(yol_, yontem, uygulamada[anahtar], ISLEV_YOKSA))
+
+    # 3) Toplam sayi ve kapi basina ozet — elle guncellendiginde geride
+    #    kaliyorlardi (68 yaziyordu, 70 satir vardi).
+    cikti = _sayilari_tazele(cikti, satirlar)
+    return cikti, uyarilar
+
+
+def _ortak_onek(a: str, b: str) -> int:
+    """Iki yolun ortak bolum sayisi: /api/calisan/x ile /api/calisan/y -> 2."""
+    pa, pb = a.strip("/").split("/"), b.strip("/").split("/")
+    ortak = 0
+    for x, y in zip(pa, pb, strict=False):
+        if x != y:
+            break
+        ortak += 1
+    return ortak
+
+
+def _sayilari_tazele(metin: list[str], satirlar: list[tuple[str, str, str]]) -> list[str]:
+    from collections import Counter
+
+    sayac = Counter(rol for _, _, rol in satirlar)
+    cikti: list[str] = []
+    for satir in metin:
+        if satir.startswith("**Toplam ") and "uç nokta" in satir:
+            satir = re.sub(
+                r"\*\*Toplam \d+ uç nokta\.\*\*",
+                f"**Toplam {len(satirlar)} uç nokta.**",
+                satir,
+            )
+        else:
+            ozet = re.match(r"^\|\s*(.+?)\s*\|\s*\d+\s*\|\s*$", satir)
+            if ozet and ozet.group(1) in sayac:
+                satir = f"| {ozet.group(1)} | {sayac[ozet.group(1)]} |"
+        cikti.append(satir)
+    return cikti
+
+
 def main() -> int:
     ayristirici = argparse.ArgumentParser(description=__doc__)
     ayristirici.add_argument("--denetle", action="store_true", help="Ek B ile karsilastir")
+    ayristirici.add_argument("--yaz", action="store_true", help="Ek B'yi yerinde tazele")
     secenekler = ayristirici.parse_args()
 
     satirlar = uc_noktalar()
+    if secenekler.yaz:
+        yeni, uyarilar = _tazele(satirlar)
+        EK_B.write_text("\n".join(yeni) + "\n", encoding="utf-8")
+        for uyari in uyarilar:
+            print(f"UYARI  {uyari}")
+        print(f"{EK_B.name} tazelendi: {len(satirlar)} uc nokta.")
+        # ISLEV_YOKSA birakilan satirlar insan bekler; sessizce gecilmez.
+        bekleyen = sum(1 for s in yeni if s.endswith(f"| {ISLEV_YOKSA} |"))
+        if bekleyen:
+            print(f"UYARI  {bekleyen} satirin islev metni {ISLEV_YOKSA} — elle doldurulmali.")
+        return 1 if uyarilar or bekleyen else 0
+
     if not secenekler.denetle:
         for yol, yontem, rol in satirlar:
             print(f"| `{yol}` | {yontem} | {rol} |")

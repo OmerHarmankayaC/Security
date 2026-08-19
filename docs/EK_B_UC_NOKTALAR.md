@@ -10,7 +10,7 @@
 > diğerlerinin alt kümesi DEĞİLDİR ve tersi de geçerlidir — yönetim
 > rolü çalışan panelinden geçemez.
 
-**Toplam 68 uç nokta.** SDD Ek B'nin önceki hâli 21 satır
+**Toplam 71 uç nokta.** SDD Ek B'nin önceki hâli 21 satır
 listeliyordu ve kimlik doğrulama turunu hiç içermiyordu.
 
 > Sayım ve **Gereken Rol** sütunu artık
@@ -44,6 +44,7 @@ listeliyordu ve kimlik doğrulama turunu hiç içermiyordu.
 | Uç Nokta | Yöntem | Gereken Rol | İşlev |
 | --- | --- | --- | --- |
 | `/api/ben` | GET | giris yapmis her rol | Oturumdaki kullanicinin kimligi ve rolu |
+| `/api/calisan/ozetim` | GET | calisan | Calisanin donem ya da adalet ufkundaki yuk ozeti, adil payi ve ekip ortalamasi (FR-9.5); ufuk sorgu parametresiyle secilir |
 | `/api/cikis` | POST | giris yapmis her rol | Oturum kaydinin silinmesi (FR-10.3) |
 | `/api/giris` | POST | **yok** (acik) | Kullanici adi ve parola ile giris (FR-10.1) |
 | `/api/parola-degistir` | POST | giris yapmis her rol | Kullanicinin kendi parolasini degistirmesi (FR-10.7) |
@@ -163,7 +164,7 @@ listeliyordu ve kimlik doğrulama turunu hiç içermiyordu.
 
 | Kapı | Uç nokta sayısı |
 | --- | --- |
-| yonetici + yonetim | 57 |
+| yonetici + yonetim | 58 |
 | calisan | 4 |
 | yonetim | 4 |
 | giris yapmis her rol | 3 |
