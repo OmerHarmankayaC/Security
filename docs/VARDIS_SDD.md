@@ -58,6 +58,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 14.08.2026 | Geçmiş sayaçların pencere başına bir kez hesaplanması ve kural katmanında paylaşılan parametre nesnesinin değiştirilmemesi 5.9'a yazıldı | 1.33 |
 | Ömer HARMANKAYA | 17.08.2026 | Analiz ekranı yeniden tasarlandı (6.3.4): üst şerit, kota kartı, ufuk anahtarı, kümülatif değişim göstergesi ve ceza dökümünün ham/ağırlıklı ayrımı | 1.34 |
 | Ömer HARMANKAYA | 18.08.2026 | Çalışan panelindeki dönem özetinin kendi uç noktasına taşınması 6.1'e, saat dengesinin ufku izlemesi 5.7'ye, `cizelge_surumu.damga` alanı 4.2.4'e, çözücü zaman limitinin yeni varsayılanı 3.3'e ve yeni uç nokta Ek B'ye yazıldı | 1.35 |
+| Ömer HARMANKAYA | 19.08.2026 | Dört rollü yetki yapısı 4.2.1'e ve Ek B'ye, izin belgesinin saklanması ve erişim kaydı 4.2.2 ile yeni 5.10'a işlendi | 1.36 |
 
 
 
@@ -341,7 +342,7 @@ Aşağıdaki tablolar veritabanı şemasını alan düzeyinde tanımlar. Bütün
 | kullanici_id | INT (PK) | Hesabın benzersiz kimliği |
 | kullanici_adi | VARCHAR, benzersiz | Girişte kullanılan ad |
 | parola_ozeti | VARCHAR | Argon2id ile üretilmiş parola özeti; parolanın kendisi hiçbir biçimde saklanmaz |
-| rol | ENUM | calisan, yonetici, yonetim |
+| rol | ENUM | calisan \| idare \| hesap_yoneticisi \| sistem_yoneticisi (SRS 5.10) |
 | personel_id | INT (FK), NULL | Çalışan rolündeki hesabın bağlı olduğu personel; diğer rollerde boş olabilir |
 | parola_degistirmeli | BOOLEAN | Yönetim tarafından atanan veya sıfırlanan parolada true; ilk girişte değiştirilene kadar diğer işlevler açılmaz |
 | aktif | BOOLEAN | Devre dışı bırakılan hesap giriş yapamaz; kayıt silinmez |
@@ -452,6 +453,10 @@ Bir gün için geçerli talep belirlenirken önce o tarihe özgü istisna satır
 | dilim | ENUM | tam_gun \| ogleden_once \| ogleden_sonra (SRS TD-4) |
 | tip | ENUM | yillik_izin \| rapor \| egitim \| mazeret |
 | not | TEXT, NULL | Serbest açıklama |
+| belge_adi | VARCHAR, NULL | Yüklenen belgenin özgün dosya adı |
+| belge_tipi | VARCHAR, NULL | MIME tipi; beyaz listeyle sınırlı |
+| belge_boyut | INT, NULL | Bayt cinsinden boyut |
+| belge_icerik | BYTEA, NULL | Belgenin kendisi |
 
 
 
@@ -1280,6 +1285,44 @@ S3 ve S4'ün sapma ifadelerinde dönem içi toplama eklenen bir sayıdır. Payı
 kendisi de geçmiş gerçekleşme ile dönem talebinin toplamından hesaplanır ve
 model kurulurken sabittir.
 
+## 5.10 İzin Belgesi
+
+Müsaitlik kaydına eklenen belge çoğunlukla bir doktor raporudur ve **özel
+nitelikli kişisel veridir** (SRS TD-17). Tasarımı kolaylık değil erişim sorusu
+belirler.
+
+**Saklama.** Belge `musaitlik` satırının içinde `BYTEA` olarak tutulur. Dosya
+sistemi seçilmedi: sistem yedeği veritabanı yedeğidir (3.4.5) ve dışarıda tutulan
+dosyalar yedeğe girmez — bir gün sessizce kaybolurlar ve kaybolduklarını gösteren
+hiçbir belirti olmaz. Kayıt silindiğinde belge de aynı işlemde gider; yetim dosya
+kalmaz.
+
+**Yükleme sınırları** uygulama katmanında uygulanır: kayıt başına tek dosya,
+boyut tavanı, MIME beyaz listesi (PDF ve yaygın görsel biçimleri). Tip, dosya
+adının uzantısından değil içeriğinden doğrulanır — uzantı kullanıcı girdisidir.
+
+```
+FONKSİYON belge_indir(musaitlik_id, oturum):
+    kayit ← MusaitlikDeposu.getir(musaitlik_id)
+    EĞER kayit.belge_icerik BOŞ: 404
+
+    EĞER oturum.rol = calisan:
+        EĞER kayit.personel_id ≠ oturum.personel_id: 403
+    DEĞİLSE EĞER oturum.rol idare ve üstü DEĞİL: 403
+
+    DenetimKaydi.yaz(oturum.kullanici_id, musaitlik_id, "belge_erisim")
+    DÖNDÜR (kayit.belge_icerik, kayit.belge_tipi, kayit.belge_adi)
+```
+
+**Erişim kayda geçer.** Kimin hangi belgeye ne zaman eriştiği yazılır. Sağlık
+verisinde "kim gördü" sorusunun yanıtsız kalması, verinin korunmadığı anlamına
+gelir. Kayıt, denetim günlüğüne (3.4.6) anahtar=değer biçiminde yazılır; belgenin
+kendisi hiçbir günlüğe girmez.
+
+**Adres bilmek erişim hakkı vermez.** Yetki denetimi indirme yolunun içindedir;
+uç noktanın rol kapısıyla yetinilmez, çünkü çalışan rolü kendi kaydına erişebilir
+ve başkasınınkine erişememelidir — ayrım rolde değil kaydın sahipliğindedir.
+
 # 6. Kullanıcı Arayüzü Tasarımı
 
 ## 6.1 Arayüzün Genel Görünümü
@@ -1653,6 +1696,9 @@ Aşağıdaki tablo başlıca uç noktaların işlevsel bir özetidir. Uç noktal
 | /api/talep/{id} | PUT, DELETE | Talep aralığının güncellenmesi ve silinmesi |
 | /api/kural | GET, PUT | Kural parametrelerinin ve ağırlıkların yönetimi |
 | /api/musaitlik | GET, POST, DELETE | Müsaitlik kayıtları |
+| /api/musaitlik/{id}/belge | POST | Müsaitlik kaydına dayanak belge yüklenmesi (FR-2.7) |
+| /api/musaitlik/{id}/belge | GET | Belgenin indirilmesi; erişim kayda geçer (FR-2.8) |
+| /api/musaitlik/{id}/belge | DELETE | Belgenin kaldırılması |
 | /api/tercih | GET, POST, PUT | Tercih bildirimi ve onay |
 | /api/donem | GET, POST | Planlama dönemleri |
 | /api/surum | GET, POST | Çizelge sürümleri; taslak türetme |

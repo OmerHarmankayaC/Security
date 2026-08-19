@@ -49,6 +49,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 14.08.2026 | Çizelgenin ve analizin Excel çıktısı gereksinim olarak tanımlandı (FR-8.5, FR-8.9); dosya yapısı ve biçimlendirme kuralları 7.2'ye yazıldı | 1.24 |
 | Ömer HARMANKAYA | 14.08.2026 | Adalet ufkunun tanımı tamamlandı: geçmiş yükün ve hedefin birlikte ölçeklenmesi, ufuk içinde kısmen çalışabilir personel için payın orantılanması ve erişilebilirliğin bugünkü tanımdan alınması TD-6'ya yazıldı | 1.25 |
 | Ömer HARMANKAYA | 18.08.2026 | Günde tek tercih kuralı FR-9.6'ya, çözücü zaman limitinin yeni varsayılanı FR-4.6'ya yazıldı; 7.2'deki çizelge dışa aktarma sütun listesiyle açıklama arasındaki çelişki giderildi | 1.26 |
+| Ömer HARMANKAYA | 19.08.2026 | Rol yapısı dörde çıkarıldı (5.10): sistem yöneticisi, hesap yöneticisi, idare, çalışan; kendini kilitleme koruması FR-10.12, geçici parolanın tek seferlik gösterimi FR-10.13 ile tanımlandı. İzin belgesi eklendi (FR-2.7, FR-2.8) ve belgenin sağlık verisi olarak ele alınması TD-17'de yazıldı | 1.27 |
 
 
 
@@ -812,6 +813,8 @@ Ağırlıkların tamamı kullanıcı tarafından ayarlanabilir. Sistem hangi hed
 | FR-2.4 | Sistem, bir müsaitlik kaydı girilirken ilgili günlerde kapsama açığı oluşacaksa kullanıcıyı uyarmalı; uyarı gün, vardiya ve eksik kişi sayısını içermelidir. | Yüksek |
 | FR-2.5 | Sistem, müsaitlik takvimini aylık görünümde sunmalıdır. | Yüksek |
 | FR-2.6 | Sistem, yayınlanmış bir çizelgeyi etkileyen müsaitlik değişikliğinde kullanıcıyı bilgilendirmeli ve yeniden çözüm önermelidir. | Yüksek |
+| FR-2.7 | Sistem, bir müsaitlik kaydına dayanak belge (rapor, izin yazısı) eklenmesine imkân vermelidir. Kayıtta belge bulunduğu listede görünür ve belge tek tıkla açılır. | Yüksek |
+| FR-2.8 | Belgeye erişim, müsaitlik kaydını görebilen rollerle sınırlıdır ve her erişim kayda geçer. Çalışan yalnızca kendi kaydının belgesine erişebilir. | Zorunlu |
 
 
 
@@ -905,6 +908,35 @@ Değerlendirmenin biriken değişikliklerin **tamamı** üzerinden yapılması z
 
 Kaydetme, sürümün kullanıcı düzenlemeye başladığından beri değişmediğini doğrular. Değişmişse kayıt reddedilir ve kullanıcıya durum bildirilir; sessizce üzerine yazmak, başka bir kullanıcının işini iz bırakmadan yok eder.
 
+### TD-17 — İzin belgesi sağlık verisidir
+
+Müsaitlik kaydına eklenen belge çoğu zaman bir doktor raporudur. Bu, sıradan bir
+ek dosya değil **özel nitelikli kişisel veridir**; tasarımı kolaylık değil erişim
+sorusu belirler.
+
+**Kim görür.** Belgeye erişim, müsaitlik kaydını zaten görebilen rollerle
+sınırlıdır: idare ve üstü, bir de kaydın sahibi olan çalışan. Çalışan başkasının
+belgesine erişemez. Erişim yetkisi hem uç noktada hem indirme yolunda denetlenir;
+belgenin adresini bilmek erişim hakkı vermez.
+
+**Her erişim kayda geçer.** Kimin hangi belgeye ne zaman eriştiği yazılır. Sağlık
+verisinde "kim gördü" sorusunun yanıtsız kalması, verinin korunmadığı anlamına
+gelir.
+
+**Belge veritabanında saklanır**, dosya sisteminde değil. Gerekçe yedektir: sistem
+yedeği veritabanı yedeğidir (SDD 3.4.5) ve dosyalar dışarıda tutulursa yedeğe
+girmez, bir gün sessizce kaybolurlar. Kayıt silindiğinde belge de aynı işlemde
+gider; yetim dosya kalmaz. Ölçek buna elverir — birkaç yüz belge, her biri birkaç
+yüz kilobayt.
+
+**Sınırlar.** Kayıt başına tek dosya, boyut tavanı ve tip beyaz listesi (PDF ve
+yaygın görsel biçimleri). Sınırsız bırakılan bir yükleme yüzeyi, paylaşımlı
+sunucuda diski dolduran ilk şeydir.
+
+**Belge zorunlu değildir.** Müsaitlik kaydı belgesiz de girilebilir; belge bir
+dayanaktır, ön koşul değil. Zorunlu tutulması, acil durumda kaydı girmeyi
+engellerdi.
+
 ## 5.7 Sürüm ve Yayın Yönetimi
 
 | Kimlik | Gereksinim | Öncelik |
@@ -955,15 +987,20 @@ Kararlanmış bir tercihin üzerine yazılmaması bilinçlidir: onay veya ret bi
 
 Sistem bir kurum içi araçtır; kullanıcılar kendi kendilerine kayıt olmaz, hesapları yönetim tarafından oluşturulur. Bu nedenle sistemde kayıt ekranı bulunmaz, yalnızca giriş ekranı vardır.
 
-Üç kullanıcı rolü tanımlıdır:
+**Dört** kullanıcı rolü tanımlıdır:
 
 | Rol | Kapsam |
 | --- | --- |
 | Çalışan | Yalnızca kendi çizelgesini, dönem özetini ve tercihlerini görür ve yönetir (5.9). Tanım, çözüm ve yayın işlevlerine erişemez. |
-| Yönetici | Vardiya yöneticisinin bütün işlevlerine erişir: tanımlar, talep, kural, çözüm, manuel düzenleme, sürüm yönetimi, analiz ve dışa aktarma. Kullanıcı hesaplarını yönetemez. |
-| Yönetim (admin) | Yöneticinin bütün yetkilerine ek olarak kullanıcı hesaplarını oluşturur, rolünü değiştirir, parolasını sıfırlar ve hesabı devre dışı bırakır. |
+| İdare | Vardiya yöneticisinin bütün işlevlerine erişir: tanımlar, talep, kural, çözüm, manuel düzenleme, sürüm yönetimi, analiz, müsaitlik ve dışa aktarma. **Kullanıcı hesaplarına erişemez** — hesap ekranı bu rol için hiç görünmez. |
+| Hesap yöneticisi | İdarenin bütün yetkilerine ek olarak kullanıcı hesaplarını oluşturur, rolünü değiştirir, parolasını sıfırlar ve hesabı devre dışı bırakır. Sistem yöneticisi hesaplarına dokunamaz. |
+| Sistem yöneticisi | Bütün yetkileri taşır; hesap yöneticisi hesaplarını da yönetir. **Kendi hesabını devre dışı bırakamaz veya rolünü düşüremez**, ve sistemde en az bir etkin sistem yöneticisi kalmak zorundadır. |
 
-Roller kapsayıcıdır: yönetim rolü, yönetici rolünün yetkilerini içerir. Çalışan rolü diğerlerinin alt kümesi değildir; kendi verisine erişim, personel kaydına bağlı ayrı bir yetkidir.
+Roller kapsayıcıdır: sistem yöneticisi hesap yöneticisinin, hesap yöneticisi idarenin yetkilerini içerir. Çalışan rolü diğerlerinin alt kümesi değildir; kendi verisine erişim, personel kaydına bağlı ayrı bir yetkidir.
+
+**İdare ile hesap yöneticisinin ayrılması** bilinçlidir. Vardiya planlamak ile hesap açmak farklı işlerdir ve farklı kişiler yapar: çizelgeyi kuran kişinin kullanıcı parolası sıfırlayabilmesi için bir neden yoktur. Önceki sürümlerde iki iş tek rolde birleşikti ve yönetici rolü, ihtiyaç duymadığı bir yetkiyi taşıyordu.
+
+**Sistem yöneticisinin kendini kilitleyememesi** de bilinçlidir: son yetkili hesabın kapanması sistemi arayüzden onarılamaz hâle getirir ve kurtarma yalnızca veritabanına doğrudan erişimle mümkün olur. Kısıt, kendi hesabına ve son etkin sistem yöneticisine ayrı ayrı uygulanır — birincisi kazayı, ikincisi iki kişinin birbirini kapatmasını önler.
 
 | Kimlik | Gereksinim | Öncelik |
 | --- | --- | --- |
@@ -971,9 +1008,11 @@ Roller kapsayıcıdır: yönetim rolü, yönetici rolünün yetkilerini içerir.
 | FR-10.2 | Sistem, parolaları yalnızca özet (hash) biçiminde saklamalı, geri çevrilebilir hiçbir biçimde tutmamalıdır. | Zorunlu |
 | FR-10.3 | Sistem, giriş yapan kullanıcı için sunucu tarafında bir oturum kaydı oluşturmalı; oturumun süresi dolduğunda veya çıkış yapıldığında oturum geçersiz hâle gelmelidir. | Zorunlu |
 | FR-10.4 | Sistem, her isteğin yetkisini oturumdaki role göre sunucu tarafında denetlemelidir. Arayüzün bir işlevi gizlemesi yetkilendirme sayılmaz. | Zorunlu |
-| FR-10.5 | Sistem, yönetim rolündeki kullanıcının hesap oluşturmasına, rol atamasına, parola sıfırlamasına ve hesabı devre dışı bırakmasına imkân vermelidir. Hesap silme yerine devre dışı bırakma kullanılır. | Zorunlu |
-| FR-10.6 | Sistem, çalışan rolündeki her hesabı bir personel kaydına bağlamalıdır; bağlantısı olmayan bir çalışan hesabı oluşturulamaz. Bir personelin birden fazla hesabı bulunamaz: iki hesap da yalnızca kendi verisini göreceğinden erişim açısından sakınca doğmaz, ancak parola sıfırlandığında hangi hesabın sıfırlandığı belirsizleşir. | Zorunlu |
-| FR-10.7 | Sistem, yönetim tarafından oluşturulan veya sıfırlanan parolanın ilk girişte değiştirilmesini zorunlu tutmalıdır. | Yüksek |
+| FR-10.5 | Sistem, hesap yöneticisi ve sistem yöneticisi rollerindeki kullanıcının hesap oluşturmasına, rol atamasına, parola sıfırlamasına ve hesabı devre dışı bırakmasına imkân vermelidir. Hesap silme yerine devre dışı bırakma kullanılır. İdare rolü bu işlevlere erişemez. | Zorunlu |
+| FR-10.12 | Sistem yöneticisi kendi hesabını devre dışı bırakamaz, silemez ve rolünü düşüremez; sistemde her zaman en az bir etkin sistem yöneticisi bulunmalıdır. Hesap yöneticisi, sistem yöneticisi rolündeki hesapları değiştiremez. | Zorunlu |
+| FR-10.6 | Sistem, çalışan rolündeki her hesabı bir personel kaydına bağlamalıdır; bağlantısı olmayan bir çalışan hesabı oluşturulamaz. İdare, hesap yöneticisi ve sistem yöneticisi rolleri için personel bağlantısı isteğe bağlıdır — bu roller bir personel kaydına karşılık gelmeyebilir. Bir personelin birden fazla hesabı bulunamaz: iki hesap da yalnızca kendi verisini göreceğinden erişim açısından sakınca doğmaz, ancak parola sıfırlandığında hangi hesabın sıfırlandığı belirsizleşir. | Zorunlu |
+| FR-10.7 | Sistem, hesap yönetimi tarafından oluşturulan veya sıfırlanan parolanın ilk girişte değiştirilmesini zorunlu tutmalıdır. | Zorunlu |
+| FR-10.13 | Sistem, bir hesap oluşturulduğunda veya parolası sıfırlandığında geçici parolayı **yalnızca o anda ve bir kez** göstermelidir. Parola hiçbir yerde saklanmaz, listelenmez ve yeniden gösterilemez; kaybedilmesi hâlinde yeniden sıfırlanır. | Zorunlu |
 | FR-10.8 | Sistem, ardışık başarısız giriş denemelerinde hesabı geçici olarak kilitlemeli ve kilit süresini bildirmelidir. Kilit bildirimi ile hesabın devre dışı olduğu bildirimi yalnızca parola doğru girildiğinde gösterilir; parolayı bilmeyen bir kullanıcı bu metinleri hiçbir kullanıcı adı için göremez. Aksi hâlde bildirim, hesabın var olup olmadığını ele veren bir sinyale dönüşür. | Yüksek |
 | FR-10.9 | Sistem, başarılı ve başarısız giriş denemeleri ile hesap yönetimi işlemlerini zaman damgasıyla kaydetmelidir. | Orta |
 | FR-10.10 | Sistem, ilk yönetim hesabının arayüz dışı bir kurulum adımıyla oluşturulmasına imkân vermelidir. | Zorunlu |
