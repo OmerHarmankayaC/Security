@@ -36,3 +36,22 @@ export function olculebilirSurum(
 ): CizelgeSurumu | undefined {
   return surumler.find((s) => s.durum !== 'taslak')
 }
+
+/**
+ * EN SON dönem — Çizelge ve Analiz ekranlarının varsayılanı.
+ *
+ * Bu iki ekran `/api/donem`'in ilk öğesini alıyordu ve o EN ESKİ dönemdir
+ * (uç nokta artan tarihe göre sıralı döner): kullanıcı ekranı açtığında
+ * aylar öncesinin çizelgesini görüyor, baktığı şeyin güncel olduğunu
+ * sanıyordu.
+ *
+ * Neden `donemSec` değil: o "bugünü içeren dönem"i verir ve Özet ekranının
+ * sorusu odur ("şu an ne oluyor"). Çizelge ile Analiz'in sorusu ise "en son
+ * ne ürettim" — planlama bir sonraki dönem için yapılır ve o dönem henüz
+ * başlamamıştır.
+ */
+export function sonDonem(donemler: readonly Donem[]): Donem | undefined {
+  return [...donemler].sort((a, b) =>
+    a.baslangic_tarihi.localeCompare(b.baslangic_tarihi),
+  )[donemler.length - 1]
+}

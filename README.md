@@ -1,8 +1,14 @@
 # Shift Scheduling Decision Support Tool
 
 A constraint-programming (Google OR-Tools CP-SAT) decision support tool for
-scheduling security personnel at BOTAŞ facilities. A web application built on
-FastAPI + React + PostgreSQL.
+building shift schedules: it assigns staff to hourly demand under hard rules
+(rest periods, weekly caps, competencies) while balancing night hours,
+weekend hours and total load fairly. A web application built on FastAPI +
+React + PostgreSQL.
+
+Written as an internship project. The rules, demand patterns and staffing
+figures in this repository are illustrative — the tool is generic, and the
+data it ships with is generated.
 
 For scope, architecture, and the rule catalogue, see the four canonical
 documents under [`docs/`](docs/) (Charter, SRS, Backlog, SDD).

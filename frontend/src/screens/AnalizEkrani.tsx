@@ -17,6 +17,7 @@ import { csvDisaAktar } from '../lib/disaAktarma'
 import { cn } from '../lib/utils'
 import { sayiBicimle, sapmaBicimle } from '../lib/sayi'
 import { adaletSatirlari, type AdaletSatiri } from '../lib/adalet'
+import { sonDonem } from '@/lib/donemSecimi'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -62,7 +63,12 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
       .then(([d, p]) => {
         setDonemler(d)
         setPersonelListesi(p)
-        if (donemId === null && d[0]) donemIdSec(d[0].donem_id)
+        // `d[0]` EN ESKİ dönemdir (uç nokta artan tarihe sıralı döner);
+        // varsayılan EN SON dönem olmalı (bkz. lib/donemSecimi.ts).
+        if (donemId === null) {
+          const son = sonDonem(d)
+          if (son) donemIdSec(son.donem_id)
+        }
       })
       .catch((e) => setHata(e instanceof Error ? e.message : 'Tanımlar yüklenemedi'))
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -145,6 +151,14 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
     }
   }, [saatSapmasiOlanlar])
 
+  // HEDEF ADLARI TEK KAYNAKTAN. Tablo `ceza_kalemleri`nin `ad` alanını
+  // kullanıyordu, çubuk grafik ise ham `ceza_dokumu` sözlüğünün anahtarını —
+  // aynı ekranda biri "Gece adaleti", diğeri "S2" yazıyordu. "S2" tek başına
+  // kimseye bir şey söylemez.
+  const hedefAdlari = useMemo(
+    () => new Map((analiz?.ceza_kalemleri ?? []).map((k) => [k.kimlik, k.ad])),
+    [analiz?.ceza_kalemleri],
+  )
   const cezaGirdileri = analiz?.ceza_dokumu
     ? Object.entries(analiz.ceza_dokumu).sort(([a], [b]) => a.localeCompare(b))
     : []
@@ -434,7 +448,10 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
               <ul className="m-0 flex list-none flex-col gap-2 p-0">
                 {cezaGirdileri.map(([kimlik, deger]) => (
                   <li key={kimlik} className="flex items-center gap-3 py-1 text-sm">
-                    <span className="w-28 shrink-0 text-ink-muted">{kimlik}</span>
+                    <span className="w-44 shrink-0 truncate text-ink-muted" title={kimlik}>
+                      {hedefAdlari.get(kimlik) ?? kimlik}
+                      <span className="ml-2 font-mono text-xs">{kimlik}</span>
+                    </span>
                     <span className="h-2 flex-1 overflow-hidden rounded-sm bg-sunken">
                       <span
                         className={kimlik === 'S1' ? 'block h-full bg-signal' : 'block h-full bg-accent'}
@@ -791,10 +808,16 @@ function KumulatifDegisimKarti({ degisim }: { degisim: KumulatifDegisim }) {
           <span
             className={cn(
               'font-mono text-sm font-semibold',
-              simdiki < onceki ? 'text-accent' : 'text-signal',
+              // DEĞİŞMEDİ HÂLİ AYRI: eşitlik "artıyor" sayılıp alarm rengine
+              // düşüyordu (önceki 4,07 · şimdi 4,07 · ↑ artıyor).
+              simdiki === onceki
+                ? 'text-ink-muted'
+                : simdiki < onceki
+                  ? 'text-accent'
+                  : 'text-signal',
             )}
           >
-            {simdiki < onceki ? '↓ azalıyor' : '↑ artıyor'} (
+            {simdiki === onceki ? 'değişmedi' : simdiki < onceki ? '↓ azalıyor' : '↑ artıyor'} (
             {sapmaBicimle(simdiki - onceki)} sa)
           </span>
         </div>

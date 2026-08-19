@@ -24,6 +24,7 @@ import { cn } from '../lib/utils'
 import { belirtmeHaliEki, buyukHarf } from '../lib/metin'
 import { sayiBicimle } from '../lib/sayi'
 import { blokSinirlariniOku } from '../lib/kuralParametre'
+import { sonDonem } from '@/lib/donemSecimi'
 import {
   BOS_OTURUM,
   adimlariEkle,
@@ -144,7 +145,12 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
         setNoktalar(n)
         setYetkinlikler(y.filter((x) => x.aktif))
         setKurallar(k)
-        if (donemId === null && d[0]) donemIdSec(d[0].donem_id)
+        // `d[0]` EN ESKİ dönemdir (uç nokta artan tarihe sıralı döner);
+        // varsayılan EN SON dönem olmalı (bkz. lib/donemSecimi.ts).
+        if (donemId === null) {
+          const son = sonDonem(d)
+          if (son) donemIdSec(son.donem_id)
+        }
       })
       .catch((e) => setHata(e instanceof Error ? e.message : 'Tanımlar yüklenemedi'))
     // eslint-disable-next-line react-hooks/exhaustive-deps
