@@ -343,10 +343,18 @@ journalctl -u vardiya-cozucu -f
 journalctl -u caddy -f | grep vardiya
 ```
 
-Kod güncellemesi (yerelden):
+Kod güncellemesi (yerelden). **Depo kökünden koşulur** — `frontend/`
+içindeyken `frontend/dist/` yolu `frontend/frontend/dist/`e çözülür.
+
+**`RSYNC_RSH` bu blokta da gerekir.** `ssh` komutları bayrağı kendi satırında
+taşır ama rsync taşımaz; export edilmezse rsync varsayılan anahtarı dener ve
+`Permission denied (publickey)` der. Anahtar ajanda yüklüyse (`ssh-add -l`
+kimlik gösteriyorsa) gerekmez — bu yüzden bazı oturumlarda çalışıp bazılarında
+çalışmıyor gibi görünür. Ayrıntı ve iki tuzak: 15.4.
 
 ```bash
-cd frontend && npm ci && npm run build
+export RSYNC_RSH="ssh -o IdentitiesOnly=yes -i $HOME/.ssh/vera_hetzner"
+cd frontend && npm ci && npm run build && cd ..
 rsync -az --delete frontend/dist/ root@46.225.109.40:/opt/vardiya/web/
 rsync -az --delete --exclude '.venv/' --exclude '__pycache__/' \
       --exclude '.pytest_cache/' --exclude '.ruff_cache/' --exclude '.env' \
