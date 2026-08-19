@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api/client'
 import type {
+  Donem,
   Analiz,
   CizelgeSurumu,
   GorevNoktasi,
@@ -14,6 +15,7 @@ import { Kart, KartEtiketi, Rozet, Sayi } from '../components/app-ui'
 import { bugunIso, gunKisaltmasiVeNumarasi, isoAyristir } from '../lib/tarih'
 import { sayiBicimle } from '../lib/sayi'
 import { sapmaEtiketi, sapmaGunu } from '@/lib/blok'
+import { donemSec, olculebilirSurum } from '@/lib/donemSecimi'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -41,6 +43,7 @@ export function OzetEkrani({ ekranSec }: Props) {
   const [noktalar, setNoktalar] = useState<GorevNoktasi[]>([])
   const [musaitlikler, setMusaitlikler] = useState<Musaitlik[]>([])
   const [tercihler, setTercihler] = useState<Tercih[]>([])
+  const [seciliDonem, setSeciliDonem] = useState<Donem | null>(null)
   const [hata, setHata] = useState<string | null>(null)
 
   useEffect(() => {
@@ -56,14 +59,23 @@ export function OzetEkrani({ ekranSec }: Props) {
         setNoktalar(n)
         setMusaitlikler(m)
         setTercihler(t)
-        if (d[0]) return api.surumler(d[0].donem_id)
+        // DÖNEM SEÇİMİ `d[0]` DEĞİL: uç nokta artan tarihe göre sıralı
+        // döner ve ilk öğe EN ESKİ dönemdir. Kenar çubuğuyla aynı kuralı
+        // kullanmak zorundayız, yoksa ekran bir dönemin başlığıyla başka
+        // bir dönemin sayılarını gösterir (bkz. lib/donemSecimi.ts).
+        const donem = donemSec(d, bugunIso())
+        setSeciliDonem(donem ?? null)
+        if (donem) return api.surumler(donem.donem_id)
         return []
       })
       .then((s) => setSurumler(s))
       .catch((e) => setHata(e instanceof Error ? e.message : 'Özet verisi yüklenemedi'))
   }, [])
 
-  const sonSurum = surumler[0] ?? null
+  // Çözülmemiş taslak ATLANIR: ataması yoktur, dolayısıyla kapsaması da
+  // yoktur — %0 basmak onu ölçülmüş gibi gösterirdi.
+  const sonSurum = olculebilirSurum(surumler) ?? null
+  const olculemeyenTaslak = sonSurum === null && surumler.length > 0
 
   useEffect(() => {
     if (!sonSurum) {
@@ -97,8 +109,19 @@ export function OzetEkrani({ ekranSec }: Props) {
     .slice(0, 6)
 
   return (
-    <AppShell aktifEkran="Özet" ekranSec={ekranSec} baslik="Özet">
+    <AppShell
+      aktifEkran="Özet"
+      ekranSec={ekranSec}
+      baslik="Özet"
+      donemId={seciliDonem?.donem_id ?? null}
+    >
       {hata && <p className="text-sm text-signal">{hata}</p>}
+      {olculemeyenTaslak && (
+        <p className="m-0 rounded-sm bg-sunken px-4 py-3 text-sm text-ink-muted">
+          Bu dönemin son sürümü henüz çözülmemiş bir taslak; aşağıdaki ölçüler
+          bu yüzden boş. Çizelge üretmek için Çözüm ekranını kullan.
+        </p>
+      )}
 
       <div className="grid grid-cols-5 gap-4">
         <Kart>

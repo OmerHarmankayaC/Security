@@ -4,6 +4,7 @@ import type { Donem, Rol } from '@/api/types'
 import { cn } from '@/lib/utils'
 import { buyukHarf } from '@/lib/metin'
 import { bugunIso, donemAraligiBicimle, gunlerListesi } from '@/lib/tarih'
+import { donemSec } from '@/lib/donemSecimi'
 import { navGruplari } from '@/lib/yetki'
 import { useAktifIs } from './AktifIsBaglami'
 import { useOturum } from './OturumBaglami'
@@ -32,25 +33,16 @@ interface AppShellProps {
 /**
  * Yan menüdeki dönem bloğunun hangi dönemi göstereceği.
  *
- * Ekran bir dönem seçmişse o gösterilir. Seçmemişse `/api/donem`'in dönüş
- * SIRASINA GÜVENİLMEZ (sorgu sırasızdır); bunun yerine backend'in çalışan
- * panelinde uyguladığı kuralın aynısı işletilir: bugünü içeren dönem, yoksa
- * en yakın gelecek dönem, o da yoksa en son geçmiş dönem.
+ * Ekran bir dönem seçmişse o gösterilir; seçmemişse kural `lib/donemSecimi`
+ * içindedir ve Özet ekranıyla ORTAKTIR — ikisi ayrıştığında kenar çubuğu bir
+ * dönemi, kartlar başka bir dönemi gösteriyordu.
  */
-function donemSec(donemler: Donem[], donemId: number | null | undefined): Donem | undefined {
+function donemiBul(donemler: Donem[], donemId: number | null | undefined): Donem | undefined {
   if (donemId != null) {
     const secili = donemler.find((d) => d.donem_id === donemId)
     if (secili) return secili
   }
-  const bugun = bugunIso()
-  const sirali = [...donemler].sort((a, b) =>
-    a.baslangic_tarihi.localeCompare(b.baslangic_tarihi),
-  )
-  return (
-    sirali.find((d) => d.baslangic_tarihi <= bugun && d.bitis_tarihi >= bugun) ??
-    sirali.find((d) => d.baslangic_tarihi > bugun) ??
-    sirali[sirali.length - 1]
-  )
+  return donemSec(donemler, bugunIso())
 }
 
 const IS_DURUM_METNI: Record<string, string> = {
@@ -150,7 +142,7 @@ export function AppShell({
       })
   }, [])
 
-  const donem = donemSec(donemler, donemId)
+  const donem = donemiBul(donemler, donemId)
   return (
     // Kabuk, görünür alanın TAMAMINI kaplar ve kendisi kaydırılmaz
     // (`overflow-hidden`): kaydırma, aşağıdaki içerik alanının kendi
