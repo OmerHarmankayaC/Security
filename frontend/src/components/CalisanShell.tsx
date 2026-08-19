@@ -5,11 +5,12 @@
 // "Vardiyalarım/Dönem Özetim/Tercihlerim — Masaüstü (Çalışan).png"). Masaüstünde
 // de ortalanmış tek sütun (~720px), iki sütunlu geniş düzen yok — bu yüzden
 // mobil sürüm ayrı bir tasarım turu gerektirmiyor (NFR-7).
-import type { PropsWithChildren } from 'react'
+import { useState, type PropsWithChildren } from 'react'
 import { buyukHarf } from '@/lib/metin'
 import { donemAraligiBicimle } from '@/lib/tarih'
 import { cn } from '@/lib/utils'
 import { useOturum } from './OturumBaglami'
+import { KunyeIcerigi } from './KunyeIcerigi'
 
 export type CalisanSekmesi = 'Vardiyalarım' | 'Dönem Özetim' | 'Tercihlerim'
 
@@ -36,6 +37,7 @@ export function CalisanShell({
   children,
 }: PropsWithChildren<Props>) {
   const { cikis, parolaDegistir } = useOturum()
+  const [kunyeAcik, kunyeAc] = useState(false)
   return (
     <div className="min-h-svh bg-canvas text-ink">
       <header className="bg-chrome-base">
@@ -70,6 +72,16 @@ export function CalisanShell({
                 mobil öncelikli tek sütunda ayrı bir menü açmak, üç sekmelik
                 bir panelde taşıdığından fazla yapı olurdu. */}
             <div className="mt-2 flex justify-end gap-3">
+              {/* KÜNYE SEKME DEĞİL BAĞLANTI: çalışanın kendi verisi değil,
+                  ürünün bilgisi. Dördüncü bir sekme olsaydı üç sekmelik
+                  panelin ritmini bozardı. */}
+              <button
+                type="button"
+                onClick={() => kunyeAc(true)}
+                className="text-xs text-chrome-ink-muted underline-offset-2 transition-colors hover:text-chrome-ink hover:underline"
+              >
+                Künye
+              </button>
               <button
                 type="button"
                 onClick={parolaDegistir}
@@ -106,7 +118,22 @@ export function CalisanShell({
           ))}
         </nav>
       </header>
-      <main className="mx-auto flex max-w-[720px] flex-col gap-5 px-6 py-7">{children}</main>
+      <main className="mx-auto flex max-w-[720px] flex-col gap-5 px-6 py-7">
+        {kunyeAcik ? (
+          <>
+            <button
+              type="button"
+              onClick={() => kunyeAc(false)}
+              className="self-start text-sm text-accent underline-offset-2 hover:underline"
+            >
+              ← Panele dön
+            </button>
+            <KunyeIcerigi />
+          </>
+        ) : (
+          children
+        )}
+      </main>
     </div>
   )
 }

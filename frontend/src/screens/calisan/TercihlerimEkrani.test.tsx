@@ -139,4 +139,25 @@ describe('TercihlerimEkrani', () => {
     fireEvent.change(bitis, { target: { value: '8' } })
     expect(await screen.findByText(/tüm gün \(24 saat\)/i)).toBeTruthy()
   })
+
+  it('hangi DÖNEM için tercih bildirildiğini adıyla söyler', async () => {
+    // Metin sabit olarak "Bir sonraki dönem için" diyordu. Oysa tercihe açık
+    // dönem, İÇİNDE BULUNULAN dönem de olabiliyor (demo veride öyle:
+    // 17-23 Ağu dönemi, son tarihi kendi bitiş günü). O durumda cümle
+    // çalışanı yanlış döneme yönlendiriyordu.
+    _liste = {
+      acik_donem: {
+        donem_id: 1,
+        baslangic_tarihi: '2099-01-05',
+        bitis_tarihi: '2099-01-11',
+        tercih_son_tarihi: '2099-01-01',
+      },
+      tercihler: [],
+    }
+    render(<TercihlerimEkrani />)
+    // Dönem aralığı cümlenin içinde geçmeli; "bir sonraki" gibi konuma
+    // dayalı bir ifade değil.
+    expect(await screen.findByText(/05\s*[–-]\s*11 Oca/)).toBeTruthy()
+    expect(screen.queryByText(/Bir sonraki dönem/)).toBeNull()
+  })
 })

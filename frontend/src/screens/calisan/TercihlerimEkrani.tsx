@@ -11,7 +11,12 @@ import {
   saatEtiketi,
   saatiYaz,
 } from '@/lib/talepAraligi'
-import { bugunIso, gunFarki, gunKisaltmasiVeNumarasi } from '@/lib/tarih'
+import {
+  bugunIso,
+  donemAraligiBicimle,
+  gunFarki,
+  gunKisaltmasiVeNumarasi,
+} from '@/lib/tarih'
 import { buyukHarf } from '@/lib/metin'
 import { cn } from '@/lib/utils'
 
@@ -193,8 +198,14 @@ export function TercihlerimEkrani() {
             Tercih bildirimi {gunKisaltmasiVeNumarasi(acik.tercih_son_tarihi)} tarihinde
             kapanıyor
           </p>
+          {/* DÖNEM ADIYLA SÖYLENİR. "Bir sonraki dönem" sabit bir ifadeydi
+              ve yanlıştı: tercihe açık dönem, içinde bulunulan dönem de
+              olabiliyor (son tarihi kendi bitiş gününe düşen bir dönemde
+              öyle). Konuma dayalı bir ifade yerine aralığın kendisi
+              yazılınca belirsizlik kalmıyor. */}
           <p className="m-0 mt-0.5 text-sm text-ink-muted">
-            Bir sonraki dönem için {kalanGun} günün var.
+            {donemAraligiBicimle(acik.baslangic_tarihi, acik.bitis_tarihi)} dönemi için{' '}
+            {kalanGun} günün var.
           </p>
         </div>
       )}
