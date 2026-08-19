@@ -12,6 +12,7 @@ Kilitlenen uc sey:
   3. **Calisabilirlik orani payi kucultur** (SRS TD-6).
 """
 
+import math
 from datetime import date, timedelta
 
 import pytest
@@ -226,3 +227,56 @@ def test_donem_ici_pay_calisabilir_oranla_olceklenmez() -> None:
     # Ufuk: gecmis pay eklenir, sonra oran uygulanir.
     assert ufuk[1] == pytest.approx(donem_ici[1] + 4.0)
     assert ufuk[2] == pytest.approx((donem_ici[2] + 4.0) * 0.5)
+
+
+# --- Pay TAM SAYIYSA taban/tavan bandi NOKTA olmalidir --------------------
+
+
+def _uc_kisilik_baglam(gun_sayisi: int) -> Baglam:
+    """Uc kisinin erisebildigi bir nokta; her saatte bir kisi gerekiyor.
+
+    Kisi basi pay her saat icin 1/3'tur ve bu deger IKILIK TABANDA TAM
+    GOSTERILEMEZ. Yeterince toplanınca artik birikir: 63 saat icin matematiksel
+    sonuc tam 21, kayan noktada 21.000000000000085.
+    """
+    b = Baglam(
+        gorev_noktalari={NOKTA: GorevNoktasiBilgisi(NOKTA)},
+        personel={
+            k: PersonelBilgisi(k, date(2025, 1, 1), None, frozenset(), haftalik_hedef_saat=40)
+            for k in (1, 2, 3)
+        },
+        zaman_ekseni=[_gun(i) for i in range(gun_sayisi)],
+        donem_baslangic=_gun(0),
+        donem_bitis=_gun(gun_sayisi - 1),
+    )
+    saat = 0
+    for gun in range(gun_sayisi):
+        for s in range(24):
+            if saat >= 63:
+                return b
+            b.talep_saat[(_gun(gun), s, NOKTA)] = 1
+            saat += 1
+    return b
+
+
+def test_tam_sayi_pay_ceil_ile_bir_ust_bande_kacmaz() -> None:
+    """Pay matematiksel olarak TAM SAYIYSA `ceil` onu bir yukari tasimamalidir.
+
+    KAYAN NOKTA HATASI, GORUNUR SONUCU OLAN CINSTEN. `adil_paylar` payi
+    tek tek toplayarak kurar; 1/3 gibi bir deger 63 kez toplandiginda sonuc
+    21 degil 21.000000000000085 cikar. `ceil` bunu 22 yapar ve S2/S3/S4'un
+    taban/tavan bandi [21,21] yerine [21,22] olur.
+
+    Sonucu: PAYINI TAM TUTTURAN KISI BILE cezali gorunur
+    (`max(21-21, 22-21, 0) = 1`) ve payinin altindaki herkesin sapmasi bir
+    saat sisik cikar. Gercek veride olculdu: otuz kisilik havuzun on
+    dokuzunda gece sapmasi birer saat fazla raporlaniyordu.
+    """
+    baglam = _uc_kisilik_baglam(3)
+    paylar = baglam.adil_paylar(lambda _anahtar: True)
+
+    for personel_id, pay in paylar.items():
+        assert pay == pytest.approx(21.0), f"personel {personel_id}"
+        # Asil iddia: taban ve tavan AYNI olmali, band bir nokta olmali.
+        assert math.floor(pay) == 21, f"taban bozuk: {pay!r}"
+        assert math.ceil(pay) == 21, f"tavan bir ust bande kacti: {pay!r}"

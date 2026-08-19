@@ -136,6 +136,25 @@ class TercihKaydi:
     tercih_bitis: time | None = None
 
 
+# ADIL PAY YUVARLANARAK DONER — kayan nokta artigi taban/tavan bandini bozuyor.
+#
+# Pay tek tek toplanarak kurulur (`adil_paylar`); 1/3 gibi ikilik tabanda tam
+# gosterilemeyen bir deger yeterince toplandiginda artik birikir ve
+# matematiksel olarak TAM SAYI olan bir pay 21.000000000000085 ya da
+# 20.999999999999993 olarak cikar. S2/S3/S4'un bandi `floor(pay)`/`ceil(pay)`
+# ile kuruldugu icin band [21,21] yerine [21,22] ya da [20,21] olur: payini
+# tam tutturan kisi cezali gorunur, sapmalar bir saat sisik ya da eksik
+# raporlanir. Gercek veride olculdu — otuz kisilik havuzun on dokuzunda.
+#
+# Dokuz basamak, gercek kesirli paylari (10,333333...) bozmadan artigi siler.
+PAY_BASAMAK = 9
+
+
+def payi_yuvarla(pay: float) -> float:
+    """Adil payi taban/tavan hesabina girmeden once artiktan arindirir."""
+    return round(pay, PAY_BASAMAK)
+
+
 @dataclass(slots=True)
 class Baglam:
     gorev_noktalari: dict[int, GorevNoktasiBilgisi]
@@ -538,7 +557,7 @@ class Baglam:
         # sapma 34'ten 61,27'ye ciriyordu. Ne cozucu kotulesmisti ne veri;
         # yalnizca pay ile yuk farkli ufuklardan okunuyordu.
         if self.gecmis is None or olcu is None:
-            return paylar
+            return {p: payi_yuvarla(v) for p, v in paylar.items()}
 
         gecmis_pay = {
             "gece": self.gecmis.pay_gece,
@@ -550,7 +569,7 @@ class Baglam:
                 paylar[personel_id] += katki
         for personel_id in paylar:
             paylar[personel_id] *= self.calisabilir_oran(personel_id)
-        return paylar
+        return {p: payi_yuvarla(v) for p, v in paylar.items()}
 
     def uygun_havuz(self, talep_uygun_mu: Callable[[tuple[date, int, int]], bool]) -> set[int]:
         """SRS S2/S3'teki P_gece / P_hs: PAYI SIFIRDAN BUYUK olan personel.

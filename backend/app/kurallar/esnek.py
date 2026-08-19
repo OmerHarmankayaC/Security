@@ -16,7 +16,7 @@ from typing import Any
 
 from ortools.sat.python import cp_model
 
-from app.kurallar.baglam import AtamaKaydi, Baglam
+from app.kurallar.baglam import AtamaKaydi, Baglam, payi_yuvarla
 from app.kurallar.kayit_defteri import kayitli
 from app.kurallar.temel import EsnekHedef, Ihlal, KuralKapsami, ParametreTanimi, XAnahtari
 from app.kurallar.yardimcilar import calisilan_gunler
@@ -900,7 +900,7 @@ def s4_hedef_paylari(
         p: hedef_saat / toplam_hedef * toplam_talep_saat for p, hedef_saat in hedef_saatler.items()
     }
     if baglam.gecmis is None or not gecmisi_kat:
-        return paylar
+        return {p: payi_yuvarla(v) for p, v in paylar.items()}
     # ADALET UFKU (SRS TD-6): gecmis pencerede gerceklesen saat de paya
     # girer ve pay calisabilir oraniyla kucultulur. Ikisi de yapilmazsa
     # donem ici yuk, ufku kapsayan bir yukle karsilastirilmis olurdu.
@@ -910,7 +910,7 @@ def s4_hedef_paylari(
     # vermez: S4'un yuk tarafi gecmis saati SABIT TERIM olarak ekler
     # (modele_ekle ve dogrula), dolayisiyla hedefin de kapsamasi gerekir.
     return {
-        p: (pay + baglam.gecmis.pay_toplam.get(p, 0.0)) * baglam.calisabilir_oran(p)
+        p: payi_yuvarla((pay + baglam.gecmis.pay_toplam.get(p, 0.0)) * baglam.calisabilir_oran(p))
         for p, pay in paylar.items()
     }
 
