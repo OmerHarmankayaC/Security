@@ -14,6 +14,7 @@ Kullanim:
     python scripts/hesaplari_kur.py --sistem-yoneticisi omer
     python scripts/hesaplari_kur.py --calisanlar
     python scripts/hesaplari_kur.py --yukselt omer        # mevcut hesabi yukseltir
+    python scripts/hesaplari_kur.py --parola-sifirla omer  # yeni gecici parola
     python scripts/hesaplari_kur.py --durum               # yalniz sayim, parola uretmez
 """
 
@@ -75,6 +76,9 @@ def main() -> int:
     ayristirici.add_argument(
         "--yukselt", metavar="ADI", help="Mevcut hesabi sistem yoneticisi yapar"
     )
+    ayristirici.add_argument(
+        "--parola-sifirla", metavar="ADI", help="Mevcut hesaba yeni gecici parola verir"
+    )
     ayristirici.add_argument("--durum", action="store_true", help="Yalniz sayim gosterir")
     argumanlar = ayristirici.parse_args()
 
@@ -105,6 +109,12 @@ def main() -> int:
             return 2
 
         acilanlar: list[AcilanHesap] = []
+        if argumanlar.parola_sifirla:
+            sifirlanan = kurulum.parolayi_sifirla(argumanlar.parola_sifirla)
+            if sifirlanan is None:
+                print(f"HATA: '{argumanlar.parola_sifirla}' adinda hesap yok.", file=sys.stderr)
+                return 1
+            acilanlar.append(sifirlanan)
         for ad, rol in (
             (argumanlar.sistem_yoneticisi, Rol.SISTEM_YONETICISI),
             (argumanlar.hesap_yoneticisi, Rol.HESAP_YONETICISI),

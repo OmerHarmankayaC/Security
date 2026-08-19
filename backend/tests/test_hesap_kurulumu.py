@@ -106,9 +106,7 @@ class TestCalisanHesaplari:
         sonuc = HesapKurulumu(oturum).calisan_hesaplari_ac()
         parola = next(s.gecici_parola for s in sonuc if s.personel_id == p.personel_id)
 
-        kullanici = (
-            oturum.query(Kullanici).filter(Kullanici.personel_id == p.personel_id).one()
-        )
+        kullanici = oturum.query(Kullanici).filter(Kullanici.personel_id == p.personel_id).one()
         # Ozet parolanin kendisi DEGILDIR ve hicbir sutun duz parolayi tasimaz.
         assert parola not in kullanici.parola_ozeti
         for deger in vars(kullanici).values():
@@ -118,9 +116,7 @@ class TestCalisanHesaplari:
     def test_ilk_giriste_parola_degistirme_borcu_yazilir(self, oturum) -> None:  # noqa: ANN001
         p = _personel(oturum, "Mehmet Kaya")
         HesapKurulumu(oturum).calisan_hesaplari_ac()
-        kullanici = (
-            oturum.query(Kullanici).filter(Kullanici.personel_id == p.personel_id).one()
-        )
+        kullanici = oturum.query(Kullanici).filter(Kullanici.personel_id == p.personel_id).one()
         assert kullanici.parola_degistirmeli is True
         assert kullanici.rol is Rol.CALISAN
 
@@ -131,6 +127,37 @@ class TestCalisanHesaplari:
         ikinci = kurulum.calisan_hesaplari_ac()
 
         assert all(s.personel_id != p.personel_id for s in ikinci)
-        assert (
-            oturum.query(Kullanici).filter(Kullanici.personel_id == p.personel_id).count() == 1
-        )
+        assert oturum.query(Kullanici).filter(Kullanici.personel_id == p.personel_id).count() == 1
+
+
+class TestParolaSifirlama:
+    def test_yeni_parola_uretir_ve_borcu_yazar(self, oturum) -> None:  # noqa: ANN001
+        p = _personel(oturum, "Sifirlama Testi")
+        HesapKurulumu(oturum).calisan_hesaplari_ac()
+        kullanici = oturum.query(Kullanici).filter(Kullanici.personel_id == p.personel_id).one()
+        onceki_ozet = kullanici.parola_ozeti
+        kullanici.parola_degistirmeli = False
+
+        sonuc = HesapKurulumu(oturum).parolayi_sifirla(kullanici.kullanici_adi)
+
+        assert sonuc is not None
+        assert sonuc.gecici_parola not in kullanici.parola_ozeti
+        assert kullanici.parola_ozeti != onceki_ozet
+        assert kullanici.parola_degistirmeli is True
+
+    def test_kilit_ve_sayac_da_sifirlanir(self, oturum) -> None:  # noqa: ANN001
+        # Eski parolayla dolmus bir sayac yuzunden YENI parolayla beklemenin
+        # anlami yok.
+        p = _personel(oturum, "Kilitli Hesap")
+        HesapKurulumu(oturum).calisan_hesaplari_ac()
+        kullanici = oturum.query(Kullanici).filter(Kullanici.personel_id == p.personel_id).one()
+        kullanici.basarisiz_deneme = 5
+        oturum.flush()
+
+        HesapKurulumu(oturum).parolayi_sifirla(kullanici.kullanici_adi)
+
+        assert kullanici.basarisiz_deneme == 0
+        assert kullanici.kilit_bitis is None
+
+    def test_olmayan_hesapta_None_doner(self, oturum) -> None:  # noqa: ANN001
+        assert HesapKurulumu(oturum).parolayi_sifirla("boyle-bir-hesap-yok") is None

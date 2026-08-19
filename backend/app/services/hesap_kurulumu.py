@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.models.kimlik import Kullanici, Rol
 from app.models.tanim import Personel
+from app.services import parola as parola_araclari
 from app.services.kullanici_servisi import KullaniciServisi
 from app.services.parola import ASGARI_UZUNLUK
 
@@ -141,6 +142,40 @@ class HesapKurulumu:
         kullanici.parola_degistirmeli = True
         self.oturum.flush()
         return AcilanHesap(kullanici_adi=kullanici.kullanici_adi, gecici_parola=parola, rol=rol)
+
+    def parolayi_sifirla(self, kullanici_adi: str) -> AcilanHesap | None:
+        """Mevcut hesaba yeni gecici parola verir; hesap yoksa None.
+
+        FR-10.13'un ikinci yarisi: parola "olusturuldugunda VEYA
+        SIFIRLANDIGINDA" bir kez gosterilir. Kaybedilen parola geri
+        OKUNAMAZ - saklanmadigi icin okunacak bir sey yok - yalnizca
+        yeniden uretilir.
+
+        KURULUM YOLUDUR, arayuz yolu degil: `KullaniciServisi.parola_sifirla`
+        bir `isteyen` ister ve yetki denetler; bu betik arayuz disindan
+        (FR-10.10) calisir ve oturum tasimaz.
+        """
+        kullanici = self.oturum.execute(
+            select(Kullanici).where(Kullanici.kullanici_adi == kullanici_adi)
+        ).scalar_one_or_none()
+        if kullanici is None:
+            return None
+        parola = gecici_parola_uret()
+        kullanici.parola_ozeti = parola_araclari.ozetle(parola)
+        kullanici.parola_degistirmeli = True
+        # Kilit ve sayac da sifirlanir: eski parolayla dolmus bir sayac
+        # yuzunden yeni parolayla beklemenin anlami yok.
+        kullanici.basarisiz_deneme = 0
+        kullanici.kilit_bitis = None
+        # Acik oturumlar kapanir: parola sifirlanmasinin nedeni hesabin ele
+        # gecmis olmasi olabilir.
+        self.kullanicilar.oturumlar.kullanicinin_oturumlarini_sil(kullanici.kullanici_id)
+        self.oturum.flush()
+        return AcilanHesap(
+            kullanici_adi=kullanici.kullanici_adi,
+            gecici_parola=parola,
+            rol=kullanici.rol,
+        )
 
     def etkin_sistem_yoneticisi_sayisi(self) -> int:
         return len(
