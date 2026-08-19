@@ -49,6 +49,7 @@ import sys
 from dataclasses import dataclass
 from datetime import date, time, timedelta
 from decimal import Decimal
+from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -56,6 +57,7 @@ from sqlalchemy.orm import Session
 from app.db import OturumYerel
 from app.models.girdi import (
     Musaitlik,
+    MusaitlikBelgesi,
     MusaitlikDilimi,
     MusaitlikTipi,
     Tercih,
@@ -815,6 +817,53 @@ DEMO_CALISAN_PAROLASI = "Demo.2026vardis"
 _HESAP_ACILAN_PERSONEL = 3
 
 
+# Ornek belge: `scripts/ornek_belge_uret.py` uretir. Uc izne eklenir;
+# digerleri BOS BIRAKILIR ki arayuzdeki iki hal de (belge var / belge yok,
+# yukleme dugmesi) demo veride gorulebilsin.
+#
+# BELGE BEKLENEN TIPLER: rapor ve mazeret. Yillik izin ve egitim icin bir
+# belge istenmesi olagan degil; demo veriyi gercekci tutmak, ekrani
+# gercekte olmayacak bir durumla doldurmamak demek.
+_BELGELI_TIPLER = (MusaitlikTipi.RAPOR, MusaitlikTipi.MAZERET)
+_BELGE_EKLENEN_IZIN_SAYISI = 3
+
+
+def _ornek_belgeleri_ekle(oturum: Session) -> int:
+    """Rapor tipindeki ilk birkac izne ornek belge ekler.
+
+    Belge YOKSA sessizce gecilir: ornek goruntu depoda bulunmayabilir
+    (uretilmediyse) ve demo verisinin uretimi bu yuzden durmamali.
+    """
+    kaynak = (
+        Path(__file__).resolve().parents[1] / "app" / "ornek_belgeler" / "doktor_raporu_sablonu.png"
+    )
+    if not kaynak.exists():
+        print("UYARI: ornek belge bulunamadi, izinlere belge eklenmedi.", file=sys.stderr)
+        return 0
+    icerik = kaynak.read_bytes()
+    izinler = (
+        oturum.execute(
+            select(Musaitlik)
+            .where(Musaitlik.tip.in_(_BELGELI_TIPLER))
+            .order_by(Musaitlik.musaitlik_id)
+            .limit(_BELGE_EKLENEN_IZIN_SAYISI)
+        )
+        .scalars()
+        .all()
+    )
+    for izin in izinler:
+        oturum.add(
+            MusaitlikBelgesi(
+                musaitlik_id=izin.musaitlik_id,
+                dosya_adi=kaynak.name,
+                icerik_tipi="image/png",
+                boyut_bayt=len(icerik),
+                icerik=icerik,
+            )
+        )
+    return len(izinler)
+
+
 def _calisan_hesaplari_olustur(oturum: Session, personel_gruplari) -> list[str]:  # noqa: ANN001
     """Ilk birkac personel icin calisan hesabi acar.
 
@@ -870,6 +919,8 @@ def uret(*, sifirla: bool, coz: bool = True) -> None:
         personel_gruplari = _personeli_olustur(oturum, yetkinlikler, bugun)
         donemler = _donemleri_ve_izinleri_olustur(oturum, personel_gruplari, bugun)
         calisan_hesaplari = _calisan_hesaplari_olustur(oturum, personel_gruplari)
+        oturum.flush()
+        belgeli_izin = _ornek_belgeleri_ekle(oturum)
 
         oturum.commit()
 
@@ -891,6 +942,7 @@ def uret(*, sifirla: bool, coz: bool = True) -> None:
         f"{_bu_haftanin_pazartesisi(bugun) - timedelta(days=7 * (_HAFTA_SAYISI - 1))}, "
         f"sonuncusu bugunu icerir)."
     )
+    print(f"Ornek belge eklenen izin kaydi: {belgeli_izin}")
     print(
         f"Calisan hesabi: {', '.join(calisan_hesaplari)} "
         f"(parola: {DEMO_CALISAN_PAROLASI}) — calisan paneli bu hesaplarla acilir."

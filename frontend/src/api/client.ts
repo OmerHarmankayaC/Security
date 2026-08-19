@@ -259,6 +259,21 @@ export const api = {
   musaitlikListele: () => istek<Musaitlik[]>('/api/musaitlik'),
   musaitlikOlustur: (govde: MusaitlikOlusturIstek) => gonder<Musaitlik>('/api/musaitlik', govde),
   musaitlikSil: (musaitlikId: number) => silIste(`/api/musaitlik/${musaitlikId}`),
+  // Belge YÜKLEME çok parçalı gövde ister; `gonder` JSON yazdığı için
+  // kullanılamaz. `Content-Type` başlığı ELLE VERİLMEZ — sınır dizesini
+  // tarayıcı üretir ve elle yazılan bir başlık onu bozar.
+  izinBelgesiYukle: async (musaitlikId: number, dosya: File) => {
+    const govde = new FormData()
+    govde.append('dosya', dosya)
+    const yanit = await fetch(`/api/musaitlik/${musaitlikId}/belge`, {
+      method: 'POST',
+      body: govde,
+    })
+    if (!yanit.ok) throw new ApiHatasi(yanit.status, await yanit.json().catch(() => null))
+    return yanit.json()
+  },
+  izinBelgesiYolu: (musaitlikId: number) => `/api/musaitlik/${musaitlikId}/belge`,
+  izinBelgesiSil: (musaitlikId: number) => silIste(`/api/musaitlik/${musaitlikId}/belge`),
 
   // --- Tercih (FR-3.x) -------------------------------------------------------
   tercihListele: () => istek<Tercih[]>('/api/tercih'),

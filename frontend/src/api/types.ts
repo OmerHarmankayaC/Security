@@ -380,6 +380,10 @@ export type MusaitlikDilimi = 'tam_gun' | 'ogleden_once' | 'ogleden_sonra'
 export type MusaitlikTipi = 'yillik_izin' | 'rapor' | 'egitim' | 'mazeret'
 
 export interface Musaitlik {
+  /** Bu izin kaydına belge eklenmiş mi. İçerik listede TAŞINMAZ — indirme
+   *  ayrı bir uç noktadır; liste yalnız düğmenin hangi hâlde çizileceğini
+   *  bilmek zorundadır. */
+  belge_var: boolean
   musaitlik_id: number
   personel_id: number
   baslangic_tarihi: string

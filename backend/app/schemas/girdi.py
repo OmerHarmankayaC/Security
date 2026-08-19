@@ -28,6 +28,19 @@ class MusaitlikOku(BaseModel):
     dilim: MusaitlikDilimi
     tip: MusaitlikTipi
     not_: str | None
+    # Belgenin VARLIGI listede tasinir, icerigi degil: arayuz dugmeyi buna
+    # gore cizer ve satir basina ayri bir istek yapmaz. Icerik yalnizca
+    # indirme uc noktasindan gelir.
+    belge_var: bool = False
+
+
+class BelgeOku(BaseModel):
+    """Yuklenen belgenin ust verisi. ICERIK BU SEMADAN GECMEZ - ikili veri
+    JSON govdesine girmez ve indirme ayri bir uc noktadir."""
+
+    dosya_adi: str
+    icerik_tipi: str
+    boyut_bayt: int
 
 
 # --- Tercih (FR-3.1, FR-3.2, FR-3.4) --------------------------------------

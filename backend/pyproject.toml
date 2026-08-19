@@ -49,6 +49,12 @@ dependencies = [
     # adalet grafiginin referans cizgisi bu birlesimle ciziliyor. Surum
     # sabitlemesi digerleriyle ayni sozlesmede.
     "openpyxl==3.1.5",
+    # Izin belgesi yuklemesi (cok parcali form govdesi). FastAPI dosya
+    # yuklemesini bu paket olmadan AYRISTIRAMAZ ve `UploadFile` tanimlayan
+    # bir uc nokta import aninda patlar - istege bagli degildir, dosya
+    # yukleyen her kurulumda bulunmak zorundadir. Saf Python, derleme
+    # gerektirmez.
+    "python-multipart==0.0.20",
 ]
 
 [project.optional-dependencies]

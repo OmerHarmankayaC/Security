@@ -7,7 +7,7 @@ cagirir, sonucu JSON'a cevirir. Is mantigi burada yer almaz.
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -16,6 +16,7 @@ from app.guvenlik import yonetici_yetkisi
 from app.models.girdi import TERCIH_GUN_TEKILLIGI
 from app.repositories.tanim import SilmeSonucu, TanimDeposu
 from app.schemas.girdi import (
+    BelgeOku,
     MusaitlikOku,
     MusaitlikOlustur,
     TercihGuncelle,
@@ -43,6 +44,11 @@ from app.schemas.tanim import (
     YetkinlikGuncelle,
     YetkinlikOku,
     YetkinlikOlustur,
+)
+from app.services.belge_servisi import (
+    BelgeCokBuyukError,
+    BelgeServisi,
+    BelgeTipiKabulEdilmediError,
 )
 from app.services.tanim_kullanimi import kullanimi_olc
 from app.services.tanim_servisi import (
@@ -359,8 +365,16 @@ def kural_guncelle(kimlik: str, veri: KuralGuncelle, servis: Servis) -> KuralOku
 
 
 @router.get("/musaitlik", response_model=list[MusaitlikOku])
-def musaitlik_listele(servis: Servis) -> list[MusaitlikOku]:
-    return list(servis.musaitlik.tumunu_getir())
+def musaitlik_listele(servis: Servis, oturum: Oturum) -> list[MusaitlikOku]:
+    # Belgesi olan kayitlar TEK SORGUDA okunur; satir basina sorgu otuz
+    # kayitta otuz gidis donus ederdi.
+    belgeliler = BelgeServisi(oturum).belgesi_olan_izinler()
+    return [
+        MusaitlikOku.model_validate(m).model_copy(
+            update={"belge_var": m.musaitlik_id in belgeliler}
+        )
+        for m in servis.musaitlik.tumunu_getir()
+    ]
 
 
 @router.post("/musaitlik", response_model=MusaitlikOku, status_code=201)
@@ -375,6 +389,61 @@ def musaitlik_sil(musaitlik_id: int, servis: Servis) -> None:
 
 
 # --- Tercih (FR-3.1, FR-3.2, FR-3.4) --------------------------------------
+
+
+# --- Izin belgesi ----------------------------------------------------------
+#
+# ROUTER DUZEYINDEKI KAPI YONETICI YETKISIDIR (dosyanin basi). Belge saglik
+# verisi tasiyabildigi icin bu yeterli degil gibi gorunse de, izinleri zaten
+# ayni kapinin arkasindaki ekran yonetiyor: belgeyi gorebilen, kaydin
+# kendisini de gorebiliyor. Calisanin KENDI belgesine erisimi ayri bir uc
+# nokta ister (calisan panelinde izin gorunumu henuz yok).
+
+
+@router.post("/musaitlik/{musaitlik_id}/belge", response_model=BelgeOku, status_code=201)
+async def izin_belgesi_yukle(
+    musaitlik_id: int, oturum: Oturum, dosya: Annotated[UploadFile, File()]
+) -> BelgeOku:
+    icerik = await dosya.read()
+    try:
+        belge = BelgeServisi(oturum).yukle(
+            musaitlik_id,
+            dosya.filename or "belge",
+            dosya.content_type or "application/octet-stream",
+            icerik,
+        )
+    except BelgeTipiKabulEdilmediError as hata:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Bu dosya tipi kabul edilmiyor: {hata}. PNG, JPEG ya da PDF yukleyin.",
+        ) from hata
+    except BelgeCokBuyukError as hata:
+        raise HTTPException(status_code=413, detail="Dosya cok buyuk; azami 5 MB.") from hata
+    if belge is None:
+        raise HTTPException(status_code=404, detail="Izin kaydi bulunamadi")
+    return BelgeOku(
+        dosya_adi=belge.dosya_adi, icerik_tipi=belge.icerik_tipi, boyut_bayt=belge.boyut_bayt
+    )
+
+
+@router.get("/musaitlik/{musaitlik_id}/belge")
+def izin_belgesi_indir(musaitlik_id: int, oturum: Oturum) -> Response:
+    belge = BelgeServisi(oturum).getir(musaitlik_id)
+    if belge is None:
+        raise HTTPException(status_code=404, detail="Bu izin kaydinda belge yok")
+    return Response(
+        content=belge.icerik,
+        media_type=belge.icerik_tipi,
+        # `inline` DEGIL `attachment`: tarayicinin belgeyi kendi baglaminda
+        # acmasi yerine indirmesi istenir.
+        headers={"Content-Disposition": f'attachment; filename="{belge.dosya_adi}"'},
+    )
+
+
+@router.delete("/musaitlik/{musaitlik_id}/belge", status_code=204)
+def izin_belgesi_sil(musaitlik_id: int, oturum: Oturum) -> None:
+    if not BelgeServisi(oturum).sil(musaitlik_id):
+        raise HTTPException(status_code=404, detail="Bu izin kaydinda belge yok")
 
 
 @router.get("/tercih", response_model=list[TercihOku])

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { api } from '../api/client'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ApiHatasi, api } from '../api/client'
 import type { Musaitlik, MusaitlikDilimi, MusaitlikTipi, Personel } from '../api/types'
 import { AppShell, type NavOgesi } from '../components/AppShell'
 import { Buton, Kart, KartEtiketi, Rozet } from '../components/app-ui'
@@ -210,7 +210,7 @@ export function MusaitlikEkrani({ ekranSec }: Props) {
         <table className="w-full min-w-[640px] border-collapse">
           <thead>
             <tr className="bg-sunken">
-              {['PERSONEL', 'BAŞLANGIÇ', 'BİTİŞ', 'DİLİM', 'TİP', ''].map((b) => (
+              {['PERSONEL', 'BAŞLANGIÇ', 'BİTİŞ', 'DİLİM', 'TİP', 'BELGE', ''].map((b) => (
                 <th
                   key={b}
                   className="mono-caps whitespace-nowrap px-3 py-2 text-left text-ink-muted"
@@ -238,6 +238,9 @@ export function MusaitlikEkrani({ ekranSec }: Props) {
                     {TIP_METNI[k.tip]}
                   </Rozet>
                 </td>
+                <td className="px-3 py-3">
+                  <BelgeDugmesi kayit={k} yenile={yukle} />
+                </td>
                 <td className="px-3 py-3 text-right">
                   <Buton varyant="hayalet" onClick={() => sil(k.musaitlik_id)}>
                     Sil
@@ -247,7 +250,7 @@ export function MusaitlikEkrani({ ekranSec }: Props) {
             ))}
             {kayitlar.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-3 py-6 text-center text-sm text-ink-muted">
+                <td colSpan={7} className="px-3 py-6 text-center text-sm text-ink-muted">
                   Henüz müsaitlik kaydı yok.
                 </td>
               </tr>
@@ -256,5 +259,89 @@ export function MusaitlikEkrani({ ekranSec }: Props) {
         </table>
       </Kart>
     </AppShell>
+  )
+}
+
+
+/**
+ * Bir izin kaydının belgesi: varsa indirir, yoksa yükletir.
+ *
+ * İNDİRME BAĞLANTI DEĞİL İSTEK. Belge uç noktası oturum çerezi ister ve
+ * `<a href>` ile açılan sekme onu taşısa bile yanıtı `attachment` olarak
+ * inen bir dosyaya çeviremiyoruz; içeriği alıp bir nesne URL'sine
+ * dönüştürmek, hata durumunu da (401, 404) görünür kılar.
+ */
+function BelgeDugmesi({ kayit, yenile }: { kayit: Musaitlik; yenile: () => void }) {
+  const dosyaGirdisi = useRef<HTMLInputElement>(null)
+  const [calisiyor, setCalisiyor] = useState(false)
+  const [hata, setHata] = useState<string | null>(null)
+
+  const indir = async () => {
+    setHata(null)
+    try {
+      const yanit = await fetch(api.izinBelgesiYolu(kayit.musaitlik_id))
+      if (!yanit.ok) throw new Error('Belge alınamadı')
+      const veri = await yanit.blob()
+      const url = URL.createObjectURL(veri)
+      const bag = document.createElement('a')
+      bag.href = url
+      bag.download = 'izin-belgesi'
+      bag.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setHata(e instanceof Error ? e.message : 'Belge alınamadı')
+    }
+  }
+
+  const yukle = async (dosya: File) => {
+    setCalisiyor(true)
+    setHata(null)
+    try {
+      await api.izinBelgesiYukle(kayit.musaitlik_id, dosya)
+      yenile()
+    } catch (e) {
+      setHata(
+        e instanceof ApiHatasi && e.status === 415
+          ? 'Yalnızca PNG, JPEG ya da PDF yüklenebilir.'
+          : e instanceof ApiHatasi && e.status === 413
+            ? 'Dosya çok büyük (azami 5 MB).'
+            : 'Belge yüklenemedi',
+      )
+    } finally {
+      setCalisiyor(false)
+    }
+  }
+
+  return (
+    <span className="flex flex-col gap-1">
+      <span className="flex items-center gap-2">
+        {kayit.belge_var ? (
+          <Buton varyant="hayalet" onClick={indir}>
+            İndir
+          </Buton>
+        ) : (
+          <Buton
+            varyant="hayalet"
+            disabled={calisiyor}
+            onClick={() => dosyaGirdisi.current?.click()}
+          >
+            {calisiyor ? 'Yükleniyor…' : 'Ekle'}
+          </Buton>
+        )}
+        <input
+          ref={dosyaGirdisi}
+          type="file"
+          accept="image/png,image/jpeg,application/pdf"
+          className="hidden"
+          onChange={(e) => {
+            const dosya = e.target.files?.[0]
+            // Aynı dosya art arda seçilebilsin diye girdi sıfırlanır.
+            e.target.value = ''
+            if (dosya) void yukle(dosya)
+          }}
+        />
+      </span>
+      {hata && <span className="text-xs text-signal">{hata}</span>}
+    </span>
   )
 }

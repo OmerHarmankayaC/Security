@@ -1,7 +1,7 @@
 import enum
 from datetime import date, time
 
-from sqlalchemy import Date, ForeignKey, Time, UniqueConstraint
+from sqlalchemy import Date, ForeignKey, LargeBinary, Time, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -73,8 +73,39 @@ class Tercih(Base, ZamanDamgasiKarisimi):
     ret_gerekcesi: Mapped[str | None] = mapped_column(default=None)
 
 
+class MusaitlikBelgesi(Base, ZamanDamgasiKarisimi):
+    """Bir izin kaydina eklenen belge (doktor raporu, izin dilekcesi).
+
+    AYRI TABLO, `musaitlik` sutunu DEGIL. Izin listesi her ekranda okunur ve
+    ikili icerigi ayni satirda tasimak, belgeyi hic istemeyen sorgulari da
+    ona baglardi. Bire bir iliski `musaitlik_id` uzerindeki benzersizlik
+    kisitiyla zorlanir: bir izin kaydinin en fazla bir belgesi olur.
+
+    ICERIK VERITABANINDA DURUR (bytea), dosya sisteminde degil. Projenin
+    yedekleme yordami `pg_dump`tir (deploy/DAGITIM.md) ve dosya sistemi ondan
+    HARICTIR; belgeler diske yazilsaydi yedegi alinmayan bir veri turu dogar
+    ve bu ancak geri yukleme gununde fark edilirdi.
+
+    SAGLIK VERISI OLABILIR (doktor raporu): okuma yetkisi kayit sahibine ve
+    yonetici tarafina sinirlidir, bkz. routers/girdi.py.
+    """
+
+    __tablename__ = "musaitlik_belgesi"
+    __table_args__ = (UniqueConstraint("musaitlik_id", name="uq_musaitlik_belgesi_musaitlik"),)
+
+    belge_id: Mapped[int] = mapped_column(primary_key=True)
+    musaitlik_id: Mapped[int] = mapped_column(ForeignKey("musaitlik.musaitlik_id"))
+    # Kullanicinin yukledigi ad; indirmede bu adla sunulur.
+    dosya_adi: Mapped[str]
+    # MIME tipi; taranan ad degil, KABUL EDILEN tiplerden biri (servis dogrular).
+    icerik_tipi: Mapped[str]
+    boyut_bayt: Mapped[int]
+    icerik: Mapped[bytes] = mapped_column(LargeBinary)
+
+
 __all__ = [
     "TERCIH_GUN_TEKILLIGI",
+    "MusaitlikBelgesi",
     "Musaitlik",
     "MusaitlikDilimi",
     "MusaitlikTipi",
