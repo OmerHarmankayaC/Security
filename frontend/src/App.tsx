@@ -8,6 +8,7 @@ import { CizelgeEkrani } from './screens/CizelgeEkrani'
 import { CozumEkrani } from './screens/CozumEkrani'
 import { KullanicilarEkrani } from './screens/KullanicilarEkrani'
 import { MusaitlikEkrani } from './screens/MusaitlikEkrani'
+import { KunyeEkrani } from './screens/KunyeEkrani'
 import { OzetEkrani } from './screens/OzetEkrani'
 import { PlaceholderEkrani } from './screens/PlaceholderEkrani'
 import { SurumlerEkrani } from './screens/SurumlerEkrani'
@@ -40,6 +41,8 @@ function App({ ben, cikis, parolaDegistir }: Props) {
       <AktifIsSaglayici>
       {(() => {
         switch (ekran) {
+          case 'Künye':
+            return <KunyeEkrani ekranSec={setEkran} />
           case 'Özet':
             return <OzetEkrani ekranSec={setEkran} />
           case 'Tanımlar':

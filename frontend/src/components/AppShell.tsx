@@ -9,6 +9,7 @@ import { navGruplari } from '@/lib/yetki'
 import { useAktifIs } from './AktifIsBaglami'
 import { useOturum } from './OturumBaglami'
 import { NAV_SIMGELERI, type NavOgesi } from './nav'
+import { Marka } from './Marka'
 
 export type { NavOgesi }
 
@@ -159,10 +160,7 @@ export function AppShell({
           yerinden kaydırılabildiği izlenimi veriyordu. */}
       <aside className="flex h-full w-[260px] shrink-0 flex-col justify-between overflow-hidden bg-chrome-base px-[18px] pt-[26px] pb-[22px]">
         <div className="flex flex-col">
-          <p className="m-0 text-base font-semibold tracking-wide text-chrome-ink">
-            {buyukHarf('Vardiya Çizelgeleme')}
-          </p>
-          <p className="m-0 mt-[3px] text-xs text-chrome-ink-muted">karar destek aracı</p>
+          <Marka />
 
           <nav className="mt-6 flex flex-col">
             {navGruplari(ben.rol).map((grup, i) => (

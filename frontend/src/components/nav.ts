@@ -7,6 +7,7 @@ import {
   Layers,
   Play,
   Star,
+  Info,
   Users,
   type LucideIcon,
 } from 'lucide-react'
@@ -23,6 +24,7 @@ export const NAV_OGELERI = [
   // Yalnız yönetim rolünde menüye girer (bkz. lib/yetki.ts). Listede
   // bulunması bir yetki değildir; kapı sunucudadır (FR-10.4).
   'Kullanıcılar',
+  'Künye',
 ] as const
 
 export type NavOgesi = (typeof NAV_OGELERI)[number]
@@ -53,6 +55,7 @@ export const NAV_SIMGELERI: Record<NavOgesi, LucideIcon> = {
   Analiz: ChartColumn,
   Sürümler: Layers,
   Kullanıcılar: Users,
+  Künye: Info,
 }
 
 // Tasarım Referansı sürüm 4: yan menü düz bir liste değil, üç başlık

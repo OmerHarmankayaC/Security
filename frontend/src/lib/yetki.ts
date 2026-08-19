@@ -42,6 +42,9 @@ export function yuzeyBasligi(yuzey: Yuzey): string {
 
 /** Yönetici arayüzünün menüsü. Kullanıcılar grubu yalnız yönetim rolünde. */
 export function navGruplari(rol: Rol): NavGrubu[] {
-  if (rol !== 'yonetim') return NAV_GRUPLARI
-  return [...NAV_GRUPLARI, { baslik: 'YÖNETİM', ogeler: ['Kullanıcılar'] }]
+  // Künye HER ROLE açıktır: projenin ne olduğunu ve kimin geliştirdiğini
+  // söyler, veri taşımaz. Menünün en altında, kendi başlığı olmadan durur.
+  const kunye: NavGrubu = { baslik: null, ogeler: ['Künye'] }
+  if (rol !== 'yonetim') return [...NAV_GRUPLARI, kunye]
+  return [...NAV_GRUPLARI, { baslik: 'YÖNETİM', ogeler: ['Kullanıcılar'] }, kunye]
 }

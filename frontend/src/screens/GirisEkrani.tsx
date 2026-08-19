@@ -12,6 +12,7 @@ import { api, ApiHatasi } from '@/api/client'
 import type { Ben } from '@/api/types'
 import { Buton } from '@/components/app-ui'
 import { buyukHarf } from '@/lib/metin'
+import { Marka } from '@/components/Marka'
 
 interface Props {
   girisYapildi: (ben: Ben) => void
@@ -51,10 +52,7 @@ export function GirisEkrani({ girisYapildi }: Props) {
     <div className="flex min-h-svh items-center justify-center bg-chrome-base px-6">
       <div className="w-full max-w-[380px]">
         <div className="mb-6">
-          <p className="m-0 text-base font-semibold tracking-wide text-chrome-ink">
-            {buyukHarf('Vardiya Çizelgeleme')}
-          </p>
-          <p className="m-0 mt-[3px] text-xs text-chrome-ink-muted">karar destek aracı</p>
+          <Marka altBaslik="vardiya çizelgeleme karar destek aracı" />
         </div>
 
         <form

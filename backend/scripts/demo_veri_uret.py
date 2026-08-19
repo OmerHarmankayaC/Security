@@ -62,6 +62,7 @@ from app.models.girdi import (
     TercihDurumu,
     TercihTipi,
 )
+from app.models.kimlik import Rol
 from app.models.kural import Kural, KuralTipi
 from app.models.sonuc import CozumIsi, Donem
 from app.models.tanim import (
@@ -73,6 +74,7 @@ from app.models.tanim import (
 )
 from app.repositories.sonuc import CizelgeSurumuDeposu
 from app.services.cozum_servisi import CozumServisi, cozum_isini_calistir
+from app.services.kullanici_servisi import KullaniciServisi
 from app.services.ornek_senaryo import (
     GUVENLIK_GOREVI,
     NOKTA_TANIMLARI,
@@ -802,6 +804,44 @@ def _cizelgeleri_uret(oturum: Session, donemler: DemoDonemleri) -> None:
             print(f"  {etiket} (2. surum): yayinlandi, 1. surum arsivde", flush=True)
 
 
+# Demo parolasi: GERCEK BIR SIR DEGIL. Uretilmis veriye baglidir ve gosterim
+# ortaminda calisan panelinin gorulebilmesi icindir. Uretim kurulumunda bu
+# betik hic kosturulmaz (VERI_TEMIZLIGINE_IZIN kilidi ve --reset uyarisi).
+DEMO_CALISAN_PAROLASI = "Demo.2026vardis"
+
+# Kac personele hesap acilir. Panelin gosterilmesi icin birkac hesap yeter;
+# otuz kisinin hepsine acmak, Kullanicilar ekranini demo hesaplariyla
+# doldurup gercek kullanimda kafa karistirirdi.
+_HESAP_ACILAN_PERSONEL = 3
+
+
+def _calisan_hesaplari_olustur(oturum: Session, personel_gruplari) -> list[str]:  # noqa: ANN001
+    """Ilk birkac personel icin calisan hesabi acar.
+
+    HESAP OLMADAN CALISAN PANELI GORULEMEZ. Demo verisi otuz personel, alti
+    donem ve cozulmus cizelgeler uretiyordu ama tek bir calisan hesabi
+    acmiyordu; panelin kendisi -- tercih bildirimi, donem ozeti, vardiya
+    listesi -- hicbir sekilde acilamiyordu.
+
+    Kullanici adi sicil numarasindan turetilir (kucuk harf, noktasiz):
+    GG-001 -> gg001. Dogrulama KullaniciServisi'nden gelir; kullanici adi
+    deseni ve parola kurali burada TEKRARLANMAZ.
+    """
+    servis = KullaniciServisi(oturum)
+    acilanlar: list[str] = []
+    personeller = [p for grup in personel_gruplari.values() for p in grup][:_HESAP_ACILAN_PERSONEL]
+    for personel in personeller:
+        kullanici_adi = personel.sicil_no.replace("-", "").lower()
+        kullanici = servis.olustur(
+            kullanici_adi, DEMO_CALISAN_PAROLASI, Rol.CALISAN, personel.personel_id
+        )
+        # Demo hesabi ilk giriste parola degistirmeye zorlamaz: paneli
+        # gostermek icin acilmistir, sahibi yoktur.
+        kullanici.parola_degistirmeli = False
+        acilanlar.append(kullanici_adi)
+    return acilanlar
+
+
 def uret(*, sifirla: bool, coz: bool = True) -> None:
     oturum = OturumYerel()
     temizlik: TemizlikSonucu | None = None
@@ -829,6 +869,7 @@ def uret(*, sifirla: bool, coz: bool = True) -> None:
         _ozel_gunleri_olustur(oturum, bugun)
         personel_gruplari = _personeli_olustur(oturum, yetkinlikler, bugun)
         donemler = _donemleri_ve_izinleri_olustur(oturum, personel_gruplari, bugun)
+        calisan_hesaplari = _calisan_hesaplari_olustur(oturum, personel_gruplari)
 
         oturum.commit()
 
@@ -849,6 +890,10 @@ def uret(*, sifirla: bool, coz: bool = True) -> None:
         f"{_HAFTA_SAYISI} haftalik donem (en eskisi "
         f"{_bu_haftanin_pazartesisi(bugun) - timedelta(days=7 * (_HAFTA_SAYISI - 1))}, "
         f"sonuncusu bugunu icerir)."
+    )
+    print(
+        f"Calisan hesabi: {', '.join(calisan_hesaplari)} "
+        f"(parola: {DEMO_CALISAN_PAROLASI}) — calisan paneli bu hesaplarla acilir."
     )
     # Silinen hesap SESSIZ kalmamali: silinen sey bir kullanicinin sisteme
     # girisidir, gecmis dondugunde geri gelmez.
