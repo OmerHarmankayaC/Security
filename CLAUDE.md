@@ -33,7 +33,8 @@ görünmez. Belirti tam olarak budur: iş kaydı oluşur, durum değişmez.
 VERITABANI_URL=$TEST_VERITABANI_URL .venv/bin/alembic upgrade head   # test db'ye de
 python scripts/cozum_iscisi.py          # ÇÖZÜM İŞÇİSİ — API'nin yanı sıra koşmalı
 python scripts/cozum_iscisi.py --tek-adim   # tek iş alıp çık (sınama)
-python scripts/demo_veri_uret.py [--reset]
+python scripts/demo_veri_uret.py [--reset]   # HESAP AÇMAZ
+python scripts/hesaplari_kur.py --calisanlar # hesaplar; parola BİR KEZ görünür
 python scripts/uc_noktalari_listele.py --denetle    # Ek B ile karşılaştır
 VERI_TEMIZLIGINE_IZIN=1 python scripts/kabul_olcumu.py
 
