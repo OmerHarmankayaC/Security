@@ -9,6 +9,15 @@ export interface AdaletSatiri {
   pay: number
   /** Çözücünün cezalandırdığı sapma; taban/tavan yöntemiyle ve İŞARETSİZ. */
   sapma: number
+  /**
+   * Yükün adil paya göre yönü. Sapmanın BÜYÜKLÜĞÜNDEN AYRI TÜRETİLİR:
+   * büyüklük çözücünün taban/tavan formülüdür, yön ise yükün payla
+   * doğrudan kıyası. Kesirli payda ikisi ayrışır — pay 7,4 iken 7 saat
+   * çalışan kişinin çözücü ölçüsü 1'dir ama kişi payının ALTINDADIR.
+   *
+   * `yok`: taban/tavan bandının içinde, cezasız — çubuk hiç çizilmez.
+   */
+  yon: 'ust' | 'alt' | 'yok'
 }
 
 /**
@@ -28,7 +37,8 @@ export function adaletSatirlari(kalemler: readonly KisiSayisi[]): AdaletSatiri[]
     .map((k) => {
       const pay = k.pay ?? 0
       const sapma = Math.max(k.sayi - Math.floor(pay), Math.ceil(pay) - k.sayi, 0)
-      return { personel_id: k.personel_id, ad_soyad: k.ad_soyad, saat: k.sayi, pay, sapma }
+      const yon: AdaletSatiri['yon'] = sapma === 0 ? 'yok' : k.sayi > pay ? 'ust' : 'alt'
+      return { personel_id: k.personel_id, ad_soyad: k.ad_soyad, saat: k.sayi, pay, sapma, yon }
     })
     .sort((a, b) => b.sapma - a.sapma || b.saat - a.saat)
 }

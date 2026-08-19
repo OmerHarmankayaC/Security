@@ -71,3 +71,33 @@ describe('sıralama', () => {
     expect(satirlar.map((s) => s.personel_id)).toEqual([2, 1])
   })
 })
+
+describe('yön — sapmanın işareti', () => {
+  it('payının üstünde çalışan "ust" işaretlenir', () => {
+    expect(adaletSatirlari([kalem(1, 18, 12)])[0]!.yon).toBe('ust')
+  })
+
+  it('payının altında kalan "alt" işaretlenir', () => {
+    expect(adaletSatirlari([kalem(1, 6, 12)])[0]!.yon).toBe('alt')
+  })
+
+  it('cezasız satırın yönü yoktur', () => {
+    // Taban/tavan bandının içindeki kişi ne fazla ne eksik almıştır; ona bir
+    // yön atamak, çubuğu boş bırakmak yerine bir tarafa çekerdi.
+    //
+    // YALNIZ TAM SAYI PAYDA cezasızlık mümkündür: kesirli payda (7,4 → bant
+    // [7,8]) çözücünün ölçüsünün en küçük değeri birdir, yani hiç kimse
+    // cezasız çıkmaz (bkz. yukarıdaki "kesirli payda taban/tavan" testi).
+    expect(adaletSatirlari([kalem(1, 12, 12)])[0]!.yon).toBe('yok')
+    expect(adaletSatirlari([kalem(1, 8, 7.4)])[0]!.sapma).toBe(1)
+    expect(adaletSatirlari([kalem(1, 8, 7.4)])[0]!.yon).toBe('ust')
+  })
+
+  it('YÖN AYRI BİR SORUDUR: sapma büyüklüğü çözücünün, yön yükün payla kıyası', () => {
+    // Kesirli payda çözücünün ölçüsü 1 verir ama kişi payının ALTINDADIR.
+    // İkisi ayrı türetilmeli; yönü sapmadan okumaya çalışmak yanlış olur.
+    const satir = adaletSatirlari([kalem(1, 7, 7.4)])[0]!
+    expect(satir.sapma).toBe(1)
+    expect(satir.yon).toBe('alt')
+  })
+})

@@ -166,3 +166,38 @@ describe('Analiz ekranı — kümülatif değişim', () => {
     expect(await screen.findByText(/önceki yayınlanmış dönem yok/)).toBeDefined()
   })
 })
+describe('Analiz ekranı — adalet grafiği', () => {
+  const kisiler = [
+    { personel_id: 1, ad_soyad: 'Osman Kurt', sayi: 26, pay: 11 },
+    { personel_id: 2, ad_soyad: 'Ayşe Demir', sayi: 0, pay: 11 },
+    { personel_id: 3, ad_soyad: 'Kemal Uçar', sayi: 11, pay: 11 },
+  ]
+
+  it('sapmanın YÖNÜNÜ işaretle gösterir', async () => {
+    // Eskiden sayı işaretsizdi ve yön yalnızca çubuğun konumundan
+    // okunuyordu: payının 15 saat ÜSTÜNDE olan ile 11 saat ALTINDA olan
+    // ekranda aynı görünüyordu.
+    ekraniKur(analiz({ kisi_basina_gece: kisiler as never }))
+
+    expect(await screen.findByText('+15 sa')).toBeDefined()
+    expect(screen.getByText('−11 sa')).toBeDefined()
+  })
+
+  it('payını tutturan satırda sapma yerine tire gösterir', async () => {
+    ekraniKur(analiz({ kisi_basina_gece: kisiler as never }))
+
+    await screen.findByText('+15 sa')
+    // Kemal payını tam tutturdu: ne fazla ne eksik, çubuk hiç çizilmez.
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0)
+  })
+
+  it('sütun başlıkları yazılıdır', async () => {
+    // Üç sayı (yük / adil pay / sapma) başlıksız durduğunda üçüncüsünün ne
+    // olduğu ancak fareyle üstüne gelince anlaşılıyordu.
+    ekraniKur(analiz({ kisi_basina_gece: kisiler as never }))
+
+    await screen.findByText('+15 sa')
+    expect(screen.getAllByText(/Adil pay/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Yük/i).length).toBeGreaterThan(0)
+  })
+})

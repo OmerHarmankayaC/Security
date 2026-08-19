@@ -503,8 +503,13 @@ function AdaletGrafigi({
   bosMetin: string
   havuzAciklamasi: string
 }) {
-  const azami = satirlar.reduce((m, s) => Math.max(m, s.saat, s.pay), 0)
-  const oran = (deger: number) => (azami > 0 ? `${(deger / azami) * 100}%` : '0%')
+  // ÖLÇEK SAPMANIN AZAMİSİDİR, yükün değil. Çubuk adil paydan başlayıp iki
+  // yana açıldığı için ölçülen şey uzaklıktır; yüke göre ölçeklenirse
+  // sapmalar orantısız küçülür ve grafik ayırt ediciliğini kaybeder.
+  const azamiSapma = satirlar.reduce((m, s) => Math.max(m, s.sapma), 0)
+  // Yarım genişlik: merkez çizgisi ortada, her yan azami sapmayı taşır.
+  const yariOran = (sapma: number) =>
+    azamiSapma > 0 ? `${(sapma / azamiSapma) * 50}%` : '0%'
 
   // KART LİSTE DEĞİL, SAPMA GÖSTERİR. Otuz kişilik bir havuzda otuz çubuk
   // basıldığında en uzaktakiler görsel olarak kayboluyordu; satırlar zaten
@@ -520,46 +525,82 @@ function AdaletGrafigi({
       {satirlar.length === 0 ? (
         <p className="text-sm text-ink-muted">{bosMetin}</p>
       ) : (
-        <ul className="m-0 flex list-none flex-col gap-2 p-0">
-          {gosterilen.map((s) => (
-            <li key={s.personel_id} className="flex items-center gap-3 text-sm">
-              <span className="w-52 shrink-0 truncate text-ink" title={s.ad_soyad}>
-                {s.ad_soyad}
-              </span>
-              <span className="relative flex h-2.5 flex-1 overflow-hidden rounded-sm bg-sunken">
-                <span className={cn('block h-full', cubukSinifi)} style={{ width: oran(s.saat) }} />
-                {/* Referans çizgisi: bu KİŞİNİN payı. */}
-                <span
-                  className="absolute inset-y-[-3px] w-px bg-ink"
-                  style={{ left: oran(s.pay) }}
-                  aria-hidden="true"
-                />
-              </span>
-              <Sayi className="w-14 shrink-0 text-right text-ink">
-                {sayiBicimle(s.saat, 0)} sa
-              </Sayi>
-              <Sayi className="w-20 shrink-0 text-right text-ink-muted">
-                pay {sayiBicimle(s.pay, 1)}
-              </Sayi>
-              {/* Sayı İŞARETSİZDİR (çözücünün formülü öyle); yönü çubuğun
-                  referansa göre konumu söyler. */}
-              <span
-                className="w-16 shrink-0 text-right"
-                title={
-                  s.sapma > 0
-                    ? `Çözücünün cezalandırdığı sapma: ${sayiBicimle(s.sapma, 0)} saat`
-                    : 'Adil payın taban/tavan bandı içinde — cezasız'
-                }
-              >
-                <Sayi
-                  className={cn('font-semibold', s.sapma > 0 ? 'text-signal' : 'text-ink-muted')}
-                >
-                  {s.sapma > 0 ? `${sayiBicimle(s.sapma, 0)} sa` : '—'}
+        <>
+          {/* SÜTUN BAŞLIKLARI: üçüncü sayının ne olduğu fareyle üstüne
+              gelmeden okunabilmeli. */}
+          <div className="flex items-center gap-3 border-b border-rule pb-1.5 etiket-caps text-ink-muted">
+            <span className="w-52 shrink-0">Personel</span>
+            <span className="flex-1 text-center">Adil paya göre konum</span>
+            <span className="w-14 shrink-0 text-right">Yük</span>
+            <span className="w-16 shrink-0 text-right">Adil pay</span>
+            <span className="w-16 shrink-0 text-right">Sapma</span>
+          </div>
+          <ul className="m-0 flex list-none flex-col gap-2 p-0 pt-2">
+            {gosterilen.map((s) => (
+              <li key={s.personel_id} className="flex items-center gap-3 text-sm">
+                <span className="w-52 shrink-0 truncate text-ink" title={s.ad_soyad}>
+                  {s.ad_soyad}
+                </span>
+                {/* IRAKSAYAN ÇUBUK: merkez adil pay, sağa taşan fazla almış,
+                    sola taşan eksik. Bütün satırlar aynı eksenden başladığı
+                    için kim ne kadar sapmış tek bakışta görünür; önceki
+                    soldan dolan çubukta referans çizgisi çubuğun içinde
+                    kayboluyordu. */}
+                <span className="relative h-4 flex-1">
+                  <span
+                    className="absolute inset-y-0 left-1/2 w-px bg-rule-strong"
+                    aria-hidden="true"
+                  />
+                  {s.yon !== 'yok' && (
+                    <span
+                      className={cn(
+                        'absolute top-[3px] h-2.5 rounded-xs',
+                        s.yon === 'ust' ? 'left-1/2 bg-signal' : 'right-1/2',
+                        s.yon === 'alt' && cubukSinifi,
+                      )}
+                      style={{ width: yariOran(s.sapma) }}
+                      aria-hidden="true"
+                    />
+                  )}
+                </span>
+                <Sayi className="w-14 shrink-0 text-right text-ink">
+                  {sayiBicimle(s.saat, 0)} sa
                 </Sayi>
-              </span>
-            </li>
-          ))}
-        </ul>
+                <Sayi className="w-16 shrink-0 text-right text-ink-muted">
+                  {sayiBicimle(s.pay, 1)}
+                </Sayi>
+                {/* İŞARET yönü söyler; büyüklük çözücünün formülüdür ve ceza
+                    dökümündeki sayıyla aynı kalır. */}
+                <span
+                  className="w-16 shrink-0 text-right"
+                  title={
+                    s.yon === 'yok'
+                      ? 'Adil payın taban/tavan bandı içinde — cezasız'
+                      : `Çözücünün cezalandırdığı sapma: ${sayiBicimle(s.sapma, 0)} saat`
+                  }
+                >
+                  <Sayi
+                    className={cn(
+                      'font-semibold',
+                      s.yon === 'ust' && 'text-signal',
+                      s.yon === 'alt' && 'text-ink',
+                      s.yon === 'yok' && 'font-normal text-ink-muted',
+                    )}
+                  >
+                    {s.yon === 'yok'
+                      ? '—'
+                      : `${s.yon === 'ust' ? '+' : '\u2212'}${sayiBicimle(s.sapma, 0)} sa`}
+                  </Sayi>
+                </span>
+              </li>
+            ))}
+          </ul>
+          <div className="flex justify-between pt-2 etiket-caps text-ink-muted">
+            <span>← payının altında</span>
+            <span>adil pay</span>
+            <span>payının üstünde →</span>
+          </div>
+        </>
       )}
       {gizlenen > 0 && (
         <button
