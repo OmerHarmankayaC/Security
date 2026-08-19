@@ -18,7 +18,9 @@ docs/                    dört kanonik doküman + turlar
 ```
 
 Çözücü ayrı bir süreçte koşar (`scripts/cozum_iscisi.py`); API iş kaydı
-oluşturur, işçi onu alır.
+oluşturur, işçi onu alır. **Yerelde bu süreç de koşmalı** — koşmazsa çözüm
+istekleri "KUYRUKTA" durumunda sonsuza kadar bekler ve arayüzde hiçbir hata
+görünmez. Belirti tam olarak budur: iş kaydı oluşur, durum değişmez.
 
 ## Komutlar
 
@@ -29,6 +31,8 @@ oluşturur, işçi onu alır.
 .venv/bin/ruff format --check .         # BİÇİM — bir tur boyunca unutuldu, ayrı koş
 .venv/bin/alembic upgrade head          # göç
 VERITABANI_URL=$TEST_VERITABANI_URL .venv/bin/alembic upgrade head   # test db'ye de
+python scripts/cozum_iscisi.py          # ÇÖZÜM İŞÇİSİ — API'nin yanı sıra koşmalı
+python scripts/cozum_iscisi.py --tek-adim   # tek iş alıp çık (sınama)
 python scripts/demo_veri_uret.py [--reset]
 python scripts/uc_noktalari_listele.py --denetle    # Ek B ile karşılaştır
 VERI_TEMIZLIGINE_IZIN=1 python scripts/kabul_olcumu.py

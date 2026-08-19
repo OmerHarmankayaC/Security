@@ -13,7 +13,10 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/api': 'http://127.0.0.1:8000',
+      // Backend adresi ortamdan okunur; varsayılan 8000'dir ve hiçbir
+      // kurulumda bunu vermek gerekmez. Aynı makinede 8000'i tutan başka
+      // bir uygulama varsa VARDIS_API_PORT ile çakışmadan koşulur.
+      '/api': `http://127.0.0.1:${process.env.VARDIS_API_PORT ?? '8000'}`,
     },
   },
 })

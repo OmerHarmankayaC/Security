@@ -13,7 +13,10 @@
         "--port",
         "5180"
       ],
-      "port": 5180
+      "port": 5180,
+      "env": {
+        "VARDIS_API_PORT": "8010"
+      }
     },
     {
       "name": "backend-dev",
@@ -22,11 +25,11 @@
         "app.main:app",
         "--reload",
         "--port",
-        "8000",
+        "8010",
         "--app-dir",
         "backend"
       ],
-      "port": 8000
+      "port": 8010
     }
   ]
 }
