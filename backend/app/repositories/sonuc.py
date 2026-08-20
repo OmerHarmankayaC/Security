@@ -123,6 +123,25 @@ class CizelgeSurumuDeposu(TabanDepo[CizelgeSurumu]):
             onceki_surum_id=onceki.surum_id,
         )
 
+    def taslak_ac(self, donem_id: int) -> CizelgeSurumu:
+        """Donemde ATAMASIZ yeni bir taslak acar.
+
+        `taslak_turet`ten farki: onceki surum bilinmek zorunda degil. Donemde
+        surum varsa yenisi EN SONUNCUYA baglanir - S8 ("onceki surumden sapma")
+        ve Surumler ekraninin karsilastirmasi surum zincirine dayanir ve
+        kullanici bos taslak acti diye zincir kopmamali. Hic surum yoksa
+        `onceki_surum_id` bos kalir.
+        """
+        en_son = self.listele(donem_id=donem_id)
+        onceki_surum_id = en_son[0].surum_id if en_son else None
+        surum_no = self.donem_icin_sonraki_surum_no(donem_id)
+        return self.olustur(
+            donem_id=donem_id,
+            surum_no=surum_no,
+            durum=CizelgeSurumuDurumu.TASLAK,
+            onceki_surum_id=onceki_surum_id,
+        )
+
     def yayinla(self, surum_id: int) -> CizelgeSurumu | None:
         """TD-8: yayinlanan surum salt okunur olur; ayni donemde daha once
         yayinlanmis bir surum varsa arsiv durumuna gecer."""
