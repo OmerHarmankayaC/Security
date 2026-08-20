@@ -371,3 +371,85 @@ def test_taslak_surum_kopyalanamaz(istemci: TestClient, senaryo: dict[str, int])
 def test_olmayan_surum_kopyalanamaz(istemci: TestClient) -> None:
     pg_yoksa_atla()
     assert istemci.post("/api/surum/999999/kopyala").status_code == 404
+
+
+# --- Bos taslak: dogrudan donemden (Tur 13, Gorev 2) ------------------------
+#
+# POST /api/surum artik iki turlu istegi kabul eder: MEVCUT BIR SURUMDEN
+# (onceki_surum_id, eski davranis) ya da DOGRUDAN DONEMDEN (donem_id, yeni).
+# Depo tarafi (`CizelgeSurumuDeposu.taslak_ac`) Gorev 1'de yazildi; burada
+# yalniz yonlendiricinin dogru dali sectigi ve semanin "tam olarak biri"
+# kuralini uyguladigi sinanir.
+
+
+def _bos_donem_olustur(oturum: OturumYerel) -> int:
+    """Uzerinde hic surum olmayan yeni bir donem acar."""
+    on_ek = _benzersiz("bos-donem")
+    donem = Donem(
+        baslangic_tarihi=date(2026, 11, 2),  # Pazartesi
+        bitis_tarihi=date(2026, 11, 8),
+        tercih_son_tarihi=date(2026, 10, 26),
+    )
+    oturum.add(donem)
+    oturum.commit()
+    _ = on_ek  # benzersizlik gerekmiyor, temizlik butun donemleri siler
+    return donem.donem_id
+
+
+def test_donem_id_ile_taslak_acilir_ve_onceki_surum_id_bostur(istemci: TestClient) -> None:
+    oturum = OturumYerel()
+    try:
+        senaryo_verisini_temizle(oturum)
+        donem_id = _bos_donem_olustur(oturum)
+    finally:
+        oturum.close()
+
+    yanit = istemci.post("/api/surum", json={"donem_id": donem_id})
+    assert yanit.status_code == 201
+    govde = yanit.json()
+    assert govde["donem_id"] == donem_id
+    assert govde["surum_no"] == 1
+    assert govde["durum"] == "taslak"
+    assert govde["onceki_surum_id"] is None
+
+
+def test_donem_id_ile_mevcut_surume_baglanir(istemci: TestClient, senaryo: dict[str, int]) -> None:
+    """Donemde surum varsa yenisi EN SONUNCUYA baglanir (senaryo'da s2,
+    surum_no=2)."""
+    yanit = istemci.post("/api/surum", json={"donem_id": senaryo["donem_id"]})
+    assert yanit.status_code == 201
+    govde = yanit.json()
+    assert govde["surum_no"] == 3
+    assert govde["onceki_surum_id"] == senaryo["s2"]
+
+
+def test_olmayan_donemle_donem_id_404(istemci: TestClient) -> None:
+    yanit = istemci.post("/api/surum", json={"donem_id": 999999999})
+    assert yanit.status_code == 404
+
+
+def test_iki_alan_birden_verilince_422(istemci: TestClient, senaryo: dict[str, int]) -> None:
+    yanit = istemci.post(
+        "/api/surum", json={"donem_id": senaryo["donem_id"], "onceki_surum_id": senaryo["s1"]}
+    )
+    assert yanit.status_code == 422
+
+
+def test_hicbiri_verilmeyince_422(istemci: TestClient) -> None:
+    assert istemci.post("/api/surum", json={}).status_code == 422
+
+
+def test_onceki_surum_id_ile_eski_davranis_degismedi(
+    istemci: TestClient, senaryo: dict[str, int]
+) -> None:
+    """Regresyon: `onceki_surum_id` dali Gorev 2'den once nasil calisiyorsa
+    oyle calismaya devam eder."""
+    yanit = istemci.post("/api/surum", json={"onceki_surum_id": senaryo["s1"]})
+    assert yanit.status_code == 201
+    govde = yanit.json()
+    assert govde["onceki_surum_id"] == senaryo["s1"]
+    assert govde["donem_id"] == senaryo["donem_id"]
+    assert govde["durum"] == "taslak"
+
+    yanit_404 = istemci.post("/api/surum", json={"onceki_surum_id": 999999999})
+    assert yanit_404.status_code == 404

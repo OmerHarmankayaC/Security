@@ -316,12 +316,23 @@ def surum_karsilastir(
 
 @router.post("/surum", response_model=CizelgeSurumuOku, status_code=201)
 def surum_taslak_turet(veri: SurumTaslakTuretIstek, oturum: Oturum) -> CizelgeSurumuOku:
-    """SDD Ek B: 'Cizelge surumleri; taslak turetme'. Cozum baslatmaz - yalniz
-    onceki surume bagli bos bir taslak olusturur (fiili yeniden cozum icin
-    bkz. POST /api/cozum + onceki_surum_id)."""
-    surum = CizelgeSurumuDeposu(oturum).taslak_turet(veri.onceki_surum_id)
-    if surum is None:
-        raise HTTPException(status_code=404, detail="Onceki surum bulunamadi")
+    """SDD Ek B: 'Cizelge surumleri; taslak turetme'. Cozum baslatmaz.
+
+    Iki dal: `onceki_surum_id` verilirse o suruma bagli bos bir taslak
+    olusturulur (fiili yeniden cozum icin bkz. POST /api/cozum +
+    onceki_surum_id); `donem_id` verilirse donemden DOGRUDAN bos bir taslak
+    acilir (Tur 13) - donemde surum varsa yenisi en sonuncuya baglanir,
+    yoksa onceki_surum_id bos kalir (bkz. CizelgeSurumuDeposu.taslak_ac).
+    """
+    depo = CizelgeSurumuDeposu(oturum)
+    if veri.donem_id is not None:
+        if DonemDeposu(oturum).getir(veri.donem_id) is None:
+            raise HTTPException(status_code=404, detail="Donem bulunamadi")
+        surum = depo.taslak_ac(veri.donem_id)
+    else:
+        surum = depo.taslak_turet(veri.onceki_surum_id)  # type: ignore[arg-type]
+        if surum is None:
+            raise HTTPException(status_code=404, detail="Onceki surum bulunamadi")
     return CizelgeSurumuOku.model_validate(surum)
 
 

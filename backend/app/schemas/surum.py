@@ -124,7 +124,21 @@ class AtamaKilitIstek(BaseModel):
 
 
 class SurumTaslakTuretIstek(BaseModel):
-    onceki_surum_id: int
+    """Bos taslak istegi: MEVCUT BIR SURUMDEN ya da DOGRUDAN DONEMDEN.
+
+    Ikisi de verilirse hangisinin kazandigi belirsiz kalir ve istegi yazan
+    taraf yanlis varsayimla devam eder; hicbiri verilmezse istek zaten
+    anlamsizdir. Ikisi de 422 ile reddedilir.
+    """
+
+    onceki_surum_id: int | None = None
+    donem_id: int | None = None
+
+    @model_validator(mode="after")
+    def _tam_olarak_biri(self) -> "SurumTaslakTuretIstek":
+        if (self.onceki_surum_id is None) == (self.donem_id is None):
+            raise ValueError("onceki_surum_id ya da donem_id verilmeli, ikisi birden degil")
+        return self
 
 
 # --- Surumler ekrani (SDD 6.3.5) -------------------------------------------
