@@ -94,6 +94,7 @@ class SurumServisi:
                 yayin_zamani=s.yayin_zamani,
                 olusturma_zamani=s.olusturma_zamani,
                 guncelleme_zamani=s.guncelleme_zamani,
+                damga=s.damga,
                 toplam_ceza=cezalar.get(s.surum_id),
                 kapsama_acigi_sayisi=eksikler.get(s.surum_id, 0),
                 fazla_kadro_sayisi=fazlalar.get(s.surum_id, 0),

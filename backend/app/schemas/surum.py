@@ -57,6 +57,16 @@ class CizelgeSurumuOku(BaseModel):
     onceki_surum_id: int | None
     yayin_zamani: datetime | None
     guncelleme_zamani: datetime
+    # DUZENLEME DAMGASI (SRS TD-16, SDD 5.5.1). Es zamanli duzenlemeyi
+    # yakalar: istemci duzenlemeye baslarken bu degeri alir, kaydederken
+    # POST /api/atama/kaydet ile geri gonderir; degismisse baska bir oturum
+    # ayni surumu degistirmis demektir ve kayit reddedilir. Istemci icin
+    # OPAK bir dizedir - yorumlanmaz, tasinir.
+    #
+    # SEMADAN DUSURULEMEZ: alan yanitta yoksa istemcinin elinde damga hic
+    # olusmaz ve "Kaydet" sessizce hicbir sey yapmaz (istek gitmez, hata
+    # cikmaz, kullanici emegini kaybeder).
+    damga: str
 
 
 class AtamaOku(BaseModel):
@@ -156,6 +166,12 @@ class SurumOzetiOku(BaseModel):
     yayin_zamani: datetime | None
     olusturma_zamani: datetime
     guncelleme_zamani: datetime
+    # DUZENLEME DAMGASI (SRS TD-16, SDD 5.5.1) - `CizelgeSurumuOku.damga` ile
+    # ayni deger, ayni amac: es zamanli duzenlemeyi yakalar. Cizelge ekrani
+    # damgayi BU LISTEDEN okur (surum seciciyle birlikte gelen tek kaynak),
+    # kaydederken geri gonderir. Alan burada eksikse Kaydet sessizce hicbir
+    # sey yapmaz.
+    damga: str
     # Surumun EN SON cozum isindeki toplam ceza; hic cozulmemis bir taslakta None.
     toplam_ceza: float | None
     # Acik hucre sayisi degil toplam eksik KISI sayisi (bkz. depo metodu).

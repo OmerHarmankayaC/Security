@@ -491,3 +491,53 @@ def test_onceki_surum_id_ile_eski_davranis_degismedi(
 
     yanit_404 = istemci.post("/api/surum", json={"onceki_surum_id": 999999999})
     assert yanit_404.status_code == 404
+
+
+# --- Duzenleme damgasi (SRS TD-16, SDD 5.5.1) -------------------------------
+#
+# Damga SOZLESMENIN parcasidir: cizelge ekrani duzenlemeye baslarken onu
+# surum listesinden okur ve kaydederken geri gonderir. Sema onu tasimadigi
+# surece istemcinin elinde damga hic olusmaz ve "Kaydet" SESSIZCE hicbir sey
+# yapmaz - istek gitmez, hata cikmaz. Bu yuzden sinanan sey fikstur degil
+# YANITIN KENDISI.
+
+
+def test_surum_listesi_her_satirda_damga_tasir(
+    istemci: TestClient, senaryo: dict[str, int]
+) -> None:
+    yanit = istemci.get(f"/api/surum?donem_id={senaryo['donem_id']}")
+    assert yanit.status_code == 200
+    satirlar = yanit.json()
+    assert satirlar
+    for satir in satirlar:
+        assert isinstance(satir.get("damga"), str)
+        assert satir["damga"]
+
+
+def test_taslak_turetme_yaniti_damga_tasir(istemci: TestClient, senaryo: dict[str, int]) -> None:
+    yanit = istemci.post("/api/surum", json={"onceki_surum_id": senaryo["s1"]})
+    assert yanit.status_code == 201
+    assert yanit.json()["damga"]
+
+
+def test_donemden_acilan_bos_taslagin_yaniti_damga_tasir(istemci: TestClient) -> None:
+    """Elle cizilecek bos taslak (Gorev 1): damgasiz donerse ekran acilir ama
+    Kaydet hicbir sey yapmaz."""
+    oturum = OturumYerel()
+    try:
+        senaryo_verisini_temizle(oturum)
+        donem_id = _bos_donem_olustur(oturum)
+    finally:
+        oturum.close()
+
+    yanit = istemci.post("/api/surum", json={"donem_id": donem_id})
+    assert yanit.status_code == 201
+    yeni_damga = yanit.json()["damga"]
+    assert yeni_damga
+
+    # Listeden okunan damga ile olusturma yanitindaki damga AYNI olmali:
+    # ekran ikisini birbirinin yerine kullaniyor.
+    liste = istemci.get(f"/api/surum?donem_id={donem_id}")
+    assert liste.status_code == 200
+    satir = next(s for s in liste.json() if s["surum_id"] == yanit.json()["surum_id"])
+    assert satir["damga"] == yeni_damga

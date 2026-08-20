@@ -340,3 +340,93 @@ describe('boş hâl metni', () => {
     )
   })
 })
+
+describe('"Kaydet" (SRS FR-6.7, TD-16)', () => {
+  /**
+   * Kaydet, sürümün DAMGASI olmadan sessizce döner — istek gitmez, hata
+   * çıkmaz, kullanıcı emeğini kaybeder. Damga sürüm listesinden okunur, yani
+   * `GET /api/surum` sözleşmesine bağlı (backend tarafı
+   * tests/test_surum_api.py'de sınanır). Burada sınanan şey yolun UCU: elle
+   * çizilen bir blok Kaydet'e basılınca gerçekten `/api/atama/kaydet`e
+   * gidiyor mu.
+   */
+  it('elle çizilen blok Kaydet ile /api/atama/kaydet isteğine dönüşür', async () => {
+    const sahte = vi.fn(async (yol: string, secenekler?: RequestInit) => {
+      const yontem = secenekler?.method ?? 'GET'
+      if (yol.startsWith('/api/donem')) return yanit([DONEM])
+      if (yol.startsWith('/api/personel')) return yanit([PERSONEL])
+      if (yol.startsWith('/api/nokta')) return yanit([NOKTA])
+      if (yol.startsWith('/api/yetkinlik')) return yanit([])
+      if (yol.startsWith('/api/kural')) return yanit([])
+      if (yol.startsWith('/api/cozum/aktif')) return yanit(null)
+      if (yol.startsWith('/api/analiz/')) return yanit(null)
+      if (/^\/api\/surum\/\d+\/atama/.test(yol)) return yanit([])
+      if (/^\/api\/surum\/\d+\/kapsama-acigi/.test(yol)) return yanit([])
+      if (/^\/api\/surum\/\d+\/fazla-kadro/.test(yol)) return yanit([])
+      if (yol === '/api/atama/dogrula' && yontem === 'POST') return yanit(DOGRULAMA_BOS)
+      if (yol === '/api/atama/kaydet' && yontem === 'POST') {
+        return yanit({ ...DOGRULAMA_BOS, damga: 'damga-1-yeni' })
+      }
+      if (yol.startsWith('/api/surum?donem_id=')) return yanit([surum(1, 1, 'taslak')])
+      throw new Error(`beklenmeyen yol ${yol}`)
+    })
+    vi.stubGlobal('fetch', sahte)
+    render(
+      <OturumBaglami.Provider
+        value={{
+          ben: {
+            kullanici_adi: 'idare',
+            ad_soyad: 'Yönetici',
+            rol: 'idare',
+            personel_id: null,
+            parola_degistirmeli: false,
+          },
+          cikis: vi.fn(),
+          parolaDegistir: vi.fn(),
+        }}
+      >
+        <AktifIsSaglayici>
+          <CizelgeEkrani
+            ekranSec={vi.fn()}
+            donemId={1}
+            donemIdSec={vi.fn()}
+            yenidenCozIste={vi.fn()}
+          />
+        </AktifIsSaglayici>
+      </OturumBaglami.Provider>,
+    )
+
+    await waitFor(() => expect(document.querySelector('[data-saat="8"]')).not.toBeNull())
+    const saatHucresi = (saat: number): Element => {
+      const hucre = document.querySelector(`[data-saat="${saat}"]`)
+      if (!hucre) throw new Error(`Saat hücresi bulunamadı: ${saat}`)
+      return hucre
+    }
+
+    fireEvent.pointerDown(saatHucresi(8))
+    fireEvent.pointerEnter(saatHucresi(15))
+    fireEvent.pointerUp(saatHucresi(15))
+
+    await waitFor(() => expect(screen.getByText(/KAYDEDİLMEMİŞ/)).toBeDefined())
+
+    fireEvent.click(screen.getByRole('button', { name: 'Kaydet' }))
+
+    await waitFor(() => {
+      const istek = sahte.mock.calls.find(
+        ([yol, secenekler]) =>
+          String(yol) === '/api/atama/kaydet' &&
+          (secenekler as RequestInit | undefined)?.method === 'POST',
+      )
+      expect(istek).toBeDefined()
+      const govde = JSON.parse(String((istek![1] as RequestInit).body))
+      // Sürüm listesinden okunan damga İSTEĞE KONULMUŞ olmalı; boş kalırsa
+      // `kaydet()` en baştan döner ve bu istek hiç doğmaz.
+      expect(govde.damga).toBe('damga-1')
+      expect(govde.surum_id).toBe(1)
+      expect(govde.degisiklikler.length).toBeGreaterThan(0)
+    })
+
+    // Kayıt bittiğinde oturum temizlenir — "KAYDEDİLMEMİŞ" rozeti düşer.
+    await waitFor(() => expect(screen.queryByText(/KAYDEDİLMEMİŞ/)).toBeNull())
+  })
+})
