@@ -761,7 +761,12 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
               ))}
             </select>
           </div>
-          <Buton varyant="ikincil" disabled={donemId === null} onClick={bosTaslakAc}>
+          <Buton
+            varyant="ikincil"
+            disabled={donemId === null || kirliMi(oturum)}
+            title={kirliMi(oturum) ? 'Önce değişiklikleri kaydedin ya da vazgeçin' : undefined}
+            onClick={bosTaslakAc}
+          >
             Boş Taslak Aç
           </Buton>
         </div>

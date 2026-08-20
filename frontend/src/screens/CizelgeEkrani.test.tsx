@@ -1,6 +1,6 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { CizelgeSurumu, Donem, Personel } from '../api/types'
+import type { CizelgeSurumu, Donem, DogrulamaSonucu, GorevNoktasi, Personel } from '../api/types'
 import { AktifIsSaglayici } from '../components/AktifIsBaglami'
 import { OturumBaglami } from '../components/OturumBaglami'
 import { CizelgeEkrani } from './CizelgeEkrani'
@@ -39,6 +39,23 @@ function surum(surumId: number, surumNo: number, durum: CizelgeSurumu['durum']):
     kapsama_acigi_sayisi: 0,
     fazla_kadro_sayisi: 0,
   }
+}
+
+const NOKTA: GorevNoktasi = {
+  nokta_id: 1,
+  ad: 'Ana Kapı',
+  bina_id: null,
+  onkosul_yetkinlik_id: null,
+  aktif: true,
+}
+
+const DOGRULAMA_BOS: DogrulamaSonucu = {
+  kabul_edilebilir: true,
+  zorunlu_ihlaller: [],
+  ceza_degisimi: 0,
+  agirlikli_ceza_degisimi: 0,
+  ceza_dokumu: [],
+  uyarilar: [],
 }
 
 /** Ekranın açılışta çektiği tüm tanım/sürüm verilerini karşılayan sahte fetch. */
@@ -191,6 +208,82 @@ describe('"Boş Taslak Aç" düğmesi (FR-7.3)', () => {
       )
       expect(istek).toBeDefined()
     })
+  })
+
+  it('kaydedilmemiş bir değişiklik varken pasiftir ve tıklama istek üretmez', async () => {
+    // Ekranın diğer kontrolleri (dönem/sürüm seçici, "Yeniden Çöz") kirli bir
+    // oturumda aynı desenle pasifleşiyor — bu düğme de aynı korumaya
+    // ihtiyaç duyuyor: sürüm değişince oturum sessizce BOS_OTURUM'a döner ve
+    // kaydedilmemiş değişiklik kaybolur.
+    const sahte = vi.fn(async (yol: string, secenekler?: RequestInit) => {
+      const yontem = secenekler?.method ?? 'GET'
+      if (yol.startsWith('/api/donem')) return yanit([DONEM])
+      if (yol.startsWith('/api/personel')) return yanit([PERSONEL])
+      if (yol.startsWith('/api/nokta')) return yanit([NOKTA])
+      if (yol.startsWith('/api/yetkinlik')) return yanit([])
+      if (yol.startsWith('/api/kural')) return yanit([])
+      if (yol.startsWith('/api/cozum/aktif')) return yanit(null)
+      if (yol.startsWith('/api/analiz/')) return yanit(null)
+      if (/^\/api\/surum\/\d+\/atama/.test(yol)) return yanit([])
+      if (/^\/api\/surum\/\d+\/kapsama-acigi/.test(yol)) return yanit([])
+      if (/^\/api\/surum\/\d+\/fazla-kadro/.test(yol)) return yanit([])
+      if (yol === '/api/atama/dogrula' && yontem === 'POST') return yanit(DOGRULAMA_BOS)
+      if (yol === '/api/surum' && yontem === 'POST') {
+        throw new Error('bosTaslakAc bu testte beklenmiyordu — düğme pasif olmalı')
+      }
+      if (yol.startsWith('/api/surum?donem_id=')) return yanit([surum(1, 1, 'taslak')])
+      throw new Error(`beklenmeyen yol ${yol}`)
+    })
+    vi.stubGlobal('fetch', sahte)
+    render(
+      <OturumBaglami.Provider
+        value={{
+          ben: {
+            kullanici_adi: 'idare',
+            ad_soyad: 'Yönetici',
+            rol: 'idare',
+            personel_id: null,
+            parola_degistirmeli: false,
+          },
+          cikis: vi.fn(),
+          parolaDegistir: vi.fn(),
+        }}
+      >
+        <AktifIsSaglayici>
+          <CizelgeEkrani
+            ekranSec={vi.fn()}
+            donemId={1}
+            donemIdSec={vi.fn()}
+            yenidenCozIste={vi.fn()}
+          />
+        </AktifIsSaglayici>
+      </OturumBaglami.Provider>,
+    )
+
+    // Izgara (taslak sürüm, kadrolu personel) hücreleri kurulana kadar bekle.
+    await waitFor(() => expect(document.querySelector('[data-saat="8"]')).not.toBeNull())
+    const saatHucresi = (saat: number): Element => {
+      const hucre = document.querySelector(`[data-saat="${saat}"]`)
+      if (!hucre) throw new Error(`Saat hücresi bulunamadı: ${saat}`)
+      return hucre
+    }
+
+    const dugme = screen.getByRole('button', { name: 'Boş Taslak Aç' }) as HTMLButtonElement
+    await waitFor(() => expect(dugme.disabled).toBe(false))
+
+    // 08.00–16.00 bloğu sürükleyerek çiz: oturum kirlenir.
+    fireEvent.pointerDown(saatHucresi(8))
+    fireEvent.pointerEnter(saatHucresi(15))
+    fireEvent.pointerUp(saatHucresi(15))
+
+    await waitFor(() => expect(screen.getByText(/KAYDEDİLMEMİŞ/)).toBeDefined())
+    await waitFor(() => expect(dugme.disabled).toBe(true))
+    expect(dugme.title).toBe('Önce değişiklikleri kaydedin ya da vazgeçin')
+
+    const cagriSayisiOnce = sahte.mock.calls.length
+    dugme.click()
+    // Pasif düğme tıklamayı hiç üretmemeli — çağrı sayısı değişmez.
+    expect(sahte.mock.calls.length).toBe(cagriSayisiOnce)
   })
 })
 
