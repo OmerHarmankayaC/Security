@@ -96,6 +96,7 @@ function analiz(ek: Partial<Analiz> = {}): Analiz {
     bina_degisim_sayisi: [],
     ceza_dokumu: null,
     toplam_ceza: 361480,
+    ceza_kaynagi: 'cozucu',
     karsilanmayan_kisi_saat: 36,
     acik_aralik_sayisi: 10,
     kota_durumu: KOTA,
@@ -172,6 +173,26 @@ describe('Analiz ekranı — ceza dökümü', () => {
     expect((await screen.findAllByText('Gece adaleti')).length).toBeGreaterThan(0)
     expect(screen.getByText(/HAM DEĞER/)).toBeDefined()
     expect(screen.getByText(/AĞIRLIKLI CEZA/)).toBeDefined()
+  })
+
+  // Kaynak yazılmadan sayının nereden geldiği görünmez (Görev 5): döküm
+  // çözücüden mi geldi, yoksa sürüm çözücüsüz ya da bayat olduğu için kural
+  // motorundan mı hesaplandı — dipnot bunu söyler.
+  it('kaynak "kurallardan" ise dipnotta çözücünün çalışmadığını/bayatladığını söyler', async () => {
+    ekraniKur(analiz({ ceza_kaynagi: 'kurallardan' }))
+
+    expect(
+      await screen.findByText(
+        /çözücü çalışmadı ya da çizelge sonradan elle değişti; döküm kural motorundan hesaplandı/,
+      ),
+    ).toBeDefined()
+  })
+
+  it('kaynak "cozucu" ise o dipnot metni görünmez', async () => {
+    ekraniKur(analiz({ ceza_kaynagi: 'cozucu' }))
+
+    await screen.findAllByText('Gece adaleti')
+    expect(screen.queryByText(/döküm kural motorundan hesaplandı/)).toBeNull()
   })
 })
 

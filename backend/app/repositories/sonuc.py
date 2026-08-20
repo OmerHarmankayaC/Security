@@ -274,6 +274,15 @@ class AtamaDeposu(TabanDepo[Atama]):
         )
         return self.oturum.execute(stmt).scalars().all()
 
+    def surume_gore_son_guncelleme(self, surum_id: int) -> datetime | None:
+        """Surumun atamalarindaki EN SON guncelleme zamani.
+
+        Cozucunun dokumunun bayat olup olmadigini bu belirler: cizelge cozum
+        isinden sonra elle degistirildiyse dokum artik baska bir cizelgeyi
+        anlatir (Gorev 5, analiz_servisi._ceza_kaynagi_ve_dokum)."""
+        stmt = select(func.max(Atama.guncelleme_zamani)).where(Atama.surum_id == surum_id)
+        return self.oturum.execute(stmt).scalar_one_or_none()
+
     def gune_gore_getir(self, surum_id: int, personel_id: int, tarih: date) -> Sequence[Atama]:
         """Bir personelin o gun BASLAYAN bloklari (SRS TD-1).
 

@@ -130,6 +130,12 @@ class AnalizOku(BaseModel):
     bina_degisim_sayisi: list[KisiSayisiOku]
     ceza_dokumu: dict[str, float] | None
     toplam_ceza: float | None
+    # Dokumun KAYNAGI (Gorev 5): "cozucu" (is dokumu taze), "kurallardan"
+    # (cozucusuz ya da bayat surumde kural motorundan hesaplandi) ya da
+    # "yok" (ne is dokumu var ne de hesaplanan bir ihlal). Ekran dipnotu
+    # bu deger uzerinden konusur - kaynak yazilmadan bir sayinin nereden
+    # geldigi kullaniciya gorunmez.
+    ceza_kaynagi: str = "yok"
     # ARALIK SAYISI ile KISI-SAAT AYRI OLCULERDIR (SDD 6.3.4). Ardisik
     # saatler tek kayitta birlestigi icin satir sayisi yuku anlatmaz; ikisi
     # karistirildi ve disa aktarma basliginda yanlis sayi gosterildi.

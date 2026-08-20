@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 
 from app.db import OturumYerel
 from app.models.girdi import Tercih, TercihDurumu, TercihTipi
+from app.models.kural import Kural, KuralTipi
 from app.models.sonuc import (
     Atama,
     AtamaKaynagi,
@@ -313,3 +314,242 @@ def test_kota_satirinda_devir_ayri_yazilir(istemci: TestClient) -> None:
 
     assert satirlar[temiz_id]["devir_saat"] == pytest.approx(0.0)
     assert satirlar[temiz_id]["kalan_kota_saat"] == pytest.approx(270.0)
+
+
+# --- Ceza dokumunun kaynagi (Gorev 5, SDD 5.7 revizyonu) -------------------
+#
+# Cozum isi hic calismamis ya da atamalar isten SONRA elle degismisse
+# cozucunun eski dokumu artik baska bir cizelgeyi anlatir. Bu blok o uc
+# senaryoyu (cozucusuz, taze, bayatlamis) ayri ayri sinar.
+
+
+def _haftalik_donem_ve_talep_kur(oturum: OturumYerel, on_ek: str):
+    """Uc testin ortak fikstürü: bir nokta, iki personel, 7 gunluk donem,
+    hafta ici gunduz + hafta sonu gece talebi (mevcut testlerdeki senaryonun
+    aynisi - S1'in acacagi acigin nereden geldigi boylece bilinir)."""
+    nokta = GorevNoktasi(ad=f"Nokta-{on_ek}")
+    oturum.add(nokta)
+    p1 = Personel(
+        ad_soyad=f"P1-{on_ek}",
+        sicil_no=_benzersiz("KY1"),
+        haftalik_hedef_saat=40,
+        aktif_baslangic=date(2026, 1, 1),
+    )
+    p2 = Personel(
+        ad_soyad=f"P2-{on_ek}",
+        sicil_no=_benzersiz("KY2"),
+        haftalik_hedef_saat=40,
+        aktif_baslangic=date(2026, 1, 1),
+    )
+    oturum.add_all([p1, p2])
+    oturum.flush()
+
+    donem = Donem(
+        baslangic_tarihi=date(2026, 9, 7),  # Pazartesi
+        bitis_tarihi=date(2026, 9, 13),  # Pazar
+        tercih_son_tarihi=date(2026, 8, 31),
+    )
+    oturum.add(donem)
+    oturum.flush()
+    oturum.add(
+        Talep(
+            nokta_id=nokta.nokta_id,
+            baslangic=time(8, 0),
+            bitis=time(16, 0),
+            gun_tipi=GunTipi.HAFTA_ICI,
+            tarih=None,
+            gereken_sayi=1,
+        )
+    )
+    oturum.add(
+        Talep(
+            nokta_id=nokta.nokta_id,
+            baslangic=time(0, 0),
+            bitis=time(8, 0),
+            gun_tipi=GunTipi.HAFTA_SONU,
+            tarih=None,
+            gereken_sayi=1,
+        )
+    )
+    return nokta, p1, p2, donem
+
+
+def _hafta_ici_ve_cumartesi_atamalarini_kur(
+    oturum: OturumYerel, surum: CizelgeSurumu, nokta: GorevNoktasi, p1: Personel, p2: Personel
+) -> list[Atama]:
+    """5 hafta ici gunduz (P1) + cumartesi gece (P2); PAZAR GECE BOS BIRAKILIR
+    - S1'in yakalayacagi tek acik budur (8 kisi-saat)."""
+    atamalar = []
+    for i in range(5):
+        a = Atama(
+            surum_id=surum.surum_id,
+            personel_id=p1.personel_id,
+            baslangic_zamani=datetime.combine(date(2026, 9, 7) + timedelta(days=i), time(8, 0)),
+            bitis_zamani=datetime.combine(date(2026, 9, 7) + timedelta(days=i), time(16, 0)),
+            nokta_id=nokta.nokta_id,
+            kaynak=AtamaKaynagi.COZUCU,
+        )
+        oturum.add(a)
+        atamalar.append(a)
+    a = Atama(
+        surum_id=surum.surum_id,
+        personel_id=p2.personel_id,
+        baslangic_zamani=datetime.combine(date(2026, 9, 12), time(0, 0)),
+        bitis_zamani=datetime.combine(date(2026, 9, 12), time(8, 0)),
+        nokta_id=nokta.nokta_id,
+        kaynak=AtamaKaynagi.COZUCU,
+    )
+    oturum.add(a)
+    atamalar.append(a)
+    return atamalar
+
+
+def test_ceza_kaynagi_cozucusuz_surumde_kurallardan_hesaplanir(istemci: TestClient) -> None:
+    """Cozum isi hic yoksa dokum ESNEK KURALLARIN KENDISINDEN hesaplanir:
+    kaynak 'kurallardan', her kalemde ham x agirlik == agirlikli, ve S8 -
+    aktif ve agirlikli olsa bile - hesaplanan dokumde YER ALMAZ (analiz
+    baglami baglam.onceki_atamalar'i kurmuyor, o yuzden S8 anlamsizdir)."""
+    on_ek = _benzersiz("kurlndn")
+    oturum = OturumYerel()
+    try:
+        senaryo_verisini_temizle(oturum)
+        # Kural katalogu bilinçli olarak S1 (ve S8) ile sinirli tutulur ki
+        # beklenen ceza elle hesaplanabilsin.
+        oturum.add(
+            Kural(kimlik="S1", tip=KuralTipi.ESNEK, parametreler={}, agirlik=10000, aktif=True)
+        )
+        oturum.add(Kural(kimlik="S8", tip=KuralTipi.ESNEK, parametreler={}, agirlik=4, aktif=True))
+
+        nokta, p1, p2, donem = _haftalik_donem_ve_talep_kur(oturum, on_ek)
+
+        surum = CizelgeSurumu(donem_id=donem.donem_id, surum_no=1, durum=CizelgeSurumuDurumu.TASLAK)
+        oturum.add(surum)
+        oturum.flush()
+        _hafta_ici_ve_cumartesi_atamalarini_kur(oturum, surum, nokta, p1, p2)
+
+        oturum.commit()
+        surum_id = surum.surum_id
+    finally:
+        oturum.rollback()
+        oturum.close()
+
+    govde = istemci.get(f"/api/analiz/{surum_id}").json()
+
+    assert govde["ceza_kaynagi"] == "kurallardan"
+    assert govde["ceza_dokumu"] == pytest.approx({"S1": 8.0})
+    assert "S8" not in govde["ceza_dokumu"]
+    assert govde["toplam_ceza"] == pytest.approx(80000.0)
+    for kalem in govde["ceza_kalemleri"]:
+        assert kalem["ham_deger"] * kalem["agirlik"] == pytest.approx(kalem["agirlikli_ceza"])
+
+
+def test_ceza_kaynagi_taze_cozum_isinde_cozucu(istemci: TestClient) -> None:
+    """Cozum isi TAZEYSE (atamalar isten eski/esit) kaynak 'cozucu' ve dokum
+    isin KENDI dokumudur - kurallar YENIDEN calistirilmaz."""
+    on_ek = _benzersiz("taze")
+    oturum = OturumYerel()
+    try:
+        senaryo_verisini_temizle(oturum)
+        nokta, p1, p2, donem = _haftalik_donem_ve_talep_kur(oturum, on_ek)
+
+        surum = CizelgeSurumu(
+            donem_id=donem.donem_id, surum_no=1, durum=CizelgeSurumuDurumu.COZULDU
+        )
+        oturum.add(surum)
+        oturum.flush()
+        _hafta_ici_ve_cumartesi_atamalarini_kur(oturum, surum, nokta, p1, p2)
+
+        # Cozucu atamalar ile AYNI islemde yazar (SDD 5.7): is kaydinin
+        # kendi dokumu, gercek acikla (S1: 8.0) BILEREK FARKLI tutulur ki
+        # test "isin kendi dokumu donuyor" ile "kurallar yeniden hesaplandi"
+        # ayrimini yapabilsin.
+        oturum.add(
+            CozumIsi(
+                surum_id=surum.surum_id,
+                durum=CozumIsiDurumu.UYARILI,
+                baslangic_zamani=datetime.now(UTC),
+                bitis_zamani=datetime.now(UTC),
+                zaman_limiti_saniye=60,
+                en_iyi_ceza=1234,
+                ceza_dokumu={"S1": 1000.0, "S2": 234.0},
+                kural_anlik_goruntu={},
+            )
+        )
+        oturum.commit()
+        surum_id = surum.surum_id
+    finally:
+        oturum.rollback()
+        oturum.close()
+
+    govde = istemci.get(f"/api/analiz/{surum_id}").json()
+
+    assert govde["ceza_kaynagi"] == "cozucu"
+    assert govde["ceza_dokumu"] == {"S1": 1000.0, "S2": 234.0}
+    assert govde["toplam_ceza"] == pytest.approx(1234.0)
+
+
+def test_ceza_kaynagi_atama_guncellenince_kurallara_doner(istemci: TestClient) -> None:
+    """Cozulmus, taze bir surumun bir ataması ELLE (baska bir islemde)
+    guncellenince kaynak KURALLARA doner ve toplam ceza degisir - eski dokum
+    artik baska bir cizelgeyi anlatir (Gorev 5).
+
+    SANIYE ALTI SIRALAMAYA DAYANMAZ: ikinci okuma AYRI BIR ISLEMDIR ve
+    PostgreSQL'in her islem icin sabit `now()`'i, bir onceki islem COMMIT
+    olduktan SONRA baslar - damga kesin olarak ilerler.
+    """
+    on_ek = _benzersiz("bayat")
+    oturum = OturumYerel()
+    try:
+        senaryo_verisini_temizle(oturum)
+        oturum.add(
+            Kural(kimlik="S1", tip=KuralTipi.ESNEK, parametreler={}, agirlik=10000, aktif=True)
+        )
+
+        nokta, p1, p2, donem = _haftalik_donem_ve_talep_kur(oturum, on_ek)
+
+        surum = CizelgeSurumu(
+            donem_id=donem.donem_id, surum_no=1, durum=CizelgeSurumuDurumu.COZULDU
+        )
+        oturum.add(surum)
+        oturum.flush()
+        atamalar = _hafta_ici_ve_cumartesi_atamalarini_kur(oturum, surum, nokta, p1, p2)
+
+        oturum.add(
+            CozumIsi(
+                surum_id=surum.surum_id,
+                durum=CozumIsiDurumu.UYARILI,
+                baslangic_zamani=datetime.now(UTC),
+                bitis_zamani=datetime.now(UTC),
+                zaman_limiti_saniye=60,
+                en_iyi_ceza=1234,
+                ceza_dokumu={"S1": 1000.0},
+                kural_anlik_goruntu={},
+            )
+        )
+        oturum.commit()
+        surum_id = surum.surum_id
+        guncellenecek_atama_id = atamalar[0].atama_id
+    finally:
+        oturum.rollback()
+        oturum.close()
+
+    ilk = istemci.get(f"/api/analiz/{surum_id}").json()
+    assert ilk["ceza_kaynagi"] == "cozucu"
+    assert ilk["toplam_ceza"] == pytest.approx(1234.0)
+
+    # AYRI bir islemde elle duzenleme: kilit acikca cevrilir, kapsamayi
+    # etkilemez ama guncelleme_zamani'ni ILERLETIR.
+    oturum2 = OturumYerel()
+    try:
+        atama = oturum2.get(Atama, guncellenecek_atama_id)
+        assert atama is not None
+        atama.kilitli = True
+        oturum2.commit()
+    finally:
+        oturum2.close()
+
+    sonra = istemci.get(f"/api/analiz/{surum_id}").json()
+    assert sonra["ceza_kaynagi"] == "kurallardan"
+    assert sonra["ceza_dokumu"] == pytest.approx({"S1": 8.0})
+    assert sonra["toplam_ceza"] == pytest.approx(80000.0)
+    assert sonra["toplam_ceza"] != pytest.approx(1234.0)

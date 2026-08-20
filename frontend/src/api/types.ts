@@ -478,6 +478,12 @@ export interface Analiz {
   bina_degisim_sayisi: KisiSayisi[]
   ceza_dokumu: Record<string, number> | null
   toplam_ceza: number | null
+  /** Dökümün KAYNAĞI: "cozucu" (iş dökümü tazeyse), "kurallardan" (çözücüsüz
+   *  ya da bayat sürümde kural motorundan hesaplandı) ya da "yok" (ne iş
+   *  dökümü var ne de hesaplanan bir ihlal). Ceza dökümü kartının dipnotu
+   *  bu değere göre değişir — kaynak yazılmadan sayının nereden geldiği
+   *  kullanıcıya görünmez. */
+  ceza_kaynagi: 'cozucu' | 'kurallardan' | 'yok'
   /** ARALIK SAYISI ile KİŞİ-SAAT ayrı ölçülerdir (SDD 6.3.4): ardışık saatler
    *  tek kayıtta birleştiği için satır sayısı yükü anlatmaz. İkisi karıştırıldı
    *  ve dışa aktarma başlığında yanlış sayı gösterildi. */

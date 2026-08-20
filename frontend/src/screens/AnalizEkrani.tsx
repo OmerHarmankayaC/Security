@@ -490,7 +490,11 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
           )}
 
           <KotaKarti satirlar={analiz.kota_durumu} yillikKota={analiz.yillik_kota_saat} />
-          <CezaDokumu kalemler={analiz.ceza_kalemleri} toplam={analiz.toplam_ceza} />
+          <CezaDokumu
+            kalemler={analiz.ceza_kalemleri}
+            toplam={analiz.toplam_ceza}
+            kaynak={analiz.ceza_kaynagi}
+          />
           <KumulatifDegisimKarti degisim={analiz.kumulatif_degisim} />
         </>
       )}
@@ -749,9 +753,11 @@ function KotaKarti({
 function CezaDokumu({
   kalemler,
   toplam,
+  kaynak,
 }: {
   kalemler: AnalizCezaKalemi[]
   toplam: number | null
+  kaynak: Analiz['ceza_kaynagi']
 }) {
   if (kalemler.length === 0) return null
   return (
@@ -802,6 +808,14 @@ function CezaDokumu({
       <p className="mt-3 text-xs text-ink-muted">
         Ham değer kuralın kendi biriminde ölçülür (kişi-saat, saat, gün); ağırlıklı ceza amaç
         fonksiyonuna girendir.
+        {/* Kaynak yazılmadan sayının nereden geldiği görünmez (Görev 5):
+            "cozucu" ise döküm iş kaydından TAZE geldi; "kurallardan" ise
+            sürüm çözücüsüz ya da bayat olduğu için döküm kural motorundan
+            YENİDEN hesaplandı. "yok" durumunda kart zaten hiç render edilmez
+            (kalemler boşsa fonksiyon en başta null döner). */}
+        {kaynak === 'cozucu' && ' Döküm çözüm işinden geliyor.'}
+        {kaynak === 'kurallardan' &&
+          ' Bu sürümde çözücü çalışmadı ya da çizelge sonradan elle değişti; döküm kural motorundan hesaplandı.'}
       </p>
     </Kart>
   )
