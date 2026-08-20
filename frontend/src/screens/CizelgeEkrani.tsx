@@ -25,6 +25,7 @@ import { belirtmeHaliEki, buyukHarf } from '../lib/metin'
 import { sayiBicimle } from '../lib/sayi'
 import { blokSinirlariniOku } from '../lib/kuralParametre'
 import { sonDonem } from '@/lib/donemSecimi'
+import { izgaraSatirlari } from '@/lib/izgaraSatirlari'
 import {
   BOS_OTURUM,
   adimlariEkle,
@@ -230,6 +231,11 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
   const donem = donemler.find((d) => d.donem_id === donemId) ?? null
   const surum = surumler.find((s) => s.surum_id === surumId) ?? null
 
+  // Yalnizca taslak ve cozuldu duzenlenebilir; yayinlanmis/arsiv surumde
+  // sunucu 409 doner (services/dogrulama_servisi.py).
+  const surumDuzenlenebilir =
+    surum !== null && (surum.durum === 'taslak' || surum.durum === 'cozuldu')
+
   const personelMap = useMemo(
     () => new Map(personelListesi.map((p) => [p.personel_id, p])),
     [personelListesi],
@@ -297,13 +303,22 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
 
   // Süzgeçten ÖNCEKİ liste — alttaki "36 personelin 10'u gösteriliyor"
   // satırının paydası budur; süzgeç değiştikçe payda oynamamalı.
-  const tumIzgaraPersonelleri = useMemo(() => {
-    const idler = new Set(gosterilenAtamalar.map((a) => a.personel_id))
-    return [...idler]
-      .map((id) => personelMap.get(id))
-      .filter((p): p is Personel => p !== undefined)
-      .sort((a, b) => a.ad_soyad.localeCompare(b.ad_soyad, 'tr'))
-  }, [gosterilenAtamalar, personelMap])
+  //
+  // Düzenlenebilir sürümde satırlar KADRODAN gelir (bkz. lib/izgaraSatirlari.ts)
+  // — boş bir taslakta tıklanacak hücre kalması için ataması olmayan personel
+  // de satır olmalıdır. Salt okunurda satırlar ATAMALARDAN gelir; orada soru
+  // "ne karar verildi"dir ve boş satır gürültüdür.
+  const tumIzgaraPersonelleri = useMemo(
+    () =>
+      izgaraSatirlari({
+        personeller: personelListesi,
+        atamalar: gosterilenAtamalar,
+        duzenlenebilir: surumDuzenlenebilir,
+        donemBaslangic: donem?.baslangic_tarihi ?? '',
+        donemBitis: donem?.bitis_tarihi ?? '',
+      }),
+    [personelListesi, gosterilenAtamalar, surumDuzenlenebilir, donem],
+  )
 
   // Nokta süzgeci personeli DÖNEM BOYUNCA o noktada çalışanlarla sınırlar.
   // Gün bazında daraltmak, günler arasında gezinirken satırların altından
@@ -549,11 +564,6 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
           noktaMap,
         }
       : null
-
-  // Yalnizca taslak ve cozuldu duzenlenebilir; yayinlanmis/arsiv surumde
-  // sunucu 409 doner (services/dogrulama_servisi.py).
-  const surumDuzenlenebilir =
-    surum !== null && (surum.durum === 'taslak' || surum.durum === 'cozuldu')
 
   const seciliPersonel = seciliHucre ? personelMap.get(seciliHucre.personelId) : null
 
