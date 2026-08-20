@@ -83,6 +83,7 @@ class SurumServisi:
         cezalar = self.cozum_isi.surumlere_gore_en_son_ceza(surum_idleri)
         eksikler = self.kapsama.surumlere_gore_eksik_toplami(surum_idleri)
         fazlalar = self.fazla_kadro.surumlere_gore_fazla_toplami(surum_idleri)
+        atama_sayilari = self.atama.surumlere_gore_atama_sayisi(surum_idleri)
         return [
             SurumOzetiOku(
                 surum_id=s.surum_id,
@@ -96,6 +97,7 @@ class SurumServisi:
                 toplam_ceza=cezalar.get(s.surum_id),
                 kapsama_acigi_sayisi=eksikler.get(s.surum_id, 0),
                 fazla_kadro_sayisi=fazlalar.get(s.surum_id, 0),
+                atama_sayisi=atama_sayilari.get(s.surum_id, 0),
             )
             for s in surumler
         ]

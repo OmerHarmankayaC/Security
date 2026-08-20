@@ -10,6 +10,7 @@ DE kapsadigindan bu filtre burada acikca uygulanmalidir).
 
 from collections import defaultdict
 from collections.abc import Sequence
+from datetime import date
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -37,13 +38,14 @@ from app.schemas.analiz import (
     AnalizOku,
     CezaKalemiOku,
     FazlaKadroKalemi,
+    GunlukKapsamaOku,
     KisiSayisiOku,
     KotaDurumuOku,
     KumulatifDegisimOku,
     SaatDengesiOku,
 )
 from app.services.atama_donusumu import atama_kayitlarina_cevir
-from app.services.baglam_kurucu import baglam_olustur
+from app.services.baglam_kurucu import baglam_olustur, donem_gunlerini_uret
 
 
 def _tercih_karsilandi(atama: AtamaKaydi, tercih: TercihKaydi) -> bool:
@@ -477,16 +479,36 @@ class AnalizServisi:
 
         # --- Kapsama acigi: ARALIK SAYISI ve KISI-SAAT ayri olculer.
         aciklar = self.kapsama.surume_gore_getir(surum_id)
-        karsilanmayan = sum(
-            a.eksik_sayi * round((a.bitis_zamani - a.baslangic_zamani).total_seconds() / 3600)
-            for a in aciklar
-        )
+        # Gunluk kirilim (Gorev 6, SDD 6.3.1 Ozet ekrani seridi): gun,
+        # bloguN BASLADIGI damgadan okunur (SRS TD-1) - gece yarisini asan
+        # acik BASLADIGI gune yazilir, bitis gunune degil.
+        gunluk_gecici: dict[date, list[int]] = {}  # tarih -> [aralik, kisi_saat]
+        for a in aciklar:
+            saat = a.eksik_sayi * round(
+                (a.bitis_zamani - a.baslangic_zamani).total_seconds() / 3600
+            )
+            kayit = gunluk_gecici.setdefault(a.baslangic_zamani.date(), [0, 0])
+            kayit[0] += 1
+            kayit[1] += saat
+        karsilanmayan = sum(kisi_saat for _, kisi_saat in gunluk_gecici.values())
+        # Donemin ACIGI OLMAYAN gunleri de SIFIRLA listeye girer: serit
+        # donemin tamamini cizer, eksik gun yazilmazsa "veri yok" gibi
+        # gorunur.
+        gunluk_kapsama = [
+            GunlukKapsamaOku(
+                tarih=gun,
+                acik_aralik_sayisi=gunluk_gecici.get(gun, [0, 0])[0],
+                karsilanmayan_kisi_saat=gunluk_gecici.get(gun, [0, 0])[1],
+            )
+            for gun in donem_gunlerini_uret(donem.baslangic_tarihi, donem.bitis_tarihi)
+        ]
 
         return AnalizOku(
             surum_id=surum_id,
             ufuk=ufuk,
             karsilanmayan_kisi_saat=karsilanmayan,
             acik_aralik_sayisi=len(aciklar),
+            gunluk_kapsama=gunluk_kapsama,
             kota_durumu=self._kota_durumu(
                 atamalar, baglam, personel_satirlari, h10_esigi, yillik_kota
             ),

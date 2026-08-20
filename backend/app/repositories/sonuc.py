@@ -274,6 +274,23 @@ class AtamaDeposu(TabanDepo[Atama]):
         )
         return self.oturum.execute(stmt).scalars().all()
 
+    def surumlere_gore_atama_sayisi(self, surum_idleri: Sequence[int]) -> dict[int, int]:
+        """Surum listesi icin (SDD 6.3.5) surum basina atama sayisi.
+
+        Ozet ekrani "olculebilir surum"u bununla secer: olcut artik "taslak
+        degil" degil "atamasi var". Eski olcut "cozulmemis taslagin atamasi
+        yoktur" varsayimina dayaniyordu; elle cizilen bos taslak (Gorev 1)
+        bu varsayimi gecersiz kilar.
+        """
+        if not surum_idleri:
+            return {}
+        stmt = (
+            select(Atama.surum_id, func.count(Atama.atama_id))
+            .where(Atama.surum_id.in_(surum_idleri))
+            .group_by(Atama.surum_id)
+        )
+        return {surum_id: int(sayi) for surum_id, sayi in self.oturum.execute(stmt).all()}
+
     def surume_gore_son_guncelleme(self, surum_id: int) -> datetime | None:
         """Surumun atamalarindaki EN SON guncelleme zamani.
 

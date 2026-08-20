@@ -191,6 +191,44 @@ def test_surum_listesi_toplam_ceza_ve_kapsama_acigi_tasir(
     assert s1["kapsama_acigi_sayisi"] == 0
 
 
+def test_surum_listesi_atama_sayisi_tasir(istemci: TestClient, senaryo: dict[str, int]) -> None:
+    """Gorev 6: Ozet ekrani "olculebilir surum"u artik "taslak degil" degil
+    "atamasi var" olcutuyle secer (bos taslak bunu gecersiz kildi) - olcut
+    surum listesinin `atama_sayisi` alanina dayanir.
+    """
+    yanit = istemci.get(f"/api/surum?donem_id={senaryo['donem_id']}")
+    assert yanit.status_code == 200
+    satirlar = {s["surum_id"]: s for s in yanit.json()}
+
+    # senaryo fikstüründeki her iki surumde de DORT atama var (bkz. `at(...)`
+    # cagrilari): s1 icin gun0/gun1/gun2 P1 + gun0 P2, s2 icin gun0/gun1/gun3
+    # P1 + gun0 P2.
+    assert satirlar[senaryo["s1"]]["atama_sayisi"] == 4
+    assert satirlar[senaryo["s2"]]["atama_sayisi"] == 4
+
+
+def test_surum_listesi_atamasiz_taslakta_atama_sayisi_sifir(istemci: TestClient) -> None:
+    """Elle cizilen bos taslagin (Gorev 1) hic atamasi yoktur; eski olcut
+    ("taslak degil") bu surumu de "olculebilir" sayardi, yeni alan bunu
+    ayirt eder.
+    """
+    oturum = OturumYerel()
+    try:
+        senaryo_verisini_temizle(oturum)
+        donem_id = _bos_donem_olustur(oturum)
+    finally:
+        oturum.close()
+
+    olustur = istemci.post("/api/surum", json={"donem_id": donem_id})
+    assert olustur.status_code == 201
+    surum_id = olustur.json()["surum_id"]
+
+    yanit = istemci.get(f"/api/surum?donem_id={donem_id}")
+    assert yanit.status_code == 200
+    satirlar = {s["surum_id"]: s for s in yanit.json()}
+    assert satirlar[surum_id]["atama_sayisi"] == 0
+
+
 def test_karsilastirma_farklari_uc_ture_ayirir_ve_sayar(
     istemci: TestClient, senaryo: dict[str, int]
 ) -> None:

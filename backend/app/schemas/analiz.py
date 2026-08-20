@@ -1,7 +1,7 @@
 """Analiz uc noktasinin yanit semasi (SDD 3.2: analiz_router; SDD 5.7, Ek B;
 SRS FR-8.x)."""
 
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
@@ -90,6 +90,18 @@ class CezaKalemiOku(BaseModel):
     agirlikli_ceza: float
 
 
+class GunlukKapsamaOku(BaseModel):
+    """Bir gunun kapsama acigi (SDD 6.3.1, Ozet ekrani gunluk seridi).
+
+    Toplami AnalizOku.karsilanmayan_kisi_saat'e ESITTIR ve bu bir testtir:
+    aralik sayisi ile kisi-saat bu projede bir kez karistirildi ve disa
+    aktarma basliginda yanlis sayi basildi."""
+
+    tarih: date
+    acik_aralik_sayisi: int
+    karsilanmayan_kisi_saat: int
+
+
 class KumulatifDegisimOku(BaseModel):
     """Kisi basina sapmanin ONCEKI yayinlanmis doneme gore degisimi.
 
@@ -141,6 +153,10 @@ class AnalizOku(BaseModel):
     # karistirildi ve disa aktarma basliginda yanlis sayi gosterildi.
     karsilanmayan_kisi_saat: int = 0
     acik_aralik_sayisi: int = 0
+    # Gunluk kirilim (Gorev 6, SDD 6.3.1 Ozet ekrani seridi): donemin HER
+    # gunu icin bir kayit, acigi olmayan gunler de sifirla. Toplami
+    # karsilanmayan_kisi_saat'e esittir.
+    gunluk_kapsama: list[GunlukKapsamaOku] = Field(default_factory=list)
     kota_durumu: list[KotaDurumuOku] = Field(default_factory=list)
     #: H10'un yillik fazla calisma kotasi (saat). Kart kalan kotayi neye gore
     #: soyledigini yazabilsin diye gonderilir; ekranin sabit 270 tasimasi,

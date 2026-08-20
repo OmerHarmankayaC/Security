@@ -316,6 +316,92 @@ def test_kota_satirinda_devir_ayri_yazilir(istemci: TestClient) -> None:
     assert satirlar[temiz_id]["kalan_kota_saat"] == pytest.approx(270.0)
 
 
+# --- Gunluk kapsama dokumu (Gorev 6, SDD 6.3.1 Ozet ekrani gunluk seridi) --
+
+
+def test_analiz_gunluk_kapsama_dokumu(istemci: TestClient) -> None:
+    """Uc iddia: (1) seridin toplami `karsilanmayan_kisi_saat`e esittir -
+    aralik sayisi ile kisi-saat bu projede bir kez karistirildi ve disa
+    aktarma basliginda yanlis sayi basildi; (2) donemin acigi OLMAYAN
+    gunleri de sifirla listeye girer, yoksa serit "veri yok" gibi bosluk
+    birakir; (3) gece yarisini asan acik BASLADIGI gune yazilir (TD-1).
+    """
+    on_ek = _benzersiz("gkapsama")
+    oturum = OturumYerel()
+    try:
+        senaryo_verisini_temizle(oturum)
+
+        nokta = GorevNoktasi(ad=f"Nokta-{on_ek}")
+        oturum.add(nokta)
+        oturum.flush()
+
+        # Uc gunluk donem: 09-07, 09-08, 09-09.
+        donem = Donem(
+            baslangic_tarihi=date(2026, 9, 7),
+            bitis_tarihi=date(2026, 9, 9),
+            tercih_son_tarihi=date(2026, 8, 31),
+        )
+        oturum.add(donem)
+        oturum.flush()
+
+        surum = CizelgeSurumu(
+            donem_id=donem.donem_id, surum_no=1, durum=CizelgeSurumuDurumu.COZULDU
+        )
+        oturum.add(surum)
+        oturum.flush()
+
+        # 09-07 gunduz: iki kisi eksik, sekiz saat -> 16 kisi-saat.
+        oturum.add(
+            KapsamaAcigi(
+                surum_id=surum.surum_id,
+                baslangic_zamani=datetime.combine(date(2026, 9, 7), time(8, 0)),
+                bitis_zamani=datetime.combine(date(2026, 9, 7), time(16, 0)),
+                nokta_id=nokta.nokta_id,
+                eksik_sayi=2,
+            )
+        )
+        # 09-08 22.00 -> 09-09 06.00: gece yarisini asiyor, bir kisi eksik,
+        # sekiz saat -> 8 kisi-saat. TD-1: BASLADIGI gune (09-08) yazilmali,
+        # bitis gunune (09-09) degil.
+        oturum.add(
+            KapsamaAcigi(
+                surum_id=surum.surum_id,
+                baslangic_zamani=datetime.combine(date(2026, 9, 8), time(22, 0)),
+                bitis_zamani=datetime.combine(date(2026, 9, 9), time(6, 0)),
+                nokta_id=nokta.nokta_id,
+                eksik_sayi=1,
+            )
+        )
+        # 09-09'un kendi acigi yok; yine de listede sifirla gorunmeli.
+
+        oturum.commit()
+        surum_id = surum.surum_id
+    finally:
+        oturum.rollback()
+        oturum.close()
+
+    yanit = istemci.get(f"/api/analiz/{surum_id}")
+    assert yanit.status_code == 200
+    govde = yanit.json()
+
+    gunluk = {g["tarih"]: g for g in govde["gunluk_kapsama"]}
+    # Donemin UC gunu de listede - acigi olmayan da sifirla girer.
+    assert set(gunluk) == {"2026-09-07", "2026-09-08", "2026-09-09"}
+
+    assert gunluk["2026-09-07"]["acik_aralik_sayisi"] == 1
+    assert gunluk["2026-09-07"]["karsilanmayan_kisi_saat"] == 16
+
+    assert gunluk["2026-09-08"]["acik_aralik_sayisi"] == 1
+    assert gunluk["2026-09-08"]["karsilanmayan_kisi_saat"] == 8
+
+    assert gunluk["2026-09-09"]["acik_aralik_sayisi"] == 0
+    assert gunluk["2026-09-09"]["karsilanmayan_kisi_saat"] == 0
+
+    # Seridin toplami karsilanmayan_kisi_saat'e esittir.
+    toplam = sum(g["karsilanmayan_kisi_saat"] for g in govde["gunluk_kapsama"])
+    assert toplam == govde["karsilanmayan_kisi_saat"] == 24
+
+
 # --- Ceza dokumunun kaynagi (Gorev 5, SDD 5.7 revizyonu) -------------------
 #
 # Cozum isi hic calismamis ya da atamalar isten SONRA elle degismisse

@@ -164,6 +164,11 @@ class SurumOzetiOku(BaseModel):
     # Ayri bir alan: kapsama acigiyla toplanmasi iki zit yondeki sapmayi
     # tek sayida gizler ve "3 acik" ile "3 fazla" ayni gorunurdu.
     fazla_kadro_sayisi: int = 0
+    # Surumun toplam atama sayisi (Gorev 6). Ozet ekrani "olculebilir
+    # surum"u bununla secer: olcut artik "taslak degil" degil "atamasi
+    # var" - elle cizilen bos taslak (Gorev 1) "taslak degil" olcutunu
+    # gecersiz kildi.
+    atama_sayisi: int = 0
 
 
 class AtamaFarkiOku(BaseModel):
