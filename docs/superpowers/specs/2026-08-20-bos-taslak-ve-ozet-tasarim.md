@@ -176,9 +176,9 @@ Bugün kartlarda "kapsama %97" yazıyor ve neyin kapsaması olduğu yalnız kena
 
 | Blok | Aralık etiketi |
 |---|---|
-| Ölçü kartları şeridi | 17 – 23 Ağu 2026 dönemi için |
+| Ölçü kartları şeridi | "<dönem aralığı> dönemi için" (ör. 17 – 23 Ağu 2026) |
 | Kapsama kartı + günlük şerit | aynı dönem, başlıkta |
-| Kişi başına saat | bu dönemde görevli saat · 17 – 23 Ağu |
+| Kişi başına saat | "bu dönemde görevli saat · <dönem aralığı>" |
 | Bu dönem müsait olmayanlar | dönemle kesişen kayıtlar |
 | Yaklaşan müsaitlik kayıtları | **bugünden itibaren** |
 
@@ -218,11 +218,28 @@ değişen süzgeç.
 Ölçü kartları → kapsama kartı (şerit + süzülebilir liste) → kişi başına saat →
 bu dönem müsait olmayanlar → yaklaşan müsaitlik kayıtları.
 
+### D. "Ölçülebilir sürüm" ölçütü değişir
+
+Özet bugün ölçüleri **taslak olmayan** en yeni sürümden okuyor
+(`lib/donemSecimi.ts` → `olculebilirSurum`). O ölçüt "çözülmemiş taslağın
+ataması yoktur" varsayımına dayanıyordu ve boş taslak özelliği bu varsayımı
+geçersiz kılıyor: elle çizilmiş bir taslağın ataması vardır ve ölçülebilir.
+
+Ölçüt **"ataması var"** olur. Bunun için `SurumOzetiOku`'ya `atama_sayisi: int`
+eklenir (depo sorgusunda tek COUNT); `olculebilirSurum` duruma değil bu alana
+bakar. Alan olmadan istemcinin elinde ayırt edecek bir şey yok — sürüm listesi
+atama sayısını taşımıyor.
+
 ### Boş taslakta
 
-Kapsama %0, şerit baştan sona dolu, saat listesi herkesi payının altında
-gösterir. Bu doğru davranış: elle çizdikçe şerit sönmeli. Bugün duran "bu
-dönemin son sürümü henüz çözülmemiş bir taslak" uyarısı korunur.
+**Hiç atama yokken** bugünkü davranış korunur: ölçüler yerine "bu dönemin son
+sürümü henüz çözülmemiş bir taslak" uyarısı. Metin güncellenir, çünkü artık tek
+yol çözücü değil: "…Çizelge ekranından elle çizebilir ya da Çözüm ekranını
+kullanabilirsin."
+
+**İlk vardiya konduğu anda** sürüm ölçülebilir hâle gelir: kapsama düşük, şerit
+dolu, saat listesi herkesi payının altında gösterir. Bu doğru davranış — elle
+çizdikçe şerit sönmeli.
 
 ### Sınama
 
@@ -232,6 +249,8 @@ dönemin son sürümü henüz çözülmemiş bir taslak" uyarısı korunur.
 - Müsaitlik kartı dönemle kesişmeyen kaydı göstermez.
 - Her aralık-bağlı blok aralığını metin olarak taşır.
 - Ekran dönem seçici sunmaz.
+- Ataması olan bir TASLAK ölçülebilir sayılır; atamasız taslakta ölçü yerine
+  durum metni çıkar.
 
 ---
 
