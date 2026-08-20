@@ -266,7 +266,12 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
 
       {analiz && (
         <>
-          <div className="grid grid-cols-5 gap-4">
+          {/* ALTI KART, ALTI SÜTUN. Beş sütunlu ızgarada altıncı kart
+              ("toplam ceza") tek başına alt satıra düşüyordu: şerit tek bir
+              okumaymış gibi durmuyor, ikinci satır ayrı bir bölüm gibi
+              görünüyordu. Dar ekranda üçe, çok darda ikiye iner — sabit altı
+              sütun 1280px altında kartları okunmaz genişliğe sıkıştırırdı. */}
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
             <Kart>
               <KartEtiketi>dönem kapsaması</KartEtiketi>
               <p className="m-0 font-mono text-sayi-buyuk font-semibold text-accent">
