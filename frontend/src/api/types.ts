@@ -38,6 +38,10 @@ export interface CizelgeSurumu {
   // Kapsama açığıyla toplanmaz: iki zıt yöndeki sapmayı tek sayıda
   // gizlemek "3 açık" ile "3 fazla"yı aynı gösterirdi.
   fazla_kadro_sayisi: number
+  // Sürümün toplam atama sayısı (SDD 6.3.5). Özet ekranı "ölçülebilir
+  // sürüm"ü bununla seçer: ölçüt artık "taslak değil" değil "ataması var"
+  // — elle çizilen boş taslak "taslak değil" ölçütünü geçersiz kıldı.
+  atama_sayisi: number
 }
 
 // --- Sürümler / Karşılaştır (SDD 6.3.5) -------------------------------------
@@ -478,11 +482,21 @@ export interface Analiz {
   bina_degisim_sayisi: KisiSayisi[]
   ceza_dokumu: Record<string, number> | null
   toplam_ceza: number | null
+  /** Dökümün KAYNAĞI: "cozucu" (iş dökümü tazeyse), "kurallardan" (çözücüsüz
+   *  ya da bayat sürümde kural motorundan hesaplandı) ya da "yok" (ne iş
+   *  dökümü var ne de hesaplanan bir ihlal). Ceza dökümü kartının dipnotu
+   *  bu değere göre değişir — kaynak yazılmadan sayının nereden geldiği
+   *  kullanıcıya görünmez. */
+  ceza_kaynagi: 'cozucu' | 'kurallardan' | 'yok'
   /** ARALIK SAYISI ile KİŞİ-SAAT ayrı ölçülerdir (SDD 6.3.4): ardışık saatler
    *  tek kayıtta birleştiği için satır sayısı yükü anlatmaz. İkisi karıştırıldı
    *  ve dışa aktarma başlığında yanlış sayı gösterildi. */
   karsilanmayan_kisi_saat: number
   acik_aralik_sayisi: number
+  /** Günlük kırılım (SDD 6.3.1, Özet ekranı günlük şeridi): dönemin HER
+   *  günü için bir kayıt, açığı olmayan günler de sıfırla. Toplamı
+   *  `karsilanmayan_kisi_saat`e eşittir. */
+  gunluk_kapsama: GunlukKapsama[]
   kota_durumu: KotaDurumu[]
   /** H10'un yıllık fazla çalışma kotası (saat). Kart kalan kotayı neye göre
    *  söylediğini yazsın diye sunucudan gelir; ekranın sabit 270 taşıması,
@@ -493,6 +507,17 @@ export interface Analiz {
   /** Hangi ufkun ölçüldüğü. İki ufkun sayıları farklıdır ve hangisine
    *  bakıldığı belirsiz kalırsa tablo yanlış okunur. */
   ufuk: Ufuk
+}
+
+/** Bir günün kapsama açığı (SDD 6.3.1, Özet ekranı günlük şeridi).
+ *
+ * Toplamı `Analiz.karsilanmayan_kisi_saat`e EŞİTTİR — aralık sayısı ile
+ * kişi-saat bu projede bir kez karıştırıldı ve dışa aktarma başlığında
+ * yanlış sayı basıldı. */
+export interface GunlukKapsama {
+  tarih: string
+  acik_aralik_sayisi: number
+  karsilanmayan_kisi_saat: number
 }
 
 export type Ufuk = 'donem' | 'adalet'

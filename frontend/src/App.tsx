@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import type { Ben } from './api/types'
 import type { NavOgesi } from './components/AppShell'
 import { AktifIsSaglayici } from './components/AktifIsBaglami'
@@ -24,9 +24,26 @@ interface Props {
 function App({ ben, cikis, parolaDegistir }: Props) {
   const [ekran, setEkran] = useState<NavOgesi>('Özet')
   const [donemId, setDonemId] = useState<number | null>(null)
+  // Çizelge ekranından "Yeniden Çöz" ile gelinen SÜRÜM. Çözüm ekranı bunu
+  // `onceki_surum_id` olarak gönderir; sürümün KİLİTLİ atamaları böylece
+  // korunur (SDD 5.6). Alan boşken çözüm dönem için sıfırdan başlar.
+  const [yenidenCozulecekSurumId, setYenidenCozulecekSurumId] = useState<number | null>(null)
 
-  const yenidenCozIste = (id: number) => {
+  // Dönem değişince taban sürüm ANLAMSIZ kalır — başka bir dönemin sürümünü
+  // taban almak çözümü sessizce yanlış çizelgeye bağlardı. Ekranların
+  // hepsi dönem seçimini bu sarmalayıcıdan geçirir.
+  //
+  // `useCallback` ŞART: Sürümler ekranı bu işlevi bir useEffect bağımlılığı
+  // olarak taşıyor (SurumlerEkrani.tsx). Her render'da yeni bir kimlik
+  // üretilseydi efekt sonsuz döngüye girer ve ekran durmadan istek atardı.
+  const donemIdSec = useCallback((id: number | null) => {
     setDonemId(id)
+    setYenidenCozulecekSurumId(null)
+  }, [])
+
+  const yenidenCozIste = (id: number, surumId: number | null) => {
+    setDonemId(id)
+    setYenidenCozulecekSurumId(surumId)
     setEkran('Çözüm')
   }
 
@@ -56,16 +73,23 @@ function App({ ben, cikis, parolaDegistir }: Props) {
               <CizelgeEkrani
                 ekranSec={setEkran}
                 donemId={donemId}
-                donemIdSec={setDonemId}
+                donemIdSec={donemIdSec}
                 yenidenCozIste={yenidenCozIste}
               />
             )
           case 'Çözüm':
-            return <CozumEkrani ekranSec={setEkran} donemId={donemId} donemIdSec={setDonemId} />
+            return (
+              <CozumEkrani
+                ekranSec={setEkran}
+                donemId={donemId}
+                donemIdSec={donemIdSec}
+                oncekiSurumId={yenidenCozulecekSurumId}
+              />
+            )
           case 'Analiz':
-            return <AnalizEkrani ekranSec={setEkran} donemId={donemId} donemIdSec={setDonemId} />
+            return <AnalizEkrani ekranSec={setEkran} donemId={donemId} donemIdSec={donemIdSec} />
           case 'Sürümler':
-            return <SurumlerEkrani ekranSec={setEkran} donemId={donemId} donemIdSec={setDonemId} />
+            return <SurumlerEkrani ekranSec={setEkran} donemId={donemId} donemIdSec={donemIdSec} />
           case 'Kullanıcılar':
             return (
               <KullanicilarEkrani ekranSec={setEkran} kendiKullaniciAdi={ben.kullanici_adi} />

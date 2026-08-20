@@ -23,18 +23,16 @@ export function donemSec(donemler: readonly Donem[], bugun: string): Donem | und
 }
 
 /**
- * Ölçülebilir en yeni sürüm: ataması olan, yani ÇÖZÜLMÜŞ bir sürüm.
+ * Ölçülebilir en yeni sürüm: ATAMASI OLAN sürüm.
  *
- * Çözülmemiş bir taslağın kapsaması sıfırdır çünkü ataması yoktur — ama bu
- * bir ölçüm değil, bir yokluktur. Özet ekranı taslağın sayılarını ölçüm gibi
- * basınca "kapsama %0 / eksik hücre 0 / toplam ceza —" gibi kendi kendisiyle
- * çelişen bir kart çıkıyordu. Taslak atlanır; hiç ölçülebilir sürüm yoksa
- * çağıran taraf sayı yerine DURUMU söyler.
+ * Ölçüt "taslak değil" idi ve "çözülmemiş taslağın ataması yoktur"
+ * varsayımına dayanıyordu. Elle çizilen taslağın ataması vardır ve
+ * ölçülebilir; eski ölçütle Özet onu hiç görmezdi.
  */
 export function olculebilirSurum(
   surumler: readonly CizelgeSurumu[],
 ): CizelgeSurumu | undefined {
-  return surumler.find((s) => s.durum !== 'taslak')
+  return surumler.find((s) => s.atama_sayisi > 0)
 }
 
 /**

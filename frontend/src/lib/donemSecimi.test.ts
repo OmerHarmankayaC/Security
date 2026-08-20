@@ -39,22 +39,31 @@ describe('donemSec', () => {
 })
 
 describe('olculebilirSurum', () => {
-  const S = (surum_id: number, durum: string) => ({ surum_id, surum_no: 1, durum }) as never
+  const S = (surum_id: number, durum: string, atama_sayisi: number) =>
+    ({ surum_id, surum_no: 1, durum, atama_sayisi }) as never
 
-  it('çözülmemiş taslağı ATLAR, ölçülebilir en yeni sürümü verir', () => {
-    // Taslağın kapsaması %0'dır çünkü ataması yoktur; bunu ölçüm gibi
-    // göstermek "kapsama %0 / eksik hücre 0" gibi kendi kendisiyle çelişen
-    // bir kart üretiyordu.
-    const surumler = [S(76, 'taslak'), S(70, 'yayinlandi')]
+  it('atamasız sürümü ATLAR, ölçülebilir en yeni sürümü verir', () => {
+    // Ölçüt "taslak değil" İDİ ve "çözülmemiş taslağın ataması yoktur"
+    // varsayımına dayanıyordu. Elle çizilen taslağın (Görev 1) ataması
+    // vardır; bu yüzden ölçüt artık atama_sayisi'na bakar.
+    const surumler = [S(76, 'taslak', 0), S(70, 'yayinlandi', 42)]
     expect(olculebilirSurum(surumler)?.surum_id).toBe(70)
   })
 
-  it('hepsi taslaksa tanımsız döner — ekran ölçüm yerine durumu söyler', () => {
-    expect(olculebilirSurum([S(76, 'taslak')])).toBeUndefined()
+  it('hiç atama yoksa tanımsız döner — ekran ölçüm yerine durumu söyler', () => {
+    expect(olculebilirSurum([S(76, 'taslak', 0)])).toBeUndefined()
   })
 
-  it('yayınlanmış varsa onu tercih eder', () => {
-    const surumler = [S(78, 'cozuldu'), S(75, 'yayinlandi')]
-    expect(olculebilirSurum(surumler)?.surum_id).toBe(78)
+  it('ataması olan TASLAK da seçilir — eski ölçüt onu hiç görmüyordu', () => {
+    // Elle çizilen boş taslak (Görev 1) çözülmeden ataması vardır. Eski
+    // ölçüt ("taslak değil") tam bu sürümü atlıyordu ve Özet ekranı onu
+    // hiç ölçmüyordu.
+    const surumler = [S(80, 'taslak', 12)]
+    expect(olculebilirSurum(surumler)?.surum_id).toBe(80)
+  })
+
+  it('atamasız sürüm ATLANIR, ataması olan bir sonraki sürüm seçilir', () => {
+    const surumler = [S(81, 'cozuldu', 0), S(75, 'yayinlandi', 30)]
+    expect(olculebilirSurum(surumler)?.surum_id).toBe(75)
   })
 })

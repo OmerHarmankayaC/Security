@@ -155,9 +155,13 @@ testi ancak tüm ekranı kurarak yazılır.
  * satır olmalı, yoksa boş bir taslakta tıklanacak hücre kalmaz.
  * Yayınlanmış/arşivde soru "ne karar verildi" ve orada boş satır gürültüdür.
  *
- * Aktiflik penceresi dışındaki personel HİÇBİR sürümde satır olmaz: H7
- * bağlamı o güne atamayı zaten reddediyor (`baglam.musait_mi`) ve satırı
+ * Aktiflik penceresi süzgeci YALNIZ KADRODAN GELEN satırlara uygulanır:
+ * H7 bağlamı o güne atamayı zaten reddediyor (`baglam.musait_mi`) ve satırı
  * göstermek kullanıcıyı asla kabul edilmeyecek bir tıklamaya davet ederdi.
+ * Salt okunur sürümde satırlar atamalardan gelir ve süzgeç UYGULANMAZ:
+ * orada ataması olan biri, bugün artık aktif olmasa bile satır olmalıdır —
+ * geçmişte verilmiş bir karardır ve gizlemek çizelgeyi eksik gösterirdi.
+ *
  * Bu, pencerenin ikinci kez okunduğu yerdir; kural değil görünürlük
  * süzgecidir ve ayrışırsa sonucu zararsızdır (sunucu gerekçesiyle reddeder).
  */
@@ -298,6 +302,17 @@ taze = is is not None and is.ceza_dokumu is not None and (
 taze  → ("cozucu", is.ceza_dokumu, is.en_iyi_ceza)
 degil → ("kurallardan", hesaplanan, Σ ham × agirlik)   # hesaplanan bossa ("yok", None, None)
 ```
+
+**İKİ FARKLI SAAT KARŞILAŞTIRILIYOR** ve bu koda yorum olarak yazılacak:
+`atama.guncelleme_zamani` sunucu tarafı `now()` (işlemin başlangıç anı),
+`cozum_isi.bitis_zamani` ise uygulamanın `datetime.now(UTC)`'si. Çözücü
+ikisini de aynı işlemde yazar ve atama damgası daha erkendir, dolayısıyla
+karşılaştırma `<=` ile yapılır — eşitlik TAZE sayılır. Saatler kayarsa
+sonuç zararsız: sürüm bayat sayılır ve döküm kurallardan hesaplanır; ikisinin
+aynı sayıyı vermesi zaten güvence altındadır.
+
+Test bu yüzden **saniye altı sıralamaya dayanmaz**: bayatlık testi bir
+atamayı açıkça güncelleyip damganın kesin olarak ilerlemesini sağlar.
 
 Hesap:
 

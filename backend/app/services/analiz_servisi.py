@@ -10,6 +10,7 @@ DE kapsadigindan bu filtre burada acikca uygulanmalidir).
 
 from collections import defaultdict
 from collections.abc import Sequence
+from datetime import date
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -20,6 +21,7 @@ from app.kurallar.kayit_defteri import kurallari_yukle
 from app.kurallar.zaman_araligi import gece_saati_mi, saat_kumesi
 from app.kurallar.zorunlu import h10_fazla_calisma_saatleri
 from app.models.girdi import TercihTipi
+from app.models.kural import KuralTipi
 from app.models.sonuc import CizelgeSurumu, CizelgeSurumuDurumu, Donem
 from app.models.tanim import Personel
 from app.repositories.kural import KuralDeposu
@@ -36,13 +38,14 @@ from app.schemas.analiz import (
     AnalizOku,
     CezaKalemiOku,
     FazlaKadroKalemi,
+    GunlukKapsamaOku,
     KisiSayisiOku,
     KotaDurumuOku,
     KumulatifDegisimOku,
     SaatDengesiOku,
 )
 from app.services.atama_donusumu import atama_kayitlarina_cevir
-from app.services.baglam_kurucu import baglam_olustur
+from app.services.baglam_kurucu import baglam_olustur, donem_gunlerini_uret
 
 
 def _tercih_karsilandi(atama: AtamaKaydi, tercih: TercihKaydi) -> bool:
@@ -151,6 +154,64 @@ class AnalizServisi:
                 )
             )
         return kalemler
+
+    def _ceza_kaynagi_ve_dokum(
+        self, surum_id: int, atamalar: list[AtamaKaydi], baglam: Baglam
+    ) -> tuple[str, dict[str, float] | None, float | None]:
+        """(kaynak, ceza_dokumu, toplam_ceza).
+
+        COZUCUNUN DOKUMU YALNIZ TAZEYSE KULLANILIR. Cozulmus bir surum elle
+        duzenlendiginde eski dokum duruyordu ve ekran degismis bir cizelgeyi
+        degismemis bir cezayla gosteriyordu.
+
+        Cozucusuz surumde dokum ESNEK KURALLARIN KENDISINDEN hesaplanir; ayni
+        siniflar dogrulama servisinin de kaynagi (dogrulama_servisi.py).
+        Ikinci bir gerceklik kurulmuyor: cozucu ile dogrulayicinin ayni
+        cizelgede ayni seyi gormesi zaten guvence altinda (SDD 3.2.1).
+
+        IKI FARKLI SAAT KARSILASTIRILIYOR: `son_atama` veritabaninin sunucu
+        tarafi `now()`'i (islemin baslangic ani), `is_kaydi.bitis_zamani`
+        ise uygulamanin `datetime.now(UTC)`'si. Cozucu ikisini de AYNI
+        islemde yazar ve atama damgasi daha erkendir, dolayisiyla
+        karsilastirma `<=` ile yapilir - ESITLIK TAZE SAYILIR. Saatler
+        kayarsa sonuc zararsizdir: surum bayat sayilir ve dokum kurallardan
+        hesaplanir; ikisinin ayni sayiyi vermesi zaten guvence altindadir.
+        """
+        is_kaydi = self.cozum_isi.surume_gore_en_son(surum_id)
+        son_atama = self.atama.surume_gore_son_guncelleme(surum_id)
+        taze = (
+            is_kaydi is not None
+            and is_kaydi.ceza_dokumu is not None
+            and is_kaydi.bitis_zamani is not None
+            and son_atama is not None
+            and son_atama <= is_kaydi.bitis_zamani
+        )
+        if taze:
+            dokum = {k: float(v) for k, v in is_kaydi.ceza_dokumu.items()}
+            toplam = float(is_kaydi.en_iyi_ceza) if is_kaydi.en_iyi_ceza is not None else None
+            return "cozucu", dokum, toplam
+
+        # S8 NEDEN DISARIDA: "onceki surumden sapma" yalniz
+        # baglam.onceki_atamalar doluyken tanimlidir; analiz baglami onu
+        # kurmuyor (baglam_olustur'un boyle bir parametresi yok). Sifir
+        # yazmak "sapma yok" derdi; dogrusu "bu olcu burada tanimsiz", bu
+        # yuzden kalem hic uretilmez - sonraki okuyucu eksikligi hata
+        # sanmasin diye burada acikca yaziliyor.
+        kurallar = kurallari_yukle(self.kural.aktif_kurallari_getir())
+        dokum: dict[str, float] = {}
+        agirliklar: dict[str, float] = {}
+        for kural in kurallar:
+            if kural.tip != KuralTipi.ESNEK or kural.kimlik == "S8":
+                continue
+            ceza = sum(i.ceza or 0.0 for i in kural.dogrula(atamalar, baglam))
+            if ceza:
+                dokum[kural.kimlik] = ceza
+                agirliklar[kural.kimlik] = float(kural.agirlik or 0)
+
+        if not dokum:
+            return "yok", None, None
+        toplam_ceza = sum(ceza * agirliklar[kimlik] for kimlik, ceza in dokum.items())
+        return "kurallardan", dokum, toplam_ceza
 
     def _kumulatif_degisim(
         self, surum, donem, baglam: Baglam, atamalar: list
@@ -409,32 +470,45 @@ class AnalizServisi:
                 karsilanan += 1
         tercih_orani = karsilanan / len(baglam.tercihler) if baglam.tercihler else None
 
-        # --- Ceza dokumu / toplam ceza (FR-8.6, Gun 12 notu: cozum_isi.surum_id
-        # iliskisi zaten var, ayri bir router acmadan burada kullaniliyor)
-        is_kaydi = self.cozum_isi.surume_gore_en_son(surum_id)
-        ceza_dokumu = (
-            {k: float(v) for k, v in is_kaydi.ceza_dokumu.items()}
-            if is_kaydi is not None and is_kaydi.ceza_dokumu is not None
-            else None
-        )
-        toplam_ceza = (
-            float(is_kaydi.en_iyi_ceza)
-            if is_kaydi is not None and is_kaydi.en_iyi_ceza is not None
-            else None
+        # --- Ceza dokumu / toplam ceza / kaynagi (FR-8.6, Gorev 5). Kaynak
+        # secimi ve gerekcesi _ceza_kaynagi_ve_dokum'de: cozucunun dokumu
+        # yalniz TAZEYSE kullanilir, degilse kural motorundan hesaplanir.
+        ceza_kaynagi, ceza_dokumu, toplam_ceza = self._ceza_kaynagi_ve_dokum(
+            surum_id, atamalar, baglam
         )
 
         # --- Kapsama acigi: ARALIK SAYISI ve KISI-SAAT ayri olculer.
         aciklar = self.kapsama.surume_gore_getir(surum_id)
-        karsilanmayan = sum(
-            a.eksik_sayi * round((a.bitis_zamani - a.baslangic_zamani).total_seconds() / 3600)
-            for a in aciklar
-        )
+        # Gunluk kirilim (Gorev 6, SDD 6.3.1 Ozet ekrani seridi): gun,
+        # bloguN BASLADIGI damgadan okunur (SRS TD-1) - gece yarisini asan
+        # acik BASLADIGI gune yazilir, bitis gunune degil.
+        gunluk_gecici: dict[date, list[int]] = {}  # tarih -> [aralik, kisi_saat]
+        for a in aciklar:
+            saat = a.eksik_sayi * round(
+                (a.bitis_zamani - a.baslangic_zamani).total_seconds() / 3600
+            )
+            kayit = gunluk_gecici.setdefault(a.baslangic_zamani.date(), [0, 0])
+            kayit[0] += 1
+            kayit[1] += saat
+        karsilanmayan = sum(kisi_saat for _, kisi_saat in gunluk_gecici.values())
+        # Donemin ACIGI OLMAYAN gunleri de SIFIRLA listeye girer: serit
+        # donemin tamamini cizer, eksik gun yazilmazsa "veri yok" gibi
+        # gorunur.
+        gunluk_kapsama = [
+            GunlukKapsamaOku(
+                tarih=gun,
+                acik_aralik_sayisi=gunluk_gecici.get(gun, [0, 0])[0],
+                karsilanmayan_kisi_saat=gunluk_gecici.get(gun, [0, 0])[1],
+            )
+            for gun in donem_gunlerini_uret(donem.baslangic_tarihi, donem.bitis_tarihi)
+        ]
 
         return AnalizOku(
             surum_id=surum_id,
             ufuk=ufuk,
             karsilanmayan_kisi_saat=karsilanmayan,
             acik_aralik_sayisi=len(aciklar),
+            gunluk_kapsama=gunluk_kapsama,
             kota_durumu=self._kota_durumu(
                 atamalar, baglam, personel_satirlari, h10_esigi, yillik_kota
             ),
@@ -453,6 +527,7 @@ class AnalizServisi:
             bina_degisim_sayisi=bina_degisim_sayisi,
             ceza_dokumu=ceza_dokumu,
             toplam_ceza=toplam_ceza,
+            ceza_kaynagi=ceza_kaynagi,
         )
 
 

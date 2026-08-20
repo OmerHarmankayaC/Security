@@ -148,9 +148,18 @@ export const api = {
 
   onKontrolCalistir: (donemId: number) =>
     gonder<{ bulgular: OnKontrolBulgu[] }>('/api/on-kontrol', { donem_id: donemId }),
-  cozumBaslat: (donemId: number, zamanLimitiSaniye: number) =>
+  /**
+   * Çözüm başlatır. `oncekiSurumId` verilirse YENİDEN ÇÖZÜMDÜR (SDD 5.6):
+   * yeni taslak o sürümden türetilir, sürümün KİLİTLİ atamaları modele
+   * sabitlenir ve S8 o çizelgeyi taban alır. Verilmezse dönem için sıfırdan
+   * bir çözüm başlar ve kilitler dikkate alınmaz.
+   *
+   * İkisinden TAM OLARAK BİRİ gönderilir; sunucu ikisini birden alırsa 422
+   * döner (schemas/cozum.py CozumBaslatIstek).
+   */
+  cozumBaslat: (donemId: number, zamanLimitiSaniye: number, oncekiSurumId?: number | null) =>
     gonder<CozumIsi>('/api/cozum', {
-      donem_id: donemId,
+      ...(oncekiSurumId != null ? { onceki_surum_id: oncekiSurumId } : { donem_id: donemId }),
       zaman_limiti_saniye: zamanLimitiSaniye,
     }),
   cozumDurumu: (isId: number) => istek<CozumIsi>(`/api/cozum/${isId}`),
@@ -296,9 +305,15 @@ export const api = {
   surumYayinla: (surumId: number) => gonder<CizelgeSurumu>(`/api/surum/${surumId}/yayinla`, {}),
   surumTaslakTuret: (oncekiSurumId: number) =>
     gonder<CizelgeSurumu>('/api/surum', { onceki_surum_id: oncekiSurumId }),
-  // Türetmeden farkı atamaların KOPYALANMASI: `surumTaslakTuret` çözücünün
-  // dolduracağı boş bir taslak açar, bu kaynağın çizelgesini olduğu gibi
-  // taşır. Kaynak sürüm her iki durumda da değişmez.
+  // Atamasız bir taslak açar (FR-7.3). Taslak Çizelge ekranından ELLE
+  // doldurulabilir ya da olduğu gibi çözücüye bırakılabilir; "yalnızca
+  // çözücü doldurur" artık doğru değil (Tur 13).
+  bosTaslakAc: (donemId: number) => gonder<CizelgeSurumu>('/api/surum', { donem_id: donemId }),
+  // Türetmeden farkı atamaların KOPYALANMASI: `surumTaslakTuret` atamasız
+  // bir taslak açar; bu, kaynağın çizelgesini olduğu gibi taşır. Atamasız
+  // taslak yalnızca çözücüyle değil elle de doldurulabilir (Tur 13, bkz.
+  // `bosTaslakAc`) — "boş" burada "kaynaktan kopyalanmamış" demektir.
+  // Kaynak sürüm her iki durumda da değişmez.
   surumTaslakOlarakKopyala: (kaynakSurumId: number) =>
     gonder<CizelgeSurumu>(`/api/surum/${kaynakSurumId}/kopyala`, {}),
   surumKarsilastir: (oncekiSurumId: number, yeniSurumId: number) =>

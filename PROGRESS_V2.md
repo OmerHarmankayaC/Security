@@ -2603,3 +2603,118 @@ koşturuldu.
 
 Önceki turun üç maddesi (SRS FR-1.3, SDD 4.2.1 alan listesi, Ek B) **hâlâ
 açık**.
+
+---
+
+## Tur 13 — Boş taslak çizelge, elle çizilen sürümün cezası, Özet ekranı
+
+Tasarım `docs/superpowers/specs/2026-08-20-bos-taslak-ve-ozet-tasarim.md`,
+plan `docs/turlar/TUR13_PLANI.md`. Yedi görev alt ajanlara dağıtıldı, her biri
+ayrı incelendi; sonunda dalın bütünü bir kez daha incelendi.
+
+### 1. Çözücüsüz üretim yolu açıldı
+
+`POST /api/surum` artık `onceki_surum_id` yerine `donem_id` de kabul ediyor
+(tam olarak biri, aksi hâlde 422). Hiç sürümü olmayan bir dönemde bile boş
+taslak açılabiliyor; dönemde sürüm varsa yenisi **en sonuncuya bağlanıyor**,
+çünkü S8 ve sürüm karşılaştırması zincire dayanıyor.
+
+Asıl tıkanma ızgaradaydı: satırlar **atamalardan** türetiliyordu, dolayısıyla
+boş bir taslakta tıklanacak hücre yoktu. Artık düzenlenebilir sürümlerde
+satırlar kadrodan geliyor (`lib/izgaraSatirlari.ts`), salt okunur sürümlerde
+bugünkü davranış duruyor — orada soru "ne karar verildi", boş satır gürültü.
+
+### 2. Ceza dökümünün ikinci kaynağı
+
+Çözücü koşmamışsa **ya da atamalar çözümden sonra değişmişse** döküm esnek
+kuralların kendisinden hesaplanıyor. Yeni formül yazılmadı: doğrulama
+servisinin zaten kullandığı `kural.dogrula(...)` okuması, farkı değil mutlak
+değeri alacak biçimde kullanıldı. Yanıt kaynağı söylüyor (`ceza_kaynagi`) ve
+ekranlar bunu yazıyor.
+
+İkinci koşul bir kusuru kapattı: çözülmüş bir sürüm elle düzenlendiğinde
+Analiz **çözücünün eski dökümünü** göstermeye devam ediyordu — çizelge
+değişmiş, ceza değişmemiş görünüyordu.
+
+S8 hesaplanan dökümde yer almaz: analiz bağlamı `onceki_atamalar` kurmuyor,
+ölçü orada tanımsız. Sıfır yazmak "sapma yok" demek olurdu.
+
+### 3. Özet ekranı "şu an ne oluyor"u yanıtlıyor
+
+Dönem seçici yok, dönem bugünden türetiliyor ve **her aralık-bağlı blok hangi
+aralığı gösterdiğini yazıyor**. Günlük açık şeridi (sunucudan; toplamı
+`karsilanmayan_kisi_saat`'e eşit ve bu bir test), kişi başına saat kısa hâlde,
+dönemle kesişen müsaitlik kayıtları. Sekmeye dönüldüğünde tazeleniyor.
+
+"Ölçülebilir sürüm" ölçütü **"taslak değil"den "ataması var"a** döndü: eski
+ölçüt "çözülmemiş taslağın ataması yoktur" varsayımına dayanıyordu ve elle
+çizilen taslak bunu geçersiz kıldı.
+
+### Nihai inceleme dört ciddi şey buldu
+
+**Kaydet düğmesi hiç çalışmıyordu.** `damga` veritabanında vardı, ön yüz tipi
+`damga: string` diyordu, ama hiçbir uç nokta onu döndürmüyordu — `kaydet()`
+`damga === null` görüp sessizce dönüyordu. İstek gitmiyor, hata çıkmıyor.
+Bu turdan eski bir kusur ama elle çizim yolunun tamamı buna dayanıyordu.
+Görev testleri yeşildi çünkü fikstür sürüm listesine uydurma bir damga
+koyuyordu; **gerçek sözleşme hiç sınanmamıştı.**
+
+**Kilitler hiç işlemiyordu.** Arayüz çözüm başlatırken `onceki_surum_id`
+göndermiyordu, dolayısıyla kilitli atamalar okunmuyordu ve "elle başla,
+çözücüye devret" yolu kâğıt üzerinde kalıyordu.
+
+**Atamasız boş taslak yayınlanabiliyordu** ve dolu bir sürümü arşive
+gönderiyordu — çalışan panelinde herkesin vardiyası kaybolurdu.
+
+**Özet'in toplam ceza kartı kaynağı söylemiyordu.** Yalnız eksik dipnot değil:
+`cozucu` kaynağı S8'i içeriyor, `kurallardan` içermiyor. Kullanıcı tek vardiya
+kaydırınca sayı düşüyor ve düşüşün bir kısmı çizelgenin iyileşmesinden değil
+kalemin kaynak değişince yok olmasından geliyordu.
+
+Dördü de düzeltildi. Düzeltme dalgasının kendisi bir gerileme açtı ve yeniden
+inceleme onu deney koşturarak yakaladı: `onceki_atamalar` boş taslakta `None`
+değil `[]` oluyordu, S8'in koruması `is None` olduğu için boş tabanda S8 her
+atamayı cezalandırıyordu — ağırlık 15 ile S4'ü 15:1 yenerek çözücüyü
+sistematik olarak insanları hedef saatlerinin altında bırakmaya itiyordu.
+Tek satır (`or None`) ve bir gerileme testiyle kapatıldı.
+
+### Sınama
+
+Hafif arka uç takımı 324 geçti, 1 atlandı. Ön yüz 376 test, 36 dosya. Ağır
+OR-Tools takımı iki kez koştu (ilki 136 geçti; çözücü yoluna dokunulduğu için
+düzeltmelerden sonra bir kez daha). `tsc -b` ve `ruff` temiz, uç nokta
+denetimi 74/74.
+
+### DOKÜMAN BORCU — altı madde
+
+1. **SRS FR-6.x / FR-7.3** — elle çizim artık çözücüden bağımsız bir üretim
+   yolu; boş taslak "çözücünün dolduracağı sürüm" değil.
+2. **SDD 5.6** — `CizelgeSurumuDeposu.taslak_ac` ve `POST /api/surum`'un iki
+   alanlı sözleşmesi (tam olarak biri, 422).
+3. **SDD 5.7** — ceza dökümünün ikinci kaynağı, tazelik ölçütü
+   (`atama.guncelleme_zamani <= cozum_isi.bitis_zamani`) ve S8'in hesaplanan
+   dökümde bulunmaması.
+4. **SDD 6.3.1** — Özet ekranının yeni yapısı, aralık etiketleri, dönem
+   seçicisinin bulunmaması.
+5. **SDD 6.3.5** — `SurumOzetiOku.atama_sayisi` ve `damga`; atamasız sürümün
+   yayınlanamaması.
+6. **SDD 4.2.4 / 5.4** — `baglam.onceki_atamalar`da boş liste ile `None`
+   ayrımı: "önceki çizelge yok" ile "önceki çizelge boştu" aynı şey değil.
+
+Önceki turun üç maddesi (SRS FR-1.3, SDD 4.2.1 alan listesi, Ek B) ve Tur
+12'nin iki maddesi (SDD 6.3.4 kota kartı, SDD 5.8 Excel özet sayfası) **hâlâ
+açık**.
+
+### Ertelenenler
+
+Nihai inceleme triyajı sonraya bıraktı: ceza toplama deyiminin iki serviste
+kopya olması (ayrışmayı yakalayan değişmez zaten testli, ama ortak yardımcıya
+çıkarılırsa S8 elemesinin kaybolmaması gerekir), vakumda kalan bir S8 testi,
+aktiflik penceresi sınır eşitliği testi, Özet'teki iki liste üslubu, Sürümler
+ve Çizelge ekranlarındaki iki "Boş Taslak Aç" düğmesinin farklı zincir
+kurması, atamasız sürümde Analiz'in "kapsama %0" ile "0 açık" arasındaki
+çelişkisi, ve cezası gerçekten sıfır olan bir çizimin `ceza_kaynagi="yok"`
+dönmesi (sıfır ile bilinmiyor aynı şey değil).
+
+Kapsam dışı bir kural ihlali de kayda geçti: `TercihlerEkrani.tsx:122` düz
+`.toUpperCase()` kullanıyor — bu turdan önce de vardı.

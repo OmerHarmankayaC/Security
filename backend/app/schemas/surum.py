@@ -57,6 +57,16 @@ class CizelgeSurumuOku(BaseModel):
     onceki_surum_id: int | None
     yayin_zamani: datetime | None
     guncelleme_zamani: datetime
+    # DUZENLEME DAMGASI (SRS TD-16, SDD 5.5.1). Es zamanli duzenlemeyi
+    # yakalar: istemci duzenlemeye baslarken bu degeri alir, kaydederken
+    # POST /api/atama/kaydet ile geri gonderir; degismisse baska bir oturum
+    # ayni surumu degistirmis demektir ve kayit reddedilir. Istemci icin
+    # OPAK bir dizedir - yorumlanmaz, tasinir.
+    #
+    # SEMADAN DUSURULEMEZ: alan yanitta yoksa istemcinin elinde damga hic
+    # olusmaz ve "Kaydet" sessizce hicbir sey yapmaz (istek gitmez, hata
+    # cikmaz, kullanici emegini kaybeder).
+    damga: str
 
 
 class AtamaOku(BaseModel):
@@ -124,7 +134,21 @@ class AtamaKilitIstek(BaseModel):
 
 
 class SurumTaslakTuretIstek(BaseModel):
-    onceki_surum_id: int
+    """Bos taslak istegi: MEVCUT BIR SURUMDEN ya da DOGRUDAN DONEMDEN.
+
+    Ikisi de verilirse hangisinin kazandigi belirsiz kalir ve istegi yazan
+    taraf yanlis varsayimla devam eder; hicbiri verilmezse istek zaten
+    anlamsizdir. Ikisi de 422 ile reddedilir.
+    """
+
+    onceki_surum_id: int | None = None
+    donem_id: int | None = None
+
+    @model_validator(mode="after")
+    def _tam_olarak_biri(self) -> "SurumTaslakTuretIstek":
+        if (self.onceki_surum_id is None) == (self.donem_id is None):
+            raise ValueError("onceki_surum_id ya da donem_id verilmeli, ikisi birden degil")
+        return self
 
 
 # --- Surumler ekrani (SDD 6.3.5) -------------------------------------------
@@ -142,6 +166,12 @@ class SurumOzetiOku(BaseModel):
     yayin_zamani: datetime | None
     olusturma_zamani: datetime
     guncelleme_zamani: datetime
+    # DUZENLEME DAMGASI (SRS TD-16, SDD 5.5.1) - `CizelgeSurumuOku.damga` ile
+    # ayni deger, ayni amac: es zamanli duzenlemeyi yakalar. Cizelge ekrani
+    # damgayi BU LISTEDEN okur (surum seciciyle birlikte gelen tek kaynak),
+    # kaydederken geri gonderir. Alan burada eksikse Kaydet sessizce hicbir
+    # sey yapmaz.
+    damga: str
     # Surumun EN SON cozum isindeki toplam ceza; hic cozulmemis bir taslakta None.
     toplam_ceza: float | None
     # Acik hucre sayisi degil toplam eksik KISI sayisi (bkz. depo metodu).
@@ -150,6 +180,11 @@ class SurumOzetiOku(BaseModel):
     # Ayri bir alan: kapsama acigiyla toplanmasi iki zit yondeki sapmayi
     # tek sayida gizler ve "3 acik" ile "3 fazla" ayni gorunurdu.
     fazla_kadro_sayisi: int = 0
+    # Surumun toplam atama sayisi (Gorev 6). Ozet ekrani "olculebilir
+    # surum"u bununla secer: olcut artik "taslak degil" degil "atamasi
+    # var" - elle cizilen bos taslak (Gorev 1) "taslak degil" olcutunu
+    # gecersiz kildi.
+    atama_sayisi: int = 0
 
 
 class AtamaFarkiOku(BaseModel):

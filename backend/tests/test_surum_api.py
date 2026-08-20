@@ -191,6 +191,44 @@ def test_surum_listesi_toplam_ceza_ve_kapsama_acigi_tasir(
     assert s1["kapsama_acigi_sayisi"] == 0
 
 
+def test_surum_listesi_atama_sayisi_tasir(istemci: TestClient, senaryo: dict[str, int]) -> None:
+    """Gorev 6: Ozet ekrani "olculebilir surum"u artik "taslak degil" degil
+    "atamasi var" olcutuyle secer (bos taslak bunu gecersiz kildi) - olcut
+    surum listesinin `atama_sayisi` alanina dayanir.
+    """
+    yanit = istemci.get(f"/api/surum?donem_id={senaryo['donem_id']}")
+    assert yanit.status_code == 200
+    satirlar = {s["surum_id"]: s for s in yanit.json()}
+
+    # senaryo fikstüründeki her iki surumde de DORT atama var (bkz. `at(...)`
+    # cagrilari): s1 icin gun0/gun1/gun2 P1 + gun0 P2, s2 icin gun0/gun1/gun3
+    # P1 + gun0 P2.
+    assert satirlar[senaryo["s1"]]["atama_sayisi"] == 4
+    assert satirlar[senaryo["s2"]]["atama_sayisi"] == 4
+
+
+def test_surum_listesi_atamasiz_taslakta_atama_sayisi_sifir(istemci: TestClient) -> None:
+    """Elle cizilen bos taslagin (Gorev 1) hic atamasi yoktur; eski olcut
+    ("taslak degil") bu surumu de "olculebilir" sayardi, yeni alan bunu
+    ayirt eder.
+    """
+    oturum = OturumYerel()
+    try:
+        senaryo_verisini_temizle(oturum)
+        donem_id = _bos_donem_olustur(oturum)
+    finally:
+        oturum.close()
+
+    olustur = istemci.post("/api/surum", json={"donem_id": donem_id})
+    assert olustur.status_code == 201
+    surum_id = olustur.json()["surum_id"]
+
+    yanit = istemci.get(f"/api/surum?donem_id={donem_id}")
+    assert yanit.status_code == 200
+    satirlar = {s["surum_id"]: s for s in yanit.json()}
+    assert satirlar[surum_id]["atama_sayisi"] == 0
+
+
 def test_karsilastirma_farklari_uc_ture_ayirir_ve_sayar(
     istemci: TestClient, senaryo: dict[str, int]
 ) -> None:
@@ -371,3 +409,135 @@ def test_taslak_surum_kopyalanamaz(istemci: TestClient, senaryo: dict[str, int])
 def test_olmayan_surum_kopyalanamaz(istemci: TestClient) -> None:
     pg_yoksa_atla()
     assert istemci.post("/api/surum/999999/kopyala").status_code == 404
+
+
+# --- Bos taslak: dogrudan donemden (Tur 13, Gorev 2) ------------------------
+#
+# POST /api/surum artik iki turlu istegi kabul eder: MEVCUT BIR SURUMDEN
+# (onceki_surum_id, eski davranis) ya da DOGRUDAN DONEMDEN (donem_id, yeni).
+# Depo tarafi (`CizelgeSurumuDeposu.taslak_ac`) Gorev 1'de yazildi; burada
+# yalniz yonlendiricinin dogru dali sectigi ve semanin "tam olarak biri"
+# kuralini uyguladigi sinanir.
+
+
+def _bos_donem_olustur(oturum: OturumYerel) -> int:
+    """Uzerinde hic surum olmayan yeni bir donem acar."""
+    on_ek = _benzersiz("bos-donem")
+    donem = Donem(
+        baslangic_tarihi=date(2026, 11, 2),  # Pazartesi
+        bitis_tarihi=date(2026, 11, 8),
+        tercih_son_tarihi=date(2026, 10, 26),
+    )
+    oturum.add(donem)
+    oturum.commit()
+    _ = on_ek  # benzersizlik gerekmiyor, temizlik butun donemleri siler
+    return donem.donem_id
+
+
+def test_donem_id_ile_taslak_acilir_ve_onceki_surum_id_bostur(istemci: TestClient) -> None:
+    oturum = OturumYerel()
+    try:
+        senaryo_verisini_temizle(oturum)
+        donem_id = _bos_donem_olustur(oturum)
+    finally:
+        oturum.close()
+
+    yanit = istemci.post("/api/surum", json={"donem_id": donem_id})
+    assert yanit.status_code == 201
+    govde = yanit.json()
+    assert govde["donem_id"] == donem_id
+    assert govde["surum_no"] == 1
+    assert govde["durum"] == "taslak"
+    assert govde["onceki_surum_id"] is None
+
+
+def test_donem_id_ile_mevcut_surume_baglanir(istemci: TestClient, senaryo: dict[str, int]) -> None:
+    """Donemde surum varsa yenisi EN SONUNCUYA baglanir (senaryo'da s2,
+    surum_no=2)."""
+    yanit = istemci.post("/api/surum", json={"donem_id": senaryo["donem_id"]})
+    assert yanit.status_code == 201
+    govde = yanit.json()
+    assert govde["surum_no"] == 3
+    assert govde["onceki_surum_id"] == senaryo["s2"]
+
+
+def test_olmayan_donemle_donem_id_404(istemci: TestClient) -> None:
+    yanit = istemci.post("/api/surum", json={"donem_id": 999999999})
+    assert yanit.status_code == 404
+
+
+def test_iki_alan_birden_verilince_422(istemci: TestClient, senaryo: dict[str, int]) -> None:
+    yanit = istemci.post(
+        "/api/surum", json={"donem_id": senaryo["donem_id"], "onceki_surum_id": senaryo["s1"]}
+    )
+    assert yanit.status_code == 422
+
+
+def test_hicbiri_verilmeyince_422(istemci: TestClient) -> None:
+    assert istemci.post("/api/surum", json={}).status_code == 422
+
+
+def test_onceki_surum_id_ile_eski_davranis_degismedi(
+    istemci: TestClient, senaryo: dict[str, int]
+) -> None:
+    """Regresyon: `onceki_surum_id` dali Gorev 2'den once nasil calisiyorsa
+    oyle calismaya devam eder."""
+    yanit = istemci.post("/api/surum", json={"onceki_surum_id": senaryo["s1"]})
+    assert yanit.status_code == 201
+    govde = yanit.json()
+    assert govde["onceki_surum_id"] == senaryo["s1"]
+    assert govde["donem_id"] == senaryo["donem_id"]
+    assert govde["durum"] == "taslak"
+
+    yanit_404 = istemci.post("/api/surum", json={"onceki_surum_id": 999999999})
+    assert yanit_404.status_code == 404
+
+
+# --- Duzenleme damgasi (SRS TD-16, SDD 5.5.1) -------------------------------
+#
+# Damga SOZLESMENIN parcasidir: cizelge ekrani duzenlemeye baslarken onu
+# surum listesinden okur ve kaydederken geri gonderir. Sema onu tasimadigi
+# surece istemcinin elinde damga hic olusmaz ve "Kaydet" SESSIZCE hicbir sey
+# yapmaz - istek gitmez, hata cikmaz. Bu yuzden sinanan sey fikstur degil
+# YANITIN KENDISI.
+
+
+def test_surum_listesi_her_satirda_damga_tasir(
+    istemci: TestClient, senaryo: dict[str, int]
+) -> None:
+    yanit = istemci.get(f"/api/surum?donem_id={senaryo['donem_id']}")
+    assert yanit.status_code == 200
+    satirlar = yanit.json()
+    assert satirlar
+    for satir in satirlar:
+        assert isinstance(satir.get("damga"), str)
+        assert satir["damga"]
+
+
+def test_taslak_turetme_yaniti_damga_tasir(istemci: TestClient, senaryo: dict[str, int]) -> None:
+    yanit = istemci.post("/api/surum", json={"onceki_surum_id": senaryo["s1"]})
+    assert yanit.status_code == 201
+    assert yanit.json()["damga"]
+
+
+def test_donemden_acilan_bos_taslagin_yaniti_damga_tasir(istemci: TestClient) -> None:
+    """Elle cizilecek bos taslak (Gorev 1): damgasiz donerse ekran acilir ama
+    Kaydet hicbir sey yapmaz."""
+    oturum = OturumYerel()
+    try:
+        senaryo_verisini_temizle(oturum)
+        donem_id = _bos_donem_olustur(oturum)
+    finally:
+        oturum.close()
+
+    yanit = istemci.post("/api/surum", json={"donem_id": donem_id})
+    assert yanit.status_code == 201
+    yeni_damga = yanit.json()["damga"]
+    assert yeni_damga
+
+    # Listeden okunan damga ile olusturma yanitindaki damga AYNI olmali:
+    # ekran ikisini birbirinin yerine kullaniyor.
+    liste = istemci.get(f"/api/surum?donem_id={donem_id}")
+    assert liste.status_code == 200
+    satir = next(s for s in liste.json() if s["surum_id"] == yanit.json()["surum_id"])
+    assert satir["damga"] == yeni_damga

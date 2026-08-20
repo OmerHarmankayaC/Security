@@ -114,7 +114,7 @@ listeliyordu ve kimlik doğrulama turunu hiç içermiyordu.
 | `/api/donem` | GET | idare ve ustu | Planlama donemleri |
 | `/api/donem` | POST | idare ve ustu | Planlama donemi olusturma (FR-4.2) |
 | `/api/surum` | GET | idare ve ustu | Donemdeki cizelge surumleri (FR-7.1); acik ve fazla kadro sayilariyla |
-| `/api/surum` | POST | idare ve ustu | Yayinlanmis surumden taslak turetme (FR-7.3) |
+| `/api/surum` | POST | idare ve ustu | Bos taslak acma (FR-7.3); iki dal: `onceki_surum_id` ile mevcut bir surumden turetme, `donem_id` ile donemden dogrudan acma |
 | `/api/surum/karsilastir` | GET | idare ve ustu | Iki surum arasindaki fark (FR-7.5) |
 | `/api/surum/{surum_id}/atama` | GET | idare ve ustu | Surumun atamalari |
 | `/api/surum/{surum_id}/cizelge.xlsx` | GET | idare ve ustu | Cizelgenin uc sayfali Excel ciktisi: Cizelge, Ozet, Ham veri (FR-8.5) |

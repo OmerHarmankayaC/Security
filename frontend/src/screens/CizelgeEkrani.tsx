@@ -25,6 +25,7 @@ import { belirtmeHaliEki, buyukHarf } from '../lib/metin'
 import { sayiBicimle } from '../lib/sayi'
 import { blokSinirlariniOku } from '../lib/kuralParametre'
 import { sonDonem } from '@/lib/donemSecimi'
+import { izgaraSatirlari } from '@/lib/izgaraSatirlari'
 import {
   BOS_OTURUM,
   adimlariEkle,
@@ -56,10 +57,25 @@ interface Props {
   ekranSec: (ekran: NavOgesi) => void
   donemId: number | null
   donemIdSec: (id: number | null) => void
-  yenidenCozIste: (donemId: number) => void
+  /**
+   * "Yeniden Çöz" — Çözüm ekranına geçer ve SEÇİLİ SÜRÜMÜ taban olarak
+   * taşır. Sürüm taşınmazsa çözüm dönem için sıfırdan başlar ve sürümün
+   * KİLİTLİ atamaları atılır: "elle başla, çözücüye devret" yolu ancak
+   * bu bağlantı kurulduğunda çalışır (SDD 5.6).
+   */
+  yenidenCozIste: (donemId: number, surumId: number | null) => void
 }
 
 const BOSALT_DEGERI = ''
+
+/** "Yeniden Çöz" düğmesinin ipucu metni (bkz. düğmenin yanındaki not). */
+function yenidenCozIpucu(surum: CizelgeSurumu | null, kilitliSayisi: number): string | undefined {
+  if (surum === null) return undefined
+  if (kilitliSayisi === 0) {
+    return `Sürüm ${surum.surum_no} taban alınarak yeniden çözülür; bu sürümde kilitli atama yok.`
+  }
+  return `Sürüm ${surum.surum_no} taban alınarak yeniden çözülür; ${kilitliSayisi} kilitli atama korunur.`
+}
 
 const SURUM_DURUM_METNI: Record<string, string> = {
   taslak: 'Taslak',
@@ -230,6 +246,16 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
   const donem = donemler.find((d) => d.donem_id === donemId) ?? null
   const surum = surumler.find((s) => s.surum_id === surumId) ?? null
 
+  // Yalnizca taslak ve cozuldu duzenlenebilir; yayinlanmis/arsiv surumde
+  // sunucu 409 doner (services/dogrulama_servisi.py).
+  const surumDuzenlenebilir =
+    surum !== null && (surum.durum === 'taslak' || surum.durum === 'cozuldu')
+
+  // "Yeniden Çöz" ipucu bunu yazar. KAYDEDİLMİŞ atamalardan sayılır —
+  // düğme zaten kirli oturumda pasif, yani ekrandaki kilit ile sunucudaki
+  // kilit bu noktada aynıdır.
+  const kilitliAtamaSayisi = useMemo(() => atamalar.filter((a) => a.kilitli).length, [atamalar])
+
   const personelMap = useMemo(
     () => new Map(personelListesi.map((p) => [p.personel_id, p])),
     [personelListesi],
@@ -297,13 +323,22 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
 
   // Süzgeçten ÖNCEKİ liste — alttaki "36 personelin 10'u gösteriliyor"
   // satırının paydası budur; süzgeç değiştikçe payda oynamamalı.
-  const tumIzgaraPersonelleri = useMemo(() => {
-    const idler = new Set(gosterilenAtamalar.map((a) => a.personel_id))
-    return [...idler]
-      .map((id) => personelMap.get(id))
-      .filter((p): p is Personel => p !== undefined)
-      .sort((a, b) => a.ad_soyad.localeCompare(b.ad_soyad, 'tr'))
-  }, [gosterilenAtamalar, personelMap])
+  //
+  // Düzenlenebilir sürümde satırlar KADRODAN gelir (bkz. lib/izgaraSatirlari.ts)
+  // — boş bir taslakta tıklanacak hücre kalması için ataması olmayan personel
+  // de satır olmalıdır. Salt okunurda satırlar ATAMALARDAN gelir; orada soru
+  // "ne karar verildi"dir ve boş satır gürültüdür.
+  const tumIzgaraPersonelleri = useMemo(
+    () =>
+      izgaraSatirlari({
+        personeller: personelListesi,
+        atamalar: gosterilenAtamalar,
+        duzenlenebilir: surumDuzenlenebilir,
+        donemBaslangic: donem?.baslangic_tarihi ?? '',
+        donemBitis: donem?.bitis_tarihi ?? '',
+      }),
+    [personelListesi, gosterilenAtamalar, surumDuzenlenebilir, donem],
+  )
 
   // Nokta süzgeci personeli DÖNEM BOYUNCA o noktada çalışanlarla sınırlar.
   // Gün bazında daraltmak, günler arasında gezinirken satırların altından
@@ -535,6 +570,36 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
     }
   }
 
+  /**
+   * "Boş Taslak Aç" (FR-7.3) — atamasız bir taslak sürüm üretir. Taslak bu
+   * ekranda ELLE doldurulabilir ya da olduğu gibi çözücüye bırakılabilir;
+   * varlık nedeni artık bu iki yolun ikisi de.
+   *
+   * Dönemde zaten sürüm varsa kullanıcı sayıyla uyarılır: yanlışlıkla
+   * dolu bir sürümün yanına boş bir tane daha açmak kolay geri alınmaz.
+   * Sürüm hiç yoksa uyarı gereksizdir, doğrudan açılır.
+   */
+  const bosTaslakAc = () => {
+    if (donemId === null) return
+    if (
+      surumler.length > 0 &&
+      !window.confirm(
+        `Dönemde ${surumler.length} sürüm var; ${surumler.length + 1}. sürüm boş bir taslak olarak açılacak.`,
+      )
+    ) {
+      return
+    }
+    api
+      .bosTaslakAc(donemId)
+      .then((yeni) =>
+        api.surumler(donemId).then((s) => {
+          setSurumler(s)
+          setSurumId(yeni.surum_id)
+        }),
+      )
+      .catch((e) => setHata(e instanceof Error ? e.message : 'Boş taslak açılamadı'))
+  }
+
   // Dışa aktarma verisi Çizelge ve Analiz ekranlarında aynı biçimde kurulur;
   // biçimleme ve indirme lib/disaAktarma.ts'te ortaktır.
   const disaAktarmaVerisi: CizelgeVerisi | null =
@@ -549,11 +614,6 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
           noktaMap,
         }
       : null
-
-  // Yalnizca taslak ve cozuldu duzenlenebilir; yayinlanmis/arsiv surumde
-  // sunucu 409 doner (services/dogrulama_servisi.py).
-  const surumDuzenlenebilir =
-    surum !== null && (surum.durum === 'taslak' || surum.durum === 'cozuldu')
 
   const seciliPersonel = seciliHucre ? personelMap.get(seciliHucre.personelId) : null
 
@@ -667,8 +727,16 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
           <Buton
             varyant="birincil"
             disabled={donemId === null || kirliMi(oturum)}
-            title={kirliMi(oturum) ? 'Önce değişiklikleri kaydedin ya da vazgeçin' : undefined}
-            onClick={() => donemId !== null && yenidenCozIste(donemId)}
+            // DÜĞMENİN NE YAPACAĞI YAZILI OLMALI: seçili sürüm taban alınır
+            // ve kilitli atamalar korunur, kalanını çözücü yeniden yazar.
+            // Kilit sayısı da yazılır — "kilitliler korunur" cümlesi, hiç
+            // kilit yokken kullanıcıya yanlış bir güvence verirdi.
+            title={
+              kirliMi(oturum)
+                ? 'Önce değişiklikleri kaydedin ya da vazgeçin'
+                : yenidenCozIpucu(surum, kilitliAtamaSayisi)
+            }
+            onClick={() => donemId !== null && yenidenCozIste(donemId, surumId)}
           >
             Yeniden Çöz
           </Buton>
@@ -722,6 +790,14 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
               ))}
             </select>
           </div>
+          <Buton
+            varyant="ikincil"
+            disabled={donemId === null || kirliMi(oturum)}
+            title={kirliMi(oturum) ? 'Önce değişiklikleri kaydedin ya da vazgeçin' : undefined}
+            onClick={bosTaslakAc}
+          >
+            Boş Taslak Aç
+          </Buton>
         </div>
       </Kart>
 
@@ -738,8 +814,8 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
           </strong>{' '}
           Değişiklik için Sürümler ekranında bu sürümün{' '}
           <strong className="font-medium">“Düzenlemek İçin Kopyala”</strong> düğmesini kullanın —
-          çizelge olduğu gibi yeni taslağa taşınır. “Boş Taslak Aç” atamasız bir sürüm üretir ve
-          çizelgeyi çözücü sıfırdan yazar (FR-7.3).
+          çizelge olduğu gibi yeni taslağa taşınır. “Boş Taslak Aç” ise atamasız bir sürüm üretir;
+          onu bu ekranda elle doldurabilir ya da çözücüye bırakabilirsiniz (FR-7.3).
         </p>
       )}
 
@@ -801,8 +877,14 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
       <Kart>
         {yukleniyor ? (
           <p className="text-sm text-ink-muted">Yükleniyor…</p>
-        ) : tumIzgaraPersonelleri.length === 0 ? (
+        ) : tumIzgaraPersonelleri.length === 0 && !surumDuzenlenebilir ? (
           <p className="text-sm text-ink-muted">Bu sürümde henüz atama yok.</p>
+        ) : tumIzgaraPersonelleri.length === 0 ? (
+          // Düzenlenebilir sürümde satırlar kadrodan gelir (lib/izgaraSatirlari.ts);
+          // burada boş kalmak "atama yok" değil "kadroda kimse yok" demektir.
+          <p className="text-sm text-ink-muted">
+            Bu dönemde aktif personel yok; Tanımlar ekranından personel ekleyin.
+          </p>
         ) : gunler.length === 0 ? (
           <p className="text-sm text-ink-muted">
             Bu dönemde açık verilen gün yok. Süzgeci kaldırarak tüm günleri görebilirsiniz.
