@@ -37,6 +37,26 @@ const MUSAITLIK_TIP_METNI: Record<string, string> = {
   mazeret: 'Mazeret',
 }
 
+// CEZA KAYNAĞININ KISA HÂLİ (tasarım, Parça 2 → Ekranlar). Analiz ekranı
+// aynı bilgiyi dipnotta uzun uzun yazar; Özet'in kartına sığan hâli bu.
+// "yok" durumunda sayı zaten "—" olarak çıkar ve satır hiç render edilmez.
+const CEZA_KAYNAGI_KISA: Record<Analiz['ceza_kaynagi'], string> = {
+  cozucu: 'çözüm işinden · S8 dahil',
+  kurallardan: 'kurallardan hesaplandı · S8 hariç',
+  yok: '',
+}
+
+/** Kaynak değişince sayının KAPSAMI da değişir; ipucu bunu söyler. */
+function cezaKaynagiAciklamasi(kaynak: Analiz['ceza_kaynagi']): string | undefined {
+  if (kaynak === 'cozucu') {
+    return 'Döküm çözüm işinden geliyor; sayı amaç fonksiyonunun tamamıdır — önceki sürümden sapma (S8) dahil.'
+  }
+  if (kaynak === 'kurallardan') {
+    return 'Bu sürümde çözücü çalışmadı ya da çizelge sonradan elle değişti; döküm kural motorundan hesaplandı. Önceki sürümden sapma (S8) bu hesaba GİRMEZ — kaynak değişince sayının kapsamı da değişir, iki kaynağın toplamı doğrudan karşılaştırılamaz.'
+  }
+  return undefined
+}
+
 // EN ÇOK SAPAN ALTI KİŞİ. Analiz ekranındaki tam tabloya bakmak isteyen
 // "Tümünü Analiz ekranında görüntüle" düğmesini kullanır — Özet ekranının
 // sorusu "şu an ne oluyor", otuz kişilik bir tablo o soruyu boğar.
@@ -52,7 +72,7 @@ export function OzetEkrani({ ekranSec }: Props) {
   const [tercihler, setTercihler] = useState<Tercih[]>([])
   const [seciliDonem, setSeciliDonem] = useState<Donem | null>(null)
   // Şeritte seçili gün — açık listesinin süzgeci (bkz. GunlukKapsamaSeridi).
-  // null iken liste BUGÜNÜ gösterir; ekranın sorusu "şu an ne oluyor".
+  // null iken SÜZGEÇ YOKTUR: dönemin açıklarının tamamı listelenir.
   const [seciliGun, setSeciliGun] = useState<string | null>(null)
   const [hata, setHata] = useState<string | null>(null)
 
@@ -141,16 +161,22 @@ export function OzetEkrani({ ekranSec }: Props) {
     : null
 
   const bugun = bugunIso()
-  // Süzülen gün — seçili gün yoksa BUGÜN. Şeridin kendisi bunu bilmez
-  // (bkz. GunlukKapsamaSeridi docstring'i): "hangi gün sorunlu" sorusunu o
-  // yanıtlar, varsayılan günü ekran seçer.
-  const gosterilenGun = seciliGun ?? bugun
+  // VARSAYILAN SÜZGEÇSİZDİR: dönemin AÇIKLARININ TAMAMI listelenir; bir güne
+  // tıklamak süzer, aynı güne tekrar tıklamak süzgeci gerçekten kaldırır
+  // (şerit `null` gönderir, bkz. GunlukKapsamaSeridi).
+  //
+  // Önceden `seciliGun ?? bugun` yazıyordu ve varsayılan "bugün"dü. Dönem
+  // bugünü İÇERMEK ZORUNDA DEĞİL — `donemSec` bugünü içeren dönem yoksa en
+  // yakın GELECEK dönemi seçer — ve o durumda şerit kırmızı çubuklarla
+  // dolarken hemen altında "Açık kayıt yok" yazıyordu. Aynı kusurun ikinci
+  // yüzü: seçili güne tekrar tıklamak süzgeci kaldırmıyor, "bugün"e
+  // döndürüyordu.
   const gunlukAcikListesi = useMemo(
     () =>
       [...kapsamaAcigi]
-        .filter((k) => sapmaGunu(k) === gosterilenGun)
+        .filter((k) => seciliGun === null || sapmaGunu(k) === seciliGun)
         .sort((a, b) => a.baslangic_zamani.localeCompare(b.baslangic_zamani)),
-    [kapsamaAcigi, gosterilenGun],
+    [kapsamaAcigi, seciliGun],
   )
 
   // KİŞİ BAŞINA SAAT — |sapma| azalan, ilk altı kişi (SDD 6.3.1).
@@ -222,6 +248,19 @@ export function OzetEkrani({ ekranSec }: Props) {
             <Sayi className="text-sayi-buyuk font-semibold text-ink">
               {analiz?.toplam_ceza != null ? sayiBicimle(analiz.toplam_ceza, 0) : '—'}
             </Sayi>
+            {/* KAYNAK YAZILI OLMALI. İki kaynağın KAPSAMI farklı: "cozucu"da
+                sayı amaç fonksiyonunun tamamı (S8 dahil), "kurallardan"da S8
+                bilinçli olarak dışarıda (bkz. analiz_servisi
+                `_ceza_kaynagi_ve_dokum`). Kaynak yazılmazsa çözülmüş bir
+                sürümde tek vardiya kaydıran kullanıcı sayının düşüşünü
+                çizelgenin iyileşmesi sanır; oysa düşüşün bir kısmı kalemin
+                kaynak değişince yok olmasından gelir. Uzun hâli Analiz
+                ekranındaki dipnotta. */}
+            {analiz && analiz.toplam_ceza != null && (
+              <p className="m-0 mt-1 text-xs text-ink-muted" title={cezaKaynagiAciklamasi(analiz.ceza_kaynagi)}>
+                {CEZA_KAYNAGI_KISA[analiz.ceza_kaynagi]}
+              </p>
+            )}
           </Kart>
           <Kart>
             <KartEtiketi>bekleyen tercih</KartEtiketi>
@@ -262,7 +301,7 @@ export function OzetEkrani({ ekranSec }: Props) {
             <p className="m-0 text-sm text-ink-muted">
               {seciliGun
                 ? `${gunKisaltmasiVeNumarasi(seciliGun)} günü açık kayıtları`
-                : 'Bugünün açık kayıtları'}
+                : 'Dönemin açık kayıtları'}
             </p>
             <span className="text-sm text-ink-muted">
               <Sayi>{gunlukAcikListesi.length}</Sayi> kayıt

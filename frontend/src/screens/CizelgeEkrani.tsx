@@ -571,8 +571,9 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
   }
 
   /**
-   * "Boş Taslak Aç" (FR-7.3) — atamasız bir taslak sürüm üretir; çizelgeyi
-   * çözücü sıfırdan yazar.
+   * "Boş Taslak Aç" (FR-7.3) — atamasız bir taslak sürüm üretir. Taslak bu
+   * ekranda ELLE doldurulabilir ya da olduğu gibi çözücüye bırakılabilir;
+   * varlık nedeni artık bu iki yolun ikisi de.
    *
    * Dönemde zaten sürüm varsa kullanıcı sayıyla uyarılır: yanlışlıkla
    * dolu bir sürümün yanına boş bir tane daha açmak kolay geri alınmaz.
@@ -813,8 +814,8 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
           </strong>{' '}
           Değişiklik için Sürümler ekranında bu sürümün{' '}
           <strong className="font-medium">“Düzenlemek İçin Kopyala”</strong> düğmesini kullanın —
-          çizelge olduğu gibi yeni taslağa taşınır. “Boş Taslak Aç” atamasız bir sürüm üretir ve
-          çizelgeyi çözücü sıfırdan yazar (FR-7.3).
+          çizelge olduğu gibi yeni taslağa taşınır. “Boş Taslak Aç” ise atamasız bir sürüm üretir;
+          onu bu ekranda elle doldurabilir ya da çözücüye bırakabilirsiniz (FR-7.3).
         </p>
       )}
 

@@ -327,20 +327,43 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                     <Buton
                       varyant="ikincil"
                       disabled={islenenId === s.surum_id}
-                      title="Atamasız bir taslak açar; çizelgeyi çözücü sıfırdan yazar"
+                      title="Atamasız bir taslak açar; Çizelge ekranından elle doldurabilir ya da çözücüye bırakabilirsiniz"
                       onClick={() => taslakTuret(s)}
                     >
                       Boş Taslak Aç
                     </Buton>
                   </>
                 ) : (
-                  <Buton
-                    varyant="birincil"
-                    disabled={islenenId === s.surum_id}
-                    onClick={() => setOnayBekleyenId(s.surum_id)}
-                  >
-                    Yayınla
-                  </Buton>
+                  /* ATAMASIZ SÜRÜM YAYINLANAMAZ — arayüz koruması, sunucu
+                     tarafı bilinçli olarak değiştirilmedi. Boş taslak (Tur 13)
+                     açıp vazgeçen yönetici onun Yayınla düğmesine bastığında,
+                     yayında duran DOLU sürüm arşive gidiyor ve çalışan
+                     panelinde herkesin vardiyası kayboluyordu: onay metni
+                     arşive alınacak sürümü söylüyor ama yenisinin BOŞ
+                     olduğunu söylemiyor. Ayrım artık `atama_sayisi` ile
+                     yapılabiliyor. */
+                  <>
+                    {/* Neden pasif olduğu YAZILI durur: ipucu yalnız fareyle
+                        üzerine gelene görünür, pasif düğmenin tepkisizliği
+                        ise hataya benziyor. */}
+                    {s.atama_sayisi === 0 && (
+                      <span className="self-center text-sm text-ink-muted">
+                        Atama yok — yayınlanamaz
+                      </span>
+                    )}
+                    <Buton
+                      varyant="birincil"
+                      disabled={islenenId === s.surum_id || s.atama_sayisi === 0}
+                      title={
+                        s.atama_sayisi === 0
+                          ? 'Bu sürümde hiç atama yok; yayınlanırsa çalışan panelinde çizelge boş görünür. Önce Çizelge ekranından doldurun ya da çözücüyü çalıştırın.'
+                          : undefined
+                      }
+                      onClick={() => setOnayBekleyenId(s.surum_id)}
+                    >
+                      Yayınla
+                    </Buton>
+                  </>
                 )}
               </div>
             </div>

@@ -226,25 +226,81 @@ describe('Özet ekranı — aralık metni', () => {
   })
 })
 
+/** Açık listesi başlığının yanındaki "N kayıt" sayacı. Sayı ekranda birden
+ *  çok yerde geçiyor (ölçü kartları da sayı basıyor), o yüzden başlığın
+ *  KARDEŞİNDEN okunur. */
+function acikKayitSayisi(baslik: HTMLElement): number {
+  const satir = baslik.parentElement as HTMLElement
+  const eslesme = /(\d+)\s*kayıt/.exec(satir.textContent ?? '')
+  if (!eslesme) throw new Error(`"N kayıt" bulunamadı: ${satir.textContent}`)
+  return Number(eslesme[1])
+}
+
 describe('Özet ekranı — günlük kapsama şeridi', () => {
-  it('bir güne tıklamak açık listesini o güne süzer, tekrar tıklamak süzgeci kaldırır', async () => {
+  /**
+   * VARSAYILAN SÜZGEÇSİZ. Önceden liste "bugün"e süzülüydü ve dönem bugünü
+   * içermek zorunda olmadığı için (donemSec bugünü içeren dönem yoksa en
+   * yakın GELECEK dönemi seçer) şerit kırmızı çubuklarla dolarken hemen
+   * altında "Açık kayıt yok" yazıyordu. Aynı kusurun ikinci yüzü: seçili
+   * güne tekrar tıklamak süzgeci kaldırmıyor, "bugün"e döndürüyordu.
+   */
+  it('açılışta liste SÜZÜLMEMİŞTİR — dönemin tüm açıkları görünür', async () => {
     ekraniKur()
 
-    // Varsayılan: BUGÜNÜN (20 Ağustos) açık kayıtları — iki kayıt.
-    await screen.findByText('Nöbet Masası')
-    expect(screen.getByText('Kapı Güvenliği')).toBeDefined()
+    // Şerit analiz yanıtıyla gelir; başlık ondan önce de basılıyor, o yüzden
+    // beklenen şey ŞERİDİN KENDİSİ.
+    await screen.findByRole('button', { name: /18 Ağustos/ })
+    const baslik = screen.getByText('Dönemin açık kayıtları')
+    // Dört açık kaydın TAMAMI: 18'inde bir, 20'sinde iki, 22'sinde bir.
+    expect(acikKayitSayisi(baslik)).toBe(4)
+    expect(screen.getAllByText('Nöbet Masası').length).toBe(3)
+    expect(screen.getAllByText('Kapı Güvenliği').length).toBe(1)
+  })
+
+  it('bir güne tıklamak açık listesini o güne süzer, tekrar tıklamak SÜZGECİ KALDIRIR', async () => {
+    ekraniKur()
 
     // 18 Ağustos günü düğmesine tıkla: liste o güne süzülür (tek kayıt).
-    const gun18 = screen.getByRole('button', { name: /18 Ağustos.*4 kişi-saat eksik/ })
+    const gun18 = await screen.findByRole('button', { name: /18 Ağustos.*4 kişi-saat eksik/ })
     fireEvent.click(gun18)
     expect(gun18.getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByText(/günü açık kayıtları$/)).toBeDefined()
     expect(screen.queryByText('Kapı Güvenliği')).toBeNull()
-    expect(screen.getAllByText('Nöbet Masası').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Nöbet Masası').length).toBe(1)
 
-    // Aynı güne TEKRAR tıklamak süzgeci kaldırır — bugüne döner.
+    // Aynı güne TEKRAR tıklamak süzgeci kaldırır — TÜM DÖNEM geri gelir,
+    // "bugün" değil.
     fireEvent.click(gun18)
     expect(gun18.getAttribute('aria-pressed')).toBe('false')
-    expect(screen.getByText('Kapı Güvenliği')).toBeDefined()
+    const baslik = screen.getByText('Dönemin açık kayıtları')
+    expect(acikKayitSayisi(baslik)).toBe(4)
+    expect(screen.getAllByText('Nöbet Masası').length).toBe(3)
+    expect(screen.getAllByText('Kapı Güvenliği').length).toBe(1)
+  })
+})
+
+describe('Özet ekranı — toplam ceza kartının kaynağı', () => {
+  /**
+   * İki kaynağın KAPSAMI farklı: "cozucu"da sayı amaç fonksiyonunun tamamı
+   * (S8 dahil), "kurallardan"da S8 bilinçli olarak dışarıda. Kaynak
+   * yazılmazsa çözülmüş bir sürümde tek vardiya kaydıran kullanıcı sayının
+   * düşüşünü çizelgenin iyileşmesi sanar.
+   */
+  it('çözücü kaynağını yazar', async () => {
+    _analiz = analiz({ ceza_kaynagi: 'cozucu' })
+    ekraniKur()
+    expect(await screen.findByText(/çözüm işinden/)).toBeDefined()
+    _analiz = analiz()
+  })
+
+  it('kural motorundan hesaplanan dökümde S8\'in dışarıda olduğunu söyler', async () => {
+    _analiz = analiz({ ceza_kaynagi: 'kurallardan' })
+    ekraniKur()
+    const satir = await screen.findByText(/kurallardan hesaplandı/)
+    expect(satir.textContent).toContain('S8 hariç')
+    // Kapsamın kaynakla birlikte değiştiği ipucunda YAZILI.
+    expect(satir.getAttribute('title')).toContain('kapsamı da değişir')
+    _analiz = analiz()
   })
 })
 
