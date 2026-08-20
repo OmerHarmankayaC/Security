@@ -309,9 +309,11 @@ export const api = {
   // doldurulabilir ya da olduğu gibi çözücüye bırakılabilir; "yalnızca
   // çözücü doldurur" artık doğru değil (Tur 13).
   bosTaslakAc: (donemId: number) => gonder<CizelgeSurumu>('/api/surum', { donem_id: donemId }),
-  // Türetmeden farkı atamaların KOPYALANMASI: `surumTaslakTuret` çözücünün
-  // dolduracağı boş bir taslak açar, bu kaynağın çizelgesini olduğu gibi
-  // taşır. Kaynak sürüm her iki durumda da değişmez.
+  // Türetmeden farkı atamaların KOPYALANMASI: `surumTaslakTuret` atamasız
+  // bir taslak açar; bu, kaynağın çizelgesini olduğu gibi taşır. Atamasız
+  // taslak yalnızca çözücüyle değil elle de doldurulabilir (Tur 13, bkz.
+  // `bosTaslakAc`) — "boş" burada "kaynaktan kopyalanmamış" demektir.
+  // Kaynak sürüm her iki durumda da değişmez.
   surumTaslakOlarakKopyala: (kaynakSurumId: number) =>
     gonder<CizelgeSurumu>(`/api/surum/${kaynakSurumId}/kopyala`, {}),
   surumKarsilastir: (oncekiSurumId: number, yeniSurumId: number) =>

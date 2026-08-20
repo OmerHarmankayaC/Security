@@ -358,7 +358,15 @@ def cozum_isini_calistir(oturum: Session, is_id: int) -> None:
         # (baglam.onceki_atamalar), kilitli olanlar ise modele x=1 olarak
         # sabitlenir (bkz. model_kur'un kilitli_atamalar parametresi).
         onceki_atama_satirlari = atama_depo.surume_gore_getir(surum.onceki_surum_id)
-        baglam.onceki_atamalar = atama_kayitlarina_cevir(onceki_atama_satirlari)
+        # `or None`: bos LISTE ile None ayri anlamlar tasir. Onceki surum
+        # atamasiz ("bos taslak") yayinlanmissa sorgu [] doner - bu "onceki
+        # cizelge yok" degil, "onceki cizelge bostu" demektir. S8
+        # (app/kurallar/esnek.py) yalniz `baglam.onceki_atamalar is None`i
+        # "yeniden coz degil" sayar; [] burada gecerse S8 her atanan
+        # kisi-saati "onceki cizelgeden sapma" sanip cezalandirir (bkz.
+        # baglam.py'deki alan yorumu: "yalniz yeniden cozde dolu, normalde
+        # None").
+        baglam.onceki_atamalar = atama_kayitlarina_cevir(onceki_atama_satirlari) or None
         kilitli_atamalar = atama_kayitlarina_cevir([a for a in onceki_atama_satirlari if a.kilitli])
 
     # SDD 4.2.4 "devam et" ipucu: kendi sutunundan okunur ve BURADA

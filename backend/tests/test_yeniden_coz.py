@@ -252,3 +252,55 @@ def test_cozum_baslat_donem_ve_onceki_surum_ikisi_de_eksikse_hata() -> None:
 def test_cozum_baslat_donem_ve_onceki_surum_ikisi_de_verilirse_hata() -> None:
     with pytest.raises(ValidationError):
         CozumBaslatIstek(donem_id=1, onceki_surum_id=2)
+
+
+def test_yeniden_coz_atamasiz_onceki_surumden_s8_ceza_uretmez(kurulum: dict) -> None:
+    """Tur 13 gerileme: bos taslak (atamasiz surum) tabaninda S8 sifir olmali.
+
+    Onceki surumun atamasi yoksa `atama_depo.surume_gore_getir` bos LISTE
+    doner, None degil. `baglam.onceki_atamalar`e ayrimsiz atanirsa S8
+    "hicbir onceki atama yok" (None) ile "onceki cizelge bos" ([]) ayrimini
+    kaybeder ve her atanan kisi-saati "onceki cizelgeden sapma" sayip
+    cezalandirir - oysa karsilastirilacak bir onceki cizelge hic yok.
+    """
+    donem_id = kurulum["donem_id"]
+
+    # 1) "Bos taslak" tabani: hic Atama satiri olmayan, dogrudan olusturulmus
+    # bir surum. Cozucu hic calistirilmadan (ya da calisip hicbir atama
+    # uretmeden) yayinlanan bir taslagi temsil eder.
+    oturum = OturumYerel()
+    try:
+        depo = CizelgeSurumuDeposu(oturum)
+        bos_surum = depo.olustur(
+            donem_id=donem_id, surum_no=1, durum=CizelgeSurumuDurumu.YAYINLANDI
+        )
+        oturum.flush()
+        oturum.commit()
+        bos_surum_id = bos_surum.surum_id
+    finally:
+        oturum.close()
+
+    # 2) Bu bos surumden yeniden coz.
+    oturum = OturumYerel()
+    try:
+        servis = CozumServisi(oturum)
+        yeni_is = servis.baslat(onceki_surum_id=bos_surum_id, zaman_limiti_saniye=20)
+        assert yeni_is is not None
+        yeni_is_id = yeni_is.is_id
+        oturum.commit()
+    finally:
+        oturum.close()
+
+    yeni_durum = isi_calistir_ve_bekle(yeni_is_id)
+    assert yeni_durum in (CozumIsiDurumu.TAMAMLANDI, CozumIsiDurumu.UYARILI)
+
+    oturum = OturumYerel()
+    try:
+        is_kaydi = CozumIsiDeposu(oturum).getir(yeni_is_id)
+        assert is_kaydi is not None
+        assert is_kaydi.ceza_dokumu is not None
+        # S8 terimi modelde daima vardir (kural aktif); onceki cizelge
+        # gercekten yoksa (bos taslak) katkisi sifir olmalidir.
+        assert is_kaydi.ceza_dokumu.get("S8", 0) == 0
+    finally:
+        oturum.close()
