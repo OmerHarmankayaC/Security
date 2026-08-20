@@ -37,6 +37,8 @@ const SURUM: CizelgeSurumu = {
   toplam_ceza: 912,
   kapsama_acigi_sayisi: 2,
   fazla_kadro_sayisi: 0,
+  // Gorev 6/7: sozlesmeye eklendi, bu testler onu okumaz.
+  atama_sayisi: 20,
 }
 
 function personel(id: number, sicil: string, ad: string): Personel {

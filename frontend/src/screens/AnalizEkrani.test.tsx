@@ -99,6 +99,9 @@ function analiz(ek: Partial<Analiz> = {}): Analiz {
     ceza_kaynagi: 'cozucu',
     karsilanmayan_kisi_saat: 36,
     acik_aralik_sayisi: 10,
+    // Görev 6/7: sözleşmeye eklendi, bu ekran testi onu okumaz (bkz.
+    // OzetEkrani.test.tsx — günlük şerit orada sınanıyor).
+    gunluk_kapsama: [],
     kota_durumu: KOTA,
     yillik_kota_saat: 270,
     ceza_kalemleri: KALEMLER,

@@ -38,6 +38,10 @@ export interface CizelgeSurumu {
   // Kapsama açığıyla toplanmaz: iki zıt yöndeki sapmayı tek sayıda
   // gizlemek "3 açık" ile "3 fazla"yı aynı gösterirdi.
   fazla_kadro_sayisi: number
+  // Sürümün toplam atama sayısı (SDD 6.3.5). Özet ekranı "ölçülebilir
+  // sürüm"ü bununla seçer: ölçüt artık "taslak değil" değil "ataması var"
+  // — elle çizilen boş taslak "taslak değil" ölçütünü geçersiz kıldı.
+  atama_sayisi: number
 }
 
 // --- Sürümler / Karşılaştır (SDD 6.3.5) -------------------------------------
@@ -489,6 +493,10 @@ export interface Analiz {
    *  ve dışa aktarma başlığında yanlış sayı gösterildi. */
   karsilanmayan_kisi_saat: number
   acik_aralik_sayisi: number
+  /** Günlük kırılım (SDD 6.3.1, Özet ekranı günlük şeridi): dönemin HER
+   *  günü için bir kayıt, açığı olmayan günler de sıfırla. Toplamı
+   *  `karsilanmayan_kisi_saat`e eşittir. */
+  gunluk_kapsama: GunlukKapsama[]
   kota_durumu: KotaDurumu[]
   /** H10'un yıllık fazla çalışma kotası (saat). Kart kalan kotayı neye göre
    *  söylediğini yazsın diye sunucudan gelir; ekranın sabit 270 taşıması,
@@ -499,6 +507,17 @@ export interface Analiz {
   /** Hangi ufkun ölçüldüğü. İki ufkun sayıları farklıdır ve hangisine
    *  bakıldığı belirsiz kalırsa tablo yanlış okunur. */
   ufuk: Ufuk
+}
+
+/** Bir günün kapsama açığı (SDD 6.3.1, Özet ekranı günlük şeridi).
+ *
+ * Toplamı `Analiz.karsilanmayan_kisi_saat`e EŞİTTİR — aralık sayısı ile
+ * kişi-saat bu projede bir kez karıştırıldı ve dışa aktarma başlığında
+ * yanlış sayı basıldı. */
+export interface GunlukKapsama {
+  tarih: string
+  acik_aralik_sayisi: number
+  karsilanmayan_kisi_saat: number
 }
 
 export type Ufuk = 'donem' | 'adalet'

@@ -38,6 +38,8 @@ function surum(surumId: number, surumNo: number, durum: CizelgeSurumu['durum']):
     toplam_ceza: null,
     kapsama_acigi_sayisi: 0,
     fazla_kadro_sayisi: 0,
+    // Gorev 6/7: sozlesmeye eklendi, bu ekran testi onu okumaz.
+    atama_sayisi: 20,
   }
 }
 
