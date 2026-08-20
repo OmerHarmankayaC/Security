@@ -550,6 +550,35 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
     }
   }
 
+  /**
+   * "Boş Taslak Aç" (FR-7.3) — atamasız bir taslak sürüm üretir; çizelgeyi
+   * çözücü sıfırdan yazar.
+   *
+   * Dönemde zaten sürüm varsa kullanıcı sayıyla uyarılır: yanlışlıkla
+   * dolu bir sürümün yanına boş bir tane daha açmak kolay geri alınmaz.
+   * Sürüm hiç yoksa uyarı gereksizdir, doğrudan açılır.
+   */
+  const bosTaslakAc = () => {
+    if (donemId === null) return
+    if (
+      surumler.length > 0 &&
+      !window.confirm(
+        `Dönemde ${surumler.length} sürüm var; ${surumler.length + 1}. sürüm boş bir taslak olarak açılacak.`,
+      )
+    ) {
+      return
+    }
+    api
+      .bosTaslakAc(donemId)
+      .then((yeni) =>
+        api.surumler(donemId).then((s) => {
+          setSurumler(s)
+          setSurumId(yeni.surum_id)
+        }),
+      )
+      .catch((e) => setHata(e instanceof Error ? e.message : 'Boş taslak açılamadı'))
+  }
+
   // Dışa aktarma verisi Çizelge ve Analiz ekranlarında aynı biçimde kurulur;
   // biçimleme ve indirme lib/disaAktarma.ts'te ortaktır.
   const disaAktarmaVerisi: CizelgeVerisi | null =
@@ -732,6 +761,9 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
               ))}
             </select>
           </div>
+          <Buton varyant="ikincil" disabled={donemId === null} onClick={bosTaslakAc}>
+            Boş Taslak Aç
+          </Buton>
         </div>
       </Kart>
 
@@ -811,8 +843,14 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
       <Kart>
         {yukleniyor ? (
           <p className="text-sm text-ink-muted">Yükleniyor…</p>
-        ) : tumIzgaraPersonelleri.length === 0 ? (
+        ) : tumIzgaraPersonelleri.length === 0 && !surumDuzenlenebilir ? (
           <p className="text-sm text-ink-muted">Bu sürümde henüz atama yok.</p>
+        ) : tumIzgaraPersonelleri.length === 0 ? (
+          // Düzenlenebilir sürümde satırlar kadrodan gelir (lib/izgaraSatirlari.ts);
+          // burada boş kalmak "atama yok" değil "kadroda kimse yok" demektir.
+          <p className="text-sm text-ink-muted">
+            Bu dönemde aktif personel yok; Tanımlar ekranından personel ekleyin.
+          </p>
         ) : gunler.length === 0 ? (
           <p className="text-sm text-ink-muted">
             Bu dönemde açık verilen gün yok. Süzgeci kaldırarak tüm günleri görebilirsiniz.

@@ -296,6 +296,8 @@ export const api = {
   surumYayinla: (surumId: number) => gonder<CizelgeSurumu>(`/api/surum/${surumId}/yayinla`, {}),
   surumTaslakTuret: (oncekiSurumId: number) =>
     gonder<CizelgeSurumu>('/api/surum', { onceki_surum_id: oncekiSurumId }),
+  // Atamasız bir taslak açar; çizelgeyi çözücü sıfırdan yazar (FR-7.3).
+  bosTaslakAc: (donemId: number) => gonder<CizelgeSurumu>('/api/surum', { donem_id: donemId }),
   // Türetmeden farkı atamaların KOPYALANMASI: `surumTaslakTuret` çözücünün
   // dolduracağı boş bir taslak açar, bu kaynağın çizelgesini olduğu gibi
   // taşır. Kaynak sürüm her iki durumda da değişmez.
