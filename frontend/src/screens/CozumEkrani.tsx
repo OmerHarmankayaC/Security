@@ -20,6 +20,15 @@ interface Props {
   ekranSec: (ekran: NavOgesi) => void
   donemId: number | null
   donemIdSec: (id: number | null) => void
+  /**
+   * Çizelge ekranından "Yeniden Çöz" ile gelinen sürüm (SDD 5.6). Doluyken
+   * çözüm bu sürümden türetilir ve sürümün KİLİTLİ atamaları modele
+   * sabitlenir; boşken dönem için sıfırdan çözülür ve kilitler kaybolur.
+   *
+   * App'te tutulur, dönem değişince temizlenir: başka bir dönemin sürümünü
+   * taban almak çözümü yanlış çizelgeye bağlardı.
+   */
+  oncekiSurumId?: number | null
 }
 
 const CALISAN_DURUMLAR = new Set(['kuyrukta', 'on_kontrol', 'cozuluyor'])
@@ -78,7 +87,7 @@ function CezaDokumu({ girdiler, azami }: { girdiler: [string, number][]; azami: 
   )
 }
 
-export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
+export function CozumEkrani({ ekranSec, donemId, donemIdSec, oncekiSurumId = null }: Props) {
   const [donemler, setDonemler] = useState<Donem[]>([])
   // Charter 1.6: beş dakika. Çizelge dönemde bir kez üretilir; altmış
   // saniye çözüm kalitesini ürün gerekçesi olmadan sınırlıyordu.
@@ -155,7 +164,9 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
     try {
       // Dönen iş kaydı KULLANILMAZ; kabuk sunucuya yeniden sorar. Kimliği
       // burada saklamak, aynı bilginin ikinci kopyasını üretirdi.
-      await api.cozumBaslat(donemId, zamanLimiti)
+      // `oncekiSurumId` doluysa istek `onceki_surum_id` taşır: yeniden
+      // çözüm o sürümden türetilir ve KİLİTLİ atamalar korunur (SDD 5.6).
+      await api.cozumBaslat(donemId, zamanLimiti, oncekiSurumId)
       await yenile()
     } catch (e) {
       setHata(e instanceof Error ? e.message : 'Çözüm başlatılamadı')
@@ -294,11 +305,29 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec }: Props) {
               varyant="birincil"
               onClick={cozumBaslat}
               disabled={donemId === null || yeniCozumEngelli}
+              title={
+                oncekiSurumId !== null
+                  ? 'Seçili sürümden yeniden çözer; kilitli atamalar olduğu gibi korunur'
+                  : 'Dönem için sıfırdan çözer'
+              }
             >
               Çözümü Başlat
             </Buton>
           </div>
         </div>
+
+        {/* YENİDEN ÇÖZÜM OLDUĞU YAZILI OLMALI. İki çalıştırma dıştan aynı
+            görünür ama biri kilitli atamaları korur, diğeri hepsini atar;
+            fark yalnız sonuç çizelgesinde görülürse kullanıcı yirmi vardiya
+            kaybettikten sonra öğrenir. */}
+        {oncekiSurumId !== null && (
+          <p className="m-0 mt-4 rounded-sm border-l-2 border-accent bg-accent-soft px-4 py-3 text-sm text-ink">
+            <strong className="font-medium">Yeniden çözüm.</strong> Çizelge ekranından seçtiğiniz
+            sürüm taban alınır: <strong className="font-medium">kilitli atamalar korunur</strong>,
+            kalanını çözücü yeniden yazar. Başka bir dönem seçmek tabanı kaldırır ve çözüm
+            sıfırdan başlar.
+          </p>
+        )}
 
         {yeniDonemAcik && (
           <div className="mt-5 border-t border-rule pt-4">

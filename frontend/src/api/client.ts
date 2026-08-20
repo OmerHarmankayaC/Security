@@ -148,9 +148,18 @@ export const api = {
 
   onKontrolCalistir: (donemId: number) =>
     gonder<{ bulgular: OnKontrolBulgu[] }>('/api/on-kontrol', { donem_id: donemId }),
-  cozumBaslat: (donemId: number, zamanLimitiSaniye: number) =>
+  /**
+   * Çözüm başlatır. `oncekiSurumId` verilirse YENİDEN ÇÖZÜMDÜR (SDD 5.6):
+   * yeni taslak o sürümden türetilir, sürümün KİLİTLİ atamaları modele
+   * sabitlenir ve S8 o çizelgeyi taban alır. Verilmezse dönem için sıfırdan
+   * bir çözüm başlar ve kilitler dikkate alınmaz.
+   *
+   * İkisinden TAM OLARAK BİRİ gönderilir; sunucu ikisini birden alırsa 422
+   * döner (schemas/cozum.py CozumBaslatIstek).
+   */
+  cozumBaslat: (donemId: number, zamanLimitiSaniye: number, oncekiSurumId?: number | null) =>
     gonder<CozumIsi>('/api/cozum', {
-      donem_id: donemId,
+      ...(oncekiSurumId != null ? { onceki_surum_id: oncekiSurumId } : { donem_id: donemId }),
       zaman_limiti_saniye: zamanLimitiSaniye,
     }),
   cozumDurumu: (isId: number) => istek<CozumIsi>(`/api/cozum/${isId}`),

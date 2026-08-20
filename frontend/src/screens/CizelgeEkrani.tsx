@@ -57,10 +57,25 @@ interface Props {
   ekranSec: (ekran: NavOgesi) => void
   donemId: number | null
   donemIdSec: (id: number | null) => void
-  yenidenCozIste: (donemId: number) => void
+  /**
+   * "Yeniden Çöz" — Çözüm ekranına geçer ve SEÇİLİ SÜRÜMÜ taban olarak
+   * taşır. Sürüm taşınmazsa çözüm dönem için sıfırdan başlar ve sürümün
+   * KİLİTLİ atamaları atılır: "elle başla, çözücüye devret" yolu ancak
+   * bu bağlantı kurulduğunda çalışır (SDD 5.6).
+   */
+  yenidenCozIste: (donemId: number, surumId: number | null) => void
 }
 
 const BOSALT_DEGERI = ''
+
+/** "Yeniden Çöz" düğmesinin ipucu metni (bkz. düğmenin yanındaki not). */
+function yenidenCozIpucu(surum: CizelgeSurumu | null, kilitliSayisi: number): string | undefined {
+  if (surum === null) return undefined
+  if (kilitliSayisi === 0) {
+    return `Sürüm ${surum.surum_no} taban alınarak yeniden çözülür; bu sürümde kilitli atama yok.`
+  }
+  return `Sürüm ${surum.surum_no} taban alınarak yeniden çözülür; ${kilitliSayisi} kilitli atama korunur.`
+}
 
 const SURUM_DURUM_METNI: Record<string, string> = {
   taslak: 'Taslak',
@@ -235,6 +250,11 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
   // sunucu 409 doner (services/dogrulama_servisi.py).
   const surumDuzenlenebilir =
     surum !== null && (surum.durum === 'taslak' || surum.durum === 'cozuldu')
+
+  // "Yeniden Çöz" ipucu bunu yazar. KAYDEDİLMİŞ atamalardan sayılır —
+  // düğme zaten kirli oturumda pasif, yani ekrandaki kilit ile sunucudaki
+  // kilit bu noktada aynıdır.
+  const kilitliAtamaSayisi = useMemo(() => atamalar.filter((a) => a.kilitli).length, [atamalar])
 
   const personelMap = useMemo(
     () => new Map(personelListesi.map((p) => [p.personel_id, p])),
@@ -706,8 +726,16 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
           <Buton
             varyant="birincil"
             disabled={donemId === null || kirliMi(oturum)}
-            title={kirliMi(oturum) ? 'Önce değişiklikleri kaydedin ya da vazgeçin' : undefined}
-            onClick={() => donemId !== null && yenidenCozIste(donemId)}
+            // DÜĞMENİN NE YAPACAĞI YAZILI OLMALI: seçili sürüm taban alınır
+            // ve kilitli atamalar korunur, kalanını çözücü yeniden yazar.
+            // Kilit sayısı da yazılır — "kilitliler korunur" cümlesi, hiç
+            // kilit yokken kullanıcıya yanlış bir güvence verirdi.
+            title={
+              kirliMi(oturum)
+                ? 'Önce değişiklikleri kaydedin ya da vazgeçin'
+                : yenidenCozIpucu(surum, kilitliAtamaSayisi)
+            }
+            onClick={() => donemId !== null && yenidenCozIste(donemId, surumId)}
           >
             Yeniden Çöz
           </Buton>

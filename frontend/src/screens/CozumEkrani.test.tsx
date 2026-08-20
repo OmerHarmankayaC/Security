@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CozumIsi } from '../api/types'
 import { AktifIsSaglayici } from '../components/AktifIsBaglami'
@@ -195,5 +195,85 @@ describe('Çalışan iş göstergesi (SRS FR-4.11)', () => {
     // Gösterge üst çubukta: durum her ekranda görünür.
     await waitFor(() => expect(screen.getByTitle('Çözüm ekranını aç')).toBeDefined())
     expect(screen.getByTitle('Çözüm ekranını aç').textContent).toContain('Karar bekliyor')
+  })
+})
+
+describe('Yeniden çözüm — kilitli atamaların korunması (SDD 5.6)', () => {
+  /**
+   * Kilitli atamalar YALNIZCA `surum.onceki_surum_id` üzerinden okunur
+   * (services/cozum_servisi.py) ve o alan yalnız `POST /api/cozum
+   * {onceki_surum_id}` yolunda dolar. İstek `donem_id` ile giderse kullanıcı
+   * yirmi vardiya kilitlemiş olsa bile çözücü hepsini atar; "elle başla,
+   * çözücüye devret" yolu ancak bu alan gönderildiğinde çalışır.
+   */
+  function baslatIsteginiBul(sahte: ReturnType<typeof vi.fn>) {
+    const cagri = sahte.mock.calls.find(
+      ([yol, secenekler]) =>
+        String(yol) === '/api/cozum' &&
+        (secenekler as RequestInit | undefined)?.method === 'POST',
+    )
+    expect(cagri).toBeDefined()
+    return JSON.parse(String((cagri![1] as RequestInit).body))
+  }
+
+  function ekraniAcSurumle(oncekiSurumId: number | null) {
+    const sahte = fetchSahtesi(null)
+    vi.stubGlobal('fetch', sahte)
+    render(
+      <OturumBaglami.Provider
+        value={{
+          ben: {
+            kullanici_adi: 'idare',
+            ad_soyad: 'Yönetici',
+            rol: 'idare',
+            personel_id: null,
+            parola_degistirmeli: false,
+          },
+          cikis: vi.fn(),
+          parolaDegistir: vi.fn(),
+        }}
+      >
+        <AktifIsSaglayici>
+          <CozumEkrani
+            ekranSec={vi.fn()}
+            donemId={1}
+            donemIdSec={vi.fn()}
+            oncekiSurumId={oncekiSurumId}
+          />
+        </AktifIsSaglayici>
+      </OturumBaglami.Provider>,
+    )
+    return sahte
+  }
+
+  it('taban sürüm varsa istek onceki_surum_id taşır, donem_id taşımaz', async () => {
+    const sahte = ekraniAcSurumle(42)
+    const baslat = await screen.findByRole('button', { name: 'Çözümü Başlat' })
+    fireEvent.click(baslat)
+
+    await waitFor(() => {
+      const govde = baslatIsteginiBul(sahte)
+      expect(govde.onceki_surum_id).toBe(42)
+      // Sunucu ikisini birden alırsa 422 döner (CozumBaslatIstek).
+      expect(govde.donem_id).toBeUndefined()
+      expect(govde.zaman_limiti_saniye).toBe(300)
+    })
+  })
+
+  it('taban sürüm yoksa istek donem_id ile gider (sıfırdan çözüm)', async () => {
+    const sahte = ekraniAcSurumle(null)
+    const baslat = await screen.findByRole('button', { name: 'Çözümü Başlat' })
+    fireEvent.click(baslat)
+
+    await waitFor(() => {
+      const govde = baslatIsteginiBul(sahte)
+      expect(govde.donem_id).toBe(1)
+      expect(govde.onceki_surum_id).toBeUndefined()
+    })
+  })
+
+  it('taban sürüm varken ekran bunu YAZAR', async () => {
+    ekraniAcSurumle(42)
+    expect(await screen.findByText(/kilitli atamalar korunur/)).toBeDefined()
   })
 })

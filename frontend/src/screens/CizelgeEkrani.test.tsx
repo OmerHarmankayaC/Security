@@ -430,3 +430,89 @@ describe('"Kaydet" (SRS FR-6.7, TD-16)', () => {
     await waitFor(() => expect(screen.queryByText(/KAYDEDİLMEMİŞ/)).toBeNull())
   })
 })
+
+describe('"Yeniden Çöz" düğmesi (SDD 5.6)', () => {
+  const KILITLI_ATAMA = {
+    atama_id: 1,
+    personel_id: PERSONEL.personel_id,
+    baslangic_zamani: '2026-04-06T08:00:00+03:00',
+    bitis_zamani: '2026-04-06T16:00:00+03:00',
+    tarih: '2026-04-06',
+    sure_saat: 8,
+    nokta_id: NOKTA.nokta_id,
+    kilitli: true,
+    kaynak: 'manuel',
+  }
+
+  function ekraniAcAtamalarla(atamalar: unknown[]) {
+    const sahte = vi.fn(async (yol: string) => {
+      if (yol.startsWith('/api/donem')) return yanit([DONEM])
+      if (yol.startsWith('/api/personel')) return yanit([PERSONEL])
+      if (yol.startsWith('/api/nokta')) return yanit([NOKTA])
+      if (yol.startsWith('/api/yetkinlik')) return yanit([])
+      if (yol.startsWith('/api/kural')) return yanit([])
+      if (yol.startsWith('/api/cozum/aktif')) return yanit(null)
+      if (yol.startsWith('/api/analiz/')) return yanit(null)
+      if (/^\/api\/surum\/\d+\/atama/.test(yol)) return yanit(atamalar)
+      if (/^\/api\/surum\/\d+\/kapsama-acigi/.test(yol)) return yanit([])
+      if (/^\/api\/surum\/\d+\/fazla-kadro/.test(yol)) return yanit([])
+      if (yol.startsWith('/api/surum?donem_id=')) return yanit([surum(7, 3, 'cozuldu')])
+      throw new Error(`beklenmeyen yol ${yol}`)
+    })
+    vi.stubGlobal('fetch', sahte)
+    const yenidenCozIste = vi.fn()
+    render(
+      <OturumBaglami.Provider
+        value={{
+          ben: {
+            kullanici_adi: 'idare',
+            ad_soyad: 'Yönetici',
+            rol: 'idare',
+            personel_id: null,
+            parola_degistirmeli: false,
+          },
+          cikis: vi.fn(),
+          parolaDegistir: vi.fn(),
+        }}
+      >
+        <AktifIsSaglayici>
+          <CizelgeEkrani
+            ekranSec={vi.fn()}
+            donemId={1}
+            donemIdSec={vi.fn()}
+            yenidenCozIste={yenidenCozIste}
+          />
+        </AktifIsSaglayici>
+      </OturumBaglami.Provider>,
+    )
+    return yenidenCozIste
+  }
+
+  it('SEÇİLİ SÜRÜMÜ taşır — taşımazsa kilitli atamalar çözümde atılır', async () => {
+    const yenidenCozIste = ekraniAcAtamalarla([KILITLI_ATAMA])
+    const dugme = await screen.findByRole('button', { name: 'Yeniden Çöz' })
+    await waitFor(() => expect((dugme as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(dugme)
+    expect(yenidenCozIste).toHaveBeenCalledWith(1, 7)
+  })
+
+  it('kilitli atama sayısını ipucunda YAZAR', async () => {
+    ekraniAcAtamalarla([KILITLI_ATAMA])
+    const dugme = await screen.findByRole('button', { name: 'Yeniden Çöz' })
+    await waitFor(() =>
+      expect(dugme.getAttribute('title')).toBe(
+        'Sürüm 3 taban alınarak yeniden çözülür; 1 kilitli atama korunur.',
+      ),
+    )
+  })
+
+  it('kilit yokken YANLIŞ GÜVENCE vermez', async () => {
+    ekraniAcAtamalarla([{ ...KILITLI_ATAMA, kilitli: false }])
+    const dugme = await screen.findByRole('button', { name: 'Yeniden Çöz' })
+    await waitFor(() =>
+      expect(dugme.getAttribute('title')).toBe(
+        'Sürüm 3 taban alınarak yeniden çözülür; bu sürümde kilitli atama yok.',
+      ),
+    )
+  })
+})
