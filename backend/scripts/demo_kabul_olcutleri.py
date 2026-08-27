@@ -28,7 +28,7 @@ from sqlalchemy import select, text  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
 from app.db import OturumYerel  # noqa: E402
-from app.kurallar.kayit_defteri import bul  # noqa: E402
+from app.kurallar.kayit_defteri import kurallari_yukle  # noqa: E402
 from app.models.kural import Kural, KuralTipi  # noqa: E402
 from app.models.sonuc import (  # noqa: E402
     Atama,
@@ -89,10 +89,12 @@ def _olcut_1(oturum: Session) -> Olcut:
     dogrudan cagrilir - olculen sey zaten "yazilmis cizelge kurallara
     uyuyor mu", bir duzenleme onerisi degil.
     """
-    kurallar = [
-        bul(k.kimlik, k.parametreler, k.agirlik)
-        for k in oturum.execute(select(Kural).where(Kural.aktif.is_(True))).scalars().all()
-    ]
+    # Kurallar SDD 5.1'deki `kurallari_yukle` ile kurulur, elle degil:
+    # sinif secimi, parametre gecirme ve agirlik eslemesi orada tanimli ve
+    # burada ikinci bir kopyasini tutmak ikisinin ayrismasi demekti.
+    kurallar = kurallari_yukle(
+        oturum.execute(select(Kural).where(Kural.aktif.is_(True))).scalars().all()
+    )
     yayinlar = (
         oturum.execute(
             select(CizelgeSurumu)
