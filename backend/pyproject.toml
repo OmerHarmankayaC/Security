@@ -1,7 +1,7 @@
 [project]
 name = "vardiya-cizelgeleme"
 version = "0.1.0"
-description = "BOTAS vardiya cizelgeleme karar destek araci - backend"
+description = "VARDIS vardiya cizelgeleme karar destek araci - backend"
 requires-python = ">=3.12"
 # Gosterim sunucusu Ubuntu 26.04 / Python 3.14 (deponun tek surumu; ayni
 # makinedeki diger projeler de onu kullaniyor). Asagidaki UC sabit, derlenmis

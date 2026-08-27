@@ -51,7 +51,7 @@ export function KunyeIcerigi() {
         <dd className="m-0 text-ink">Sistem analisti ve geliştirici — projenin yürütücüsü</dd>
         <dt className="text-ink-muted">Kapsam</dt>
         <dd className="m-0 text-ink">
-          BOTAŞ bünyesinde yürütülen bir staj çalışması kapsamında geliştirildi.
+          Bir yaz stajı çalışması kapsamında geliştirildi; hiçbir kurumun verisini içermez.
         </dd>
       </dl>
       <p className="m-0 mt-3 text-sm leading-relaxed text-ink-muted">

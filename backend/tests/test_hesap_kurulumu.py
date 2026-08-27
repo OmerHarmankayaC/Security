@@ -54,7 +54,7 @@ class TestAsciyeIndirme:
     def test_turkce_harfler_ascii_karsiligina_iner(self) -> None:
         # FR-10.11'in tam sebebi: "İ" ve "ı" kucultmede veritabani ile
         # uygulama katmaninda farkli sonuc verebiliyor.
-        assert asciye_indir("Ömer Harmankaya") == "omer harmankaya"
+        assert asciye_indir("Ömer Yıldırım") == "omer yildirim"
         assert asciye_indir("ŞİŞLİ") == "sisli"
         assert asciye_indir("Çağrı Öz") == "cagri oz"
         assert asciye_indir("ğüşiöç ĞÜŞİÖÇ") == "gusioc gusioc"
