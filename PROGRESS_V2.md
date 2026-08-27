@@ -2765,3 +2765,93 @@ Doğru katalog üretimdekidir: SRS 4.4'ün amaç fonksiyonu sembol listesi
 
 Kabul ölçümü kendi zorunlu-kural parametre kopyasını tutmayı sürdürüyor;
 o akış ayrı veritabanında ve bu turun kapsamı dışında — **açık madde**.
+
+### 3. Demo veri üreteci senaryoya göre yeniden yazıldı
+
+`scripts/demo_veri_uret.py` artık DEMO_SENARYOSU bölüm 3–5 ve 7'yi uyguluyor:
+40 personel (9 şef + 31 güvenlik), sürekli sicil (`D-1001` … `D-1040`),
+37 kişi 45 / 3 kişi 30 saat haftalık hedef, iki bina kaydı, on beş haftalık
+dönem zinciri, dönem başına kadronun %8–12'si izinli (iki geçmiş dönemde
+dörtte bire çıkan dalga), üç durumu da kapsayan 25 tercih.
+
+`ornek_senaryo.PERSONEL_GRUPLARI` 30'dan 40'a çıkarıldı. Bu sayı kabul
+ölçümündeki `_REFERANS_GRUPLARI` ile **ayrışmıştı** — "referans kadro kaç
+kişidir" sorusu iki yerde iki farklı sayıyla yazılıydı. Sabit yalnızca demo
+üreteci tarafından okunuyordu, dolayısıyla değişiklik başka hiçbir tüketiciyi
+etkilemedi; kabul ölçümü kendi kopyasını tutmaya devam ediyor (**açık madde**).
+
+Rastgelelik tek bir tohumlu üreteçten (`random.Random(_SABIT_TOHUM)`)
+akıyor; `random` modülünün genel durumu kullanılmıyor — genel durum, içeri
+aktarılan herhangi bir modülün çağrısıyla ilerleyebilir ve betiğin çıktısı
+sessizce değişirdi.
+
+**Üç sınır durumu ayrı kişilere düşürüldü** ve bu bir teste bağlandı: yeni
+başlayan (`D-1040`), ayrılan (`D-1039`) ve üç kısmi zamanlı. Aynı kişiye
+düşselerdi iki mekanizma tek kayıtta gizlenir ve biri bozulduğunda diğeri
+bunu örtbas ederdi.
+
+Hesaplar artık üreteçte açılıyor (üç yönetim + iki çalışan); parola
+`DEMO_PAROLA`'dan okunuyor, koda ve depoya yazılmıyor. Kurulum **idempotent**:
+`--reset` personele bağlı hesapları düşürür ama yönetim hesaplarını bırakır,
+ikisi tek yoldan geçmezse ikinci koşum `kullanici_adi` tekilliğine çarpardı.
+
+**Sapma (küçük):** DEMO_SENARYOSU 4.5 resmî tatillerin "betikte sabit liste"
+tutulmasını yazıyor. Kaynak kütüphane olarak (`tatil_takvimi.py`) bırakıldı;
+sabit liste dinî bayramları yanlış yazar (tarihleri yıla göre kayar) ve demo
+bir sonraki yıla girdiğinde sessizce eksik takvim üretirdi. Senaryonun asıl
+istediği — "yalnız pencereye düşenler yazılır" — uygulandı: önceki sürüm iki
+tam yılı yazıyordu.
+
+### 5. Kurum adı ve gerçek ad taraması
+
+Düzeltilenler (kod/paket/tohum): `backend/pyproject.toml` paket açıklaması,
+`frontend/src/components/KunyeIcerigi.tsx` kapsam satırı, ve gerçek bir kişi
+adını örnek girdi olarak kullanan `tests/test_hesap_kurulumu.py:57`.
+
+`docs/` altındaki ve git geçmişindeki isabetler **yalnızca raporlandı**;
+ikisini de değiştirmek bir sızıntıyı kapatmak değil bir kaydı tahrif etmek
+olurdu.
+
+### 6. Demo kipi ve gecelik sıfırlama
+
+`DEMO_KIPI` ayarı ve yetki istemeyen `GET /api/ortam` uç noktası. Uç nokta
+bilerek yetkisiz: şerit **giriş ekranında** görünmeli, çünkü gösterim
+ortamına ilk bakan kişi henüz giriş yapmamıştır. Şerit kökte tek yerde
+çiziliyor — her ekrana ayrı eklenseydi bir sonraki ekran onu unuturdu.
+
+Ayar `veri_temizligine_izin`in türevi **değil**: ikisi tek ayara bağlansaydı,
+gecelik sıfırlamanın kilidi açtığı birkaç saniye boyunca şerit yanıp söner,
+kilidi elle açan bir geliştirme makinesi de kendini gösterim ortamı ilan
+ederdi.
+
+`DEMO_PAROLA` ayrıca `Ayarlar`'da tanımlandı: uygulama onu hiç okumaz ama
+pydantic-settings `extra='forbid'` ile çalışıyor ve tanımlanmadan `.env`'e
+yazılan bir satır **bütün arka ucu açılmaz hale getiriyordu** (denendi,
+`ValidationError` ile doğrulandı).
+
+`deploy/vardis-demo-sifirlama.{service,timer}`: 03.00'te yeniden üretim.
+Kilit birimin **içinde** açılıyor, `.env`'de değil; dosyaya yazılsaydı API
+sürecinin ve elle koşturulan her betiğin de yıkıcı işlem izni olurdu.
+Çözüm işçisi üretim boyunca durduruluyor (aynı kuyruğu iki süreç yoklamasın)
+ve üretimden sonra ölçüt raporu günlüğe yazılıyor.
+
+### DOKÜMAN BORCU — Tur 14
+
+1. **SRS 5.x (yeni bir FR)** — `DEMO_KIPI` ve gösterim şeridi: ortamın
+   kendisini beyan etmesi bir gereksinimdir, yapılandırma ayrıntısı değil.
+   Şeridin kapatılamaz olduğu ve giriş ekranında da göründüğü yazılmalı.
+2. **SDD 3.4 / Ek B** — `GET /api/ortam` uç noktası (yetki istemez) ve
+   `deploy/vardis-demo-sifirlama.{service,timer}` dağıtım görünümüne.
+   Kilidin birim içinde açılması ve çözüm işçisinin durdurulması tasarım
+   kararıdır.
+3. **SDD 4.2.x** — kural kataloğunun tek tohum tanımı
+   (`app/services/kural_katalogu_tohumu.py`) ve kurulumun kimlik üzerinden
+   upsert olması; göçlerin kataloğun bir bölümünü yazması bu yüzden artık
+   çakışma üretmiyor.
+4. **SRS 3.3.6 / SDD 3.4.2** — demo referans kadrosunun 40'a çıkması ve
+   kabul ölçümünün kendi kopyasını tutmaya devam etmesi. İki kaynak
+   birleştirilene kadar bu bir bilinen ayrışmadır.
+5. **VERITABANI_SEMASI.md bayat** — göç başı a4d92c15e807'yi anlatıyor,
+   canlı şema f4a8c1e60d92. Doküman yeniden üretilmeli (türetilmiş doküman).
+6. **DEMO_SENARYOSU 4.5** — resmî tatil kaynağı "betikte sabit liste" yerine
+   kütüphane olarak yazılmalı; pencere filtresi korunuyor.
