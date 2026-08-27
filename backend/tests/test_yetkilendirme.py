@@ -25,6 +25,11 @@ from tests.conftest import oturumlu_istemci, pg_yoksa_atla
 _ACIK_UC_NOKTALAR = {
     ("GET", "/health"),  # servis izleme; veri tasimaz
     ("POST", "/api/giris"),  # giris kapinin kendisidir
+    # Ortam beyani (Demo Senaryosu 10): tek bir yapilandirma bayragi doner,
+    # hicbir veri/sayim/kimlik tasimaz. Yetki istemesi, gosterim seridini
+    # GIRIS EKRANINDA gorunmez kilardi - oysa "bu veri gercek degil" demenin
+    # tek dogru ani, veriye ilk bakan henuz giris yapmamis kisiye denen andir.
+    ("GET", "/api/ortam"),
 }
 
 # Parola borcu varken de acik kalan uc noktalar (FR-10.7): borcun odenmesinin
@@ -88,6 +93,10 @@ def test_hicbir_uc_nokta_oturumsuz_veri_vermez() -> None:
 def test_acik_uc_noktalar_oturumsuz_calisir() -> None:
     istemci = TestClient(app, base_url="https://testserver")
     assert istemci.get("/health").status_code == 200
+    # Serit giris ekraninda cizilir; uc nokta oturumsuz CALISMAK zorunda.
+    ortam = istemci.get("/api/ortam")
+    assert ortam.status_code == 200
+    assert set(ortam.json()) == {"demo_kipi"}
     # Giris uc noktasi oturum ISTEMEZ; kimlik bilgisi yanlis oldugu icin
     # 401 doner - kapinin kendisi degil, kimlik dogrulamasi reddediyor.
     assert (
