@@ -63,7 +63,6 @@ from app.models.girdi import (
     TercihDurumu,
     TercihTipi,
 )
-from app.models.kural import Kural, KuralTipi
 from app.models.sonuc import CozumIsi, Donem
 from app.models.tanim import (
     GorevNoktasi,
@@ -74,6 +73,7 @@ from app.models.tanim import (
 )
 from app.repositories.sonuc import CizelgeSurumuDeposu
 from app.services.cozum_servisi import CozumServisi, cozum_isini_calistir
+from app.services.kural_katalogu_tohumu import KURAL_TANIMLARI, katalogu_kur
 from app.services.ornek_senaryo import (
     GUVENLIK_GOREVI,
     NOKTA_TANIMLARI,
@@ -88,82 +88,6 @@ from app.veri_temizligi import (
     UretimKilidiError,
     veriyi_temizle,
 )
-
-_KURAL_TANIMLARI: list[dict] = [
-    {"kimlik": "H1", "tip": KuralTipi.ZORUNLU, "parametreler": {}, "agirlik": None},
-    {
-        "kimlik": "H2",
-        "tip": KuralTipi.ZORUNLU,
-        "parametreler": {"asgari_dinlenme_saati": 16},
-        "agirlik": None,
-    },
-    {
-        "kimlik": "H3",
-        "tip": KuralTipi.ZORUNLU,
-        "parametreler": {"azami_ardisik_gece": 3},
-        "agirlik": None,
-    },
-    {
-        "kimlik": "H4",
-        "tip": KuralTipi.ZORUNLU,
-        "parametreler": {"azami_ardisik_calisma_gunu": 6},
-        "agirlik": None,
-    },
-    {
-        "kimlik": "H5",
-        "tip": KuralTipi.ZORUNLU,
-        "parametreler": {"haftalik_mutlak_tavan": 66},
-        "agirlik": None,
-    },
-    {
-        "kimlik": "H6",
-        "tip": KuralTipi.ZORUNLU,
-        "parametreler": {"haftalik_asgari_izin_gunu": 1},
-        "agirlik": None,
-    },
-    {"kimlik": "H7", "tip": KuralTipi.ZORUNLU, "parametreler": {}, "agirlik": None},
-    {"kimlik": "H8", "tip": KuralTipi.ZORUNLU, "parametreler": {}, "agirlik": None},
-    {
-        "kimlik": "H9",
-        "tip": KuralTipi.ZORUNLU,
-        "parametreler": {"azami_gunluk_saat": 11},
-        "agirlik": None,
-    },
-    {
-        "kimlik": "H10",
-        "tip": KuralTipi.ZORUNLU,
-        "parametreler": {"fazla_calisma_esigi": 45, "yillik_fazla_kotasi": 270},
-        "agirlik": None,
-    },
-    # Agirlik kalibrasyonu (PROGRESS.md, Ek Gorev - agirlik kalibrasyonu turu):
-    # S1 agirligi, digerlerinin agirlikli toplam katkisindan belirgin buyuk olmali
-    # (SRS S1, "baskin agirlik" ilkesi) - 1000 Sikisik senaryoda S1-haric agirlikli
-    # toplami (2107) garantilemiyordu, 10000'e cikarildi (bkz.
-    # tests/test_agirlik_kalibrasyonu.py). Ayrica S2/S3'un ham birimi VARDIYA,
-    # S4'unku SAAT (bir vardiya=8 saat); w4, vardiya-esdegeri basina S4'un
-    # S2/S3 kadar onemli sayilmasi icin ~w2/8 olacak sekilde dusuruldu.
-    {"kimlik": "S1", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 10000},
-    # w1f = 2 (K4 baslangic degeri). Kesin olan `w1f << w1` bagintisidir.
-    {"kimlik": "S1f", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 2},
-    {"kimlik": "S2", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 10},
-    {"kimlik": "S3", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 8},
-    {"kimlik": "S4", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 1},
-    {"kimlik": "S5", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 12},
-    {
-        "kimlik": "S6",
-        "tip": KuralTipi.ESNEK,
-        "parametreler": {"desen_toleransi_saat": 2},
-        "agirlik": 4,
-    },
-    # S6b (bina tutarliligi) bu senaryoda pasif: nokta sadelestirmesinden beri butun
-    # gorev noktalari tesis geneli (bina_id NULL), bina degisimi fiziksel olarak
-    # imkansiz oldugundan S6b modelde daima 0 katki verir. Kural katalogda kalir -
-    # binaya bagli bir nokta tanimlanirsa kendiliginden devreye girer - ama gereksiz
-    # bir amac fonksiyonu terimi olarak burada aktif tutulmaz (SRS'e not eklendi).
-    {"kimlik": "S6b", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 6, "aktif": False},
-    {"kimlik": "S7", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 6},
-    {"kimlik": "S8", "tip": KuralTipi.ESNEK, "parametreler": {}, "agirlik": 15},
-]
 
 # --- Donem takvimi: BUGUNE GORE, sabit tarihlerle DEGIL --------------------
 #
@@ -259,8 +183,13 @@ def _talebi_olustur(oturum: Session, noktalar: list[GorevNoktasi]) -> None:
 
 
 def _kurallari_olustur(oturum: Session) -> None:
-    oturum.add_all(Kural(**tanim) for tanim in _KURAL_TANIMLARI)
-    oturum.flush()
+    """Katalogu app/services/kural_katalogu_tohumu.py'den kurar.
+
+    Tanim burada DEGIL o modulde durur: goc zinciri katalogun uc satirini
+    (H9, H10, S1f) zaten yaziyor ve katalog iki yerde tanimlandiginda
+    ortamlar arasinda sessizce ayrisiyordu (Demo Senaryosu 4.6).
+    """
+    katalogu_kur(oturum)
 
 
 # Pasiflestirilmis personel: aktiflik penceresi GECMISTE kapanmis bir kayit
@@ -899,7 +828,7 @@ def uret(*, sifirla: bool, coz: bool = True) -> None:
     toplam_personel = sum(grup.sayi for grup in PERSONEL_GRUPLARI)
     print(
         f"Demo verisi uretildi: {toplam_personel} personel (1 pasif), "
-        f"{len(NOKTA_TANIMLARI)} gorev noktasi, {len(_KURAL_TANIMLARI)} kural, "
+        f"{len(NOKTA_TANIMLARI)} gorev noktasi, {len(KURAL_TANIMLARI)} kural, "
         f"{len(resmi_tatiller((bugun.year, bugun.year + 1)))} resmi tatil, "
         f"{_HAFTA_SAYISI} haftalik donem (en eskisi "
         f"{_bu_haftanin_pazartesisi(bugun) - timedelta(days=7 * (_HAFTA_SAYISI - 1))}, "

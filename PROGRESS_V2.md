@@ -2718,3 +2718,50 @@ dönmesi (sıfır ile bilinmiyor aynı şey değil).
 
 Kapsam dışı bir kural ihlali de kayda geçti: `TercihlerEkrani.tsx:122` düz
 `.toUpperCase()` kullanıyor — bu turdan önce de vardı.
+
+---
+
+## Tur 14 — Gösterim ortamı: sıfırdan demo veritabanı
+
+Dokümanlar: DEMO_SENARYOSU 1.0, Charter 1.6, SRS 1.27, SDD 1.36 — dördü de
+tur başında doğrulandı.
+
+### 1. Durum tespiti ve `vardis_demo`
+
+`vardiya` veritabanının pg_dump yedeği alındı (özel biçim, `-Fc`):
+`~/Desktop/ClaudeProjects/yedekler/vardiya-20260827-211042.dump`, 73.831 bayt.
+
+Canlı `vardiya` göç başı **f4a8c1e60d92** — depodaki `alembic heads` ile aynı.
+18 uygulama tablosu + `alembic_version`, 10 enum. `rol` enum'u dört değerli:
+`CALISAN, IDARE, HESAP_YONETICISI, SISTEM_YONETICISI`.
+
+`vardis_demo` boş açıldı ve göç zinciri baştan sona **hatasız** koştu
+(19 göç, `alembic current` = f4a8c1e60d92). Zincirde veri varsayan adım yok;
+veri taşıyan üç göç boş veritabanında sıfır satır raporladı.
+
+`vardiya` ile `vardis_demo` şemaları `pg_dump --schema-only` düzeyinde
+**birebir aynı** (yalnız pg_dump'ın rastgele `\restrict` jetonu farklı).
+
+**Kayıttaki şema bayat.** `docs/VERITABANI_SEMASI.md` göç başı a4d92c15e807'yi
+anlatıyor; canlı şemayla farkları raporda listelendi (vardiya_tipi tablosu
+düştü, atama/talep/tercih/kapsama_acigi/fazla_kadro saatlik modele geçti,
+rol ve tercihtipi enum'ları değişti, sekiz yeni sütun eklendi).
+
+### 2. Kural kataloğu tek tanıma indi
+
+Katalog iki yerde yazılıydı: `demo_veri_uret.py::_KURAL_TANIMLARI` (20 kural)
+ve göç e7b2c4915d80 (H9, H10, S1f). Boş bir veritabanında göç zinciri
+koşturulduğunda katalog **üç satırdan** ibaret kalıyordu; üreteç sonradan
+koşturulsa `kimlik` tekilliğine çarpacaktı. Demo Senaryosu 4.6'nın işaret
+ettiği ayrışmanın mekanizması tam olarak bu.
+
+Tanım `app/services/kural_katalogu_tohumu.py`'ye taşındı; kurulum kimlik
+üzerinden **upsert** (silip yazmıyor — kullanıcının ekrandan değiştirdiği
+ağırlığı sessizce geri almamak için). Üreteç bu modülü çağırıyor.
+
+Doğru katalog üretimdekidir: SRS 4.4'ün amaç fonksiyonu sembol listesi
+(w1, w1f, w2…w8, w6b) yirmi kimliğin tamamını kapsıyor. `vardis_demo` ve
+`vardiya` katalogları artık satır satır aynı (20/20, S6b pasif, S1f aktif).
+
+Kabul ölçümü kendi zorunlu-kural parametre kopyasını tutmayı sürdürüyor;
+o akış ayrı veritabanında ve bu turun kapsamı dışında — **açık madde**.
