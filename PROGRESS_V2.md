@@ -2855,3 +2855,50 @@ ve üretimden sonra ölçüt raporu günlüğe yazılıyor.
    canlı şema f4a8c1e60d92. Doküman yeniden üretilmeli (türetilmiş doküman).
 6. **DEMO_SENARYOSU 4.5** — resmî tatil kaynağı "betikte sabit liste" yerine
    kütüphane olarak yazılmalı; pencere filtresi korunuyor.
+
+### 4. Dönemler gerçek çözücüyle üretildi
+
+15 dönem, 60 saniyelik limitle, `vardis_demo` üzerinde. Üretim ~22 dakika.
+
+| Dönem | Durum | Atama | Açık |
+| --- | --- | --- | --- |
+| D-12 … D-1 (12 hafta) | yayınlandı | 159–195 | 0 |
+| D0 (2026-08-24) | yayınlandı | 182 | 0 |
+| D+1 sürüm 1 | çözüldü | 184 | 0 |
+| D+1 sürüm 2 | taslak | 184 (3'ü elle taşınmış) | — |
+| D+2 (sıkışık) | çözüldü/uyarılı | 154 | **9 kişi-saat** |
+
+**İlk koşum D+1'de çöktü.** `SurumServisi.taslak_olarak_kopyala` yalnızca
+YAYINLANMIŞ ya da ARŞİV sürümü kopyalar (SDD 6.3.5); D+1'in birinci sürümü
+`cozuldu` durumunda ve senaryo onu taslak istiyor. Zincir artık
+`taslak_turet` ile kuruluyor, atamalar `_ikinci_surumu_kur` içinde
+kopyalanıyor. Kopyalanan blokların kaynağı ÇÖZÜCÜ kalıyor; MANUEL olan
+yalnızca elle taşınan üçü — hepsini manuel saymak, sürüm karşılaştırmasında
+elle değişen üç bloğu geri kalan 181'in içinde kaybederdi.
+
+Elle değişiklik **silme değil taşımadır**: alıcı, o gün ve komşu günlerde
+hiç ataması olmayan, noktanın ön koşulunu taşıyan biri seçiliyor; böylece
+H1, H2 ve H8 elle değişiklikle kırılmıyor ve kapsama değişmiyor.
+
+#### Kabul ölçütleri (DEMO_SENARYOSU bölüm 9) — `scripts/demo_kabul_olcutleri.py`
+
+| # | Ölçüt | Sonuç |
+| --- | --- | --- |
+| 9.1 | Yayınlanmış dönemlerde sıfır zorunlu ihlal | **GEÇTİ** — 0 ihlal / 13 sürüm |
+| 9.2 | 90 günlük ufuk boş değil ve dönemden farklı | **GEÇTİ** — dönem hedefi 29,5 sa; adalet ufku 506,3 sa |
+| 9.3 | Kota kartında en az bir kişi kotanın yarısı üstünde | **GEÇTİ** — 2 kişi (265 ve 240 sa; eşik 135) |
+| 9.4 | Temelde açık yok, D+2'de var | **GEÇTİ** — temel 0, sıkışık 9 kişi-saat |
+| 9.5 | İki koşumda tanım+girdi birebir aynı | **GEÇTİ** — ayrı bir kontrol veritabanında iki koşum, aynı SHA-256 (`7be63a8f…`), `vardis_demo` ile de aynı |
+| 9.6 | Hiçbir metin alanında kurum/gerçek kişi adı yok | **GEÇTİ** — 0 isabet / 16 metin sütunu |
+
+Doğrulayıcı yayınlanmış 13 sürümün hepsinde sıfır ihlal verdi. Ölçüm
+`DogrulamaServisi` üzerinden YAPILAMAZ (o servis yayınlanmış sürümü
+düzenlenebilir bulmadığı için reddeder, FR-6.9); kural motoru doğrudan
+çağrılıyor.
+
+#### Bölüm 8 — ekran başına hedeflenen görüntü
+
+Gece yarısını aşan blok 923, kilitli atama 2 (D0 ve D+1 sürüm 2), elle
+taşınmış atama 3. Tercih durumları: 11 beklemede, 7 onaylandı, 7 reddedildi.
+Müsaitlik tipleri dördü de dolu (30/22/19/11), dilim 72 tam gün + 10 yarım
+gün. Bölüm 8'deki on satırın hepsi karşılanıyor.

@@ -23,9 +23,9 @@ from tests.conftest import isi_calistir_ve_bekle, pg_yoksa_atla
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.demo_veri_uret import (  # noqa: E402
-    _DAR_HAFTA_INDISI,
-    _HAFTA_SAYISI,
-    _RAHAT_HAFTA_INDISI,
+    _RAHAT_DONEM_INDISI,
+    _SIKISIK_DONEM_INDISI,
+    _TOPLAM_DONEM_SAYISI,
     _her_seyi_temizle,
     uret,
 )
@@ -48,17 +48,18 @@ def test_s1_agirligi_diger_hedeflerin_agirlikli_toplamindan_buyuk() -> None:
         uret(sifirla=False, coz=False)
         oturum.commit()
         donemler = oturum.execute(select(Donem).order_by(Donem.donem_id)).scalars().all()
-        assert len(donemler) == _HAFTA_SAYISI, (
-            f"demo_veri_uret {_HAFTA_SAYISI} haftalik donem uretmeli: bugunu iceren "
-            "hafta ve onceki dordu. Gosterim verisi bir GECMIS tasimali - adalet "
-            "sayaclari ve devir bakiyesi ancak birikim uzerinde anlam kazanir."
+        assert len(donemler) == _TOPLAM_DONEM_SAYISI, (
+            f"demo_veri_uret {_TOPLAM_DONEM_SAYISI} haftalik donem uretmeli "
+            "(Demo Senaryosu 6): on iki gecmis, bugunu iceren hafta ve iki "
+            "gelecek hafta. Gecmis, adalet ufkunun doksan gununu dolduracak "
+            "kadar uzun olmali - sayaclar ancak birikim uzerinde anlam kazanir."
         )
         # Kalibrasyon iki donem olcer: agirlik dengesi "kadro yeterken acik
         # birakilmamali" (RAHAT hafta) ve "kadro yetmezken acik gorunmeli"
         # (DAR hafta) uzerinden tanimli. Ikisinin takvimdeki yeri ureteste
         # sabittir; indisler oradan okunur, burada yeniden sayilmaz.
-        rahat_id = donemler[_RAHAT_HAFTA_INDISI].donem_id
-        sikisik_id = donemler[_DAR_HAFTA_INDISI].donem_id
+        rahat_id = donemler[_RAHAT_DONEM_INDISI].donem_id
+        sikisik_id = donemler[_SIKISIK_DONEM_INDISI].donem_id
 
         w1 = oturum.execute(select(Kural.agirlik).where(Kural.kimlik == "S1")).scalar_one()
 

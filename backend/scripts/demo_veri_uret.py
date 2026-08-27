@@ -126,6 +126,18 @@ _SABIT_TOHUM = 20260827
 # panelinin "Vardiyalarim"i bugunu iceren bir donem bulamiyordu).
 _GECMIS_HAFTA_SAYISI = 12  # D-12 ... D-1 (Demo Senaryosu 6)
 _GELECEK_HAFTA_SAYISI = 2  # D+1 (iki surum) ve D+2 (sikisik)
+_TOPLAM_DONEM_SAYISI = _GECMIS_HAFTA_SAYISI + 1 + _GELECEK_HAFTA_SAYISI
+
+# Agirlik kalibrasyonu (tests/test_agirlik_kalibrasyonu.py) iki donem olcer
+# ve ikisinin takvimdeki yeri BURADA sabittir; test onlari yeniden saymaz.
+# Kalibrasyonun sorusu iki yonlu: "kadro yeterken acik birakilmamali"
+# (rahat donem) ve "kadro yetmezken acik gorunmeli" (sikisik donem).
+#
+# Rahat donem olarak dalga TASIMAYAN olagan bir gecmis hafta secilir; en
+# eski hafta secilmez, cunku o bir sonraki donemin isitma penceresidir
+# (TD-5) ve kendi baslangic kosulu bos bir gecmisten gelir.
+_RAHAT_DONEM_INDISI = 1
+_SIKISIK_DONEM_INDISI = _TOPLAM_DONEM_SAYISI - 1
 
 # Cozum zaman limiti (saniye). Gecmis donemler OLCUM DEGIL GOSTERIM
 # verisidir (Demo Senaryosu 6); kabul olcumu ayri veritabaninda alinmaya
@@ -1038,7 +1050,8 @@ def uret(*, sifirla: bool, coz: bool = True) -> None:
         f"({len(_KISMI_ZAMANLI_SICILLER)} kismi zamanli, 1 ayrilmis, 1 yeni baslayan), "
         f"{len(_BINA_ADLARI)} bina, {len(NOKTA_TANIMLARI)} gorev noktasi, "
         f"{len(KURAL_TANIMLARI)} kural, {tercih_sayisi} tercih, "
-        f"{_GECMIS_HAFTA_SAYISI} gecmis + 1 guncel + {_GELECEK_HAFTA_SAYISI} gelecek donem."
+        f"{_GECMIS_HAFTA_SAYISI} gecmis + 1 guncel + {_GELECEK_HAFTA_SAYISI} gelecek "
+        f"donem (toplam {_TOPLAM_DONEM_SAYISI})."
     )
     print(f"Ornek belge eklenen izin kaydi: {belgeli_izin}")
     if parola:
