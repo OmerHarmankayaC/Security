@@ -30,6 +30,22 @@
         "backend"
       ],
       "port": 8010
+    },
+    {
+      "name": "backend-demo",
+      "runtimeExecutable": "backend/.venv/bin/uvicorn",
+      "runtimeArgs": [
+        "app.main:app",
+        "--reload",
+        "--port",
+        "8010",
+        "--app-dir",
+        "backend"
+      ],
+      "port": 8010,
+      "env": {
+        "DEMO_KIPI": "true"
+      }
     }
   ]
 }
