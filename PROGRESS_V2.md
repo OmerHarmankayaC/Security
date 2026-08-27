@@ -2902,3 +2902,35 @@ Gece yarısını aşan blok 923, kilitli atama 2 (D0 ve D+1 sürüm 2), elle
 taşınmış atama 3. Tercih durumları: 11 beklemede, 7 onaylandı, 7 reddedildi.
 Müsaitlik tipleri dördü de dolu (30/22/19/11), dilim 72 tam gün + 10 yarım
 gün. Bölüm 8'deki on satırın hepsi karşılanıyor.
+
+### Tur kapanış sınaması
+
+Hafif arka uç takımı **335 geçti, 1 atlandı** — normal ve ters dosya
+sırasında aynı sonuç. Ağır OR-Tools takımı ayrıca koştu: **137 geçti**
+(9 dk 59 sn). Ön yüz 379 test / 37 dosya. `ruff check` ve `ruff format
+--check` temiz (146 dosya), `tsc -b` temiz, `oxlint` 4 önceden var olan
+uyarı (fast-refresh).
+
+Atlanan tek test `test_ardisik_donem_adaleti`: test veritabanında üç ardışık
+yayınlanmış dönem yok ve test bunu açıkça atlıyor — demo verisi ayrı
+veritabanında üretildiği için beklenen durum.
+
+**Uç nokta denetimi bir eksik buldu ve bu bir doküman borcu:**
+`GET /api/ortam` uygulamada var, Ek B'de yok (uygulama 75, Ek B 74).
+
+### Ağırlık kalibrasyonu testi neden değişti
+
+Üreteç beş haftalık takvimden on beş döneme geçince testin okuduğu iki
+dönem indisi (`_DAR_HAFTA_INDISI`, `_RAHAT_HAFTA_INDISI`, `_HAFTA_SAYISI`)
+karşılıksız kaldı. Yerlerini `_RAHAT_DONEM_INDISI`, `_SIKISIK_DONEM_INDISI`
+ve `_TOPLAM_DONEM_SAYISI` aldı; indisler hâlâ üreteçte duruyor, test onları
+yeniden saymıyor. **İddia değişmedi:** w1, her iki dönemde de S1-hariç
+ağırlıklı toplamdan büyük olmalı.
+
+### Yetkilendirme koruması bir kaçak yakaladı
+
+`test_yetkilendirme` bütün yolları sayıp oturumsuz cevap veren her uç
+noktada düşüyor ve `/api/ortam`'ı yakaladı. Uç nokta muafiyet listesine
+**gerekçesiyle** eklendi: şerit giriş ekranında çizilmek zorunda ve yanıt
+tek bir yapılandırma bayrağından ibaret. Açık uç nokta testi artık yanıtın
+tam olarak tek alan taşıdığını da doğruluyor.
