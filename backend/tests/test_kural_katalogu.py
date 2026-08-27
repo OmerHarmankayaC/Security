@@ -155,16 +155,16 @@ def test_katalogda_olmayan_kimlik_reddedilir() -> None:
 
 
 def test_demo_ureteci_s1_i_aktif_uretir() -> None:
-    """Canlida S1 pasif goruldu. Uretec suphelilerden biriydi; bu test onu
-    kalici olarak eler.
+    """Canlida S1 pasif goruldu. Katalog tohumu suphelilerden biriydi; bu
+    test onu kalici olarak eler.
 
     Ayni listede S6b'nin BILINCLI olarak pasif oldugu da sabitlenir (bina
     ayrimi kalktigindan modelde daima 0 katki verir, SRS S6b) — ikisi ayni
     listede yan yana durdugu icin bir gun biri digerinin yerine yazilabilir.
     """
-    from scripts.demo_veri_uret import _KURAL_TANIMLARI
+    from app.services.kural_katalogu_tohumu import KURAL_TANIMLARI
 
-    aktiflik = {t["kimlik"]: t.get("aktif", True) for t in _KURAL_TANIMLARI}
+    aktiflik = {t["kimlik"]: t.get("aktif", True) for t in KURAL_TANIMLARI}
     assert aktiflik["S1"] is True
     assert aktiflik["S6b"] is False
     pasifler = {kimlik for kimlik, aktif in aktiflik.items() if aktif is False}
@@ -172,12 +172,12 @@ def test_demo_ureteci_s1_i_aktif_uretir() -> None:
 
 
 def test_demo_ureteci_katalogun_tamamini_uretir() -> None:
-    """Eksik uretilen bir kural, veritabaninda satiri olmadigi icin
+    """Tohumda eksik kalan bir kural, veritabaninda satiri olmadigi icin
     `aktif_kurallari_getir` tarafindan hic dondurulmez — pasif olmaktan
     ayirt edilemeyen bir sonuc verir."""
-    from scripts.demo_veri_uret import _KURAL_TANIMLARI
+    from app.services.kural_katalogu_tohumu import KURAL_TANIMLARI
 
-    assert {t["kimlik"] for t in _KURAL_TANIMLARI} == set(kayit_defteri.tum_kimlikler())
+    assert {t["kimlik"] for t in KURAL_TANIMLARI} == set(kayit_defteri.tum_kimlikler())
 
 
 def test_agirlik_guncellemesi_aktiflik_bayragina_dokunmaz() -> None:

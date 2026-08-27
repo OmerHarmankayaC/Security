@@ -102,23 +102,27 @@ class PersonelGrubuTanimi:
     sicil_on_eki: str
 
 
-# KADRO TALEBE GORE BOYUTLANDIRILDI (SRS 3.3.6, Tur 4). Onceki 44 kisilik
-# kadroda kisi basina haftalik yuk 26 saate dusuyor, kimse fazla calisma
-# esigine (45) yaklasmiyor ve H10 HICBIR ZAMAN tetiklenmiyordu - kurallarin
-# isledigini gosteremeyen bir gosterim verisi, kurallarin yazilmamis
-# olmasiyla ayni kapiya cikar.
+# KADRO KIRK KISI (Demo Senaryosu 4.3; SRS 3.3.6, NFR-1 referans kadrosu).
 #
-# Yeni buyukluk 30: SRS 3.3.6'nin izin payli asgarisi 29, teorik asgarisi
-# 26. Kisi basina haftalik yuk 1.152 / 30 = 38,4 saat - esige yakin ama
-# ALTINDA; izin veya uzun blok girdiginde esik asilir ve kota tuketimi
-# gorunur hale gelir.
+# Onceki buyukluk otuzdu ve kabul olcumunun referans ornegi (kirk kisi,
+# scripts/kabul_olcumu.py `_REFERANS_GRUPLARI`) ile ayrisiyordu: ayni olgu -
+# "referans kadro kac kisidir" - iki yerde iki farkli sayiyla yaziliydi.
+# Demo Senaryosu 4.3 ikisini esitliyor, boylece demo ile olcum kaydi ayni
+# buyuklugu anlatir.
 #
-# MURACAAT HAVUZU KALKTI, KADRO KUCULMEDI: o alti kisi duz guvenlik
-# gorevlisi olarak havuza katildi (SRS 3.3.3). Sef havuzu yedi kisi olarak
-# korunur - Vardiya Sefligi noktasi kesintisiz doldurulan tek noktadir ve
-# haftada 168 kisi-saat ister; havuzun kirilganligi K4'un celiskili
-# senaryosunun dayandigi mekanizmadir (SAATLIK_MODEL_KARARLARI bolum 3).
+# Sef havuzu dokuz kisi: Vardiya Sefligi noktasi kesintisiz doldurulan tek
+# noktadir ve haftada 168 kisi-saat ister. Havuzun kirilganligi, sikisik
+# senaryonun (Demo Senaryosu 6.3) dayandigi mekanizmadir - yedi sef izne
+# ciktiginda kalan ikisi gunluk tavan (H9, 11 saat) ve haftalik izin gunu
+# (H6) altinda en cok 2 x 6 x 11 = 132 kisi-saat verebilir. Eksik olan SAAT
+# degil KISIDIR ve hicbir blok uzunlugu bunu kapatamaz (SRS TD-13).
+#
+# SICIL NUMARASI HAVUZ BASINA DEGIL SURELIDIR (D-1001 ... D-1040): havuz on
+# ekiyle numaralandirmak, bir havuzun buyuklugu degistiginde digerinin
+# sicillerini kaydirmadan buyutmeyi kolaylastiriyordu ama sicilin kendisi
+# gorev bilgisi tasiyordu. Numaralandirmayi ureten kod
+# scripts/demo_veri_uret.py icindedir.
 PERSONEL_GRUPLARI: tuple[PersonelGrubuTanimi, ...] = (
-    PersonelGrubuTanimi((VARDIYA_SEFI, GUVENLIK_GOREVI), 7, "VS"),
-    PersonelGrubuTanimi((GUVENLIK_GOREVI,), 23, "GG"),
+    PersonelGrubuTanimi((VARDIYA_SEFI, GUVENLIK_GOREVI), 9, "D"),
+    PersonelGrubuTanimi((GUVENLIK_GOREVI,), 31, "D"),
 )
