@@ -19,7 +19,6 @@ Kullanim:
 
 import hashlib
 import sys
-import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -41,6 +40,7 @@ from app.models.sonuc import (  # noqa: E402
 from app.services.analiz_servisi import AnalizServisi  # noqa: E402
 from app.services.atama_donusumu import atama_kayitlarina_cevir  # noqa: E402
 from app.services.baglam_kurucu import baglam_olustur  # noqa: E402
+from app.services.hesap_kurulumu import asciye_indir  # noqa: E402
 
 _AYRAC = "─" * 78
 
@@ -70,13 +70,12 @@ class Olcut:
     baslik: str
     beklenen: str
     olculen: str
-    gecti: bool
+    # UC HAL, iki degil. `None` = "bu kosumda OLCULEMEDI". Her zaman True
+    # donen bir olcut hicbir seyi ayirt etmez ve raporu okuyana olculmemis
+    # bir seyi olculmus gosterir - olcut 5 (determinizm) tam olarak boyle
+    # bir olcut, cunku iki kosum karsilastirilmadan sonuc verilemez.
+    gecti: bool | None
     ayrinti: list[str] = field(default_factory=list)
-
-
-def _asciye_indir(metin: str) -> str:
-    ayrisik = unicodedata.normalize("NFKD", metin.replace("ı", "i").replace("İ", "i"))
-    return "".join(k for k in ayrisik if not unicodedata.combining(k)).lower()
 
 
 # --- Olcut 1: yayinlanmis donemlerde sifir zorunlu ihlal --------------------
@@ -312,9 +311,8 @@ def _olcut_5(oturum: Session) -> Olcut:
         beklenen="iki koşumun özeti aynı",
         olculen=f"{satir} satır, SHA-256 {ozet[:16]}…",
         # TEK KOSUMDA OLCULEMEZ: bu betik ozeti basar, karsilastirmayi
-        # cagiran yapar. "Gecti" demek, olculmemis bir seyi olculmus
-        # gostermek olurdu.
-        gecti=True,
+        # cagiran yapar.
+        gecti=None,
         ayrinti=[
             f"tam özet: {ozet}",
             "iki koşumun özetini karşılaştırın; atamalar özete girmez (Demo Senaryosu 2.4)",
@@ -354,7 +352,7 @@ def _olcut_6(oturum: Session) -> Olcut:
             text(f'select distinct "{sutun}" from "{tablo}" where "{sutun}" is not null')
         ).scalars()
         for deger in degerler:
-            duz = _asciye_indir(str(deger))
+            duz = asciye_indir(str(deger))
             for parca in _YASAKLI_PARCALAR:
                 if parca in duz:
                     bulgular.append(f"{tablo}.{sutun}: {deger!r} (eşleşen: {parca})")
@@ -386,17 +384,25 @@ def main() -> int:
     print("DEMO SENARYOSU BÖLÜM 9 — KABUL ÖLÇÜTLERİ")
     print(_AYRAC)
     for olcut in olcutler:
-        isaret = "GEÇTİ" if olcut.gecti else "KALDI"
+        isaret = {True: "GEÇTİ", False: "KALDI", None: "ÖLÇÜLEMEDİ"}[olcut.gecti]
         print(f"\n[{isaret}] {olcut.kimlik} — {olcut.baslik}")
         print(f"        beklenen: {olcut.beklenen}")
         print(f"        ölçülen : {olcut.olculen}")
         for satir in olcut.ayrinti:
             print(f"        · {satir}")
-    kalan = [o.kimlik for o in olcutler if not o.gecti]
+    kalan = [o.kimlik for o in olcutler if o.gecti is False]
+    olculemeyen = [o.kimlik for o in olcutler if o.gecti is None]
     print(f"\n{_AYRAC}")
-    print("Tümü geçti." if not kalan else f"KARŞILANMAYAN ÖLÇÜT: {', '.join(kalan)}")
+    if kalan:
+        print(f"KARŞILANMAYAN ÖLÇÜT: {', '.join(kalan)}")
+    else:
+        print("Ölçülen ölçütlerin tamamı geçti.")
+    if olculemeyen:
+        # Cikis kodunu DUSURMEZ ama sessiz de kalmaz: olculemeyen bir olcut
+        # ne gecmis ne kalmistir, ve raporu okuyanin bunu bilmesi gerekir.
+        print(f"TEK KOŞUMDA ÖLÇÜLEMEYEN: {', '.join(olculemeyen)}")
     print(_AYRAC)
-    return 0 if not kalan else 1
+    return 1 if kalan else 0
 
 
 if __name__ == "__main__":

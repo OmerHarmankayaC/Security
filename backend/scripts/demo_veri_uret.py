@@ -99,7 +99,6 @@ from app.services.ornek_senaryo import (
     VARDIYA_SEFI,
     talep_satirlarini_olustur,
 )
-from app.services.surum_servisi import SurumServisi
 from app.services.tatil_takvimi import resmi_tatiller, yil_araligi
 from app.veri_temizligi import (
     HesapKapsami,
@@ -849,6 +848,51 @@ def _elle_degistir(oturum: Session, surum_id: int, rng: random.Random) -> int:
     return degisen
 
 
+def _ikinci_surumu_kur(oturum: Session, kaynak_surum_id: int, rng: random.Random) -> int | None:
+    """Cozulmus bir surumden, atamalari kopyalanmis IKINCI bir taslak turetir.
+
+    `SurumServisi.taslak_olarak_kopyala` BURADA KULLANILAMAZ: o yordam
+    yalnizca YAYINLANMIS ya da ARSIV bir surumu kopyalar (SDD 6.3.5) ve
+    D+1'in birinci surumu `cozuldu` durumundadir - senaryo D+1'i taslak
+    olarak istiyor, yayinlanmis olarak degil. Bu yuzden zincir
+    `taslak_turet` ile kuruluyor (surum numarasi ve `onceki_surum_id`
+    baglantisi oradan gelir) ve atamalar burada kopyalaniyor.
+
+    Kopyalanan atamalarin kaynagi COZUCU kalir: kayit hâlâ cozucunun
+    urettigi bloktur. MANUEL olan, `_elle_degistir`in dokundugu bloklardir
+    ve onlari o yordam isaretler - hepsini manuel saymak, surum
+    karsilastirmasinda elle degisen uc blogu geri kalan iki yuzun icinde
+    kaybederdi.
+    """
+    depo = CizelgeSurumuDeposu(oturum)
+    yeni = depo.taslak_turet(kaynak_surum_id)
+    if yeni is None:
+        return None
+    oturum.flush()
+    kaynak_atamalar = AtamaDeposu(oturum).surume_gore_getir(kaynak_surum_id)
+    oturum.add_all(
+        Atama(
+            surum_id=yeni.surum_id,
+            personel_id=a.personel_id,
+            baslangic_zamani=a.baslangic_zamani,
+            bitis_zamani=a.bitis_zamani,
+            nokta_id=a.nokta_id,
+            kilitli=False,
+            kaynak=a.kaynak,
+        )
+        for a in kaynak_atamalar
+    )
+    oturum.flush()
+    degisen = _elle_degistir(oturum, yeni.surum_id, rng)
+    kilitli = _bir_atamayi_kilitle(oturum, yeni.surum_id)
+    print(
+        f"  D+1 (2. sürüm): {len(kaynak_atamalar)} atama kopyalandı, "
+        f"{degisen} tanesi elle taşındı, {'1' if kilitli else '0'} atama kilitli",
+        flush=True,
+    )
+    return yeni.surum_id
+
+
 def _cizelgeleri_uret(oturum: Session, donemler: DemoDonemleri, rng: random.Random) -> None:
     """Donemleri cozer ve sonuclari Demo Senaryosu 6'daki durumlara dagitir.
 
@@ -856,9 +900,10 @@ def _cizelgeleri_uret(oturum: Session, donemler: DemoDonemleri, rng: random.Rand
     kumulatif ufuk ve calisan panelinin gecmisi ancak yayinlanmis bir
     gecmisle dolar.
 
-    D+1 IKI SURUM tasir. Birincisi cozucu ciktisidir; ikincisi onun taslak
-    kopyasi uzerinde birkac elle degisiklik tasir. Surumler ve Karsilastir
-    ekranlari bu ikisiyle dolar - okunabilir bir fark ancak boyle olusur.
+    D+1 IKI SURUM tasir. Birincisi cozucu ciktisidir; ikincisi onun
+    atamalari kopyalanmis taslak turevi uzerinde birkac elle degisiklik
+    tasir. Surumler ve Karsilastir ekranlari bu ikisiyle dolar -
+    okunabilir bir fark ancak boyle olusur.
 
     D+2 cozulur ama YAYINLANMAZ: acigi olan bir cizelge yayinlanmadan once
     incelenir, ve Surumler ekraninin "cozuldu" durumu da ancak boyle
@@ -884,15 +929,7 @@ def _cizelgeleri_uret(oturum: Session, donemler: DemoDonemleri, rng: random.Rand
         oturum, donemler.gelecek, zaman_limiti=limit, etiket="D+1 (1. sürüm)"
     )
     if gelecek_surum is not None:
-        kopya = SurumServisi(oturum).taslak_olarak_kopyala(gelecek_surum)
-        if kopya is not None:
-            degisen = _elle_degistir(oturum, kopya.surum_id, rng)
-            kilitli = _bir_atamayi_kilitle(oturum, kopya.surum_id)
-            print(
-                f"  D+1 (2. sürüm): {degisen} atama elle taşındı, "
-                f"{'1' if kilitli else '0'} atama kilitli",
-                flush=True,
-            )
+        _ikinci_surumu_kur(oturum, gelecek_surum, rng)
     oturum.commit()
 
     _donemi_coz(oturum, donemler.sikisik, zaman_limiti=limit, etiket="D+2 (sıkışık)")
