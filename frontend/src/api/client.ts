@@ -22,6 +22,7 @@ import type {
   OzelGun,
   Musaitlik,
   MusaitlikOlusturIstek,
+  Ortam,
   OnKontrolBulgu,
   Personel,
   Rol,
@@ -354,6 +355,11 @@ export const api = {
     gonder<Ben>('/api/giris', { kullanici_adi: kullaniciAdi, parola }),
   cikis: () => gonder<void>('/api/cikis', {}),
   ben: () => istek<Ben>('/api/ben'),
+
+  // --- Ortam beyanı (Demo Senaryosu 10) -----------------------------------
+  // Yetki istemez ve hiçbir veri taşımaz; yalnızca gösterim şeridinin
+  // çizilip çizilmeyeceğini söyler.
+  ortam: () => istek<Ortam>('/api/ortam'),
   parolaDegistir: (mevcutParola: string, yeniParola: string) =>
     gonder<Ben>('/api/parola-degistir', {
       mevcut_parola: mevcutParola,

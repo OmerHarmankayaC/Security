@@ -10,6 +10,7 @@ import App from './App'
 import { CalisanApp } from './CalisanApp'
 import { api, oturumDustugunde } from './api/client'
 import type { Ben } from './api/types'
+import { DemoSeridi } from './components/DemoSeridi'
 import { GirisEkrani } from './screens/GirisEkrani'
 import { ParolaDegistirmeEkrani } from './screens/ParolaDegistirmeEkrani'
 import { yuzeyBasligi, yuzeySec } from './lib/yetki'
@@ -54,10 +55,21 @@ export function Kok() {
   // görünüp kaybolan bir öğe, ekranı yanıp sönen bir yere çevirir.
   if (!sorgulandi) return null
 
-  if (ben === null) return <GirisEkrani girisYapildi={setBen} />
+  // Gösterim şeridi HER yüzeyin üstünde durur, giriş ekranı dahil (Demo
+  // Senaryosu 10): veriyi ilk gören kişi henüz giriş yapmamış olabilir.
+  // Tek bir yerde çizilir; her ekrana ayrı ayrı eklenseydi bir sonraki
+  // ekran onu taşımayı unuturdu.
+  const sarmala = (icerik: React.ReactNode) => (
+    <>
+      <DemoSeridi />
+      {icerik}
+    </>
+  )
+
+  if (ben === null) return sarmala(<GirisEkrani girisYapildi={setBen} />)
 
   if (yuzey === 'parola') {
-    return (
+    return sarmala(
       <ParolaDegistirmeEkrani
         ben={ben}
         degistirildi={(yeni) => {
@@ -67,7 +79,7 @@ export function Kok() {
         // Zorunlu kipte vazgeçme YOK: diğer uç noktalar sunucuda da kapalı
         // (FR-10.7), vazgeçilse gidilecek bir yer olmazdı.
         vazgec={ben.parola_degistirmeli ? undefined : () => setParolaKipi(false)}
-      />
+      />,
     )
   }
 
@@ -82,9 +94,11 @@ export function Kok() {
     }
   }
 
-  return yuzey === 'calisan' ? (
-    <CalisanApp ben={ben} cikis={cikis} parolaDegistir={() => setParolaKipi(true)} />
-  ) : (
-    <App ben={ben} cikis={cikis} parolaDegistir={() => setParolaKipi(true)} />
+  return sarmala(
+    yuzey === 'calisan' ? (
+      <CalisanApp ben={ben} cikis={cikis} parolaDegistir={() => setParolaKipi(true)} />
+    ) : (
+      <App ben={ben} cikis={cikis} parolaDegistir={() => setParolaKipi(true)} />
+    ),
   )
 }

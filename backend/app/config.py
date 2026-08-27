@@ -116,5 +116,27 @@ class Ayarlar(BaseSettings):
     # hic bulunmaz (dagitimda rsync ile dislanir).
     veri_temizligine_izin: bool = False
 
+    # --- Gosterim kipi (Demo Senaryosu 10) ----------------------------------
+    # Acikken arayuz, verinin gosterim verisi oldugunu ve her gece yeniden
+    # kuruldugunu soyleyen bir serit cizer.
+    #
+    # AYRI BIR AYAR, `veri_temizligine_izin`in TUREVI DEGIL. Ikisi bir ayara
+    # baglansaydi, gecelik sifirlamanin kilidi gecici olarak actigi birkac
+    # saniye boyunca serit de yanip sonerdi; dahasi kilidi elle acan bir
+    # gelistirme makinesi kendini gosterim ortami ilan ederdi. Serit bir
+    # BEYANDIR, bir yetkinin yan etkisi degil.
+    demo_kipi: bool = False
+
+    # Demo hesaplarinin parolasi (scripts/demo_veri_uret.py). Uygulama bunu
+    # HIC OKUMAZ; burada tanimli olmasinin nedeni `.env` dosyasinda
+    # durabilmesidir - pydantic-settings tanimadigi anahtari REDDEDER
+    # (extra='forbid'), dolayisiyla tanimlanmadan yazilan bir DEMO_PAROLA
+    # satiri butun arka ucu acilmaz hale getirirdi.
+    #
+    # Gosterim sunucusunda `.env` yerine ayri bir dosyada (0600) durur ve
+    # yalnizca gecelik sifirlama birimine verilir; API surecinin onu
+    # gormesi icin bir neden yok.
+    demo_parola: str | None = None
+
 
 ayarlar = Ayarlar()

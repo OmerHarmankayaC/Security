@@ -685,3 +685,12 @@ export interface Kullanici {
   kilitli_mi: boolean
 }
 
+
+/**
+ * `/api/ortam` — ortamın kendisi hakkında söylediği şey.
+ *
+ * Yetki istemez: şerit giriş ekranında da görünmelidir (Demo Senaryosu 10).
+ */
+export interface Ortam {
+  demo_kipi: boolean
+}

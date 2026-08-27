@@ -1,0 +1,57 @@
+# Gosterim verisinin gecelik yeniden uretimi (Demo Senaryosu 10).
+#
+# Kurulum:
+#   sudo cp deploy/vardis-demo-sifirlama.service /etc/systemd/system/
+#   sudo cp deploy/vardis-demo-sifirlama.timer   /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now vardis-demo-sifirlama.timer
+#
+# KILIT KALICI OLARAK ACIK BIRAKILMAZ. `VERI_TEMIZLIGINE_IZIN` bu birimin
+# ICINDE tanimlidir, /opt/vardiya/.env dosyasinda DEGIL; dosyaya yazilsaydi
+# API surecinin ve elle kosturulan her betigin de yikici islem izni olurdu.
+# Izin yalnizca bu birimin sureci boyunca, yalnizca bu betik icin acilir.
+#
+# DEMO_PAROLA da burada DEGIL, ayri bir dosyada durur: parolayi systemd
+# biriminin icine yazmak, onu `systemctl cat` calistirabilen herkese
+# gostermek olurdu. Dosya kok dizinde 0600 izinle tutulur ve surum
+# kontrolune girmez.
+
+[Unit]
+Description=VARDIS - gosterim verisinin yeniden uretimi
+Documentation=file:///opt/vardiya/docs/VARDIS_DEMO_SENARYOSU.md
+After=network-online.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=oneshot
+User=vardiya
+Group=vardiya
+WorkingDirectory=/opt/vardiya/backend
+EnvironmentFile=/opt/vardiya/.env
+EnvironmentFile=/opt/vardiya/.env.demo
+Environment=VERI_TEMIZLIGINE_IZIN=1
+
+# COZUM ISCISI DURDURULUR. Uretec cizelgeleri KENDI SURECINDE cozer; isci
+# ayakta kalirsa ayni kuyrugu iki surec yoklar ve temizlik, iscinin yarim
+# yazdigi bir surumun ustune duser.
+ExecStartPre=/usr/bin/systemctl stop vardiya-cozucu.service
+ExecStart=/opt/vardiya/backend/.venv/bin/python scripts/demo_veri_uret.py --reset
+# Uretimden sonra olcut raporu gunluge yazilir: sessizce bozulan bir
+# gosterim ortami, bozuk oldugu fark edilene kadar bozuk kalirdi.
+ExecStartPost=/opt/vardiya/backend/.venv/bin/python scripts/demo_kabul_olcutleri.py
+ExecStopPost=/usr/bin/systemctl start vardiya-cozucu.service
+
+# On bes donemin cozumu referans donanimda yaklasik bir saat surer; ust
+# sinir bunun belirgin ustunde tutulur, aksi halde systemd uretimi
+# ortasinda keser ve ortada YARIM bir takvim kalirdi.
+TimeoutStartSec=7200
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/vardiya/backend
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=vardis-demo-sifirlama

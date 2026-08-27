@@ -1,0 +1,21 @@
+# Gecelik tetikleyici (Demo Senaryosu 10).
+#
+# Saat 03.00 secildi: uretim yaklasik bir saat surer ve is saatlerinin
+# belirgin disinda kalir. `Persistent=true`, makine kapaliyken kacirilan
+# tetiklemenin acilista bir kez kosturulmasini saglar - aksi halde bir gun
+# kapali kalan sunucu, acildiginda bayat veriyle karsilar.
+#
+# RandomizedDelaySec YOK: tek makinede tek is var, yayma yapacak bir yuk
+# dagilimi yok ve sabit saat, gunlugu okuyani sasirtmaz.
+
+[Unit]
+Description=VARDIS - gosterim verisini her gece yeniden uret
+Documentation=file:///opt/vardiya/docs/VARDIS_DEMO_SENARYOSU.md
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+Unit=vardis-demo-sifirlama.service
+
+[Install]
+WantedBy=timers.target

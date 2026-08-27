@@ -57,7 +57,6 @@ Betik, VERI_TEMIZLIGINE_IZIN ortam degiskeni verilmeden calismaz
 """
 
 import argparse
-import os
 import random
 import sys
 from dataclasses import dataclass
@@ -68,6 +67,7 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.config import ayarlar
 from app.db import OturumYerel
 from app.models.girdi import (
     Musaitlik,
@@ -953,7 +953,7 @@ def uret(*, sifirla: bool, coz: bool = True) -> None:
     temizlik: TemizlikSonucu | None = None
     bugun = date.today()
     rng = random.Random(_SABIT_TOHUM)
-    parola = os.environ.get(_PAROLA_DEGISKENI)
+    parola = ayarlar.demo_parola
     try:
         if not sifirla and _mevcut_demo_verisi_var_mi(oturum):
             print(
