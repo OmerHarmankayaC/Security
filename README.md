@@ -153,15 +153,15 @@ See [`VERSIONS.md`](VERSIONS.md) for pinned versions. Summary:
 
 - Python 3.12+
 - Node.js 22.x
-- PostgreSQL 16 or newer (running locally; `.env` must point at this server)
+- PostgreSQL 18 (pinned; see the note below — 16 still works as a floor)
 
-`VERSIONS.md` pins PostgreSQL at 16 to keep the development and demo
-environments in step, but they are not currently in step: development runs
-17.x and the reference host runs 18.x. Nothing in the schema or the queries
-depends on a version above 16 — the migrations are the only thing that
-touches the server directly, and they use no version-specific feature — so 16
-is a genuine floor rather than a tested ceiling. The pin still needs to be
-brought in line with what the two environments actually run.
+`VERSIONS.md` pins PostgreSQL at 18, which is what the reference host runs.
+The development machine is still on 17.x, so the two environments the pin
+exists to keep in step are not yet in step — moving development to 18 is the
+remaining half of that. Nothing in the schema or the queries depends on a
+version above 16; the migrations are the only thing that touches the server
+directly and they use no version-specific feature, so 16 remains a working
+floor rather than a tested ceiling.
 
 ## Setup
 
