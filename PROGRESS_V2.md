@@ -3167,3 +3167,42 @@ hâlâ tam değil (geliştirme makinesi 17.x) ve bu açıkça yazıldı.
 3. **SDD 6.3.6** — giriş ekranındaki kimlik kutusu ve tek tıkla doldurma.
 4. **SRS/SDD** — şerit metninin üçüncü cümlesi ("herhangi bir kurumda
    kullanımda değildir") bir beyandır, üslup değil.
+
+### Sunucu yapılandırmasında bir kusur bulundu ve düzeltildi
+
+Talep "`.env.demo` içinde `DEMO_KIPI=true` olduğunu doğrula" diyordu; **o
+yerleştirme çalışmaz.** `vardiya-api.service` yalnızca `/opt/vardiya/.env`
+okuyor, `.env.demo`yu yalnız gecelik sıfırlama birimi okuyordu. Şerit
+(`DEMO_KIPI`) ve giriş ekranındaki kimlik kutusu (`DEMO_PAROLA`) API
+sürecinden besleniyor — ikisi de `.env.demo`da kalsaydı sunucuda **sessizce
+kapalı** kalırdı: hata yok, sadece iki ekran onlarsız açılır.
+
+Kusurun kaynağı bu turda eklenen uç nokta: `DEMO_PAROLA` tasarlanırken
+"API'nin onu görmesi için bir neden yok" diye yazılmıştı ve `/api/demo/kimlik`
+o gerekçeyi geçersiz kıldı. Parola korunacak bir sır değil (giriş ekranında
+zaten yazılı); gizli tutulmasının tek nedeni depoya ve sürüm geçmişine
+girmemesi.
+
+Düzeltme: ikisi de `/opt/vardiya/.env` içinde (0600), ikinci ortam dosyası
+kaldırıldı, aksini söyleyen üç yorum (`config.py`, `.env.example`, birim
+başlığı) düzeltildi.
+
+### Giriş ekranı doğrulaması (tarayıcıda)
+
+`DEMO_KIPI` **açık**: kutu giriş formunun altında, üç rol başlığı (İdare,
+Hesap yöneticisi, Çalışan) ve dört hesap; sistem yöneticisi listede yok.
+`demo_idare` satırına tıklamak kullanıcı adını ve 23 karakterlik parolayı
+forma doldurdu, Giriş düğmesi etkinleşti.
+
+`DEMO_KIPI` **kapalı**: `/api/demo/kimlik` **404**, gövdede hiçbir kullanıcı
+adı yok; sayfa metninde ne şerit ne kutu var.
+
+`.env` yalnız ekran doğrulaması için kökte geçici bir dosyayla ezildi
+(`backend/.env`'e **dokunulmadı**, SHA-256 tur boyunca sabit:
+`70ccc9b7343295b9…`); dosya silindi.
+
+### Sunucu adımı BENDE DEĞİL
+
+`.yasakli-metinler`i sunucuya koymak ve `.env`i düzenlemek dağıtım
+işlemleridir; bu oturumun sunucuya erişimi yok ve dağıtım kullanıcının
+kararıdır (CLAUDE.md: push ve remote asla). Komutlar rapora yazıldı.
