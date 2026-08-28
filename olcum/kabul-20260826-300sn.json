@@ -1,0 +1,100 @@
+{
+  "makine": [
+    "makine        : Linux-7.0.0-29-generic-x86_64-with-glibc2.43",
+    "islemci       : x86_64",
+    "cekirdek      : 4 (referans donanim: 4 - SDD 3.4.2)",
+    "arama iscisi  : 3 (referans deger, SDD 3.4.3)",
+    "python        : 3.14.4"
+  ],
+  "temizlik": {
+    "silinen_hesap": 0,
+    "silinen_oturum": 0
+  },
+  "kriterler": [
+    {
+      "kimlik": "K1",
+      "baslik": "40 personel x 28 gun referans ornek < 60 sn",
+      "esik": "< 60.0 sn (ilk uygun cozum, model kurma dahil)",
+      "olculen": "23.14 sn",
+      "gecti": true,
+      "ayrinti": [
+        "cozucu durumu           : uygun",
+        "model kurma             : 5.10 sn",
+        "ilk uygun cozum         : 18.04 sn (cozucu ici)",
+        "zaman limitine kadar    : 300.42 sn",
+        "toplam (kurma + cozum)  : 305.52 sn",
+        "arama iscisi sayisi     : 3 (SDD 3.4.3, referans)"
+      ]
+    },
+    {
+      "kimlik": "K2",
+      "baslik": "Zorunlu kisit ihlali sifir",
+      "esik": "0 ihlal (H1-H8)",
+      "olculen": "0 ihlal",
+      "gecti": true,
+      "ayrinti": [
+        "H1-H8'in tamami dogrulayicidan temiz gecti"
+      ]
+    },
+    {
+      "kimlik": "K3",
+      "baslik": "Personelin en fazla yuzde onu, adil paydan sekiz gece saatinden\nfazla sapar",
+      "esik": "asan kisi <= %10 (4 kisi), |sapma| > 8 sa, DONEM ICI (Charter 1.5, 1.6)",
+      "olculen": "9/40 kisi (%22.5)",
+      "gecti": false,
+      "ayrinti": [
+        "donem ici gece talebi   : 1600 kisi-saat",
+        "olcume giren personel   : 40 kisi (0 kisi olcum disi - gece talebi olan noktada calisamiyor)",
+        "esik (Charter 1.4)      : 8 gece saati / kisi",
+        "izin verilen asan       : 4 kisi (havuzun %10'i, Charter 1.6)",
+        "adil pay araligi        : 33.0 - 64.1 gece saati",
+        "gozlenen yuk araligi    : 33 - 68 gece saati",
+        "esigi asan kisi         : 9 (%22.5)",
+        "azami sapma (teshis)    : 24.00 gece saati",
+        "kumulatif gosterge     : ufukta yayinlanmis donem yok",
+        "ULASILABILIRLIK TESHISI: her havuz hedefe erisebiliyor.",
+        "  31 kisilik havuz: ulasabildigi gece talebi 1320 -> kisi basi tavan 42.58",
+        "   9 kisilik havuz: ulasabildigi gece talebi 1600 -> kisi basi tavan 177.78"
+      ]
+    },
+    {
+      "kimlik": "K4",
+      "baslik": "Celiskili ornekte gun/aralik/eksik sayisi gosterilir",
+      "esik": "en az 1 acik, her birinde gun+aralik+nokta+sayi dolu",
+      "olculen": "88 acik aralik (255 saat), toplam 383 kisi-saat eksik",
+      "gecti": true,
+      "ayrinti": [
+        "2026-06-01 / 22.00–23.00 / Güvenlik -> 1 kisi eksik",
+        "2026-06-01 / 22.00–03.00 / Vardiya Şefliği -> 1 kisi eksik",
+        "2026-06-01 / 23.00–24.00 / Güvenlik -> 3 kisi eksik",
+        "2026-06-02 / 14.00–15.00 / Vardiya Şefliği -> 1 kisi eksik",
+        "2026-06-02 / 23.00–15.00 / Vardiya Şefliği -> 1 kisi eksik"
+      ]
+    },
+    {
+      "kimlik": "K5",
+      "baslik": "Manuel duzenleme dogrulamasi < 1 sn",
+      "esik": "< 1.000 sn (en kotu olcum)",
+      "olculen": "0.229 sn",
+      "gecti": true,
+      "ayrinti": [
+        "olcum sayisi   : 5",
+        "en iyi / ortanca / en kotu : 0.190 / 0.208 / 0.229 sn",
+        "donem uzunlugu : 28 gun"
+      ]
+    },
+    {
+      "kimlik": "K6",
+      "baslik": "Yeniden cozumde degisen atama sayisi raporlanir",
+      "esik": "karsilastirma uretilir ve uc ture ayrilir",
+      "olculen": "998 degisiklik",
+      "gecti": true,
+      "ayrinti": [
+        "eklenen    : 213",
+        "kaldirilan : 209",
+        "degisen    : 576",
+        "karsilastirilan surumler: 1 -> 2"
+      ]
+    }
+  ]
+}
