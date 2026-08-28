@@ -3001,3 +3001,20 @@ Kapatılması gereken beş şey var ve hepsi kullanıcının işi: sunucu IP'si
 (9 commit), alan adı (15 commit), SSH anahtar yolu ve `root@` erişimi
 (9 commit, tek dosya), kurum adı (19 commit, eski doküman dosya adları
 dahil), gerçek kişi adı (48 commit + 248 commit'in yazar üstverisi).
+
+### Kapsam notları
+
+README'ye başlığın hemen altına Türkçe kapsam notu ve depo public olacağı
+için aynısının İngilizcesi; dört kanonik dokümanın her birine revizyon
+tablosunun hemen üstüne kısa hâli eklendi (kullanıcının verdiği metinler,
+birebir).
+
+**Bu, kurum adını README'ye geri koyuyor** — ama muafiyet beyanı bağlamında
+ve kasıtlı: bir okur, adı hiç görmediği bir depoda kadro sayılarını
+işletmeye ait bir kayıt sanabilir. Notun işi tam olarak bunu kapatmak.
+
+**Sürüm numaraları BUMP EDİLMEDİ.** Dört dokümanın içeriği değişti ama
+revizyon tablosuna satır eklenmedi; bu chat tarafının işi ve turun "docs'a
+dokunma" kuralının açık bir istisnası olarak kullanıcı tarafından
+istendi. Sürüm doğrulaması yapan bir sonraki tur promptu bu dosyaları
+1.6 / 1.27 / 1.36 / 1.22 olarak görmeye devam eder.
