@@ -26,12 +26,11 @@ data it ships with is generated.
 For scope, architecture, and the rule catalogue, see the four canonical
 documents under [`docs/`](docs/) (Charter, SRS, Backlog, SDD).
 
-The development plan lives in two files: the active plan
-[`docs/turlar/UYGULAMA_PLANI_V2.md`](docs/turlar/UYGULAMA_PLANI_V2.md) (phase
-two, run in tours), and the closed daily plan for phase one,
-[`docs/turlar/UYGULAMA_PLANI.md`](docs/turlar/UYGULAMA_PLANI.md). Progress
-tracking is likewise split: the active log is
-[`PROGRESS_V2.md`](PROGRESS_V2.md), the archive is [`PROGRESS.md`](PROGRESS.md).
+The development plan lives in
+[`docs/turlar/UYGULAMA_PLANI_V2.md`](docs/turlar/UYGULAMA_PLANI_V2.md), and
+progress is tracked in [`PROGRESS_V2.md`](PROGRESS_V2.md). The phase-one plan
+and log were removed from the repository during a documentation cleanup;
+they remain in the git history.
 
 ## Screenshots
 
@@ -52,35 +51,41 @@ status, fairness distributions, and the penalty breakdown:
 ## Status
 
 Six acceptance criteria are defined in the Project Charter (section 5).
-**Five of six pass.**
+**Five of six pass. K3 does not.**
 
-| Criterion | Threshold | Measured (demo server) | Result |
+| Criterion | Threshold | Measured | Result |
 |---|---|---|---|
-| K1 — time to a usable schedule | < 60 s | 23.88 s | ✅ |
+| K1 — time to a usable schedule | < 60 s | 23.14 s | ✅ |
 | K2 — hard constraint violations | 0 | 0 | ✅ |
-| K3 — night fairness | at most 10% of staff deviate > 8 night hours | 33 of 40 (82.5%) | ❌ |
-| K4 — infeasible instance is explained | ≥ 1 gap, fully described | 151 intervals | ✅ |
-| K5 — manual edit validation | < 1 s | 0.251 s | ✅ |
-| K6 — re-solve difference reported | report produced | 896 changes | ✅ |
+| K3 — night fairness | at most 10% of staff (4 of 40) deviate > 8 night hours | 9 of 40 (22.5%) | ❌ |
+| K4 — infeasible instance is explained | ≥ 1 gap, fully described | 88 intervals, 383 person-hours short | ✅ |
+| K5 — manual edit validation | < 1 s | 0.229 s (worst of five) | ✅ |
+| K6 — re-solve difference reported | report produced, split by type | 998 changes (213 added, 209 removed, 576 altered) | ✅ |
 
-**K3 does not pass, and the reason is search time rather than staffing.** The
-reachability diagnostic confirms every pool can reach its target: the
-obstacle is that the search does not get there within the time limit. On the
-reference instance, moving from 60 to 300 seconds took the number of people
-outside their fair share from 10 of 40 down to 1 of 40, while re-tuning the
-soft-constraint weights only moved the maximum deviation from 25.0 to 22.0.
+Every row above comes from **one measurement session**: 26 August 2026, on
+the reference hardware (4 cores, 3 search workers), at commit `f5c75cd`, with
+a **300-second solver time limit** and K3 read under its **current
+definition** — a distribution ("at most 10% of staff deviate by more than 8
+night hours"), not the earlier "no single person deviates more than 8 hours".
+The reference instance is 40 staff over 28 days. Raw output:
+`olcum/kabul-20260826-300sn.json`.
 
-That distinction matters and is easy to misread: **most of the improvement in
-night fairness comes from the longer search, not from weight calibration.**
-Presenting it as a calibration result would be misleading.
+**K3 still does not pass under the new definition and the longer limit.** It
+is closer than it was — the same instance at 60 seconds put 24 of 40 people
+outside their fair share (60%), and 300 seconds brings that to 9 of 40
+(22.5%) — but the threshold is 4, and 9 is not 4. The maximum deviation, kept
+as a diagnostic rather than a criterion, fell from 62.1 to 24.0 night hours
+over the same change.
 
-Two changes followed from this and are not yet reflected in the numbers
-above: the criterion was redefined as a distribution (previously "no single
-person deviates more than 8 hours", which turned on one person and was
-extremely sensitive to where the search happened to stop), and the solver
-time limit was raised from 60 to 300 seconds. **The table still shows the
-measurement taken under the previous definition and the previous limit; it
-will be re-measured on the demo server.**
+The reachability diagnostic confirms the target is attainable: all 40 people
+can work at a duty point with night demand, and the fair-share band is
+33.0–64.1 night hours against an observed spread of 33–68. So the obstacle is
+search time, not staffing and not an unreachable target. **Most of the
+improvement in night fairness comes from the longer search rather than from
+weight calibration** — re-tuning the soft-constraint weights moved the
+maximum deviation from 25.0 to 22.0, while the extra search time moved the
+count from 24 people to 9. Presenting the improvement as a calibration result
+would be misleading.
 
 ## Known limitations
 
@@ -103,22 +108,26 @@ will be re-measured on the demo server.**
 
 ## Measurement environment
 
-The numbers above were measured on the demo server, not the development
-machine — that is the binding environment.
+The numbers above were measured on the reference hardware, not the
+development machine — that is the binding environment, and it is the smaller
+of the two.
 
-| | Development machine | Demo server (reference) |
+| | Development machine | Reference hardware |
 |---|---|---|
 | OS | macOS 15.7.3, arm64 | Linux x86_64 (Ubuntu) |
 | Cores | 10 | 4 |
 | Memory | 16 GB | 7 GB |
 | Search workers | 3 | 3 (cores − 1) |
+| PostgreSQL | 17 | 18 |
 
-**The demo server is shared** — other services run on the same machine — so
-the measured times should be read as an upper bound rather than a best case.
-CP-SAT is also non-deterministic under parallel search: the same instance can
-yield different (equally good) solutions across runs. K3's deviation and K4's
-gap count vary between runs; the pass/fail decisions and the K1/K2/K5 values
-do not.
+**The reference host is shared** — other services run on the same machine —
+so the measured times should be read as an upper bound rather than a best
+case. CP-SAT is also non-deterministic under parallel search: the same
+instance can yield different (equally good) solutions across runs, so K3's
+count, its maximum deviation and K4's gap count all move between runs. The
+K1/K2/K5 values are stable, and so are the pass/fail decisions — K3 fails at
+9 against a threshold of 4, far enough from the boundary that run-to-run
+variation does not decide it.
 
 ## Requirements
 
@@ -126,7 +135,15 @@ See [`VERSIONS.md`](VERSIONS.md) for pinned versions. Summary:
 
 - Python 3.12+
 - Node.js 22.x
-- PostgreSQL 16 (running locally; `.env` must point at this server)
+- PostgreSQL 16 or newer (running locally; `.env` must point at this server)
+
+`VERSIONS.md` pins PostgreSQL at 16 to keep the development and demo
+environments in step, but they are not currently in step: development runs
+17.x and the reference host runs 18.x. Nothing in the schema or the queries
+depends on a version above 16 — the migrations are the only thing that
+touches the server directly, and they use no version-specific feature — so 16
+is a genuine floor rather than a tested ceiling. The pin still needs to be
+brought in line with what the two environments actually run.
 
 ## Setup
 
@@ -388,8 +405,9 @@ scripts/    Setup and utility scripts
 
 ## Progress Tracking
 
-Cross-session context is kept in [`PROGRESS_V2.md`](PROGRESS_V2.md); the
-phase-one log in [`PROGRESS.md`](PROGRESS.md) is closed and archival only.
+Cross-session context is kept in [`PROGRESS_V2.md`](PROGRESS_V2.md). The
+phase-one log is no longer in the tree; it is reachable through the git
+history.
 
 ## License
 
