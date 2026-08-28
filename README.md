@@ -170,39 +170,54 @@ session cookie carries the `Secure` attribute in production, and the browser
 won't send it back over plain `http://localhost`; login fails silently if this
 isn't disabled.
 
-Demo data for presentations (FR-1.14 — the security-personnel scenario from
-SRS 3.3). Periods are anchored **to the day they're generated**, and
-schedules are produced by the **real solver** — the data isn't pinned to
-fixed dates:
+Demo data for presentations and for the public demo environment. Its shape is
+specified in the demo scenario document, not improvised here: periods are
+anchored **to the day they are generated**, and every schedule is produced by
+the **real solver** — a hand-written schedule could carry rule violations and
+would make the analysis screen lie.
 
-| Period | Location | Status | What it shows |
-|---|---|---|---|
-| Last | previous week | published | Past schedule; the warm-start window for the next one (TD-5) |
-| This Week | **includes today** | archived + published | Balanced period. Powers "My Shifts" and "next shift" on the employee panel; two versions exist so the "changed days" marker also works (FR-9.4) |
-| Tight | next 4 weeks | solved | An unclosable coverage gap (Backlog B-14). The conflict is built through **availability**: five of the shift-supervisor pool are on leave and no one else can fill that slot (H8) — independent of block length |
-| Holiday | first national holiday week | unpublished | An official holiday drops staffing (FR-1.10, TD-3); the only period with an **open preference window** |
-| Overtime | one week after the holiday | solved | A third of the security pool is on leave; the remaining staff's weekly load crosses the threshold (45h) and **quota consumption becomes visible** (H10) |
-| Quota Limit | the week after that | solved | Staff with a high carry-over balance. Anyone at their quota keeps working up to the threshold and no further; the pre-check flags this as a warning |
+| Period | Status | What it shows |
+|---|---|---|
+| D-12 … D-1 | published | Twelve past weeks, enough to fill the 90-day fairness horizon. Two of them carry a leave wave, which is what pushes weekly load over the overtime threshold and makes quota consumption visible (H10) |
+| D0 (this week) | published | The current schedule. Powers "My Shifts" and "next shift" on the employee panel and the summary screen |
+| D+1 (next week) | two versions | Version 1 is solver output; version 2 is a draft derived from it with a few assignments moved by hand, so the versions and comparison screens have a readable difference |
+| D+2 | tight draft | A quarter of the staff on leave. The gap is built through **availability**, not headcount: seven of the nine shift supervisors are away and no one else may fill that post (H8), so no block length can close it |
 
-Also included: 30 staff members (3 fixed-shift, 1 deactivated), a two-year
-official holiday calendar, all four availability types, half-day slots
-(TD-4), and all three preference states.
+Also included: 40 staff (nine supervisors, thirty-one guards, three
+part-time), one person who started halfway through the fairness horizon and
+one who left last month, the official holidays that fall inside the demo
+window, all four availability types, half-day slots (TD-4), and preferences
+in all three states.
 
-**Staffing is sized to match demand** (SRS 3.3.6): at 30 people, the weekly
-load per person is 38.4 hours — close to but under the overtime threshold.
-At the previous staffing level of 44, load drops to 26 hours, no one
-approaches the threshold, and H10 never triggers; demo data that can't show
-the rules working amounts to the same thing as the rules not being written.
+**Staffing matches the acceptance measurement's reference sample** so the demo
+and the measurement record describe the same scale.
 
 ```bash
 cd backend && source .venv/bin/activate
-python scripts/demo_veri_uret.py           # first run
-python scripts/demo_veri_uret.py --reset   # wipe and regenerate existing demo data
-python scripts/demo_veri_uret.py --reset --cozme   # definitions only, skip solving
+python scripts/demo_veri_uret.py                    # first run
+VERI_TEMIZLIGINE_IZIN=1 DEMO_PAROLA=... \
+  python scripts/demo_veri_uret.py --reset          # wipe and regenerate
+VERI_TEMIZLIGINE_IZIN=1 python scripts/demo_veri_uret.py --reset --cozme
 ```
 
-Solving takes several tens of seconds; skip it with `--cozme` if you only
-need to look at the definition screens.
+`--reset` is behind the destructive-operation lock. `DEMO_PAROLA` is the
+password for the demo accounts; without it no accounts are created and the
+script says so. The password is never written to the repository.
+
+Solving fifteen periods takes roughly twenty minutes; skip it with `--cozme`
+if you only need the definition screens.
+
+The generator is deterministic apart from the assignments: two runs on the
+same day produce identical definition and input data. CP-SAT searches in
+parallel, so the schedules themselves may differ between runs. Verify with:
+
+```bash
+cd backend && .venv/bin/python scripts/demo_kabul_olcutleri.py
+```
+
+It measures the demo scenario's acceptance criteria and prints a hash of the
+definition and input data; two runs with the same hash satisfy the
+determinism criterion.
 
 ## Login
 
@@ -266,6 +281,80 @@ python -m pytest -q
 cd frontend
 npx tsc --noEmit -p tsconfig.app.json
 ```
+
+## Deployment
+
+The repository carries no deployment record: a record that names a host names
+its address, its login and its key path, and those do not belong in a public
+repository. What follows is the whole procedure in placeholders. Substitute
+your own values; nothing here is specific to any machine.
+
+Two systemd units are provided in `deploy/`. They run the API and the solver
+as **separate processes** — the application server never solves, it leaves
+the job queued and the worker picks it up (SDD 3.4.4). Both read their
+configuration from an environment file that is **not** in this repository.
+
+```bash
+# On the target host, as a user with sudo:
+sudo adduser --system --group <SERVICE_USER>
+sudo mkdir -p <INSTALL_DIR> && sudo chown <SERVICE_USER>: <INSTALL_DIR>
+
+# Copy the working tree to <INSTALL_DIR>, then:
+cd <INSTALL_DIR>/backend
+python3 -m venv .venv
+.venv/bin/pip install -e ".[dev]"
+
+# Configuration. Start from the example and fill in your own values;
+# this file holds the only secret the application needs.
+cp <INSTALL_DIR>/.env.example <INSTALL_DIR>/.env
+sudo chmod 600 <INSTALL_DIR>/.env
+sudo chown <SERVICE_USER>: <INSTALL_DIR>/.env
+
+.venv/bin/alembic upgrade head
+```
+
+The unit files hard-code the install directory, the service user and the
+port. If yours differ, edit `WorkingDirectory`, `ExecStart` and
+`EnvironmentFile` **together** — they are three views of one decision, and
+changing one alone leaves a service that starts and then cannot find itself.
+
+```bash
+sudo cp deploy/vardiya-api.service deploy/vardiya-cozucu.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now vardiya-api.service vardiya-cozucu.service
+systemctl is-active vardiya-api vardiya-cozucu
+```
+
+The API listens on the loopback interface only. Put a reverse proxy in front
+of it that terminates TLS, serves the built frontend as static files, and
+forwards `/api/*` to the API port. Serving both from the same origin is what
+lets the session cookie work without CORS.
+
+```bash
+cd frontend && npm ci && npm run build   # output: frontend/dist
+```
+
+`OTURUM_CEREZI_SECURE` must stay `true` wherever the site is served over
+HTTPS. The browser will not return a `Secure` cookie over plain HTTP, and the
+symptom is a login that fails silently rather than with an error.
+
+### Demo environment
+
+If the deployment is a public demo, set `DEMO_KIPI=true` so the UI states
+that the data is generated and rebuilt nightly, and install the reset timer:
+
+```bash
+sudo cp deploy/vardis-demo-sifirlama.service deploy/vardis-demo-sifirlama.timer \
+  /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now vardis-demo-sifirlama.timer
+```
+
+The demo password goes in a **separate** file (`.env.demo`, mode 600) that
+only the timer's unit reads; the API process has no reason to see it. The
+destructive-operation lock is opened inside that unit and nowhere else — put
+`VERI_TEMIZLIGINE_IZIN` in `.env` and every script on the host, and the API
+itself, would inherit the right to wipe the database.
 
 ## Project Structure
 

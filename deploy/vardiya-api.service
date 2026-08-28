@@ -8,11 +8,11 @@
 #
 # Yol ve kullanici adlari bu dosyada SABIT yazilidir; farkli bir dizine
 # kurulacaksa WorkingDirectory, ExecStart ve EnvironmentFile birlikte
-# guncellenmelidir (bkz. deploy/DAGITIM.md).
+# guncellenmelidir (bkz. README.md, Deployment).
 
 [Unit]
 Description=Vardiya Cizelgeleme - API sunucusu
-Documentation=file:///opt/vardiya/deploy/DAGITIM.md
+Documentation=file:///opt/vardiya/README.md
 # Veritabani ayni makinede; API acilirken hazir olsun.
 After=network-online.target postgresql.service
 Wants=network-online.target

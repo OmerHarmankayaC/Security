@@ -42,3 +42,19 @@ build/
 # Ornek Excel ciktilari: turun sonunda kullanicinin gozle bakmasi icin
 # uretilir, depoda tutulmaz (uretilebilir cikti).
 ornek-ciktilar/
+
+# Emekliye ayrilan dokumanlarin yerel mezarligi. Buradaki hicbir dosya
+# gecerli kaynak DEGILDIR; okunmasi degil, kaybolmamasi icin durur.
+docs/old/
+
+# Dagitim kayitlari: sunucuya ozgu deger tasirlar (adres, kullanici,
+# anahtar yolu) ve depo herkese acik olacaktir. Kuruluma dair depoda duran
+# tek sey README'nin Deployment bolumudur - orada hicbir sunucuya ozgu
+# deger bulunmaz.
+DAGITIM*.md
+DAGITIM_YONERGESI.md
+deploy/DAGITIM.md
+*.pem
+*.key
+id_rsa*
+id_ed25519*

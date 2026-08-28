@@ -14,7 +14,7 @@ Kullanim:
 
 Yerel gelistirmede API'nin yani sira BU SURECIN DE calismasi gerekir;
 calismazsa cozum istekleri kuyrukta bekler. Gelistirme ile sunucu ayni
-yolu kullanir (bkz. README.md, deploy/DAGITIM.md).
+yolu kullanir (bkz. README.md, Deployment).
 """
 
 import argparse

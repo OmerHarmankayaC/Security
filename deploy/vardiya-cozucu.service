@@ -12,7 +12,7 @@
 
 [Unit]
 Description=Vardiya Cizelgeleme - cozum iscisi
-Documentation=file:///opt/vardiya/deploy/DAGITIM.md
+Documentation=file:///opt/vardiya/README.md
 After=network-online.target postgresql.service
 Wants=network-online.target
 Requires=postgresql.service

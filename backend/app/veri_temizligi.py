@@ -132,7 +132,7 @@ def uretim_kilidini_dogrula() -> None:
 
     Ayar gelistirme makinesinin `backend/.env` dosyasinda bulunur,
     sunucununkinde BULUNMAZ. Iki dosya birbirine karisamaz: `.env`
-    dagitimda rsync ile DISLANIR (bkz. deploy/DAGITIM.md) ve sunucudaki
+    dagitimda kopyalanmaz (bkz. README.md, Deployment) ve sunucudaki
     `/opt/vardiya/.env` uygulama servisinin okudugu ayri bir dosyadir.
     Sunucuda `backend/.env` hic yoktur, dolayisiyla oradan calistirilan
     bir betik varsayilan degerle (kapali) karsilasir.
@@ -150,7 +150,7 @@ def uretim_kilidini_dogrula() -> None:
         f"Calistirmak icin {IZIN_DEGISKENI}=true olmalidir. "
         f"Gelistirme makinesinde bu satir backend/.env icindedir; gosterim "
         f"sunucusunda BULUNMAZ ve oraya kalici olarak eklenmemelidir "
-        f"(bkz. app/veri_temizligi.py ve deploy/DAGITIM.md)."
+        f"(bkz. app/veri_temizligi.py ve README.md, Deployment)."
     )
 
 

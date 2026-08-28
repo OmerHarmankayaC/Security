@@ -1,7 +1,7 @@
 """Kaldirilmis yapilandirma anahtarlari aciliste reddedilir (bulgu B4).
 
 Bu testin varlik nedeni, belgeye yazilmis bir SOZUN gerceklesmesidir.
-`.env.example` ve deploy/DAGITIM.md, `CALISAN_PANELI_BAGLANTI_ANAHTARI`
+`.env.example` ve README.md, `CALISAN_PANELI_BAGLANTI_ANAHTARI`
 satiri silinmezse uygulamanin acilmayacagini yaziyordu. O soz gercek
 dagitim yolunda tutulmuyordu:
 

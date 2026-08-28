@@ -45,8 +45,6 @@ export function KunyeIcerigi() {
     <Kart>
       <KartEtiketi>geliştirme</KartEtiketi>
       <dl className="m-0 grid grid-cols-[140px_1fr] gap-x-4 gap-y-2 text-sm">
-        <dt className="text-ink-muted">Geliştiren</dt>
-        <dd className="m-0 text-ink">Ömer HARMANKAYA</dd>
         <dt className="text-ink-muted">Rol</dt>
         <dd className="m-0 text-ink">Sistem analisti ve geliştirici — projenin yürütücüsü</dd>
         <dt className="text-ink-muted">Kapsam</dt>
