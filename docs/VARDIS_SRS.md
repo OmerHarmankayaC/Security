@@ -2,7 +2,7 @@
 
 **CMPE 399 — Yaz Stajı**
 
-kurum Boru Hatları ile Petrol Taşıma A.Ş.
+Staj Kurumu: BOTAŞ Boru Hatları ile Petrol Taşıma A.Ş.
 
 **VARDİYA ÇİZELGELEME KARAR DESTEK ARACI**
 
@@ -16,12 +16,15 @@ Endüstri Mühendisliği / Bilgisayar Mühendisliği
 
 05.08.2026
 
-Sürüm 1.0
+Sürüm 1.29
 
-> **Not.** Bu doküman CMPE 399 yaz stajı kapsamında hazırlanmıştır. Sistem
-> kurum bünyesinde kullanıma alınmamış, kurumdan gerçek veri kullanılmamıştır.
-> Belgedeki kadro, görev noktası ve talep sayıları gösterim amaçlı
-> varsayımlardır.
+> **Kapsam ve veri notu.** Bu doküman, TED Üniversitesi CMPE 399 yaz stajı
+> kapsamında yürütülmüş kişisel ve akademik bir çalışmanın parçasıdır. Sistem
+> staj kurumu tarafından ısmarlanmamış, kurum bünyesinde kullanıma alınmamış
+> ve kurumu hiçbir biçimde temsil etmemektedir. Geliştirme sırasında kuruma
+> ait hiçbir gerçek veri kullanılmamıştır: belgedeki personel, görev noktası,
+> kadro ve talep sayılarının tamamı gösterim amacıyla üretilmiş
+> varsayımlardır ve gerçek bir çalışma düzenini yansıtmaz.
 
 # Revizyon Geçmişi
 
@@ -56,6 +59,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 18.08.2026 | Günde tek tercih kuralı FR-9.6'ya, çözücü zaman limitinin yeni varsayılanı FR-4.6'ya yazıldı; 7.2'deki çizelge dışa aktarma sütun listesiyle açıklama arasındaki çelişki giderildi | 1.26 |
 | Ömer HARMANKAYA | 19.08.2026 | Rol yapısı dörde çıkarıldı (5.10): sistem yöneticisi, hesap yöneticisi, idare, çalışan; kendini kilitleme koruması FR-10.12, geçici parolanın tek seferlik gösterimi FR-10.13 ile tanımlandı. İzin belgesi eklendi (FR-2.7, FR-2.8) ve belgenin sağlık verisi olarak ele alınması TD-17'de yazıldı | 1.27 |
 | Ömer HARMANKAYA | 28.08.2026 | Kapsam notu eklendi: sistemin kurum bünyesinde kullanıma alınmadığı ve bölüm 3.3'teki kadro, görev noktası ve talep sayılarının gösterim amaçlı varsayım olduğu belgenin başında yazıldı | 1.28 |
+| Ömer HARMANKAYA | 28.08.2026 | Yayın öncesi künye düzeltmesi: kurum satırı staj kurumu olarak yazıldı, kapak sürüm satırı güncellendi, kapsam notu genişletildi | 1.29 |
 
 
 

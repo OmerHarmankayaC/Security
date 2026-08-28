@@ -2,7 +2,7 @@
 
 **CMPE 399 — Yaz Stajı**
 
-kurum Boru Hatları ile Petrol Taşıma A.Ş.
+Staj Kurumu: BOTAŞ Boru Hatları ile Petrol Taşıma A.Ş.
 
 **VARDİYA ÇİZELGELEME KARAR DESTEK ARACI**
 
@@ -16,12 +16,15 @@ Endüstri Mühendisliği / Bilgisayar Mühendisliği
 
 05.08.2026
 
-Sürüm 1.0
+Sürüm 1.38
 
-> **Not.** Bu doküman CMPE 399 yaz stajı kapsamında hazırlanmıştır. Sistem
-> kurum bünyesinde kullanıma alınmamış, kurumdan gerçek veri kullanılmamıştır.
-> Belgedeki kadro, görev noktası ve talep sayıları gösterim amaçlı
-> varsayımlardır.
+> **Kapsam ve veri notu.** Bu doküman, TED Üniversitesi CMPE 399 yaz stajı
+> kapsamında yürütülmüş kişisel ve akademik bir çalışmanın parçasıdır. Sistem
+> staj kurumu tarafından ısmarlanmamış, kurum bünyesinde kullanıma alınmamış
+> ve kurumu hiçbir biçimde temsil etmemektedir. Geliştirme sırasında kuruma
+> ait hiçbir gerçek veri kullanılmamıştır: belgedeki personel, görev noktası,
+> kadro ve talep sayılarının tamamı gösterim amacıyla üretilmiş
+> varsayımlardır ve gerçek bir çalışma düzenini yansıtmaz.
 
 # Revizyon Geçmişi
 
@@ -65,6 +68,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 18.08.2026 | Çalışan panelindeki dönem özetinin kendi uç noktasına taşınması 6.1'e, saat dengesinin ufku izlemesi 5.7'ye, `cizelge_surumu.damga` alanı 4.2.4'e, çözücü zaman limitinin yeni varsayılanı 3.3'e ve yeni uç nokta Ek B'ye yazıldı | 1.35 |
 | Ömer HARMANKAYA | 19.08.2026 | Dört rollü yetki yapısı 4.2.1'e ve Ek B'ye, izin belgesinin saklanması ve erişim kaydı 4.2.2 ile yeni 5.10'a işlendi | 1.36 |
 | Ömer HARMANKAYA | 28.08.2026 | Kapsam notu eklendi: sistemin kurum bünyesinde kullanıma alınmadığı ve tasarımda geçen kadro ve talep sayılarının gösterim amaçlı varsayım olduğu belgenin başında yazıldı | 1.37 |
+| Ömer HARMANKAYA | 28.08.2026 | Yayın öncesi künye düzeltmesi: kurum satırı staj kurumu olarak yazıldı, kapak sürüm satırı güncellendi, kapsam notu genişletildi | 1.38 |
 
 
 

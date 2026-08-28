@@ -2,7 +2,7 @@
 
 **CMPE 399 — Yaz Stajı**
 
-kurum Boru Hatları ile Petrol Taşıma A.Ş.
+Staj Kurumu: BOTAŞ Boru Hatları ile Petrol Taşıma A.Ş.
 
 **VARDİYA ÇİZELGELEME KARAR DESTEK ARACI**
 
@@ -16,12 +16,15 @@ Endüstri Mühendisliği / Bilgisayar Mühendisliği
 
 05.08.2026
 
-Sürüm 1.0
+Sürüm 1.28
 
-> **Not.** Bu doküman CMPE 399 yaz stajı kapsamında hazırlanmıştır. Sistem
-> kurum bünyesinde kullanıma alınmamış, kurumdan gerçek veri kullanılmamıştır.
-> Belgedeki kadro, görev noktası ve talep sayıları gösterim amaçlı
-> varsayımlardır.
+> **Kapsam ve veri notu.** Bu doküman, TED Üniversitesi CMPE 399 yaz stajı
+> kapsamında yürütülmüş kişisel ve akademik bir çalışmanın parçasıdır. Sistem
+> staj kurumu tarafından ısmarlanmamış, kurum bünyesinde kullanıma alınmamış
+> ve kurumu hiçbir biçimde temsil etmemektedir. Geliştirme sırasında kuruma
+> ait hiçbir gerçek veri kullanılmamıştır: belgedeki personel, görev noktası,
+> kadro ve talep sayılarının tamamı gösterim amacıyla üretilmiş
+> varsayımlardır ve gerçek bir çalışma düzenini yansıtmaz.
 
 # Revizyon Geçmişi
 
@@ -53,6 +56,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 14.08.2026 | Tur 9 uygulamasının iki dersi SDD 5.9'a işlendi; testlerin eşzamanlı koşturulmasına karşı kilit B-24 olarak eklendi | 1.23 |
 | Ömer HARMANKAYA | 19.08.2026 | Dört rollü yetki yapısı, izin belgesi ve hesap kurulum akışı kararları işlendi (SRS 1.27, SDD 1.36) | 1.26 |
 | Ömer HARMANKAYA | 28.08.2026 | Kapsam notu eklendi: çalışmanın kurum bünyesinde kullanıma alınmadığı ve karar günlüğünde geçen kadro sayılarının gösterim amaçlı varsayım olduğu belgenin başında yazıldı | 1.27 |
+| Ömer HARMANKAYA | 28.08.2026 | Yayın öncesi künye düzeltmesi: kurum satırı staj kurumu olarak yazıldı, kapak sürüm satırı güncellendi, kapsam notu genişletildi | 1.28 |
 
 
 

@@ -2,7 +2,7 @@
 
 **CMPE 399 — Yaz Stajı**
 
-kurum Boru Hatları ile Petrol Taşıma A.Ş.
+Staj Kurumu: BOTAŞ Boru Hatları ile Petrol Taşıma A.Ş.
 
 **VARDİYA ÇİZELGELEME KARAR DESTEK ARACI**
 
@@ -18,10 +18,13 @@ Endüstri Mühendisliği / Bilgisayar Mühendisliği
 
 Kurum Mentörü: ____________________
 
-> **Not.** Bu doküman CMPE 399 yaz stajı kapsamında hazırlanmıştır. Sistem
-> kurum bünyesinde kullanıma alınmamış, kurumdan gerçek veri kullanılmamıştır.
-> Belgedeki kadro, görev noktası ve talep sayıları gösterim amaçlı
-> varsayımlardır.
+> **Kapsam ve veri notu.** Bu doküman, TED Üniversitesi CMPE 399 yaz stajı
+> kapsamında yürütülmüş kişisel ve akademik bir çalışmanın parçasıdır. Sistem
+> staj kurumu tarafından ısmarlanmamış, kurum bünyesinde kullanıma alınmamış
+> ve kurumu hiçbir biçimde temsil etmemektedir. Geliştirme sırasında kuruma
+> ait hiçbir gerçek veri kullanılmamıştır: belgedeki personel, görev noktası,
+> kadro ve talep sayılarının tamamı gösterim amacıyla üretilmiş
+> varsayımlardır ve gerçek bir çalışma düzenini yansıtmaz.
 
 # Revizyon Geçmişi
 
@@ -35,14 +38,15 @@ Kurum Mentörü: ____________________
 | Ömer HARMANKAYA | 17.08.2026 | Gece adaleti kriterinin (K3) ölçüm ufku planlama dönemiyle sınırlandı; kümülatif sapma kabul kriteri değil gösterge olarak tanımlandı | 1.5 |
 | Ömer HARMANKAYA | 18.08.2026 | K3 azami sapma yerine sapmanın dağılımı olarak yeniden tanımlandı (personelin en fazla %10'u sekiz gece saatini aşar); azami sapma kriter değil teşhis oldu. çözücünün zaman limiti ürün gerekçesiyle beş dakikaya çıkarıldı (K1'in eşiği değişmedi: ilk uygun çözüm hâlâ altmış saniyenin altında ölçülür) | 1.6 |
 | Ömer HARMANKAYA | 28.08.2026 | Kapsam notu eklendi: çalışmanın kişisel ve akademik olduğu, kurum bünyesinde kullanıma alınmadığı ve belgedeki kadro sayılarının gösterim amaçlı varsayım olduğu belgenin başında yazıldı | 1.7 |
+| Ömer HARMANKAYA | 28.08.2026 | Yayın öncesi künye ve dil düzeltmesi: kurum satırı staj kurumu olarak yazıldı, kapsam notu genişletildi, kurumu belirsiz bırakan cümleler örnek uygulama alanı olarak yeniden yazıldı (1, 2.1, 2.5) | 1.8 |
 
 
 
 # 1. Giriş
 
-Vardiya Çizelgeleme Karar Destek Aracı, kesintisiz çalışan tesislerde vardiya planlamasını üstlenen web tabanlı bir sistemdir. Proje, CMPE 399 yaz stajı kapsamında kurum bünyesinde yürütülmektedir. Bugün büyük ölçüde elle ve elektronik tablolar üzerinde yapılan çizelgeleme işi, sistemde bir kısıt programlama problemi olarak modellenmekte; ihlal edilemeyecek kurallar zorunlu kısıt, adalet ve tercihler ise ceza puanı üreten esnek hedefler olarak tanımlanmaktadır.
+Vardiya Çizelgeleme Karar Destek Aracı, kesintisiz çalışan tesislerde vardiya planlamasını üstlenen web tabanlı bir sistemdir. Proje, CMPE 399 yaz stajı kapsamında yürütülmektedir. Bugün büyük ölçüde elle ve elektronik tablolar üzerinde yapılan çizelgeleme işi, sistemde bir kısıt programlama problemi olarak modellenmekte; ihlal edilemeyecek kurallar zorunlu kısıt, adalet ve tercihler ise ceza puanı üreten esnek hedefler olarak tanımlanmaktadır.
 
-Sistem genel amaçlı bir çizelgeleme aracı olarak tasarlanmakta, ilk uygulama alanı olarak kurum tesislerinin güvenlik personeli seçilmektedir. Bu daraltma modelin yapısını değiştirmemekte; yalnızca görev noktalarının, yetkinliklerin ve talep sayılarının somut değerlerini belirlemektedir. Söz konusu değerlerin tamamı sistem üzerinden düzenlenebilir veri olarak tutulduğundan, aracın başka bir personel grubuna uygulanması yapılandırma değişikliğinden ibarettir.
+Sistem genel amaçlı bir çizelgeleme aracı olarak tasarlanmakta, örnek uygulama alanı olarak kesintisiz çalışan bir tesisin güvenlik personeli seçilmektedir. Bu daraltma modelin yapısını değiştirmemekte; yalnızca görev noktalarının, yetkinliklerin ve talep sayılarının somut değerlerini belirlemektedir. Söz konusu değerlerin tamamı sistem üzerinden düzenlenebilir veri olarak tutulduğundan, aracın başka bir personel grubuna uygulanması yapılandırma değişikliğinden ibarettir.
 
 Proje, gereksinimlerin geliştirme sırasında netleşeceği varsayımıyla çevik bir yaklaşımla, üç sprint halinde yürütülecektir. Temel çıktılar bu proje tanım dokümanı, kural kataloğu, matematiksel model dokümanı, çalışan bir web uygulaması, deney raporu ve staj raporudur. Kilometre taşları, kural kataloğunun onaylanmasından çözücünün ilk geçerli çizelgeyi üretmesine ve son teknik sunuma kadar yazılım geliştirme yaşam döngüsü etrafında yapılandırılmıştır.
 
@@ -50,9 +54,9 @@ Proje, gereksinimlerin geliştirme sırasında netleşeceği varsayımıyla çev
 
 ## 2.1 Genel Bakış
 
-kurum tesislerinde güvenlik hizmeti kesintisiz yürütülmekte; her vardiyada belirli görev noktalarında, belirli sayıda ve belirli niteliklerde personelin bulunması gerekmektedir. Bu ihtiyaç kâğıt üzerinde basit görünse de pratikte iç içe geçmiş kısıtlar üretmektedir. Gece vardiyasından çıkan personele ertesi sabah görev verilememekte, üst üste belirli sayıdan fazla gece tutulamamakta, haftalık çalışma saatlerinin yasal bir tavanı bulunmakta, izinler ve raporlar takvimden insan çıkarmakta, bazı görevler yalnızca belirli yetkinliğe sahip kişiler tarafından yapılabilmektedir. Bütün bunlar sağlandıktan sonra bir de adalet meselesi kalmakta; gece ve hafta sonu nöbetlerinin sürekli aynı kişilere düşmesi çizelgeyi teknik olarak geçerli ancak pratikte kabul edilemez kılmaktadır.
+Kesintisiz çalışan bir tesiste güvenlik hizmeti gün boyu sürdürülmekte; her vardiyada belirli görev noktalarında, belirli sayıda ve belirli niteliklerde personelin bulunması gerekmektedir. Bu ihtiyaç kâğıt üzerinde basit görünse de pratikte iç içe geçmiş kısıtlar üretmektedir. Gece vardiyasından çıkan personele ertesi sabah görev verilememekte, üst üste belirli sayıdan fazla gece tutulamamakta, haftalık çalışma saatlerinin yasal bir tavanı bulunmakta, izinler ve raporlar takvimden insan çıkarmakta, bazı görevler yalnızca belirli yetkinliğe sahip kişiler tarafından yapılabilmektedir. Bütün bunlar sağlandıktan sonra bir de adalet meselesi kalmakta; gece ve hafta sonu nöbetlerinin sürekli aynı kişilere düşmesi çizelgeyi teknik olarak geçerli ancak pratikte kabul edilemez kılmaktadır.
 
-Sistemin girdisi personel listesi, yetkinlikler, izin ve müsaitlik bilgileri, her vardiya için gereken personel sayısı ve kurumun uymak zorunda olduğu çalışma kurallarından oluşmaktadır. Çıktısı ise bütün zorunlu kuralları sağlayan, yükü çalışanlar arasında olabildiğince dengeli dağıtan ve tercihleri mümkün olduğunca gözeten bir dönemlik çizelgedir.
+Sistemin girdisi personel listesi, yetkinlikler, izin ve müsaitlik bilgileri, her vardiya için gereken personel sayısı ve işletmenin uymak zorunda olduğu çalışma kurallarından oluşmaktadır. Çıktısı ise bütün zorunlu kuralları sağlayan, yükü çalışanlar arasında olabildiğince dengeli dağıtan ve tercihleri mümkün olduğunca gözeten bir dönemlik çizelgedir.
 
 Uygulama iki katmandan oluşmaktadır. Alt katmanda personel, vardiya tipleri, yetkinlikler, izinler ve kural tanımlarının yönetildiği veritabanı ve arayüz yer almakta; bu katman çözücüden bağımsız olarak da çalışan bir yönetim aracı niteliği taşımaktadır. Üst katmanda ise çizelgeyi üreten çözücü ve sonuçları değerlendiren analiz bileşeni bulunmaktadır.
 
@@ -298,7 +302,7 @@ Nihayetinde araç, neyin daha önemli olduğuna kendisi karar vermemektedir. Ada
 
 ## 2.5 Uygulama Alanı: Güvenlik Personeli
 
-Sistemin ilk uygulama alanı kurum tesislerinin güvenlik personelidir. Aşağıda tanımlanan yapı, mentör görüşmesi sonrasında kesinleşmek üzere mevcut işleyişten alınmış varsayımlara dayanmaktadır. Bu değerlerin tamamı sistem içinden düzenlenebildiği için, gerçek değerlerin farklı çıkması durumunda yazılım değişikliği gerekmemektedir.
+Sistemin örnek uygulama alanı, kesintisiz çalışan bir tesisin güvenlik personelidir. Aşağıda tanımlanan yapı gösterim amacıyla kurulmuş varsayımlara dayanmaktadır ve gerçek bir çalışma düzenini yansıtmaz. Bu değerlerin tamamı sistem içinden düzenlenebildiği için, gerçek değerlerin farklı çıkması durumunda yazılım değişikliği gerekmemektedir.
 
 Tesiste iki bina bulunmakta ve güvenlik hizmeti kesintisiz yürütülmektedir. Mevcut işleyiş günde üç sekiz saatlik vardiyaya dayanmakla birlikte, sistem çalışma zamanını sabit vardiya tipleriyle değil saat düzeyinde belirler (SRS TD-13). Devriye görevi bulunmamakta; personel vardiya şefliği ve güvenlik noktalarında görevlendirilmektedir. Görev noktaları bina ayrımı yapılmadan tesis geneli tanımlanmıştır: kapı ve kontrol odası arasındaki ayrım kaldırılmış, tek bir "Güvenlik" noktasında birleştirilmiştir — kontrol odasında görevli personel zaten ayrı bir meslek grubu değil aynı yetkinliğe sahip bir güvenlik görevlisiydi, dolayısıyla atamanın hangi fiziksel noktaya yazıldığı modelin ihtiyaç duyduğu bir bilgi değildir; kim hangi kapıda veya kontrol odasında duracağını vardiya şefi o gün belirler. 
 
