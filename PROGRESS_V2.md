@@ -3021,3 +3021,58 @@ Backlog için verilen numara **1.23'tü ve yanlıştı** — belge 1.22'de deği
 **1.26'daydı**; hatanın kaynağı önceki oturumun rapor satırıdır, Backlog'un
 sürümü hiç doğrulanmadan yazılmıştı. Sürümü düşüren bir revizyon satırı,
 belgeyi yerine geçtiği kopyadan eski gösterirdi; 1.27 yazıldı.
+
+### 7. K3'ün yeniden ölçülmesi
+
+**Yeni ölçüm ALINMADI; var olan 300 sn'lik oturum kullanıldı** ve bu bilinçli.
+`olcum/kabul-20260826-300sn.json` zaten turun istediği ölçümün ta kendisi:
+tek oturum, 300 saniyelik limit, K3'ün güncel (dağılım) tanımı, referans
+donanım (4 çekirdek, 3 arama işçisi), commit `f5c75cd`.
+
+Yerelde yeniden almak ölçümü **iyileştirmez, bozar**: bu makine 10 çekirdekli
+ve README ölçüm ortamı olarak referans donanımı "bağlayıcı ortam" ilan ediyor;
+K1 donanıma duyarlı bir süre ölçüsü. "Demo server" sütununa geliştirme
+makinesinin sayısını yazmak yanlış beyan olurdu.
+
+Ölçümden bu yana ölçüm yolunun değişmediği doğrulandı: `f5c75cd..HEAD`
+aralığında `app/kurallar/`, `app/cozucu/`, `baglam_kurucu.py`,
+`dogrulama_servisi.py`, `gecmis_sayaclar.py`, `app/models/` ve
+`kabul_olcumu.py` **hiç değişmedi**. Tek değişen `ornek_senaryo.py`'deki
+`PERSONEL_GRUPLARI` ve kabul ölçümü o sembolü okumuyor (kendi
+`_REFERANS_GRUPLARI`'nı kuruyor).
+
+**K3 hâlâ geçmiyor ve öyle yazıldı:** 9/40 kişi (%22,5), eşik 4 kişi (%10).
+60 sn'de 24/40 (%60) idi; azami sapma (teşhis) 62,1 → 24,0 gece saati.
+Erişilebilirlik teşhisi hedefin ulaşılabilir olduğunu doğruluyor (40 kişinin
+tamamı gece talebi olan noktada çalışabiliyor; adil pay bandı 33,0–64,1,
+gözlenen 33–68). Engel arama süresi.
+
+Tablodaki altı satırın tamamı **tek oturumdan**; tanım, limit, tarih, commit
+ve ham çıktı yolu tablonun altında yazılı.
+
+### 8. README bütünlük kontrolü
+
+README'nin bağlantı verdiği 10 yerel hedef denetlendi. **Beşi kırıktı; ikisi
+düzeltildi, üçü raporda listeli.**
+
+Beşinin tamamı **commit `15e2c87`** ile silinmiş (28.08.2026, kullanıcının
+kendi commit'i, "refactor: reorganize project documentation…"). Önceki turda
+"çalışma ağacında silinmiş, kasıtlı mı bilmiyorum" diye bildirdiğim dosyalar
+bunlar; kullanıcı o commit'le kararını vermiş ve itmiş.
+
+| Hedef | Durum |
+| --- | --- |
+| `PROGRESS.md` (2 yerde) | **düzeltildi** — metin git geçmişine yönlendiriyor |
+| `docs/turlar/UYGULAMA_PLANI.md` | **düzeltildi** — V2 zaten var, ölü bağlantı kaldırıldı |
+| `docs/gorseller/gun-izgarasi.png` | **kırık** — görsel yeniden üretilmeli |
+| `docs/gorseller/cozum-ekrani.png` | **kırık** |
+| `docs/gorseller/analiz-ekrani.png` | **kırık** |
+
+Ekran görüntüsü bağlantıları **bilerek bırakıldı**: doğru düzeltme bölümü
+silmek değil görselleri yeniden üretmek ve bu bir çerçeveleme kararı.
+
+**PostgreSQL sürümü üç yerde üç farklı:** `VERSIONS.md` **16** sabitliyor,
+geliştirme makinesi **17.10**, referans donanım **18.6**
+(`olcum/OLCUM_ORTAMI.md`). `VERSIONS.md`'nin var olma nedeni tam olarak bu iki
+ortamı eşlemek (SDD 3.4.1) ve eşleme tutmuyor. Sabit değiştirilmedi — bu bir
+ürün kararı; README artık 16'yı taban olarak yazıyor ve uyuşmazlığı söylüyor.
