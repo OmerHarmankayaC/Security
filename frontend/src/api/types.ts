@@ -694,3 +694,15 @@ export interface Kullanici {
 export interface Ortam {
   demo_kipi: boolean
 }
+
+/** `/api/demo/kimlik` — yalnız DEMO_KIPI açıkken vardır; kapalıyken 404. */
+export interface DemoHesabi {
+  kullanici_adi: string
+  rol: Rol
+  aciklama: string
+}
+
+export interface DemoKimlik {
+  parola: string
+  hesaplar: DemoHesabi[]
+}

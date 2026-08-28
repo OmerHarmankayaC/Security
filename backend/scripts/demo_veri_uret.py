@@ -90,6 +90,7 @@ from app.models.tanim import (
 from app.repositories.sonuc import AtamaDeposu, CizelgeSurumuDeposu
 from app.services import parola as parola_araclari
 from app.services.cozum_servisi import CozumServisi, cozum_isini_calistir
+from app.services.demo_hesaplari import DEMO_HESAPLARI
 from app.services.kullanici_servisi import KullaniciServisi
 from app.services.kural_katalogu_tohumu import KURAL_TANIMLARI, katalogu_kur
 from app.services.ornek_senaryo import (
@@ -349,15 +350,10 @@ _RET_GEREKCELERI = (
 
 # --- Hesaplar (Demo Senaryosu 7) -------------------------------------------
 _PAROLA_DEGISKENI = "DEMO_PAROLA"
-_YONETIM_HESAPLARI: tuple[tuple[str, Rol], ...] = (
-    ("demo_sistem", Rol.SISTEM_YONETICISI),
-    ("demo_hesap", Rol.HESAP_YONETICISI),
-    ("demo_idare", Rol.IDARE),
-)
-# Iki calisan hesabi: biri kotasi dolmaya yaklasmis personele (D-1010,
-# devir bakiyesi 265), digeri ortalama yuklu bir personele bagli. Boylece
-# calisan paneli iki farkli tabloyla gosterilebilir (Demo Senaryosu 7).
-_CALISAN_HESABI_SICILLERI = ("D-1010", "D-1020")
+
+# Hesap listesi BURADA DEGIL `app/services/demo_hesaplari.py`'de durur: ayni
+# listeyi giris ekranindaki kimlik kutusu da okuyor ve iki yerde yazilsaydi
+# uretecin actigi hesapla ekranin gosterdigi hesap sessizce ayrisirdi.
 
 
 def _bu_haftanin_pazartesisi(bugun: date) -> date:
@@ -967,18 +963,21 @@ def _hesaplari_kur(oturum: Session, parola: str) -> int:
     servis = KullaniciServisi(oturum)
     mevcut = {k.kullanici_adi: k for k in oturum.execute(select(Kullanici)).scalars().all()}
 
-    hedefler: list[tuple[str, Rol, int | None]] = [
-        (ad, rol, None) for ad, rol in _YONETIM_HESAPLARI
-    ]
-    for sicil_no in _CALISAN_HESABI_SICILLERI:
+    hedefler: list[tuple[str, Rol, int | None]] = []
+    for hesap in DEMO_HESAPLARI:
+        if hesap.sicil_no is None:
+            hedefler.append((hesap.kullanici_adi, hesap.rol, None))
+            continue
         personel = oturum.execute(
-            select(Personel).where(Personel.sicil_no == sicil_no)
+            select(Personel).where(Personel.sicil_no == hesap.sicil_no)
         ).scalar_one_or_none()
         if personel is None:
-            print(f"UYARI: {sicil_no} bulunamadi, calisan hesabi acilmadi.", file=sys.stderr)
+            print(
+                f"UYARI: {hesap.sicil_no} bulunamadi, {hesap.kullanici_adi} acilmadi.",
+                file=sys.stderr,
+            )
             continue
-        kullanici_adi = f"demo_{sicil_no.lower().replace('-', '')}"
-        hedefler.append((kullanici_adi, Rol.CALISAN, personel.personel_id))
+        hedefler.append((hesap.kullanici_adi, hesap.rol, personel.personel_id))
 
     for kullanici_adi, rol, personel_id in hedefler:
         kullanici = mevcut.get(kullanici_adi)

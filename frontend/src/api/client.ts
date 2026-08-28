@@ -20,6 +20,7 @@ import type {
   Kullanici,
   Kural,
   OzelGun,
+  DemoKimlik,
   Musaitlik,
   MusaitlikOlusturIstek,
   Ortam,
@@ -360,6 +361,10 @@ export const api = {
   // Yetki istemez ve hiçbir veri taşımaz; yalnızca gösterim şeridinin
   // çizilip çizilmeyeceğini söyler.
   ortam: () => istek<Ortam>('/api/ortam'),
+
+  // Gösterim kimlik bilgisi. Gerçek bir kurulumda uç nokta YOKTUR ve bu
+  // çağrı 404 alır; parola derlenmiş pakete girmez, çalışma zamanında gelir.
+  demoKimlik: () => istek<DemoKimlik>('/api/demo/kimlik'),
   parolaDegistir: (mevcutParola: string, yeniParola: string) =>
     gonder<Ben>('/api/parola-degistir', {
       mevcut_parola: mevcutParola,

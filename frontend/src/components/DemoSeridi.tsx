@@ -5,9 +5,11 @@
 // kişi onu taşımayan bir görüntü üretirdi; oysa şeridin bütün işi, veriyi
 // gören herkesin onun üretilmiş olduğunu bilmesi.
 //
-// İki cümle söyler ve ikisi de gereklidir: veri gerçek değildir (kime ait
-// olduğu sorusunu kapatır) ve her gece yeniden kurulur (yapılan bir
-// değişikliğin neden kaybolduğunu önceden açıklar).
+// Üç şey söyler ve üçü de gereklidir: veri üretilmiştir (kime ait olduğu
+// sorusunu kapatır), her gece sıfırlanır (yapılan bir değişikliğin neden
+// kaybolduğunu önceden açıklar) ve sistem hiçbir kurumda kullanımda değildir
+// (ekran görüntüsünü gören birinin kuracağı ikinci varsayımı kapatır —
+// birincisi "bu veri gerçek", ikincisi "bu sistem orada çalışıyor").
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 
@@ -32,8 +34,9 @@ export function DemoSeridi() {
       className="sticky top-0 z-50 w-full bg-amber-100 px-4 py-2 text-center text-sm text-amber-950"
     >
       <strong className="font-semibold">Gösterim ortamı.</strong> Buradaki personel, izin ve
-      çizelge kayıtlarının tamamı üretilmiştir; gerçek bir kurumu ya da kişiyi göstermez.
-      Yaptığınız değişiklikler her gece veri yeniden kurulduğunda kaybolur.
+      çizelge kayıtlarının tamamı gösterim amacıyla üretilmiştir; gerçek bir kurumu ya da
+      kişiyi göstermez. Veri her gece sıfırlanır, yaptığınız değişiklikler kaybolur. Sistem
+      herhangi bir kurumda kullanımda değildir.
     </div>
   )
 }

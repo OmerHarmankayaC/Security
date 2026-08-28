@@ -13,6 +13,7 @@ import type { Ben } from '@/api/types'
 import { Buton } from '@/components/app-ui'
 import { buyukHarf } from '@/lib/metin'
 import { Marka } from '@/components/Marka'
+import { DemoKimlikKutusu } from '@/components/DemoKimlikKutusu'
 
 interface Props {
   girisYapildi: (ben: Ben) => void
@@ -105,6 +106,18 @@ export function GirisEkrani({ girisYapildi }: Props) {
             {gonderiliyor ? 'Giriş yapılıyor…' : 'Giriş Yap'}
           </Buton>
         </form>
+
+        {/* Yalnız gösterim kipinde çizilir; gerçek bir kurulumda uç nokta
+            yoktur ve bileşen hiçbir şey render etmez. */}
+        <DemoKimlikKutusu
+          doldur={(ad, sifre) => {
+            setKullaniciAdi(ad)
+            setParola(sifre)
+            // Hata metni ESKİ denemeye aitti; yeni hesap seçildiğinde
+            // ekranda durması, seçilen hesabın reddedildiği izlenimi verirdi.
+            setHata(null)
+          }}
+        />
 
         <p className="mt-4 text-center text-xs text-chrome-ink-muted">
           Hesabınız yoksa veya parolanızı unuttuysanız yönetime başvurun.

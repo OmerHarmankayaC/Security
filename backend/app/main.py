@@ -5,6 +5,7 @@ from app.routers import (
     belge,
     calisan,
     cizelge,
+    demo,
     kimlik,
     kullanici,
     ortam,
@@ -16,6 +17,7 @@ app = FastAPI(title="Vardiya Cizelgeleme Karar Destek Araci")
 
 app.include_router(saglik.router)
 app.include_router(ortam.router)
+app.include_router(demo.router)
 app.include_router(kimlik.router)
 app.include_router(kullanici.router)
 app.include_router(tanim.router)

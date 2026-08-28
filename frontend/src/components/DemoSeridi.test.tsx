@@ -27,14 +27,15 @@ describe('DemoSeridi', () => {
     expect(container.innerHTML).toBe('')
   })
 
-  it('ayar açıkken hem üretilmişliği hem gecelik sıfırlamayı söyler', async () => {
+  it('ayar açıkken üç şeyi de söyler: üretilmişlik, gecelik sıfırlama, kullanımda olmayış', async () => {
     vi.spyOn(api, 'ortam').mockResolvedValue({ demo_kipi: true })
 
     render(<DemoSeridi />)
 
     const serit = await screen.findByRole('status')
     expect(serit.textContent).toContain('üretilmiştir')
-    expect(serit.textContent).toContain('her gece')
+    expect(serit.textContent).toContain('her gece sıfırlanır')
+    expect(serit.textContent).toContain('kullanımda değildir')
   })
 
   it('uç nokta hata verdiğinde şerit çizilmez', async () => {

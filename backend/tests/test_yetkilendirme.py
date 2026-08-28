@@ -30,6 +30,11 @@ _ACIK_UC_NOKTALAR = {
     # GIRIS EKRANINDA gorunmez kilardi - oysa "bu veri gercek degil" demenin
     # tek dogru ani, veriye ilk bakan henuz giris yapmamis kisiye denen andir.
     ("GET", "/api/ortam"),
+    # Gosterim kimlik bilgisi (Demo Senaryosu 7): giris ekraninda gosterilir,
+    # yani gormesi gereken kisi henuz giris yapmamis olandir. VARSAYILAN
+    # KURULUMDA UC NOKTA YOKTUR - demo kipi kapaliyken 404 doner ve hicbir
+    # kullanici adi ya da parola sizmaz; asagida ayrica sinaniyor.
+    ("GET", "/api/demo/kimlik"),
 }
 
 # Parola borcu varken de acik kalan uc noktalar (FR-10.7): borcun odenmesinin
@@ -97,6 +102,10 @@ def test_acik_uc_noktalar_oturumsuz_calisir() -> None:
     ortam = istemci.get("/api/ortam")
     assert ortam.status_code == 200
     assert set(ortam.json()) == {"demo_kipi"}
+    # Demo kimlik bilgisi VARSAYILAN OLARAK YOKTUR. Muafiyet listesindeki
+    # digerlerinden farki bu: acik oldugu icin degil, gercek bir kurulumda
+    # HIC BULUNMADIGI icin listede.
+    assert istemci.get("/api/demo/kimlik").status_code == 404
     # Giris uc noktasi oturum ISTEMEZ; kimlik bilgisi yanlis oldugu icin
     # 401 doner - kapinin kendisi degil, kimlik dogrulamasi reddediyor.
     assert (
