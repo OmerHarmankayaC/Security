@@ -3013,8 +3013,11 @@ birebir).
 ve kasıtlı: bir okur, adı hiç görmediği bir depoda kadro sayılarını
 işletmeye ait bir kayıt sanabilir. Notun işi tam olarak bunu kapatmak.
 
-**Sürüm numaraları BUMP EDİLMEDİ.** Dört dokümanın içeriği değişti ama
-revizyon tablosuna satır eklenmedi; bu chat tarafının işi ve turun "docs'a
-dokunma" kuralının açık bir istisnası olarak kullanıcı tarafından
-istendi. Sürüm doğrulaması yapan bir sonraki tur promptu bu dosyaları
-1.6 / 1.27 / 1.36 / 1.22 olarak görmeye devam eder.
+**Sürümler bump edildi** (kullanıcının verdiği numaralarla): Charter **1.7**,
+SRS **1.28**, SDD **1.37**, Backlog **1.27**. Dördüne de 28.08.2026 tarihli
+birer revizyon satırı eklendi.
+
+Backlog için verilen numara **1.23'tü ve yanlıştı** — belge 1.22'de değil
+**1.26'daydı**; hatanın kaynağı önceki oturumun rapor satırıdır, Backlog'un
+sürümü hiç doğrulanmadan yazılmıştı. Sürümü düşüren bir revizyon satırı,
+belgeyi yerine geçtiği kopyadan eski gösterirdi; 1.27 yazıldı.
