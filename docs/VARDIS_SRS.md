@@ -55,6 +55,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 14.08.2026 | Adalet ufkunun tanımı tamamlandı: geçmiş yükün ve hedefin birlikte ölçeklenmesi, ufuk içinde kısmen çalışabilir personel için payın orantılanması ve erişilebilirliğin bugünkü tanımdan alınması TD-6'ya yazıldı | 1.25 |
 | Ömer HARMANKAYA | 18.08.2026 | Günde tek tercih kuralı FR-9.6'ya, çözücü zaman limitinin yeni varsayılanı FR-4.6'ya yazıldı; 7.2'deki çizelge dışa aktarma sütun listesiyle açıklama arasındaki çelişki giderildi | 1.26 |
 | Ömer HARMANKAYA | 19.08.2026 | Rol yapısı dörde çıkarıldı (5.10): sistem yöneticisi, hesap yöneticisi, idare, çalışan; kendini kilitleme koruması FR-10.12, geçici parolanın tek seferlik gösterimi FR-10.13 ile tanımlandı. İzin belgesi eklendi (FR-2.7, FR-2.8) ve belgenin sağlık verisi olarak ele alınması TD-17'de yazıldı | 1.27 |
+| Ömer HARMANKAYA | 28.08.2026 | Kapsam notu eklendi: sistemin kurum bünyesinde kullanıma alınmadığı ve bölüm 3.3'teki kadro, görev noktası ve talep sayılarının gösterim amaçlı varsayım olduğu belgenin başında yazıldı | 1.28 |
 
 
 

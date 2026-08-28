@@ -34,6 +34,7 @@ Kurum Mentörü: ____________________
 | Ömer HARMANKAYA | 13.08.2026 | Model gerçek saatlik karara geçirildiği için K3'ün eşiği sabit sekiz gece saati olarak yazıldı ve K4'teki vardiya ifadesi saat aralığıyla değiştirildi; müracaat görev noktası kapsamdan çıkarıldı | 1.4 |
 | Ömer HARMANKAYA | 17.08.2026 | Gece adaleti kriterinin (K3) ölçüm ufku planlama dönemiyle sınırlandı; kümülatif sapma kabul kriteri değil gösterge olarak tanımlandı | 1.5 |
 | Ömer HARMANKAYA | 18.08.2026 | K3 azami sapma yerine sapmanın dağılımı olarak yeniden tanımlandı (personelin en fazla %10'u sekiz gece saatini aşar); azami sapma kriter değil teşhis oldu. çözücünün zaman limiti ürün gerekçesiyle beş dakikaya çıkarıldı (K1'in eşiği değişmedi: ilk uygun çözüm hâlâ altmış saniyenin altında ölçülür) | 1.6 |
+| Ömer HARMANKAYA | 28.08.2026 | Kapsam notu eklendi: çalışmanın kişisel ve akademik olduğu, kurum bünyesinde kullanıma alınmadığı ve belgedeki kadro sayılarının gösterim amaçlı varsayım olduğu belgenin başında yazıldı | 1.7 |
 
 
 

@@ -52,6 +52,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 14.08.2026 | Kümülatif adaletin tasarım kararları işlendi (SRS 1.25, SDD 1.32) | 1.22 |
 | Ömer HARMANKAYA | 14.08.2026 | Tur 9 uygulamasının iki dersi SDD 5.9'a işlendi; testlerin eşzamanlı koşturulmasına karşı kilit B-24 olarak eklendi | 1.23 |
 | Ömer HARMANKAYA | 19.08.2026 | Dört rollü yetki yapısı, izin belgesi ve hesap kurulum akışı kararları işlendi (SRS 1.27, SDD 1.36) | 1.26 |
+| Ömer HARMANKAYA | 28.08.2026 | Kapsam notu eklendi: çalışmanın kurum bünyesinde kullanıma alınmadığı ve karar günlüğünde geçen kadro sayılarının gösterim amaçlı varsayım olduğu belgenin başında yazıldı | 1.27 |
 
 
 

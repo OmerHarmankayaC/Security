@@ -64,6 +64,7 @@ Sürüm 1.0
 | Ömer HARMANKAYA | 17.08.2026 | Analiz ekranı yeniden tasarlandı (6.3.4): üst şerit, kota kartı, ufuk anahtarı, kümülatif değişim göstergesi ve ceza dökümünün ham/ağırlıklı ayrımı | 1.34 |
 | Ömer HARMANKAYA | 18.08.2026 | Çalışan panelindeki dönem özetinin kendi uç noktasına taşınması 6.1'e, saat dengesinin ufku izlemesi 5.7'ye, `cizelge_surumu.damga` alanı 4.2.4'e, çözücü zaman limitinin yeni varsayılanı 3.3'e ve yeni uç nokta Ek B'ye yazıldı | 1.35 |
 | Ömer HARMANKAYA | 19.08.2026 | Dört rollü yetki yapısı 4.2.1'e ve Ek B'ye, izin belgesinin saklanması ve erişim kaydı 4.2.2 ile yeni 5.10'a işlendi | 1.36 |
+| Ömer HARMANKAYA | 28.08.2026 | Kapsam notu eklendi: sistemin kurum bünyesinde kullanıma alınmadığı ve tasarımda geçen kadro ve talep sayılarının gösterim amaçlı varsayım olduğu belgenin başında yazıldı | 1.37 |
 
 
 
