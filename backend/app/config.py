@@ -133,9 +133,14 @@ class Ayarlar(BaseSettings):
     # (extra='forbid'), dolayisiyla tanimlanmadan yazilan bir DEMO_PAROLA
     # satiri butun arka ucu acilmaz hale getirirdi.
     #
-    # Gosterim sunucusunda `.env` yerine ayri bir dosyada (0600) durur ve
-    # yalnizca gecelik sifirlama birimine verilir; API surecinin onu
-    # gormesi icin bir neden yok.
+    # API SURECI DE OKUR. Once yalnizca gecelik sifirlama birimine verilmesi
+    # dusunulmustu, ama giris ekranindaki kimlik kutusu (`/api/demo/kimlik`)
+    # bu degeri istek aninda okuyor: API gormezse uc nokta 404 doner ve kutu
+    # hic cizilmez - arayuz bir hata da vermez, sadece bos kalir.
+    #
+    # Korunacak bir sir DEGILDIR: gosterim parolasi zaten giris ekraninda
+    # yazili. Gizli tutulmasinin tek nedeni depoya ve surum gecmisine
+    # girmemesi; bu yuzden `.env` icinde (0600) durur, kodda degil.
     demo_parola: str | None = None
 
 

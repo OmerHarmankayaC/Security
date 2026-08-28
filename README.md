@@ -292,6 +292,29 @@ the Users screen in the UI.
 The test suite never touches this account: tests run against a separate
 database (see "Tests and Lint").
 
+### Demo accounts
+
+When `DEMO_KIPI` is on, the login screen lists the demo accounts underneath
+the form and fills the fields on click, so there is nothing to memorise. The
+same accounts, for reference:
+
+| Username | Role | What it is for |
+|---|---|---|
+| `demo_idare` | scheduling | Builds and publishes schedules — everything except account management |
+| `demo_hesap` | account management | Manages users only; cannot touch a schedule |
+| `demo_d1010` | employee | Someone close to their annual overtime quota |
+| `demo_d1020` | employee | Someone with an average load |
+
+They share one password, taken from `DEMO_PAROLA` at run time — it is not in
+this repository and not in the built bundle. A fifth account with the system
+administrator role is created but deliberately **not** listed on the screen:
+a public demo that hands every visitor the widest role has handed away
+account management too.
+
+With `DEMO_KIPI` off the endpoint behind that box does not exist — it answers
+404, not 403, because in a real installation there is no demo credential to
+be denied access to.
+
 Frontend:
 
 ```bash
@@ -395,21 +418,39 @@ symptom is a login that fails silently rather than with an error.
 
 ### Demo environment
 
-If the deployment is a public demo, set `DEMO_KIPI=true` so the UI states
-that the data is generated and rebuilt nightly, and install the reset timer:
+If the deployment is a public demo, three things go into `<INSTALL_DIR>/.env`
+(mode 600) — the same file the API already reads:
+
+```
+DEMO_KIPI=true
+DEMO_PAROLA=<the password shown on the login screen>
+```
+
+Both must be in `.env`, not in a second file: `vardiya-api.service` reads
+only `.env`, and the API is what serves the strip (`DEMO_KIPI`) and the
+credentials box (`DEMO_PAROLA`). Put them elsewhere and both stay off
+silently — nothing errors, the screens simply come up without them.
+
+The demo password is not a secret; it is printed on the login screen for
+anyone to use. It is kept out of the repository so it does not enter the
+version history, which is why it lives in `.env` rather than in code.
+
+The redaction guard reads its search terms from
+`<INSTALL_DIR>/.yasakli-metinler` (see "Tests and Lint" below). Without that
+file the nightly report says criterion 9.6 could not be measured instead of
+passing it, so put it on the host too.
 
 ```bash
 sudo cp deploy/vardis-demo-sifirlama.service deploy/vardis-demo-sifirlama.timer \
   /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now vardis-demo-sifirlama.timer
+systemctl list-timers vardis-demo-sifirlama.timer
 ```
 
-The demo password goes in a **separate** file (`.env.demo`, mode 600) that
-only the timer's unit reads; the API process has no reason to see it. The
-destructive-operation lock is opened inside that unit and nowhere else — put
-`VERI_TEMIZLIGINE_IZIN` in `.env` and every script on the host, and the API
-itself, would inherit the right to wipe the database.
+The destructive-operation lock is opened inside the timer's unit and nowhere
+else — put `VERI_TEMIZLIGINE_IZIN` in `.env` and every script on the host,
+and the API itself, would inherit the right to wipe the database.
 
 ## Project Structure
 
