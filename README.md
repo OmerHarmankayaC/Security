@@ -34,19 +34,37 @@ they remain in the git history.
 
 ## Screenshots
 
-The day grid, where demand and assignments are read hour by hour:
+The day grid, where demand and assignments are read hour by hour. This is the
+deliberately tight period in the demo data: the coverage strip and the badges
+on the day headers mark the hours the roster cannot cover.
 
 ![Day grid](docs/gorseller/gun-izgarasi.png)
 
-The solve screen — the run is startable, watchable, and stoppable; a stopped
-run offers the best schedule found so far rather than discarding it:
+The same period as a week strip — forty people at a glance, one row each:
+
+![Week strip](docs/gorseller/hafta-seridi.png)
+
+The solve screen. Before starting a search it can be asked what stands in the
+way; here the pre-check separates a structural obstacle (the shift-supervisor
+pool is 78 person-hours short, and no schedule can close that) from a warning
+that only constrains the search (one person is five hours from their annual
+overtime quota):
 
 ![Solve screen](docs/gorseller/cozum-ekrani.png)
 
 The analysis screen, where a published version is measured — coverage, quota
-status, fairness distributions, and the penalty breakdown:
+status, fairness distributions, and the penalty breakdown. Deviation is shown
+in both directions against each person's own fair share:
 
 ![Analysis screen](docs/gorseller/analiz-ekrani.png)
+
+The employee panel, which answers a different question — not "is the schedule
+fair" but "when do I work":
+
+![Employee panel](docs/gorseller/calisan-paneli.png)
+
+Every screenshot is taken from the demo data and carries the strip that says
+so.
 
 ## Status
 
