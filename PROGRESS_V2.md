@@ -2934,3 +2934,70 @@ noktada düşüyor ve `/api/ortam`'ı yakaladı. Uç nokta muafiyet listesine
 **gerekçesiyle** eklendi: şerit giriş ekranında çizilmek zorunda ve yanıt
 tek bir yapılandırma bayrağından ibaret. Açık uç nokta testi artık yanıtın
 tam olarak tek alan taşıdığını da doğruluyor.
+
+---
+
+## Tur 14 — ek işler: yayına hazırlık
+
+### 5. Yayına hazırlık taraması
+
+Arama kümesi: kurum adı/kısaltması/unvanı · sunucu IP · kapı · alan adı ·
+systemd servis adları · SSH anahtar yolları · dağıtım yönergesi içeriği ·
+`.env` içerikleri, parolalar, oturum/bağlantı anahtarları · gerçek kişi adları.
+
+**`vardis_demo` temiz:** 16 metin sütunu, genişletilmiş desen kümesiyle
+**0 isabet**.
+
+**Depoda gerçek sır yok.** İzli hiçbir dosyada gömülü parola veya anahtar
+bulunmadı; `PAROLA=` eşleşmelerinin tamamı test fikstürü ya da değişken
+ataması. `.env` ve `backend/.env` `.gitignore` tarafından kapsanıyor,
+izlenen tek `.env*` dosyası `.env.example` ve o da yalnızca yer tutucu
+(`<PAROLA>`) taşıyor.
+
+`.gitignore` doğrulandı ve genişletildi: `.env`/`.env.*` (+ `!.env.example`)
+zaten vardı; **`docs/old/`, `DAGITIM*.md`, `deploy/DAGITIM.md`, `*.pem`,
+`*.key`, `id_rsa*`, `id_ed25519*` ve `.yasakli-metinler` eklendi.**
+
+**Tarama betiğinin kendisi bir isabetti.** `demo_kabul_olcutleri.py` aradığı
+kurum ve kişi adlarını sabit olarak taşıyordu — depo herkese açıldığında
+redaksiyon güvencesi tam da bastırmak istediği adları yayımlamış olurdu.
+Yapısal desenler (adres biçimi, anahtar yolu, kurulum yolu) kodda kaldı;
+kimlik desenleri izlenmeyen `.yasakli-metinler` dosyasına taşındı. **Dosya
+yoksa ölçüt "geçti" demiyor, "ölçülemedi" diyor** — boş desen kümesiyle
+hiçbir şey bulunmaz ve ölçüt hiçbir şeyi ayırt etmeden ölçülmüş görünürdü.
+
+### 5c. Kurulum bilgisinin genelleştirilmesi
+
+`deploy/DAGITIM.md` depodan çıkarıldı → `docs/old/2026-08-28-DAGITIM.md`
+(izlenmez). Dosya sunucu IP'sini, barındırıcıyı, alan adını, `root@` SSH
+komutlarını ve `$HOME/.ssh/vera_hetzner` anahtar yolunu taşıyordu.
+
+Yerine README'ye **Deployment** bölümü yazıldı: `<SERVICE_USER>`,
+`<INSTALL_DIR>` yer tutucuları, systemd birimlerinin kurulumu, ters vekil
+sunucu ve TLS notu, demo ortamı alt bölümü. README'de IP, alan adı, kişi
+adı, anahtar yolu **yok**; adres olarak yalnızca `localhost` geçiyor.
+
+Yönergeye atıf yapan altı dosya README'ye yönlendirildi. Servis birimlerinin
+`Documentation=` satırları kurulum dizinindeki README'yi gösteriyor — önce
+GitHub URL'i yazmıştım, o da kişinin kullanıcı adını taşıyordu.
+
+**README'nin demo veri bölümü bayattı** (5 dönem, 30 kişi, sabit vardiya
+tipi); üreteç yeniden yazıldığından beri yanlıştı, yeni yapıya göre
+düzeltildi.
+
+Künyeden geliştirici adı kaldırıldı; rol ve kapsam satırları kaldı.
+
+### 5b. Git geçmişi taraması — düzeltme YAPILMADI
+
+Ayrı başlık altında raporlandı. Geçmiş yeniden yazılmadı, commit
+değiştirilmedi, dosya silinmedi.
+
+**Geçmişte gerçek kimlik bilgisi YOK.** Bağlantı dizelerindeki üç farklı
+parola değeri incelendi: biri `config.py`'nin varsayılanı (`vardiya`),
+ikisi yer tutucu (`PAROLA`, `GIZLI`). `password/secret/api_key` deseni
+geçmişin tamamında **sıfır** isabet verdi.
+
+Kapatılması gereken beş şey var ve hepsi kullanıcının işi: sunucu IP'si
+(9 commit), alan adı (15 commit), SSH anahtar yolu ve `root@` erişimi
+(9 commit, tek dosya), kurum adı (19 commit, eski doküman dosya adları
+dahil), gerçek kişi adı (48 commit + 248 commit'in yazar üstverisi).
