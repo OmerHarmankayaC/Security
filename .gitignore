@@ -58,3 +58,7 @@ deploy/DAGITIM.md
 *.key
 id_rsa*
 id_ed25519*
+
+# Olcut 9.6'nin aradigi kimlik metinleri. Bir redaksiyon guvencesinin
+# aradigi adlari depoda tasimasi, tam da onlemek istedigi seyi yapar.
+.yasakli-metinler

@@ -219,6 +219,13 @@ It measures the demo scenario's acceptance criteria and prints a hash of the
 definition and input data; two runs with the same hash satisfy the
 determinism criterion.
 
+The criterion that checks for leaked names reads its search terms from
+`.yasakli-metinler` at the repository root, one per line. That file is not
+tracked: a redaction guard that carries the names it looks for defeats
+itself once the repository is public. Without the file the criterion reports
+that it could not be measured rather than passing — an always-passing check
+is worse than no check, because it looks measured.
+
 ## Login
 
 There is no sign-up screen (FR-10.1); the first account is created out of

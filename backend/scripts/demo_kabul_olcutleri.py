@@ -18,6 +18,7 @@ Kullanim:
 """
 
 import hashlib
+import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -44,15 +45,43 @@ from app.services.hesap_kurulumu import asciye_indir  # noqa: E402
 
 _AYRAC = "─" * 78
 
-# Olcut 6'nin aradigi metinler. ASCII'ye indirgenmis ve kucultulmus halde
-# aranir; "BOTAŞ", "Botas" ve "botaş" tek desene duser.
-_YASAKLI_PARCALAR = (
-    "botas",
-    "boru hatlari",
-    "boru hatlar",
-    "petrol tasima",
-    "harmankaya",
+# Olcut 6'nin aradigi metinler IKI KUMEDIR ve ayri yerlerde dururlar.
+#
+# YAPISAL DESENLER burada kalir: sunucu adresi, alan adi bicimi, SSH anahtar
+# yolu, kurulum yolu. Bunlar hicbir kurumu ya da kisiyi adlandirmaz, her
+# kurulumda ayni anlami tasir ve depoda durmalari bir sey sizdirmaz.
+_YAPISAL_DESENLER = (
+    r"\b(?:\d{1,3}\.){3}\d{1,3}\b",  # IP adresi
+    r"[a-z0-9-]+\.(?:com|net|org|dev|io)\b",  # alan adi
+    r"\.ssh/|id_rsa|id_ed25519|authorized_keys",  # anahtar yolu
+    r"root@|/opt/",  # sunucu erisimi ve kurulum yolu
 )
+
+# KIMLIK DESENLERI (kurum adi, kurum kisaltmasi, gercek kisi adi) BURADA
+# DURMAZ. Bir redaksiyon guvencesinin aradigi adlari kendi icinde tasimasi,
+# tam da onlemek istedigi seyi yapar: depo herkese acildiginda o adlar
+# depoda yazili kalir.
+#
+# Adlar satir basina bir tane olmak uzere depo kokundeki `.yasakli-metinler`
+# dosyasindan okunur; dosya surum kontrolune GIRMEZ (.gitignore).
+#
+# DOSYA YOKSA OLCUT "GECTI" DEMEZ. Bos bir desen kumesiyle hicbir sey
+# bulunmaz ve olcut her zaman gecerdi - hicbir seyi ayirt etmeyen bir olcum,
+# olculmemis olmaktan daha kotudur cunku olculmus gorunur.
+_KIMLIK_DOSYASI = Path(__file__).resolve().parents[2] / ".yasakli-metinler"
+
+
+def _kimlik_desenleri() -> list[str] | None:
+    """`.yasakli-metinler` icerigi; dosya yoksa None (olculemedi)."""
+    if not _KIMLIK_DOSYASI.exists():
+        return None
+    satirlar = [
+        s.strip()
+        for s in _KIMLIK_DOSYASI.read_text(encoding="utf-8").splitlines()
+        if s.strip() and not s.startswith("#")
+    ]
+    return satirlar or None
+
 
 # Olcut 6 metin ALANLARINI tarar, ozet/parola sutunlarini DEGIL: parola
 # ozeti Argon2 ciktisidir ve icinde rastgele bir alt dizginin bulunmasi
@@ -346,6 +375,21 @@ def _olcut_6(oturum: Session) -> Olcut:
     degil: yeni bir metin sutunu eklendiginde elle yazilmis liste sessizce
     eksik kalir ve olcut "temiz" demeye devam ederdi.
     """
+    kimlikler = _kimlik_desenleri()
+    if kimlikler is None:
+        return Olcut(
+            kimlik="9.6",
+            baslik="Veritabaninda kurum adi, kisaltmasi veya gercek kisi adi yok",
+            beklenen="0 isabet",
+            olculen=f"{_KIMLIK_DOSYASI.name} bulunamadi",
+            gecti=None,
+            ayrinti=[
+                f"{_KIMLIK_DOSYASI} dosyasina satir basina bir arama metni yazin;",
+                "dosya surum kontrolune girmez. Yapisal desenler yine de tarandi.",
+            ],
+        )
+
+    desen = "|".join((*_YAPISAL_DESENLER, *(re.escape(k) for k in kimlikler)))
     bulgular: list[str] = []
     taranan = 0
     for tablo, sutun in _metin_sutunlari(oturum):
@@ -355,16 +399,16 @@ def _olcut_6(oturum: Session) -> Olcut:
         ).scalars()
         for deger in degerler:
             duz = asciye_indir(str(deger))
-            for parca in _YASAKLI_PARCALAR:
-                if parca in duz:
-                    bulgular.append(f"{tablo}.{sutun}: {deger!r} (eşleşen: {parca})")
+            if re.search(desen, duz):
+                bulgular.append(f"{tablo}.{sutun}: {deger!r}")
     return Olcut(
         kimlik="9.6",
-        baslik="Veritabanının hiçbir metin alanında kurum adı, kısaltması veya gerçek kişi adı yok",
+        baslik="Veritabaninda kurum adi, kisaltmasi, adres veya gercek kisi adi yok",
         beklenen="0 isabet",
-        olculen=f"{len(bulgular)} isabet / {taranan} metin sütunu tarandı",
+        olculen=f"{len(bulgular)} isabet / {taranan} metin sutunu, "
+        f"{len(_YAPISAL_DESENLER)} yapisal + {len(kimlikler)} kimlik deseni",
         gecti=not bulgular,
-        ayrinti=bulgular[:10] or [f"{taranan} metin sütununun tamamı temiz"],
+        ayrinti=bulgular[:10] or [f"{taranan} metin sutununun tamami temiz"],
     )
 
 
