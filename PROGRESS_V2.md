@@ -3076,3 +3076,94 @@ geliştirme makinesi **17.10**, referans donanım **18.6**
 (`olcum/OLCUM_ORTAMI.md`). `VERSIONS.md`'nin var olma nedeni tam olarak bu iki
 ortamı eşlemek (SDD 3.4.1) ve eşleme tutmuyor. Sabit değiştirilmedi — bu bir
 ürün kararı; README artık 16'yı taban olarak yazıyor ve uyuşmazlığı söylüyor.
+
+---
+
+## Tur 15 — Yayın turu: demo giriş, ekran görüntüleri, son kontrol
+
+Dokümanlar: Charter 1.8 · SRS 1.29 · SDD 1.38 · Backlog 1.28 ·
+DEMO_SENARYOSU 1.0 — beşi de tur başında doğrulandı.
+
+### 1. Demo kimlik bilgisi giriş ekranında
+
+`GET /api/demo/kimlik`: demo hesaplarının kullanıcı adlarını ve ortak
+parolayı döner. **Yalnız demo kipinde vardır**; kapalıyken 404 — 403 değil,
+çünkü 403 var olan ama erişilemeyen bir kaynağı işaret eder ve gerçek bir
+kurulumda "demo kimlik bilgisi bir yerlerde duruyor" izlenimi verirdi.
+
+Kapalı durum iki testle kilitlendi: durum kodu ve **yanıt gövdesinde hiçbir
+kullanıcı adının geçmemesi**. Parola koda ve pakete gömülü değil; uç nokta
+`ayarlar.demo_parola`yı istek anında okuyor ve bunun gözlenebilir karşılığı
+ayrı bir testte: ayar değişince yanıt da değişiyor.
+
+**Sistem yöneticisi hesabı açılır ama GÖSTERİLMEZ.** Gösterim ortamı herkese
+açık; en geniş yetkiyi giriş ekranına yazmak, demoyu gezen herkese hesap
+yönetimi hakkı vermek olurdu. Ekranda üç rol var: idare, hesap yöneticisi,
+çalışan (ikisi).
+
+Hesap listesi `app/services/demo_hesaplari.py`'ye taşındı — hesapları AÇAN
+üreteç ile GÖSTEREN uç nokta aynı tanımı okusun; iki yerde yazılsaydı
+ekranın gösterdiği kullanıcı adı çalışmayabilirdi.
+
+Yetkilendirme koruması uç noktayı yakaladı ve muafiyet listesine gerekçesiyle
+eklendi. Muafiyet listesindeki diğerlerinden farkı: açık olduğu için değil,
+**gerçek bir kurulumda hiç bulunmadığı** için listede.
+
+### 2. Şerit metni
+
+Üç şeyi söylüyor: veri gösterim amaçlı üretilmiştir, her gece sıfırlanır,
+sistem herhangi bir kurumda kullanımda değildir. `Kok.test.tsx` şeridin hem
+yönetici arayüzünde hem çalışan panelinde çizildiğini, kapalı kipte hiçbir
+yüzeyde çizilmediğini doğruluyor.
+
+### 3. Ekran görüntüleri
+
+**`.env` geçici olarak `vardis_demo`ya çevrildi ve YEDEKTEN GERİ YÜKLENDİ**;
+SHA-256 karşılaştırmasıyla birebir aynı olduğu doğrulandı
+(`70ccc9b7343295b9…`). Depo kökünde geçici bir `.env` sembolik bağı
+kurulmuştu (uvicorn kökten koştuğu için `.env`i orada arıyor) ve o da
+silindi.
+
+Beş görüntü headless Chrome + CDP ile alındı (1440×900, 2× ölçek). Uygulamada
+URL tabanlı yönlendirme olmadığı için derin bağlantı kurulamıyor; oturum
+`fetch` ile açılıp ekranlara tıklanarak gidildi.
+
+Hangi ekranın hangi dönemden alındığı bir karar: **gün ızgarası sıkışık
+dönemden** (kapsama şeridi ve açık rozetleri orada görünür), **hafta şeridi ve
+analiz yayınlanmış dönemden** (sıkışık dönemde şef havuzunun tamamı izinli
+olduğu için adalet tablosu dejenere, herkes 0 saat). **Çözüm ekranı ön
+kontrol çıktısını gösteriyor**: açılışta boş (iş kartı yalnız yürüyen ya da o
+oturumda sonuçlanan iş için çizilir) ve çözüm başlatmak demo veritabanına
+yeni bir sürüm yazardı; ön kontrol salt okunur ve sıkışık dönemde gerçek
+bulgu üretiyor (78 kişi-saatlik yapısal engel + kota uyarısı).
+
+Beşinde de şerit görünüyor, hiçbirinde kimlik kutusu yok (kutu yalnız giriş
+ekranında ve giriş ekranı çekilmedi).
+
+### 4. Künye ve redaksiyon kümesi
+
+Geliştirici adı künyeye geri kondu: kendi adı **atıftır**, redaksiyon hedefi
+değil — bir önceki turda kurum adıyla birlikte silinmişti, oysa biri ilişki
+iddiası diğeri eser sahipliği. `.yasakli-metinler`den kişi adı çıkarıldı;
+kümede yalnız kurum adı, kısaltması ve barındırıcı kaldı.
+
+### 5. Son yayın kontrolü
+
+**Kırık bağlantı: 0** (10 yerel hedef). **`vardis_demo`: 0 isabet** (16 metin
+sütunu, 4 yapısal + 6 kimlik deseni). **Gömülü sır: yok.** `.gitignore`
+`.env`, `docs/old/`, `deploy/DAGITIM.md`, `.yasakli-metinler`, `*.pem`,
+`*.key`, `id_rsa*`, `id_ed25519*` ve `ornek-ciktilar/` için doğrulandı.
+
+`VERSIONS.md` PostgreSQL sabiti **16 → 18**; README ile hizalandı. Eşleme
+hâlâ tam değil (geliştirme makinesi 17.x) ve bu açıkça yazıldı.
+
+### DOKÜMAN BORCU — Tur 15
+
+1. **SRS 5.x** — demo kimlik bilgisi uç noktası bir gereksinimdir: yalnız
+   demo kipinde var olur, kapalıyken 404 döner, sistem yöneticisi hesabı
+   listelenmez.
+2. **SDD Ek B** — `GET /api/demo/kimlik` (yetki istemez, koşullu 404).
+   Uç nokta denetimi bunu şu an eksik raporluyor.
+3. **SDD 6.3.6** — giriş ekranındaki kimlik kutusu ve tek tıkla doldurma.
+4. **SRS/SDD** — şerit metninin üçüncü cümlesi ("herhangi bir kurumda
+   kullanımda değildir") bir beyandır, üslup değil.
