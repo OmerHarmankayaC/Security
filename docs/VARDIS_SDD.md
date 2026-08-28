@@ -18,6 +18,11 @@ Endüstri Mühendisliği / Bilgisayar Mühendisliği
 
 Sürüm 1.0
 
+> **Not.** Bu doküman CMPE 399 yaz stajı kapsamında hazırlanmıştır. Sistem
+> kurum bünyesinde kullanıma alınmamış, kurumdan gerçek veri kullanılmamıştır.
+> Belgedeki kadro, görev noktası ve talep sayıları gösterim amaçlı
+> varsayımlardır.
+
 # Revizyon Geçmişi
 
 | Ad | Tarih | Değişiklik Nedeni | Sürüm |

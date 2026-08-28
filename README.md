@@ -1,5 +1,18 @@
 # Shift Scheduling Decision Support Tool
 
+> **Kapsam notu.** Bu proje, TED Üniversitesi CMPE 399 yaz stajı kapsamında
+> yürütülmüş kişisel ve akademik bir çalışmadır. BOTAŞ tarafından
+> ısmarlanmamış, kurum bünyesinde kullanıma alınmamış ve kurumu hiçbir
+> biçimde temsil etmemektedir. Geliştirme sırasında kuruma ait hiçbir gerçek
+> veri kullanılmamıştır: depodaki personel, görev noktası, kadro ve talep
+> sayılarının tamamı gösterim amacıyla üretilmiş varsayımlardır ve gerçek bir
+> çalışma düzenini yansıtmaz.
+
+> **Scope note.** This is a personal academic project carried out during a
+> summer internship. It was not commissioned by, deployed at, or endorsed by
+> the institution named in the documents, and contains no real institutional
+> data. All staffing figures are illustrative assumptions.
+
 A constraint-programming (Google OR-Tools CP-SAT) decision support tool for
 building shift schedules: it assigns staff to hourly demand under hard rules
 (rest periods, weekly caps, competencies) while balancing night hours,
