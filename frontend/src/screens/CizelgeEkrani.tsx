@@ -52,7 +52,9 @@ import {
   gunlerListesi,
   haftaSonuMu,
 } from '../lib/tarih'
-import { useMetin } from '@/i18n/DilBaglami'
+import { useDil, useMetin } from '@/i18n/DilBaglami'
+import { hataMetni } from '@/i18n/hata'
+import type { Metinler } from '@/i18n/sozluk'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -70,19 +72,15 @@ interface Props {
 const BOSALT_DEGERI = ''
 
 /** "Yeniden Çöz" düğmesinin ipucu metni (bkz. düğmenin yanındaki not). */
-function yenidenCozIpucu(surum: CizelgeSurumu | null, kilitliSayisi: number): string | undefined {
+function yenidenCozIpucu(
+  surum: CizelgeSurumu | null,
+  kilitliSayisi: number,
+  m: Metinler,
+): string | undefined {
   if (surum === null) return undefined
-  if (kilitliSayisi === 0) {
-    return `Sürüm ${surum.surum_no} taban alınarak yeniden çözülür; bu sürümde kilitli atama yok.`
-  }
-  return `Sürüm ${surum.surum_no} taban alınarak yeniden çözülür; ${kilitliSayisi} kilitli atama korunur.`
-}
-
-const SURUM_DURUM_METNI: Record<string, string> = {
-  taslak: 'Taslak',
-  cozuldu: 'Çözüldü',
-  yayinlandi: 'Yayınlandı',
-  arsiv: 'Arşiv',
+  return kilitliSayisi === 0
+    ? m.cizelge.yenidenCozKilitsiz(surum.surum_no)
+    : m.cizelge.yenidenCozKilitli(surum.surum_no, kilitliSayisi)
 }
 
 const SECIM_SINIFI =
@@ -106,6 +104,7 @@ interface SeciliHucre {
 type Gorunum = 'gun' | 'hafta'
 
 export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }: Props) {
+  const { dil, metin: m } = useDil()
   const [donemler, setDonemler] = useState<Donem[]>([])
   const [excelIniyor, setExcelIniyor] = useState(false)
   const [surumler, setSurumler] = useState<CizelgeSurumu[]>([])
@@ -169,7 +168,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
           if (son) donemIdSec(son.donem_id)
         }
       })
-      .catch((e) => setHata(e instanceof Error ? e.message : 'Tanımlar yüklenemedi'))
+      .catch((e) => setHata(hataMetni(e, m)))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -186,7 +185,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
         setSurumler(s)
         setSurumId(s[0] ? s[0].surum_id : null)
       })
-      .catch((e) => setHata(e instanceof Error ? e.message : 'Sürümler yüklenemedi'))
+      .catch((e) => setHata(hataMetni(e, m)))
   }, [donemId])
 
   // Üst şeritteki KAPSAMA ve TOPLAM CEZA sayıları analizden gelir. Izgara
@@ -224,7 +223,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
         setKapsamaAcigi(k)
         setFazlaKadro(f)
       })
-      .catch((e) => setHata(e instanceof Error ? e.message : 'Çizelge yüklenemedi'))
+      .catch((e) => setHata(hataMetni(e, m)))
       .finally(() => setYukleniyor(false))
   }
 
@@ -422,7 +421,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
     try {
       setDogrulamaSonucu(await api.atamaDogrula({ surum_id: id, degisiklikler: bekleyen }))
     } catch (e) {
-      setPanelHata(e instanceof Error ? e.message : 'Doğrulama başarısız')
+      setPanelHata(hataMetni(e, m))
     } finally {
       setPanelYukleniyor(false)
     }
@@ -495,7 +494,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
       await api.atamaKilitAyarla(surumId, personelId, seciliGun, kilitli)
       surumYukle()
     } catch (e) {
-      setPanelHata(e instanceof Error ? e.message : 'Kilit değiştirilemedi')
+      setPanelHata(hataMetni(e, m))
     }
   }
 
@@ -561,7 +560,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
         setPanelHata(
           typeof e.detay === 'string'
             ? e.detay
-            : 'Kaydedilemedi: değişiklikler zorunlu bir kuralı bozuyor.',
+            : m.cizelge.kaydedilemedi,
         )
       } else {
         setPanelHata(e instanceof Error ? e.message : 'Kaydedilemedi')
@@ -585,7 +584,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
     if (
       surumler.length > 0 &&
       !window.confirm(
-        `Dönemde ${surumler.length} sürüm var; ${surumler.length + 1}. sürüm boş bir taslak olarak açılacak.`,
+        m.cizelge.bosTaslakOnayi(surumler.length, surumler.length + 1),
       )
     ) {
       return
@@ -598,7 +597,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
           setSurumId(yeni.surum_id)
         }),
       )
-      .catch((e) => setHata(e instanceof Error ? e.message : 'Boş taslak açılamadı'))
+      .catch((e) => setHata(hataMetni(e, m)))
   }
 
   // Dışa aktarma verisi Çizelge ve Analiz ekranlarında aynı biçimde kurulur;
@@ -622,11 +621,11 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
     <AppShell
       aktifEkran="Çizelge"
       ekranSec={ekranSec}
-      baslik="Çizelge"
+      baslik={m.menu['Çizelge']}
       altBaslik={
         surum ? (
           <span className="mono-caps rounded-sm bg-sunken px-2 py-1 text-ink-muted">
-            {buyukHarf(SURUM_DURUM_METNI[surum.durum] ?? surum.durum)} · SÜRÜM {surum.surum_no}
+            {buyukHarf(m.surumDurumu[surum.durum] ?? surum.durum)} · SÜRÜM {surum.surum_no}
           </span>
         ) : undefined
       }
@@ -638,8 +637,8 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
           <div className="flex rounded-sm bg-chrome-raised p-0.5">
             {(
               [
-                ['gun', 'Gün'],
-                ['hafta', 'Hafta'],
+                ['gun', m.cizelge.gun],
+                ['hafta', m.cizelge.hafta],
               ] as const
             ).map(([secenek, etiket]) => (
               <button
@@ -665,22 +664,22 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
           <Buton
             varyant="ikincil"
             disabled={surum === null || excelIniyor}
-            title="Çizelge + özet + ham veri, biçimlenmiş çalışma kitabı"
+            title={m.cizelge.excelIpucu}
             onClick={() => {
               if (!surum) return
               setExcelIniyor(true)
               api
                 .cizelgeExcelIndir(surum.surum_id, surum.surum_no)
-                .catch(() => setHata('Excel dosyası indirilemedi.'))
+                .catch(() => setHata(m.cizelge.excelIndirilemedi))
                 .finally(() => setExcelIniyor(false))
             }}
           >
-            {excelIniyor ? 'İndiriliyor…' : 'Excel'}
+            {excelIniyor ? m.cizelge.indiriliyor : m.cizelge.excel}
           </Buton>
           <Buton
             varyant="ikincil"
             disabled={disaAktarmaVerisi === null}
-            title="Uzun biçim CSV + talep sapması dosyası (ham veri)"
+            title={m.cizelge.csvIpucu}
             onClick={() => disaAktarmaVerisi && csvDisaAktar(disaAktarmaVerisi)}
           >
             CSV
@@ -688,22 +687,22 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
           <Buton
             varyant="ikincil"
             disabled={disaAktarmaVerisi === null}
-            title="Personel × saat ızgarası, yatay A4"
+            title={m.cizelge.yazdirIpucu}
             onClick={() => setYazdirmaAcik(true)}
           >
-            Yazdır
+            {m.cizelge.yazdir}
           </Buton>
           {/* OTURUM ÇUBUĞU (SRS FR-6.7, FR-6.8). Kaydedilmemiş değişiklik
               varken sayısı görünür; Kaydet tek istek gönderir. */}
           {surumDuzenlenebilir && kirliMi(oturum) && (
             <>
               <span className="mono-caps rounded-sm bg-signal-soft px-2 py-1 text-signal">
-                {bekleyenler(oturum).length} KAYDEDİLMEMİŞ
+                {m.cizelge.kaydedilmemis(bekleyenler(oturum).length)}
               </span>
               <Buton
                 varyant="ikincil"
                 disabled={!geriAlinabilirMi(oturum) || kaydediliyor}
-                title="Son değişikliği geri al"
+                title={m.cizelge.geriAlIpucu}
                 onClick={geriAlEylemi}
               >
                 Geri Al
@@ -711,13 +710,13 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
               <Buton
                 varyant="ikincil"
                 disabled={!yenidenUygulanabilirMi(oturum) || kaydediliyor}
-                title="Geri alınan değişikliği yeniden uygula"
+                title={m.cizelge.yenidenUygulaIpucu}
                 onClick={yenidenUygulaEylemi}
               >
                 Yinele
               </Buton>
               <Buton varyant="hayalet" disabled={kaydediliyor} onClick={oturumuAt}>
-                Vazgeç
+                {m.cizelge.vazgec}
               </Buton>
               <Buton varyant="birincil" disabled={kaydediliyor} onClick={kaydet}>
                 {kaydediliyor ? 'Kaydediliyor…' : 'Kaydet'}
@@ -733,12 +732,12 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
             // kilit yokken kullanıcıya yanlış bir güvence verirdi.
             title={
               kirliMi(oturum)
-                ? 'Önce değişiklikleri kaydedin ya da vazgeçin'
-                : yenidenCozIpucu(surum, kilitliAtamaSayisi)
+                ? m.cizelge.onceKaydet
+                : yenidenCozIpucu(surum, kilitliAtamaSayisi, m)
             }
             onClick={() => donemId !== null && yenidenCozIste(donemId, surumId)}
           >
-            Yeniden Çöz
+            {m.cizelge.yenidenCoz}
           </Buton>
         </>
       }
@@ -748,11 +747,11 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
       )}
 
       <Kart>
-        <KartEtiketi>seçim</KartEtiketi>
+        <KartEtiketi>{m.cizelge.secim}</KartEtiketi>
         <div className="flex flex-wrap items-end gap-6">
           <div className="flex flex-col gap-1">
             <label htmlFor="donem-sec" className="text-sm text-ink-muted">
-              Dönem
+              {m.cizelge.donem}
             </label>
             <select
               id="donem-sec"
@@ -760,7 +759,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
               // Kirli oturumda dönem/sürüm değiştirmek birikimi sessizce
               // atardı; kullanıcı önce kaydeder ya da vazgeçer (FR-6.8).
               disabled={kirliMi(oturum)}
-              title={kirliMi(oturum) ? 'Önce değişiklikleri kaydedin ya da vazgeçin' : undefined}
+              title={kirliMi(oturum) ? m.cizelge.onceKaydet : undefined}
               value={donemId ?? ''}
               onChange={(e) => donemIdSec(e.target.value ? Number(e.target.value) : null)}
             >
@@ -773,19 +772,19 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
           </div>
           <div className="flex flex-col gap-1">
             <label htmlFor="surum-sec" className="text-sm text-ink-muted">
-              Sürüm
+              {m.cizelge.surum}
             </label>
             <select
               id="surum-sec"
               className={SECIM_SINIFI}
               disabled={kirliMi(oturum)}
-              title={kirliMi(oturum) ? 'Önce değişiklikleri kaydedin ya da vazgeçin' : undefined}
+              title={kirliMi(oturum) ? m.cizelge.onceKaydet : undefined}
               value={surumId ?? ''}
               onChange={(e) => setSurumId(e.target.value ? Number(e.target.value) : null)}
             >
               {surumler.map((s) => (
                 <option key={s.surum_id} value={s.surum_id}>
-                  Sürüm {s.surum_no} ({SURUM_DURUM_METNI[s.durum] ?? s.durum})
+                  {m.cizelge.surumSecenegi(s.surum_no, m.surumDurumu[s.durum] ?? s.durum)}
                 </option>
               ))}
             </select>
@@ -793,10 +792,10 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
           <Buton
             varyant="ikincil"
             disabled={donemId === null || kirliMi(oturum)}
-            title={kirliMi(oturum) ? 'Önce değişiklikleri kaydedin ya da vazgeçin' : undefined}
+            title={kirliMi(oturum) ? m.cizelge.onceKaydet : undefined}
             onClick={bosTaslakAc}
           >
-            Boş Taslak Aç
+            {m.cizelge.bosTaslakAc}
           </Buton>
         </div>
       </Kart>
@@ -810,22 +809,21 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
       {surum !== null && !surumDuzenlenebilir && (
         <p className="m-0 rounded-sm border-l-2 border-accent bg-accent-soft px-4 py-3 text-sm text-ink">
           <strong className="font-medium">
-            {SURUM_DURUM_METNI[surum.durum] ?? surum.durum} durumundaki sürüm salt okunur.
+            {m.surumDurumu[surum.durum] ?? surum.durum} durumundaki sürüm salt okunur.
           </strong>{' '}
-          Değişiklik için Sürümler ekranında bu sürümün{' '}
-          <strong className="font-medium">“Düzenlemek İçin Kopyala”</strong> düğmesini kullanın —
-          çizelge olduğu gibi yeni taslağa taşınır. “Boş Taslak Aç” ise atamasız bir sürüm üretir;
-          onu bu ekranda elle doldurabilir ya da çözücüye bırakabilirsiniz (FR-7.3).
+          {m.cizelge.duzenlenemezNotu1}{' '}
+          <strong className="font-medium">{m.cizelge.duzenlenemezKopyala}</strong>{' '}
+          {m.cizelge.duzenlenemezNotu2}
         </p>
       )}
 
       {/* Süzgeç ve ölçüm şeridi. Solda ızgarayı daraltan süzgeçler, sağda
           sürümün üç ölçüsü. */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-rule pb-4">
-        <span className="etiket-caps text-ink-muted">{buyukHarf('Süzgeç')}</span>
+        <span className="etiket-caps text-ink-muted">{buyukHarf(m.cizelge.suzgec, dil)}</span>
         <div className="flex flex-wrap items-center gap-2">
           <SuzgecCipi secili={seciliYetkinlikId === null} onSec={() => setSeciliYetkinlikId(null)}>
-            Tüm yetkinlikler
+            {m.cizelge.tumYetkinlikler}
           </SuzgecCipi>
           {yetkinlikler.map((y) => (
             <SuzgecCipi
@@ -843,7 +841,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
             secili={seciliSuzgecNoktaId === null}
             onSec={() => setSeciliSuzgecNoktaId(null)}
           >
-            Tüm noktalar
+            {m.cizelge.tumNoktalar}
           </SuzgecCipi>
           {seritNoktalari.map((n) => (
             <SuzgecCipi
@@ -855,20 +853,20 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
             </SuzgecCipi>
           ))}
           <SuzgecCipi secili={yalnizcaAcik} onSec={() => setYalnizcaAcik(!yalnizcaAcik)}>
-            Yalnızca açık verilen günler
+            {m.cizelge.yalnizAcikGunler}
           </SuzgecCipi>
         </div>
 
         <div className="ml-auto flex items-center gap-4">
-          <Olcum etiket="Kapsama">
+          <Olcum etiket={m.cizelge.kapsama}>
             {analiz ? `%${Math.round(analiz.kapsama_orani * 100)}` : '—'}
           </Olcum>
           <span className="h-5 w-px bg-rule" />
-          <Olcum etiket="Açık" vurgulu={kapsamaAcigi.length > 0}>
+          <Olcum etiket={m.cizelge.acik} vurgulu={kapsamaAcigi.length > 0}>
             {sayiBicimle(kapsamaAcigi.length)}
           </Olcum>
           <span className="h-5 w-px bg-rule" />
-          <Olcum etiket="Toplam Ceza">
+          <Olcum etiket={m.cizelge.toplamCeza}>
             {analiz?.toplam_ceza != null ? sayiBicimle(Math.round(analiz.toplam_ceza)) : '—'}
           </Olcum>
         </div>
@@ -876,22 +874,22 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
 
       <Kart>
         {yukleniyor ? (
-          <p className="text-sm text-ink-muted">Yükleniyor…</p>
+          <p className="text-sm text-ink-muted">{m.cizelge.yukleniyor}</p>
         ) : tumIzgaraPersonelleri.length === 0 && !surumDuzenlenebilir ? (
-          <p className="text-sm text-ink-muted">Bu sürümde henüz atama yok.</p>
+          <p className="text-sm text-ink-muted">{m.cizelge.atamaYok}</p>
         ) : tumIzgaraPersonelleri.length === 0 ? (
           // Düzenlenebilir sürümde satırlar kadrodan gelir (lib/izgaraSatirlari.ts);
           // burada boş kalmak "atama yok" değil "kadroda kimse yok" demektir.
           <p className="text-sm text-ink-muted">
-            Bu dönemde aktif personel yok; Tanımlar ekranından personel ekleyin.
+            {m.cizelge.personelYok}
           </p>
         ) : gunler.length === 0 ? (
           <p className="text-sm text-ink-muted">
-            Bu dönemde açık verilen gün yok. Süzgeci kaldırarak tüm günleri görebilirsiniz.
+            {m.cizelge.acikGunYok}
           </p>
         ) : izgaraPersonelleri.length === 0 ? (
           <p className="text-sm text-ink-muted">
-            Seçili süzgeçlerde bu sürüme atanmış personel yok.
+            {m.cizelge.suzgecteYok}
           </p>
         ) : gorunum === 'gun' ? (
           <>
@@ -900,7 +898,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
             <div
               className="mb-3 flex gap-1 overflow-x-auto border-b border-rule pb-2"
               role="tablist"
-              aria-label="Gün seçimi"
+              aria-label={m.cizelge.gunSecimi}
             >
               {gunler.map((g) => {
                 const { kisaltma, numara } = gunBasligiParcalari(g)
@@ -987,17 +985,19 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
         {!yukleniyor && izgaraPersonelleri.length > 0 && (
           <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-ink-muted">
             <span>
-              <Sayi>{sayiBicimle(tumIzgaraPersonelleri.length)}</Sayi> personelin{' '}
-              <Sayi>{sayiBicimle(izgaraPersonelleri.length)}</Sayi>
-              {belirtmeHaliEki(izgaraPersonelleri.length)} gösteriliyor
+              {m.cizelge.personelGosterimi(
+                sayiBicimle(tumIzgaraPersonelleri.length),
+                sayiBicimle(izgaraPersonelleri.length),
+                belirtmeHaliEki(izgaraPersonelleri.length),
+              )}
               {gorunum === 'gun' && seciliGun && ` · ${gunKisaltmasiVeNumarasi(seciliGun)}`}
             </span>
             <div className="ml-auto flex flex-wrap items-center gap-4">
               <SaatBandiLejandi />
-              <Lejant sinif="border-2 border-accent bg-surface">Kilitli</Lejant>
+              <Lejant sinif="border-2 border-accent bg-surface">{m.cizelge.kilitli}</Lejant>
               <span className="flex items-center gap-2 text-sm text-ink-muted">
                 <span className="font-mono text-xs font-semibold text-signal">▲</span>
-                Kapsama açığı
+                {m.cizelge.kapsamaAcigi}
               </span>
             </div>
           </div>
@@ -1010,10 +1010,10 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
       {(dogrulamaSonucu !== null || panelHata !== null || seciliHucre !== null) && (
         <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
           <Kart>
-            <KartEtiketi>sonuç</KartEtiketi>
+            <KartEtiketi>{m.cizelge.sonuc}</KartEtiketi>
             {panelHata && <p className="m-0 text-sm text-signal">{panelHata}</p>}
             {panelYukleniyor && !dogrulamaSonucu && (
-              <p className="m-0 text-sm text-ink-muted">Değerlendiriliyor…</p>
+              <p className="m-0 text-sm text-ink-muted">{m.cizelge.degerlendiriliyor}</p>
             )}
             {dogrulamaSonucu && <SonucSeridi sonuc={dogrulamaSonucu} personelMap={personelMap} />}
           </Kart>
@@ -1029,7 +1029,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
               <div className="mt-3 flex flex-col gap-3">
                 <div className="flex gap-2">
                   <label className="flex flex-1 flex-col gap-1 text-sm text-ink-muted">
-                    Başlangıç
+                    {m.cizelge.baslangic}
                     <select
                       className={SECIM_SINIFI}
                       value={seciliBaslangic ?? ''}
@@ -1045,7 +1045,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                     </select>
                   </label>
                   <label className="flex flex-1 flex-col gap-1 text-sm text-ink-muted">
-                    Bitiş
+                    {m.cizelge.bitis}
                     <select
                       className={SECIM_SINIFI}
                       value={seciliBitis ?? ''}
@@ -1062,7 +1062,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                   </label>
                 </div>
                 <label className="flex flex-col gap-1 text-sm text-ink-muted">
-                  Görev Noktası
+                  {m.cizelge.gorevNoktasi}
                   <select
                     className={SECIM_SINIFI}
                     value={seciliNoktaId}
@@ -1164,6 +1164,7 @@ function Olcum({
  * iki ucunun ne demek olduğudur.
  */
 function SaatBandiLejandi() {
+  const m = useMetin()
   return (
     <span className="flex items-center gap-2 text-sm text-ink-muted">
       <span className="font-mono text-mono-kucuk">00</span>
@@ -1178,7 +1179,7 @@ function SaatBandiLejandi() {
         aria-hidden="true"
       />
       <span className="font-mono text-mono-kucuk">24</span>
-      <span>saat bandı</span>
+      <span>{m.cizelge.saatBandi}</span>
     </span>
   )
 }
@@ -1256,7 +1257,7 @@ function SonucSeridi({
             aria-expanded={dokumAcik}
             onClick={() => setDokumAcik(!dokumAcik)}
           >
-            {dokumAcik ? 'Ceza dökümünü gizle' : 'Ceza dökümünü göster'}
+            {dokumAcik ? m.cizelge.dokumGizle : m.cizelge.dokumGoster}
           </button>
           {dokumAcik && (
             <table className="mt-2 w-full border-collapse text-sm">
@@ -1264,8 +1265,8 @@ function SonucSeridi({
                 <tr className="text-ink-muted">
                   <th className="py-1 text-left font-normal">Hedef</th>
                   <th className="py-1 text-right font-normal">Ham</th>
-                  <th className="py-1 text-right font-normal">Ağırlık</th>
-                  <th className="py-1 text-right font-normal">Ağırlıklı</th>
+                  <th className="py-1 text-right font-normal">{m.cizelge.agirlik}</th>
+                  <th className="py-1 text-right font-normal">{m.cizelge.agirlikli}</th>
                 </tr>
               </thead>
               <tbody>

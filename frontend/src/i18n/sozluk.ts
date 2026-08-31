@@ -286,6 +286,82 @@ const tr = {
    * ("night fairness worsened by 2 hours"). Ortak bir şablon ikisinden
    * birini bozardı.
    */
+  cizelge: {
+    tanimlarYuklenemedi: 'Tanımlar yüklenemedi.',
+    surumlerYuklenemedi: 'Sürümler yüklenemedi.',
+    cizelgeYuklenemedi: 'Çizelge yüklenemedi.',
+    dogrulamaBasarisiz: 'Doğrulama başarısız.',
+    kilitDegistirilemedi: 'Kilit değiştirilemedi.',
+    kaydedilemedi: 'Kaydedilemedi: değişiklikler zorunlu bir kuralı bozuyor.',
+    bosTaslakOnayi: (mevcut: number, yeni: number) =>
+      `Dönemde ${mevcut} sürüm var; ${yeni}. sürüm boş bir taslak olarak açılacak.`,
+    bosTaslakAcilamadi: 'Boş taslak açılamadı.',
+    gun: 'Gün',
+    hafta: 'Hafta',
+    excelIpucu: 'Çizelge + özet + ham veri, biçimlenmiş çalışma kitabı',
+    excelIndirilemedi: 'Excel dosyası indirilemedi.',
+    indiriliyor: 'İndiriliyor…',
+    excel: 'Excel',
+    csvIpucu: 'Uzun biçim CSV + talep sapması dosyası (ham veri)',
+    yazdirIpucu: 'Personel × saat ızgarası, yatay A4',
+    yazdir: 'Yazdır',
+    kaydedilmemis: (sayi: number) => `${sayi} KAYDEDİLMEMİŞ`,
+    geriAlIpucu: 'Son değişikliği geri al',
+    yenidenUygulaIpucu: 'Geri alınan değişikliği yeniden uygula',
+    vazgec: 'Vazgeç',
+    onceKaydet: 'Önce değişiklikleri kaydedin ya da vazgeçin',
+    yenidenCoz: 'Yeniden Çöz',
+    yenidenCozKilitsiz: (no: number) =>
+      `Sürüm ${no} taban alınarak yeniden çözülür; bu sürümde kilitli atama yok.`,
+    yenidenCozKilitli: (no: number, sayi: number) =>
+      `Sürüm ${no} taban alınarak yeniden çözülür; ${sayi} kilitli atama korunur.`,
+    secim: 'seçim',
+    donem: 'Dönem',
+    surum: 'Sürüm',
+    surumSecenegi: (no: number, durum: string) => `Sürüm ${no} (${durum})`,
+    bosTaslakAc: 'Boş Taslak Aç',
+    duzenlenemezNotu1: 'Değişiklik için Sürümler ekranında bu sürümün',
+    duzenlenemezKopyala: '“Düzenlemek İçin Kopyala”',
+    duzenlenemezNotu2:
+      'düğmesini kullanın: çizelge olduğu gibi yeni taslağa taşınır. “Boş Taslak Aç” ise atamasız bir sürüm üretir; onu bu ekranda elle doldurabilir ya da çözücüye bırakabilirsiniz (FR-7.3).',
+    suzgec: 'Süzgeç',
+    tumYetkinlikler: 'Tüm yetkinlikler',
+    tumNoktalar: 'Tüm noktalar',
+    yalnizAcikGunler: 'Yalnızca açık verilen günler',
+    kapsama: 'Kapsama',
+    acik: 'Açık',
+    toplamCeza: 'Toplam Ceza',
+    yukleniyor: 'Yükleniyor…',
+    atamaYok: 'Bu sürümde henüz atama yok.',
+    personelYok: 'Bu dönemde aktif personel yok; Tanımlar ekranından personel ekleyin.',
+    acikGunYok: 'Bu dönemde açık verilen gün yok. Süzgeci kaldırarak tüm günleri görebilirsiniz.',
+    suzgecteYok: 'Seçili süzgeçlerde bu sürüme atanmış personel yok.',
+    gunSecimi: 'Gün seçimi',
+    saatBandi: 'saat bandı',
+    kilitli: 'Kilitli',
+    kapsamaAcigi: 'Kapsama açığı',
+    sonuc: 'sonuç',
+    degerlendiriliyor: 'Değerlendiriliyor…',
+    baslangic: 'Başlangıç',
+    bitis: 'Bitiş',
+    gorevNoktasi: 'Görev Noktası',
+    dokumGizle: 'Ceza dökümünü gizle',
+    dokumGoster: 'Ceza dökümünü göster',
+    agirlik: 'Ağırlık',
+    agirlikli: 'Ağırlıklı',
+    /**
+     * "36 personelin 10'u gösteriliyor".
+     *
+     * ÜÇÜNCÜ PARAMETRE yalnız Türkçe'de kullanılıyor: sayıya gelen belirtme
+     * eki sayının okunuşuna bağlı (`belirtmeHaliEki`). İngilizce karşılığı
+     * onu hiç almıyor ve TypeScript buna izin veriyor: daha az parametreli
+     * bir fonksiyon, daha çok parametreli bir tipe atanabilir. Çağrı yeri
+     * eki her zaman hesaplar, İngilizce dal görmezden gelir.
+     */
+    personelGosterimi: (toplam: string, gosterilen: string, ek: string) =>
+      `${toplam} personelin ${gosterilen}${ek} gösteriliyor`,
+  },
+
   analiz: {
     tanimlarYuklenemedi: 'Tanımlar yüklenemedi.',
     surumlerYuklenemedi: 'Sürümler yüklenemedi.',
@@ -959,6 +1035,75 @@ const en: Metinler = {
     cozuldu: 'Solved',
     yayinlandi: 'Published',
     arsiv: 'Archived',
+  },
+
+  cizelge: {
+    tanimlarYuklenemedi: 'Could not load the definitions.',
+    surumlerYuklenemedi: 'Could not load the versions.',
+    cizelgeYuklenemedi: 'Could not load the schedule.',
+    dogrulamaBasarisiz: 'Validation failed.',
+    kilitDegistirilemedi: 'Could not change the lock.',
+    kaydedilemedi: 'Not saved: the changes break a hard rule.',
+    bosTaslakOnayi: (mevcut: number, yeni: number) =>
+      `The period has ${mevcut} versions; version ${yeni} will open as an empty draft.`,
+    bosTaslakAcilamadi: 'Could not open an empty draft.',
+    gun: 'Day',
+    hafta: 'Week',
+    excelIpucu: 'Schedule, summary and raw data in a formatted workbook',
+    excelIndirilemedi: 'Could not download the Excel file.',
+    indiriliyor: 'Downloading…',
+    excel: 'Excel',
+    csvIpucu: 'Long-form CSV plus the demand deviation file (raw data)',
+    yazdirIpucu: 'Staff × hour grid, landscape A4',
+    yazdir: 'Print',
+    kaydedilmemis: (sayi: number) => `${sayi} UNSAVED`,
+    geriAlIpucu: 'Undo the last change',
+    yenidenUygulaIpucu: 'Redo the undone change',
+    vazgec: 'Discard',
+    onceKaydet: 'Save or discard your changes first',
+    yenidenCoz: 'Re-solve',
+    yenidenCozKilitsiz: (no: number) =>
+      `Re-solves with version ${no} as the base; this version has no locked assignments.`,
+    yenidenCozKilitli: (no: number, sayi: number) =>
+      sayi === 1
+        ? `Re-solves with version ${no} as the base; 1 locked assignment is kept.`
+        : `Re-solves with version ${no} as the base; ${sayi} locked assignments are kept.`,
+    secim: 'selection',
+    donem: 'Period',
+    surum: 'Version',
+    surumSecenegi: (no: number, durum: string) => `Version ${no} (${durum})`,
+    bosTaslakAc: 'Open empty draft',
+    duzenlenemezNotu1: 'To make changes, use this version\'s',
+    duzenlenemezKopyala: '“Copy to edit”',
+    duzenlenemezNotu2:
+      'button on the Versions screen: the schedule moves into the new draft as it is. “Open empty draft” instead creates a version with no assignments; you can fill it by hand here or leave it to the solver (FR-7.3).',
+    suzgec: 'Filter',
+    tumYetkinlikler: 'All competencies',
+    tumNoktalar: 'All duty points',
+    yalnizAcikGunler: 'Only days with gaps',
+    kapsama: 'Coverage',
+    acik: 'Gaps',
+    toplamCeza: 'Total penalty',
+    yukleniyor: 'Loading…',
+    atamaYok: 'No assignments in this version yet.',
+    personelYok: 'No active staff in this period; add staff on the Definitions screen.',
+    acikGunYok: 'No day has a gap in this period. Remove the filter to see all days.',
+    suzgecteYok: 'No staff assigned to this version match the selected filters.',
+    gunSecimi: 'Day selection',
+    saatBandi: 'hours worked',
+    kilitli: 'Locked',
+    kapsamaAcigi: 'Coverage gap',
+    sonuc: 'result',
+    degerlendiriliyor: 'Evaluating…',
+    baslangic: 'Start',
+    bitis: 'End',
+    gorevNoktasi: 'Duty point',
+    dokumGizle: 'Hide the penalty breakdown',
+    dokumGoster: 'Show the penalty breakdown',
+    agirlik: 'Weight',
+    agirlikli: 'Weighted',
+    personelGosterimi: (toplam: string, gosterilen: string) =>
+      `Showing ${gosterilen} of ${toplam} staff`,
   },
 
   analiz: {
