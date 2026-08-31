@@ -173,7 +173,6 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
   return (
     <AppShell
       aktifEkran="Sürümler"
-      donemId={donemId}
       ekranSec={ekranSec}
       baslik="Sürümler"
       aksiyonlar={

@@ -193,7 +193,6 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
   return (
     <AppShell
       aktifEkran="Analiz"
-      donemId={donemId}
       ekranSec={ekranSec}
       baslik="Analiz"
       aksiyonlar={

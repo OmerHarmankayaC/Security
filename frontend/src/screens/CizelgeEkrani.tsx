@@ -620,7 +620,6 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
   return (
     <AppShell
       aktifEkran="Çizelge"
-      donemId={donemId}
       ekranSec={ekranSec}
       baslik="Çizelge"
       altBaslik={

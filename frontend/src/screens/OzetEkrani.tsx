@@ -214,7 +214,6 @@ export function OzetEkrani({ ekranSec }: Props) {
       aktifEkran="Özet"
       ekranSec={ekranSec}
       baslik="Özet"
-      donemId={seciliDonem?.donem_id ?? null}
     >
       {hata && <p className="text-sm text-signal">{hata}</p>}
       {olculemeyenTaslak && (

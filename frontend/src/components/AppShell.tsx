@@ -1,10 +1,7 @@
-import { type PropsWithChildren, type ReactNode, useEffect, useState } from 'react'
-import { api } from '@/api/client'
-import type { Donem, Rol } from '@/api/types'
+import { type PropsWithChildren, type ReactNode } from 'react'
+import type { Rol } from '@/api/types'
 import { cn } from '@/lib/utils'
 import { buyukHarf } from '@/lib/metin'
-import { bugunIso, donemAraligiBicimle, gunlerListesi } from '@/lib/tarih'
-import { donemSec } from '@/lib/donemSecimi'
 import { navGruplari } from '@/lib/yetki'
 import { useAktifIs } from './AktifIsBaglami'
 import { useOturum } from './OturumBaglami'
@@ -26,25 +23,6 @@ interface AppShellProps {
   baslik: string
   altBaslik?: ReactNode
   aksiyonlar?: ReactNode
-  // Yan menüdeki "Planlama Dönemi" bloğunun göstereceği dönem. Dönem seçimi
-  // olan ekranlar kendi seçimlerini geçirir; geçirmeyen ekranlarda blok
-  // aşağıdaki geçerli-dönem kuralına düşer.
-  donemId?: number | null
-}
-
-/**
- * Yan menüdeki dönem bloğunun hangi dönemi göstereceği.
- *
- * Ekran bir dönem seçmişse o gösterilir; seçmemişse kural `lib/donemSecimi`
- * içindedir ve Özet ekranıyla ORTAKTIR — ikisi ayrıştığında kenar çubuğu bir
- * dönemi, kartlar başka bir dönemi gösteriyordu.
- */
-function donemiBul(donemler: Donem[], donemId: number | null | undefined): Donem | undefined {
-  if (donemId != null) {
-    const secili = donemler.find((d) => d.donem_id === donemId)
-    if (secili) return secili
-  }
-  return donemSec(donemler, bugunIso())
 }
 
 const IS_DURUM_METNI: Record<string, string> = {
@@ -128,23 +106,9 @@ export function AppShell({
   baslik,
   altBaslik,
   aksiyonlar,
-  donemId,
   children,
 }: PropsWithChildren<AppShellProps>) {
   const { ben, cikis, parolaDegistir } = useOturum()
-  const [donemler, setDonemler] = useState<Donem[]>([])
-
-  useEffect(() => {
-    api
-      .donemler()
-      .then(setDonemler)
-      .catch(() => {
-        // Dönem bloğu salt bilgilendirme amaçlı — sessizce boş bırakılır,
-        // asıl ekranın kendi veri yükleme hatası zaten görünür olur.
-      })
-  }, [])
-
-  const donem = donemiBul(donemler, donemId)
   return (
     // Kabuk, görünür alanın TAMAMINI kaplar ve kendisi kaydırılmaz
     // (`overflow-hidden`): kaydırma, aşağıdaki içerik alanının kendi
@@ -154,7 +118,12 @@ export function AppShell({
     // tamamından alıyor; hizalamayı gevşetmek, alt gruptaki Dönem bloğunu
     // (`justify-between` ile aşağı itilen blok) görünür alanın çok altına
     // düşürür — bu bölgede bir kez yaşandı.
-    <div className="flex h-svh overflow-hidden bg-canvas text-ink">
+    // `h-svh` DEĞİL `flex-1 min-h-0`: üstte gösterim şeridi varken kabuk
+    // ayrıca tam bir görüntü yüksekliği isterse toplam şerit kadar taşar ve
+    // yan menünün altı (oturum bloğu) ekranın dışında kalır. `min-h-0`
+    // olmadan flex öğesi içeriğinden küçülemez ve `overflow-hidden` işe
+    // yaramaz.
+    <div className="flex min-h-0 flex-1 overflow-hidden bg-canvas text-ink">
       {/* Yan menüde KAYDIRMA YOK (`overflow-hidden`, `overflow-y-auto`
           değil): kaydırma yüzeyi sağdaki içerik alanıdır. Menü kısa ve
           sabit bir listedir; kendi çubuğunu taşıması, sayfanın iki ayrı
@@ -231,29 +200,6 @@ export function AppShell({
                 Çıkış
               </button>
             </div>
-          </div>
-
-          <div className="border-t border-chrome-line pt-3">
-            <p className="etiket-caps m-0 text-chrome-ink-muted">
-              {buyukHarf('Planlama Dönemi')}
-            </p>
-            {donem ? (
-              <>
-                {/* `sayı/orta` — mono, 15px. */}
-                <p className="m-0 mt-1.5 font-mono text-sayi-orta font-semibold text-chrome-ink">
-                  {buyukHarf(donemAraligiBicimle(donem.baslangic_tarihi, donem.bitis_tarihi))}
-                </p>
-                {/* `veri/mono-küçük`. Blok özeti ("3×8 vardiya") KALKTI:
-                    blok kataloğu yok, blok uzunlukları çözümün çıktısı
-                    (SRS TD-13) ve dönem başında söylenebilecek bir sayı
-                    değil. */}
-                <p className="m-0 mt-0.5 font-mono text-mono-kucuk text-chrome-ink-muted">
-                  {gunlerListesi(donem.baslangic_tarihi, donem.bitis_tarihi).length} gün
-                </p>
-              </>
-            ) : (
-              <p className="m-0 mt-1.5 text-sm text-chrome-ink-muted">—</p>
-            )}
           </div>
         </div>
       </aside>

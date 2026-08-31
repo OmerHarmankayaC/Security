@@ -256,7 +256,7 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec, oncekiSurumId = nul
   const azamiCeza = cezaGirdileri.reduce((azami, [, deger]) => Math.max(azami, deger), 0)
 
   return (
-    <AppShell aktifEkran="Çözüm" ekranSec={ekranSec} baslik="Çözüm" donemId={donemId}>
+    <AppShell aktifEkran="Çözüm" ekranSec={ekranSec} baslik="Çözüm">
       <Kart>
         <KartEtiketi>çözüm ayarları</KartEtiketi>
         <div className="flex flex-wrap items-end gap-6">

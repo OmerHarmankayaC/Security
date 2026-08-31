@@ -56,7 +56,8 @@ export function ParolaDegistirmeEkrani({ ben, degistirildi, vazgec }: Props) {
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center bg-chrome-base px-6">
+    // Giriş ekranıyla aynı gerekçe: `flex-1`, şerit varken taşmasın.
+    <div className="flex flex-1 items-center justify-center bg-chrome-base px-6 py-8">
       <div className="w-full max-w-[380px]">
         <div className="mb-6">
           <p className="m-0 text-base font-semibold tracking-wide text-chrome-ink">

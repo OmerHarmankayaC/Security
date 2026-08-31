@@ -39,7 +39,9 @@ export function CalisanShell({
   const { cikis, parolaDegistir } = useOturum()
   const [kunyeAcik, kunyeAc] = useState(false)
   return (
-    <div className="min-h-svh bg-canvas text-ink">
+    // `min-h-svh` DEĞİL `flex-1`: gösterim şeridi eklendiğinde toplam
+    // yükseklik şerit kadar taşıyor ve sayfa gereksiz yere kayıyordu.
+    <div className="flex-1 bg-canvas text-ink">
       <header className="bg-chrome-base">
         <div className="mx-auto flex max-w-[720px] flex-col gap-4 px-6 py-6 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
           <div className="min-w-0">

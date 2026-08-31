@@ -226,9 +226,16 @@ body {
    ekran kendi başına 100svh istiyordu. Kök bir sütun olunca şerit kendi
    yüksekliğini alır, ekran KALANI doldurur ve toplam tam bir ekran eder. */
 #root {
-  min-height: 100svh;
+  /* `min-height` DEĞİL `height`: yönetici kabuğu `flex-1` ile kalanı
+     dolduruyor ve içindeki asıl alan kendi içinde kayıyor. Kök yalnızca
+     asgari yükseklik verseydi kabuk içeriği kadar UZARDI — kaydırma iç
+     alandan sayfaya taşar, yan menü ve üst çubuk yerinde durmazdı. */
+  height: 100svh;
   display: flex;
   flex-direction: column;
+  /* Sayfa gerçekten sığmadığında (kısa pencerede giriş ekranı) kaydırılan
+     yüzey burasıdır; gösterim şeridi `sticky` ile buna göre yapışır. */
+  overflow: auto;
 }
 
 button,
