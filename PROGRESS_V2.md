@@ -3327,3 +3327,26 @@ kayıyor ama oturum bloğu görünür, 900px'te ikisi de sığıyor.
 5. **SRS 5.x / SDD 3.x** — gösterim kipinde yazma yasağı bir gereksinimdir:
    arayüz kısıtlanmaz, sunucu reddeder; dört okuma-POST'u açık kalır. Hangi
    uçların açık olduğu ve neden açık olduğu tasarım kararıdır.
+
+### Yazma reddi artık uçan uyarı
+
+Ret, kullanıcının az önce kullandığı kartın altında kırmızı bir satır olarak
+çıkıyordu; uzun bir ekranda baktığı yere hiç yakın değil. Artık görüntünün
+altında uçan **küçük** bir kutu: on saniye sonra kendiliğinden gidiyor, sağ
+üstünde kapatma çarpısı var. İkisi de gerekli — kalıcı bir uyarı ekranı
+kalıcı olarak daraltır, yalnızca sönense okumaya vakit bulamayana geri
+getirilemez.
+
+Ret **kod taşıyor** (`kod: "salt_okunur"`); uyarı yalnızca bu ret için
+çıkıyor. Rol tabanlı 403 başka bir şey ve aynı cümleyi göstermek kullanıcıya
+yanlış nedeni söylerdi.
+
+Hatanın mesajı **bilerek boş**: ekranların tamamı `{hata && <p>}` kalıbıyla
+çiziyor ve boş mesaj o satırı atlatıyor — yoksa aynı cümle biri ekranın
+ortasında kırmızı, biri altta uçarken **iki kez** görünürdü. Sunucunun metni
+`detay` alanında duruyor, kaybolmuyor. Kalıbın tutarlılığı sayıldı: 40
+`instanceof Error ? e.message` kullanımı, `.message ||` kalıbı hiç yok.
+
+Tarayıcıda ölçüldü: gerçek bir kaydetme denemesinde uyarı çıkıyor, satır içi
+kırmızı metin **boş** (`[]`), üç deneme tek kutu üretiyor, çarpı hemen
+kapatıyor, 10,5 saniye sonra kendiliğinden gidiyor.
