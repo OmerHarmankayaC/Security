@@ -12,8 +12,13 @@ from app.routers import (
     saglik,
     tanim,
 )
+from app.salt_okunur import salt_okunur_kapisi
 
 app = FastAPI(title="Vardiya Cizelgeleme Karar Destek Araci")
+
+# Gosterim kipinde yazma yasagi (app/salt_okunur.py). Ara katman, uc nokta
+# bagimliligi DEGIL: yarin eklenen bir yazma ucu bunu unutamaz.
+app.middleware("http")(salt_okunur_kapisi)
 
 app.include_router(saglik.router)
 app.include_router(ortam.router)

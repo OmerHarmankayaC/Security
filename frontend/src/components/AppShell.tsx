@@ -129,10 +129,16 @@ export function AppShell({
           sabit bir listedir; kendi çubuğunu taşıması, sayfanın iki ayrı
           yerinden kaydırılabildiği izlenimi veriyordu. */}
       <aside className="flex h-full w-[260px] shrink-0 flex-col justify-between overflow-hidden bg-chrome-base px-[18px] pt-[26px] pb-[22px]">
-        <div className="flex flex-col">
+        {/* Marka ve gezinme YUKARIDA, oturum bloğu AŞAĞIDA sabit; taşan
+            şey gezinmedir. Yan menünün yüksekliği role göre değişiyor
+            (hesap yöneticisinde fazladan bir "YÖNETİM" grubu var) ve tek
+            parça bir sütunda alt blok ekrandan taşıyordu. `min-h-0`
+            olmadan flex öğesi içeriğinden küçülemez, dolayısıyla
+            `overflow-y-auto` hiç devreye girmez. */}
+        <div className="flex min-h-0 flex-1 flex-col">
           <Marka />
 
-          <nav className="mt-6 flex flex-col">
+          <nav className="mt-6 flex min-h-0 flex-1 flex-col overflow-y-auto">
             {navGruplari(ben.rol).map((grup, i) => (
               <div key={grup.baslik ?? `grup-${i}`} className={cn(i > 0 && 'mt-3.5')}>
                 {grup.baslik && (
@@ -169,7 +175,7 @@ export function AppShell({
           </nav>
         </div>
 
-        <div className="flex flex-col gap-[22px]">
+        <div className="flex shrink-0 flex-col gap-[22px] pt-[22px]">
           {/* Oturum bloğu, dönem bloğunun üstünde ve aynı "Alt grubu"
               düzeninde: 1px ayraç + etiket/caps başlık. Yan menü bağlam
               taşır ve giriş yapan kişi de bir bağlamdır — ekran eylemleri
