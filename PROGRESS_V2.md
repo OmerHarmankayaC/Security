@@ -3256,3 +3256,36 @@ beyazlık yok, şerit tepede sabit kalıyor.
 Ölçüm headless Chrome ile alındı; tarayıcı panelinin ekran görüntüsü
 yanıltıcıydı (JS `getBoundingClientRect` şeridi `top: 0`'da gösterirken panel
 üstte açık bir şerit çiziyordu).
+
+### Yan menüdeki planlama dönemi bloğu kaldırıldı
+
+Blok, sıradan bir dizüstü ekranında oturum bloğunu ekranın altından taşırıyordu
+ve gösterdiği tarihi ekranın kendi başlığı zaten yazıyordu. Onunla birlikte
+taşıyıcıları da gitti: her ekranın geçirdiği `donemId` prop'u, `donemiBul`
+yardımcısı ve **her yönetici sayfasında kimsenin okumadığı bir blok için
+atılan `/api/donem` isteği**.
+
+### Kabukların taşması — giriş ekranıyla aynı kusur
+
+`AppShell` `h-svh`, `CalisanShell` ve parola ekranı `min-h-svh` istiyordu;
+gösterim şeridi üstlerinde durduğu için toplam **tam bir şerit boyu**
+taşıyordu (ölçüldü: 857 = 800 + 57). Yan menünün altı ekranın dışında
+kalıyordu.
+
+Kök artık **tam bir görüntü yüksekliği ve kaydırılan yüzeyin kendisi**
+(`height: 100svh; overflow: auto`); kabuklar `flex-1` ile kalanı dolduruyor.
+`min-height` yeterli değildi: kök yalnızca asgari yükseklik verseydi kabuk
+içeriği kadar uzar, kaydırma iç alandan sayfaya taşar ve yan menü ile üst
+çubuk yerinde durmazdı.
+
+Ölçüm (1280×800): yönetici 800/800, çalışan 800/800, giriş 800/800 — hiçbiri
+kaymıyor. Kısa pencerede (1280×560) giriş ekranı kökün içinde kayıyor, şerit
+`top: 0`'da sabit kalıyor ve beyazlık yok.
+
+### Not: göreli tarihler kaydı
+
+Yerel demo verisi 27.08.2026'da üretilmişti; bugün 31.08.2026 ve **D0 artık
+D+1'in yerinde**. Çalışan paneli "bu dönem için henüz yayınlanmış bir çizelge
+yok" diyor, çünkü içinde bulunulan hafta artık taslak olan dönem. Kusur değil,
+göreli tarihlerin beklenen davranışı; gecelik yeniden üretim takvimi her gece
+bugüne yeniden çapalıyor (Demo Senaryosu 2.3, 10).
