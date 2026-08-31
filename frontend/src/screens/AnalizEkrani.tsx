@@ -18,6 +18,8 @@ import { cn } from '../lib/utils'
 import { sayiBicimle, sapmaBicimle } from '../lib/sayi'
 import { adaletSatirlari, type AdaletSatiri } from '../lib/adalet'
 import { sonDonem } from '@/lib/donemSecimi'
+import { useMetin } from '@/i18n/DilBaglami'
+import { hataMetni } from '@/i18n/hata'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -27,13 +29,6 @@ interface Props {
 
 const SECIM_SINIFI =
   'h-8 rounded-sm border border-rule bg-surface px-2.5 font-mono text-sm text-ink outline-none focus-visible:border-accent focus-visible:ring-3 focus-visible:ring-accent/30 disabled:opacity-50'
-
-const SURUM_DURUM_METNI: Record<string, string> = {
-  taslak: 'Taslak',
-  cozuldu: 'Çözüldü',
-  yayinlandi: 'Yayınlandı',
-  arsiv: 'Arşiv',
-}
 
 function yuzdeBicimle(oran: number | null): string {
   return oran === null ? '—' : `%${Math.round(oran * 100)}`
@@ -46,6 +41,7 @@ function saatSapmasi(sapma: number): string {
 }
 
 export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
+  const m = useMetin()
   const [donemler, setDonemler] = useState<Donem[]>([])
   const [surumler, setSurumler] = useState<CizelgeSurumu[]>([])
   const [surumId, setSurumId] = useState<number | null>(null)
@@ -70,7 +66,7 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
           if (son) donemIdSec(son.donem_id)
         }
       })
-      .catch((e) => setHata(e instanceof Error ? e.message : 'Tanımlar yüklenemedi'))
+      .catch((e) => setHata(hataMetni(e, m)))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -86,7 +82,7 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
         setSurumler(s)
         setSurumId(s[0] ? s[0].surum_id : null)
       })
-      .catch((e) => setHata(e instanceof Error ? e.message : 'Sürümler yüklenemedi'))
+      .catch((e) => setHata(hataMetni(e, m)))
   }, [donemId])
 
   useEffect(() => {
@@ -99,7 +95,7 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
     api
       .analizGetir(surumId, ufuk)
       .then(setAnaliz)
-      .catch((e) => setHata(e instanceof Error ? e.message : 'Analiz yüklenemedi'))
+      .catch((e) => setHata(hataMetni(e, m)))
       .finally(() => setYukleniyor(false))
   }, [surumId, ufuk])
 
@@ -186,7 +182,7 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
         noktaMap: new Map(noktalar.map((n) => [n.nokta_id, n])),
       })
     } catch (e) {
-      setHata(e instanceof Error ? e.message : 'Dışa aktarma başarısız')
+      setHata(hataMetni(e, m))
     }
   }
 
@@ -207,12 +203,12 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
               setExcelIniyor(true)
               api
                 .analizExcelIndir(surum.surum_id, surum.surum_no)
-                .catch(() => setHata('Excel dosyası indirilemedi.'))
+                .catch(() => setHata(m.analiz.excelIndirilemedi))
                 .finally(() => setExcelIniyor(false))
             }}
             disabled={surum === null || excelIniyor}
           >
-            {excelIniyor ? 'İndiriliyor…' : 'Excel'}
+            {excelIniyor ? m.analiz.indiriliyor : m.analiz.excel}
           </Buton>
           <Buton varyant="ikincil" onClick={disaAktar} disabled={surumId === null}>
             CSV
@@ -221,11 +217,11 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
       }
     >
       <Kart>
-        <KartEtiketi>seçim</KartEtiketi>
+        <KartEtiketi>{m.analiz.secim}</KartEtiketi>
         <div className="flex flex-wrap items-end gap-6">
           <div className="flex flex-col gap-1">
             <label htmlFor="donem-sec" className="text-sm text-ink-muted">
-              Dönem
+              {m.analiz.donem}
             </label>
             <select
               id="donem-sec"
@@ -242,7 +238,7 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
           </div>
           <div className="flex flex-col gap-1">
             <label htmlFor="surum-sec" className="text-sm text-ink-muted">
-              Sürüm
+              {m.analiz.surum}
             </label>
             <select
               id="surum-sec"
@@ -252,7 +248,7 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
             >
               {surumler.map((s) => (
                 <option key={s.surum_id} value={s.surum_id}>
-                  Sürüm {s.surum_no} ({SURUM_DURUM_METNI[s.durum] ?? s.durum})
+                  Sürüm {s.surum_no} ({m.surumDurumu[s.durum] ?? s.durum})
                 </option>
               ))}
             </select>
@@ -261,7 +257,7 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
       </Kart>
 
       {hata && <p className="text-sm text-signal">{hata}</p>}
-      {yukleniyor && <p className="text-sm text-ink-muted">Yükleniyor…</p>}
+      {yukleniyor && <p className="text-sm text-ink-muted">{m.analiz.yukleniyor}</p>}
 
       {analiz && (
         <>
@@ -272,7 +268,7 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
               sütun 1280px altında kartları okunmaz genişliğe sıkıştırırdı. */}
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
             <Kart>
-              <KartEtiketi>dönem kapsaması</KartEtiketi>
+              <KartEtiketi>{m.analiz.donemKapsamasi}</KartEtiketi>
               <p className="m-0 font-mono text-sayi-buyuk font-semibold text-accent">
                 {yuzdeBicimle(analiz.kapsama_orani)}
               </p>
@@ -300,7 +296,7 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                 sayı gösterildi; bu yüzden ikisi de, yan yana. */}
             <Kart>
               <KartEtiketi renk={analiz.karsilanmayan_kisi_saat > 0 ? 'warn' : undefined}>
-                karşılanmayan
+                {m.analiz.karsilanmayan}
               </KartEtiketi>
               <p
                 className={cn(
@@ -309,14 +305,14 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                 )}
               >
                 {sayiBicimle(analiz.karsilanmayan_kisi_saat, 0)}
-                <span className="ml-1 font-sans text-sm font-normal text-ink-muted">kişi-saat</span>
+                <span className="ml-1 font-sans text-sm font-normal text-ink-muted">{m.analiz.kisiSaat}</span>
               </p>
               <p className="m-0 text-sm text-ink-muted">
-                {analiz.acik_aralik_sayisi} açık aralık
+                {m.analiz.acikAralik(analiz.acik_aralik_sayisi)}
               </p>
             </Kart>
             <Kart>
-              <KartEtiketi>tercih karşılama</KartEtiketi>
+              <KartEtiketi>{m.analiz.tercihKarsilama}</KartEtiketi>
               <p className="m-0 font-mono text-sayi-buyuk font-semibold text-ink">
                 {yuzdeBicimle(analiz.tercih_karsilama_orani)}
               </p>
@@ -339,12 +335,12 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
               olduğu her zaman görünür: iki ufkun sayıları farklıdır ve
               belirsiz kalırsa tablo yanlış okunur (SDD 6.3.4). */}
           <div className="flex flex-wrap items-center gap-3">
-            <span className="mono-caps text-ink-muted">ölçüm ufku</span>
-            <div className="flex gap-1" role="group" aria-label="Ölçüm ufku">
+            <span className="mono-caps text-ink-muted">{m.analiz.olcumUfku}</span>
+            <div className="flex gap-1" role="group" aria-label={m.analiz.olcumUfku}>
               {(
                 [
-                  ['donem', 'Planlama dönemi'],
-                  ['adalet', 'Adalet ufku · 90 gün'],
+                  ['donem', m.analiz.planlamaDonemi],
+                  ['adalet', m.analiz.adaletUfku],
                 ] as const
               ).map(([deger, etiket]) => (
                 <button
@@ -365,31 +361,31 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
             </div>
             <span className="text-sm text-ink-muted">
               {ufuk === 'donem'
-                ? 'Yük ve pay yalnızca bu dönemi kapsar (kabul kriteri, Charter 5).'
-                : 'Yük ve pay son doksan günü kapsar; geçmiş yayınlanmış sürümler dahil (SRS TD-6).'}
+                ? m.analiz.ufukDonem
+                : m.analiz.ufukAdalet}
             </span>
           </div>
 
           <AdaletGrafigi
-            etiket="gece saati dağılımı · kişi başına"
+            etiket={m.analiz.geceDagilimi}
             satirlar={geceSatirlari}
             cubukSinifi="bg-vardiya-gece"
-            bosMetin="Bu sürümde gece ataması yok."
-            havuzAciklamasi="Ölçü, gece talebine erişebilen personeli kapsar (SRS S2, P_gece)."
+            bosMetin={m.analiz.geceBos}
+            havuzAciklamasi={m.analiz.geceHavuz}
           />
 
           <AdaletGrafigi
-            etiket="hafta sonu saati dağılımı · kişi başına"
+            etiket={m.analiz.haftaSonuDagilimi}
             satirlar={haftaSonuSatirlari}
             cubukSinifi="bg-accent"
-            bosMetin="Bu sürümde hafta sonu ataması yok."
-            havuzAciklamasi="Ölçü, hafta sonu talebine erişebilen personeli kapsar (SRS S3, P_hs)."
+            bosMetin={m.analiz.haftaSonuBos}
+            havuzAciklamasi={m.analiz.haftaSonuHavuz}
           />
 
           <Kart>
-            <KartEtiketi>toplam saat dengesi · personel başına</KartEtiketi>
+            <KartEtiketi>{m.analiz.saatDengesi}</KartEtiketi>
             {saatSapmasiOlanlar.length === 0 ? (
-              <p className="text-sm text-ink-muted">Herkes kendi adil payını tutturdu.</p>
+              <p className="text-sm text-ink-muted">{m.analiz.herkesTutturdu}</p>
             ) : (
               <table className="w-full min-w-[560px] border-collapse">
                 <thead>
@@ -398,7 +394,7 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                         sözleşme saati ulaşılabilir bir hedef olmadığından
                         herkes aynı yönde sapmalı görünüyor ve tablo hiçbir
                         ayrım üretmiyordu. Sütun adı da bunu söylemeli. */}
-                    {['PERSONEL', 'TOPLAM SAAT', 'ADİL PAY', 'SAPMA'].map((b) => (
+                    {m.analiz.saatSutunlari.map((b) => (
                       <th
                         key={b}
                         className="mono-caps whitespace-nowrap px-3 py-2 text-left text-ink-muted"
@@ -439,16 +435,19 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
             {saatSapmasiOlanlar.length > 0 && (
               <p className="mt-3 text-xs text-ink-muted">
                 {hepsiAyniYonde
-                  ? `Bu dönemde herkesin toplamı payının ${ortancaSapma < 0 ? 'altında' : 'üstünde'}: talep, hedeflerin toplamıyla örtüşmüyor. Anlamlı olan kişiler arası fark — renk ortancadan (${saatSapmasi(ortancaSapma)}) uzaklığa göre.`
-                  : 'Renk, ortancadan on beş saatten fazla uzaklaşan kişileri işaretler.'}
-                {saatGizlenen > 0 && ` En uzaktaki ${saatDilimi.length} kişi gösteriliyor.`}
+                  ? m.analiz.ortakKayma(
+                      ortancaSapma < 0 ? m.analiz.altinda : m.analiz.ustunde,
+                      saatSapmasi(ortancaSapma),
+                    )
+                  : m.analiz.ortancaAciklamasi}
+                {saatGizlenen > 0 && m.analiz.enUzaktakiler(saatDilimi.length)}
               </p>
             )}
           </Kart>
 
           {cezaGirdileri.length > 0 && (
             <Kart>
-              <KartEtiketi>ceza dökümü</KartEtiketi>
+              <KartEtiketi>{m.analiz.cezaDokumu}</KartEtiketi>
               <ul className="m-0 flex list-none flex-col gap-2 p-0">
                 {cezaGirdileri.map(([kimlik, deger]) => (
                   <li key={kimlik} className="flex items-center gap-3 py-1 text-sm">
@@ -473,7 +472,7 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
 
           {analiz.bina_degisim_sayisi.length > 0 && (
             <Kart>
-              <KartEtiketi renk="warn">bina değişim sayısı</KartEtiketi>
+              <KartEtiketi renk="warn">{m.analiz.binaDegisimi}</KartEtiketi>
               <ul className="m-0 flex list-none flex-col p-0">
                 {analiz.bina_degisim_sayisi.map((b) => (
                   <li
@@ -528,6 +527,7 @@ function AdaletGrafigi({
   bosMetin: string
   havuzAciklamasi: string
 }) {
+  const m = useMetin()
   // ÖLÇEK SAPMANIN AZAMİSİDİR, yükün değil. Çubuk adil paydan başlayıp iki
   // yana açıldığı için ölçülen şey uzaklıktır; yüke göre ölçeklenirse
   // sapmalar orantısız küçülür ve grafik ayırt ediciliğini kaybeder.
@@ -555,8 +555,8 @@ function AdaletGrafigi({
               gelmeden okunabilmeli. */}
           <div className="flex items-center gap-3 border-b border-rule pb-1.5 etiket-caps text-ink-muted">
             <span className="w-52 shrink-0">Personel</span>
-            <span className="flex-1 text-center">Adil paya göre konum</span>
-            <span className="w-14 shrink-0 text-right">Yük</span>
+            <span className="flex-1 text-center">{m.analiz.adilPayaGore}</span>
+            <span className="w-14 shrink-0 text-right">{m.analiz.yuk}</span>
             <span className="w-16 shrink-0 text-right">Adil pay</span>
             <span className="w-16 shrink-0 text-right">Sapma</span>
           </div>
@@ -600,8 +600,8 @@ function AdaletGrafigi({
                   className="w-16 shrink-0 text-right"
                   title={
                     s.yon === 'yok'
-                      ? 'Adil payın taban/tavan bandı içinde — cezasız'
-                      : `Çözücünün cezalandırdığı sapma: ${sayiBicimle(s.sapma, 0)} saat`
+                      ? m.analiz.bandIcinde
+                      : m.analiz.cezalandirilanSapma(sayiBicimle(s.sapma, 0))
                   }
                 >
                   <Sayi
@@ -621,9 +621,9 @@ function AdaletGrafigi({
             ))}
           </ul>
           <div className="flex justify-between pt-2 etiket-caps text-ink-muted">
-            <span>← payının altında</span>
+            <span>{m.analiz.payinAltinda}</span>
             <span>adil pay</span>
-            <span>payının üstünde →</span>
+            <span>{m.analiz.payinUstunde}</span>
           </div>
         </>
       )}
@@ -633,7 +633,7 @@ function AdaletGrafigi({
           onClick={() => setHepsi(true)}
           className="mt-3 font-mono text-sm text-accent underline-offset-2 hover:underline"
         >
-          {gizlenen} kişi daha göster
+          {m.analiz.dahaGoster(gizlenen)}
         </button>
       )}
       {hepsi && satirlar.length > ILK_GOSTERILEN && (
@@ -642,12 +642,12 @@ function AdaletGrafigi({
           onClick={() => setHepsi(false)}
           className="mt-3 font-mono text-sm text-ink-muted underline-offset-2 hover:underline"
         >
-          Yalnız en uzaktaki {ILK_GOSTERILEN} kişi
+          {m.analiz.yalnizEnUzaktaki(ILK_GOSTERILEN)}
         </button>
       )}
       <p className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-muted">
         <span className="flex items-center gap-1.5">
-          <span className="h-3 w-px bg-ink" /> kişiye düşen adil pay (referans)
+          <span className="h-3 w-px bg-ink" /> {m.analiz.referansAciklamasi}
         </span>
         <span>{havuzAciklamasi}</span>
       </p>
@@ -675,6 +675,7 @@ function KotaKarti({
   satirlar: KotaDurumu[]
   yillikKota: number
 }) {
+  const m = useMetin()
   const RISK_ESIGI = 40
   const riskliler = satirlar.filter((k) => k.kalan_kota_saat <= RISK_ESIGI)
   const gosterilen = riskliler.length > 0 ? riskliler : satirlar.slice(0, 5)
@@ -682,7 +683,7 @@ function KotaKarti({
   return (
     <Kart>
       <KartEtiketi renk={riskliler.length > 0 ? 'warn' : undefined}>
-        yıllık fazla çalışma kotası
+        {m.analiz.kotaBasligi}
       </KartEtiketi>
       {satirlar.length === 0 ? (
         <p className="text-sm text-ink-muted">Kota bilgisi yok.</p>
@@ -691,7 +692,7 @@ function KotaKarti({
           <table className="w-full min-w-[520px] border-collapse">
             <thead>
               <tr className="bg-sunken">
-                {['PERSONEL', 'DEVİR', 'BU DÖNEM', 'KALAN KOTA'].map((b) => (
+                {m.analiz.kotaSutunlari.map((b) => (
                   <th
                     key={b}
                     className="mono-caps whitespace-nowrap px-3 py-2 text-left text-ink-muted"
@@ -730,13 +731,12 @@ function KotaKarti({
               olarak görünüyordu ve satır hesap hatası gibi okunuyordu. */}
           <p className="mt-3 text-xs text-ink-muted">
             Yıllık kota {sayiBicimle(yillikKota, 0)} saat; kalan = kota − devir − bu dönem.
-            "Bu dönem", haftalık eşiği aşan saattir — sıfır olması kişinin bu dönemde
-            eşiği aşmadığı anlamına gelir, kotasının boş olduğu anlamına değil.
+            {m.analiz.kotaNotu}
           </p>
           <p className="mt-1 text-xs text-ink-muted">
             {riskliler.length > 0
-              ? `${riskliler.length} kişinin kalan kotası ${RISK_ESIGI} saatin altında.`
-              : `Kimse sınıra yakın değil; en az kalanı olan ${gosterilen.length} kişi gösteriliyor.`}
+              ? m.analiz.kotaRiskli(riskliler.length, RISK_ESIGI)
+              : m.analiz.kotaGuvenli(gosterilen.length)}
           </p>
         </>
       )}
@@ -758,14 +758,15 @@ function CezaDokumu({
   toplam: number | null
   kaynak: Analiz['ceza_kaynagi']
 }) {
+  const m = useMetin()
   if (kalemler.length === 0) return null
   return (
     <Kart>
-      <KartEtiketi>ceza dökümü</KartEtiketi>
+      <KartEtiketi>{m.analiz.cezaDokumu}</KartEtiketi>
       <table className="w-full min-w-[520px] border-collapse">
         <thead>
           <tr className="bg-sunken">
-            {['HEDEF', 'HAM DEĞER', 'AĞIRLIK', 'AĞIRLIKLI CEZA'].map((b) => (
+            {m.analiz.dokumSutunlari.map((b) => (
               <th key={b} className="mono-caps whitespace-nowrap px-3 py-2 text-left text-ink-muted">
                 {b}
               </th>
@@ -805,16 +806,16 @@ function CezaDokumu({
         </tbody>
       </table>
       <p className="mt-3 text-xs text-ink-muted">
-        Ham değer kuralın kendi biriminde ölçülür (kişi-saat, saat, gün); ağırlıklı ceza amaç
+        {m.analiz.dokumNotu}
         fonksiyonuna girendir.
         {/* Kaynak yazılmadan sayının nereden geldiği görünmez (Görev 5):
             "cozucu" ise döküm iş kaydından TAZE geldi; "kurallardan" ise
             sürüm çözücüsüz ya da bayat olduğu için döküm kural motorundan
             YENİDEN hesaplandı. "yok" durumunda kart zaten hiç render edilmez
             (kalemler boşsa fonksiyon en başta null döner). */}
-        {kaynak === 'cozucu' && ' Döküm çözüm işinden geliyor.'}
+        {kaynak === 'cozucu' && m.analiz.dokumCozucu}
         {kaynak === 'kurallardan' &&
-          ' Bu sürümde çözücü çalışmadı ya da çizelge sonradan elle değişti; döküm kural motorundan hesaplandı.'}
+          m.analiz.dokumKurallardan}
       </p>
     </Kart>
   )
@@ -823,26 +824,27 @@ function CezaDokumu({
 /** Kümülatif adaletin vaadi sapmanın küçük olması değil, ZAMANLA küçülmesidir
     (Charter 5, K3). Bu kart o vaadin ölçüldüğü yer. */
 function KumulatifDegisimKarti({ degisim }: { degisim: KumulatifDegisim }) {
+  const m = useMetin()
   const { onceki_ortalama_sapma: onceki, simdiki_ortalama_sapma: simdiki } = degisim
   return (
     <Kart>
-      <KartEtiketi>gece yükü adaleti · önceki yayınlanmış döneme göre</KartEtiketi>
+      <KartEtiketi>{m.analiz.geceAdaleti}</KartEtiketi>
       {simdiki === null ? (
-        <p className="text-sm text-ink-muted">Ölçüme giren personel yok.</p>
+        <p className="text-sm text-ink-muted">{m.analiz.olcumeGirenYok}</p>
       ) : onceki === null ? (
         // SIFIR YAZILMAZ: "değişim olmadı" ile "karşılaştırılacak dönem yok"
         // aynı şey değildir.
         <p className="text-sm text-ink-muted">
-          Karşılaştırılacak önceki yayınlanmış dönem yok. Bu dönemin ortalama gece sapması{' '}
+          {m.analiz.oncekiDonemYok}{' '}
           <Sayi className="text-ink">{sayiBicimle(simdiki, 2)} sa</Sayi>.
         </p>
       ) : (
         <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
           <span className="text-sm text-ink-muted">
-            önceki <Sayi className="text-ink">{sayiBicimle(onceki, 2)} sa</Sayi>
+            {m.analiz.onceki} <Sayi className="text-ink">{sayiBicimle(onceki, 2)} sa</Sayi>
           </span>
           <span className="text-sm text-ink-muted">
-            şimdi <Sayi className="text-ink">{sayiBicimle(simdiki, 2)} sa</Sayi>
+            {m.analiz.simdi} <Sayi className="text-ink">{sayiBicimle(simdiki, 2)} sa</Sayi>
           </span>
           <span
             className={cn(
@@ -856,7 +858,7 @@ function KumulatifDegisimKarti({ degisim }: { degisim: KumulatifDegisim }) {
                   : 'text-signal',
             )}
           >
-            {simdiki === onceki ? 'değişmedi' : simdiki < onceki ? '↓ azalıyor' : '↑ artıyor'} (
+            {simdiki === onceki ? m.analiz.degismedi : simdiki < onceki ? m.analiz.azaliyor : m.analiz.artiyor} (
             {sapmaBicimle(simdiki - onceki)} sa)
           </span>
         </div>
@@ -865,11 +867,7 @@ function KumulatifDegisimKarti({ degisim }: { degisim: KumulatifDegisim }) {
           3,91" yazdığında iki sayının neyi ölçtüğü yalnız modeli bilene
           açıktı; ekranda anlamı olmayan bir sayı, olmayan sayıdan kötüdür. */}
       <p className="mt-3 text-xs text-ink-muted">
-        Ölçü, <strong className="font-medium text-ink">kişi başına gece saatinin adil paydan
-        ortalama sapması</strong>dır: 0 sa, herkesin gece yükünün payına eşit olması demektir.
-        Her dönem kendi içinde ölçülür; sayının dönemden döneme küçülmesi, gece yükünün
-        zamanla eşitlendiği anlamına gelir. Kümülatif adaletin vaadi sapmanın küçük olması
-        değil, ZAMANLA küçülmesidir.
+        {m.analiz.geceOlcuAciklamasi}
       </p>
     </Kart>
   )
