@@ -277,6 +277,41 @@ const tr = {
     arsiv: 'Arşiv',
   },
 
+  /**
+   * ÇÖZÜM SONUCUNUN GÜNDELİK DİLİ (SRS FR-6.4).
+   *
+   * Cümleler PARÇA BİRLEŞTİRMEYLE kurulmuyor, her dil kendi tam cümlesini
+   * yazıyor. Türkçe'de ölçü adı özne olup yükleme bağlanıyor ("gece adaleti
+   * 2 saat bozuldu"); İngilizce'de yüklem öne geçip miktar edatla geliyor
+   * ("night fairness worsened by 2 hours"). Ortak bir şablon ikisinden
+   * birini bozardı.
+   */
+  sonuc: {
+    hedefler: {
+      S1: { konu: 'kapsama açığı', birim: 'kişi' },
+      S1f: { konu: 'talepten fazla kadro', birim: 'kişi' },
+      S2: { konu: 'gece adaleti', birim: 'saat' },
+      S3: { konu: 'hafta sonu adaleti', birim: 'saat' },
+      S4: { konu: 'toplam saat dengesi', birim: 'saat' },
+      S5: { konu: 'tercih karşılama', birim: 'tercih' },
+      S6: { konu: 'çalışma deseni', birim: 'gün' },
+      S6b: { konu: 'bina tutarlılığı', birim: 'gün' },
+      S7: { konu: 'izole çalışma günü', birim: 'gün' },
+      S8: { konu: 'önceki sürümden sapma', birim: 'atama' },
+    } as Record<string, { konu: string; birim: string }>,
+    acikArtti: (miktar: string) => `kapsama açığı ${miktar} arttı`,
+    acikAzaldi: (miktar: string) => `kapsama açığı ${miktar} azaldı`,
+    fazlaAtandi: (miktar: string) => `talepten ${miktar} fazla atandı`,
+    fazlaAzaldi: (miktar: string) => `talepten fazla kadro ${miktar} azaldı`,
+    bozuldu: (konu: string, miktar: string) => `${konu} ${miktar} bozuldu`,
+    iyilesti: (konu: string, miktar: string) => `${konu} ${miktar} iyileşti`,
+    tekIhlal: 'Bu değişiklik bir zorunlu kuralı bozuyor ve uygulanmadı.',
+    cokIhlal: (sayi: number, kurallar: string) =>
+      `Bu değişiklik ${sayi} zorunlu kuralı bozuyor ve uygulanmadı (${kurallar}).`,
+    etkiYok: 'Değişiklik hiçbir hedefi etkilemedi.',
+    kalanHedef: (sayi: number) => ` ve ${sayi} hedef daha etkilendi.`,
+  },
+
   cozum: {
     durum: {
       kuyrukta: 'Kuyrukta',
@@ -790,6 +825,33 @@ const en: Metinler = {
     cozuldu: 'Solved',
     yayinlandi: 'Published',
     arsiv: 'Archived',
+  },
+
+  sonuc: {
+    hedefler: {
+      S1: { konu: 'coverage gap', birim: 'people' },
+      S1f: { konu: 'staffing above demand', birim: 'people' },
+      S2: { konu: 'night fairness', birim: 'hours' },
+      S3: { konu: 'weekend fairness', birim: 'hours' },
+      S4: { konu: 'total hour balance', birim: 'hours' },
+      S5: { konu: 'preference fulfilment', birim: 'preferences' },
+      S6: { konu: 'work pattern', birim: 'days' },
+      S6b: { konu: 'building consistency', birim: 'days' },
+      S7: { konu: 'isolated working day', birim: 'days' },
+      S8: { konu: 'deviation from the previous version', birim: 'assignments' },
+    } as Record<string, { konu: string; birim: string }>,
+    acikArtti: (miktar: string) => `the coverage gap grew by ${miktar}`,
+    acikAzaldi: (miktar: string) => `the coverage gap shrank by ${miktar}`,
+    fazlaAtandi: (miktar: string) => `${miktar} were assigned above demand`,
+    fazlaAzaldi: (miktar: string) => `staffing above demand fell by ${miktar}`,
+    bozuldu: (konu: string, miktar: string) => `${konu} worsened by ${miktar}`,
+    iyilesti: (konu: string, miktar: string) => `${konu} improved by ${miktar}`,
+    tekIhlal: 'This change breaks a hard rule and was not applied.',
+    cokIhlal: (sayi: number, kurallar: string) =>
+      `This change breaks ${sayi} hard rules and was not applied (${kurallar}).`,
+    etkiYok: 'The change affected none of the goals.',
+    kalanHedef: (sayi: number) =>
+      sayi === 1 ? ' and 1 more goal was affected.' : ` and ${sayi} more goals were affected.`,
   },
 
   cozum: {

@@ -52,6 +52,7 @@ import {
   gunlerListesi,
   haftaSonuMu,
 } from '../lib/tarih'
+import { useMetin } from '@/i18n/DilBaglami'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -1206,8 +1207,9 @@ function SonucSeridi({
   sonuc: DogrulamaSonucu
   personelMap: Map<number, Personel>
 }) {
+  const m = useMetin()
   const [dokumAcik, setDokumAcik] = useState(false)
-  const ozet = sonucuOzetle(sonuc)
+  const ozet = sonucuOzetle(sonuc, m)
 
   return (
     <div className="flex flex-col gap-3">

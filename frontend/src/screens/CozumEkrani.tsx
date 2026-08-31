@@ -15,7 +15,7 @@ import {
   araligiDenetle,
   gunSayisi,
 } from '../lib/donemAraligi'
-import { useDil } from '@/i18n/DilBaglami'
+import { useDil, useMetin } from '@/i18n/DilBaglami'
 import { hataMetni } from '@/i18n/hata'
 import { BOS } from '@/lib/sayi'
 
@@ -54,6 +54,7 @@ function sureBicimle(saniye: number): string {
  * geride kalması demekti.
  */
 function CezaDokumu({ girdiler, azami }: { girdiler: [string, number][]; azami: number }) {
+  const m = useMetin()
   return (
     <ul className="m-0 flex list-none flex-col gap-2 p-0">
       {girdiler.map(([kimlik, deger]) => (
@@ -63,7 +64,7 @@ function CezaDokumu({ girdiler, azami }: { girdiler: [string, number][]; azami: 
               kataloğunu ezbere bilene açıktı. Kimlik yine durur: kural
               kataloğuyla ve dışa aktarmayla eşleşmesi gereken şey odur. */}
           <span className="flex w-52 shrink-0 items-baseline gap-2">
-            <span className="text-ink">{hedefAdi(kimlik)}</span>
+            <span className="text-ink">{hedefAdi(kimlik, m)}</span>
             <span className="font-mono text-xs text-ink-muted">{kimlik}</span>
           </span>
           <span className="h-2 flex-1 overflow-hidden rounded-sm bg-sunken">

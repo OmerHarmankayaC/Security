@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { CezaKalemi, DogrulamaSonucu, Ihlal } from '@/api/types'
 import { sonucuOzetle } from './sonucDili'
+import { SOZLUK } from '@/i18n/sozluk'
+
+// Bu testler CÜMLE KURULUŞUNU sınıyor, çeviriyi değil; kaynak dil olan
+// Türkçe sözlükle koşuyorlar.
+const TR = SOZLUK.tr
 
 /**
  * Sonuç dili (SRS FR-6.4).
@@ -37,7 +42,7 @@ function sonuc(ek: Partial<DogrulamaSonucu> = {}): DogrulamaSonucu {
 
 describe('zorunlu ihlal — başka hiçbir şey söylenmez', () => {
   it('tek ihlalde değişikliğin uygulanmadığını söyler', () => {
-    const ozet = sonucuOzetle(sonuc({ kabul_edilebilir: false, zorunlu_ihlaller: [ihlal('H2')] }))
+    const ozet = sonucuOzetle(sonuc({ kabul_edilebilir: false, zorunlu_ihlaller: [ihlal('H2')] }), TR)
     expect(ozet.tur).toBe('engellendi')
     expect(ozet.cumle).toBe('Bu değişiklik bir zorunlu kuralı bozuyor ve uygulanmadı.')
     expect(ozet.ihlaller).toHaveLength(1)
@@ -46,6 +51,7 @@ describe('zorunlu ihlal — başka hiçbir şey söylenmez', () => {
   it('birden çok ihlalde kural kimliklerini sayar', () => {
     const ozet = sonucuOzetle(
       sonuc({ kabul_edilebilir: false, zorunlu_ihlaller: [ihlal('H2'), ihlal('H9')] }),
+      TR,
     )
     expect(ozet.cumle).toContain('2 zorunlu kuralı')
     expect(ozet.cumle).toContain('H2, H9')
@@ -60,6 +66,7 @@ describe('zorunlu ihlal — başka hiçbir şey söylenmez', () => {
         zorunlu_ihlaller: [ihlal('H2')],
         ceza_dokumu: [kalem('S4', 3)],
       }),
+      TR,
     )
     expect(ozet.dokum).toEqual([])
   })
@@ -67,22 +74,22 @@ describe('zorunlu ihlal — başka hiçbir şey söylenmez', () => {
 
 describe('esnek hedef değişimleri gündelik dille anlatılır', () => {
   it('kapsama açığının kapanmasını söyler', () => {
-    const ozet = sonucuOzetle(sonuc({ ceza_dokumu: [kalem('S1', -2, 10000)] }))
+    const ozet = sonucuOzetle(sonuc({ ceza_dokumu: [kalem('S1', -2, 10000)] }), TR)
     expect(ozet.tur).toBe('iyilesti')
     expect(ozet.cumle).toBe('Kapsama açığı 2 kişi azaldı.')
   })
 
   it('kapsama açığının açılmasını söyler', () => {
-    const ozet = sonucuOzetle(sonuc({ ceza_dokumu: [kalem('S1', 1, 10000)] }))
+    const ozet = sonucuOzetle(sonuc({ ceza_dokumu: [kalem('S1', 1, 10000)] }), TR)
     expect(ozet.tur).toBe('bozuldu')
     expect(ozet.cumle).toBe('Kapsama açığı 1 kişi arttı.')
   })
 
   it('adalet hedeflerinde bozuldu/iyileşti dilini kullanır', () => {
-    expect(sonucuOzetle(sonuc({ ceza_dokumu: [kalem('S4', 1)] })).cumle).toBe(
+    expect(sonucuOzetle(sonuc({ ceza_dokumu: [kalem('S4', 1)] }), TR).cumle).toBe(
       'Toplam saat dengesi 1 saat bozuldu.',
     )
-    expect(sonucuOzetle(sonuc({ ceza_dokumu: [kalem('S2', -3)] })).cumle).toBe(
+    expect(sonucuOzetle(sonuc({ ceza_dokumu: [kalem('S2', -3)] }), TR).cumle).toBe(
       'Gece adaleti 3 saat iyileşti.',
     )
   })
@@ -91,6 +98,7 @@ describe('esnek hedef değişimleri gündelik dille anlatılır', () => {
     // "Vardiya Şefliği'ndeki açık kapandı; toplam saat dengesi bir saat bozuldu"
     const ozet = sonucuOzetle(
       sonuc({ ceza_dokumu: [kalem('S1', -1, 10000), kalem('S4', 1, 1)] }),
+      TR,
     )
     expect(ozet.tur).toBe('karisik')
     expect(ozet.cumle).toBe('Kapsama açığı 1 kişi azaldı; toplam saat dengesi 1 saat bozuldu.')
@@ -99,6 +107,7 @@ describe('esnek hedef değişimleri gündelik dille anlatılır', () => {
   it('en AĞIRLIKLI kalem başa gelir', () => {
     const ozet = sonucuOzetle(
       sonuc({ ceza_dokumu: [kalem('S6', 5, 4), kalem('S1', 1, 10000)] }),
+      TR,
     )
     expect(ozet.cumle.startsWith('Kapsama açığı')).toBe(true)
   })
@@ -114,6 +123,7 @@ describe('esnek hedef değişimleri gündelik dille anlatılır', () => {
           kalem('S5', 1, 70),
         ],
       }),
+      TR,
     )
     expect(ozet.cumle).toContain('ve 2 hedef daha etkilendi.')
     // Döküm KIRPILMAZ; ayrıntı bağlantısının arkasında hepsi durur.
@@ -121,12 +131,12 @@ describe('esnek hedef değişimleri gündelik dille anlatılır', () => {
   })
 
   it('ondalık yalnızca gerektiğinde yazılır', () => {
-    expect(sonucuOzetle(sonuc({ ceza_dokumu: [kalem('S4', 1.5)] })).cumle).toContain('1,5 saat')
-    expect(sonucuOzetle(sonuc({ ceza_dokumu: [kalem('S4', 2)] })).cumle).toContain('2 saat')
+    expect(sonucuOzetle(sonuc({ ceza_dokumu: [kalem('S4', 1.5)] }), TR).cumle).toContain('1,5 saat')
+    expect(sonucuOzetle(sonuc({ ceza_dokumu: [kalem('S4', 2)] }), TR).cumle).toContain('2 saat')
   })
 
   it('sıfır farklı kalemler cümleye girmez', () => {
-    const ozet = sonucuOzetle(sonuc({ ceza_dokumu: [kalem('S4', 0), kalem('S2', -1)] }))
+    const ozet = sonucuOzetle(sonuc({ ceza_dokumu: [kalem('S4', 0), kalem('S2', -1)] }), TR)
     expect(ozet.cumle).toBe('Gece adaleti 1 saat iyileşti.')
     expect(ozet.dokum).toHaveLength(1)
   })
@@ -134,7 +144,7 @@ describe('esnek hedef değişimleri gündelik dille anlatılır', () => {
 
 describe('etkisiz değişiklik', () => {
   it('hiçbir hedef etkilenmediğinde bunu açıkça söyler', () => {
-    const ozet = sonucuOzetle(sonuc())
+    const ozet = sonucuOzetle(sonuc(), TR)
     expect(ozet.tur).toBe('degisiklik-yok')
     expect(ozet.cumle).toBe('Değişiklik hiçbir hedefi etkilemedi.')
   })
@@ -144,6 +154,7 @@ describe('uyarılar ayrı taşınır', () => {
   it('esnek bulgular cümleye karışmaz, kendi listesinde durur', () => {
     const ozet = sonucuOzetle(
       sonuc({ ceza_dokumu: [kalem('S1', 1, 10000)], uyarilar: [ihlal('S1', 'Şeflik açıkta')] }),
+      TR,
     )
     expect(ozet.uyarilar).toHaveLength(1)
     expect(ozet.cumle).not.toContain('Şeflik')
