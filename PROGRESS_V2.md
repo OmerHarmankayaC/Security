@@ -3676,3 +3676,34 @@ Hepsi düzeltildi, ama örüntü kayda değer — **doğrulama aracının kendis
 
 Ayrıca `son sifirlama sonucu` satırı eklendi: "timer etkin" tek başına
 yanıltıcıydı ve sıfırlamanın aylardır düştüğünü tam da bu gizlemişti.
+
+### Dağıtımdan sonra eski uygulama açılıyordu
+
+Yayın sonrası giriş ekranı bozuk göründü: kimlik kutusu "Hepsinin parolası
+aynı: ." diyordu ve tıklayınca parola dolmuyordu. Bu metin **kaynakta hiç
+yok** — yayındaki paket (`index-Co8eQtmm.js`) doğru bileşeni içeriyordu.
+
+Sebep tarayıcı önbelleği, ama asıl kusur sunucudaydı ve **ikiliydi**:
+
+1. `index.html` hiçbir `Cache-Control` taşımıyordu. Adı sabit olduğu için
+   tarayıcı `Last-Modified`'a bakıp sezgisel olarak önbellekliyor; dönen
+   ziyaretçi dağıtımdan sonra ESKİ uygulamayı açıyordu.
+2. Eski paket istendiğinde SPA geri düşümü onu `index.html` ile **200**
+   döndürüyordu. Yani hata ses çıkarmıyordu: site ayakta, kontroller yeşil,
+   yalnızca kullanıcının gördüğü şey eski.
+
+İkincisi birincisinden kötü. Yanlış paket 404 dönseydi tarayıcı gürültü
+çıkarır, sorun ilk dakikada görülürdü.
+
+Düzeltme, Caddy'de karma adlı paketlere ayrı bir `handle`: `/assets/*`
+sonsuza kadar önbelleklenir (adları içerikleriyle değişir), `index.html`
+hiç önbelleklenmez, eksik paket düzgünce 404 olur. Dört sitenin dördü de
+`caddy validate` ve `reload` sonrası 200.
+
+Kontrol betiğine iki satır eklendi (`index.html onbelleklenmiyor`,
+`eksik paket 404 doner`) ve README'nin dağıtım bölümüne tam blok yazıldı.
+Sunucuda **19/19**, yerelde 17/17.
+
+**Kaydırma şikâyeti de aynı önbellekten geliyordu.** Taze yükte ölçüldü:
+`scrollHeight == clientHeight == 720`, taşma yok. Düzen kusuru değil, eski
+paketti.

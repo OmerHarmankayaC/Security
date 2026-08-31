@@ -460,6 +460,39 @@ header X-Robots-Tag "noindex, nofollow"
 add_header X-Robots-Tag "noindex, nofollow" always;
 ```
 
+Two more proxy rules matter, and neither is cosmetic. `index.html` must not be
+cached: its name never changes, so a browser that kept a copy opens the *old*
+application after a deploy and asks for a bundle that is gone. And the SPA
+fallback must not swallow missing assets -- `try_files` answers a deleted
+bundle with `index.html` and a 200, so the failure makes no noise at all. Give
+the hashed assets their own handler:
+
+```
+vardiya.example.com {
+	header X-Robots-Tag "noindex, nofollow"
+
+	handle /api/* {
+		reverse_proxy 127.0.0.1:<API_PORT>
+	}
+
+	handle /assets/* {
+		header Cache-Control "public, max-age=31536000, immutable"
+		root * <INSTALL_DIR>/web
+		file_server
+	}
+
+	handle {
+		header Cache-Control "no-cache"
+		root * <INSTALL_DIR>/web
+		try_files {path} /index.html
+		file_server
+	}
+}
+```
+
+The hashed bundles are safe to cache forever precisely because their names
+change with their contents.
+
 This is not conditional on demo mode. A demo carries invented data that
 should not surface in a search result stripped of its context, and a real
 installation is an internal tool with no reason to be indexed either.

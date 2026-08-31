@@ -112,6 +112,20 @@ satir "X-Robots-Tag: /api" "noindex, nofollow" "$(baslik "$ADRES/api/ortam")"
 satir "index.html meta robots" "1" \
   "$(govde "$ADRES/" | grep -c 'name="robots"')"
 
+# --- 5b. Onbellek -----------------------------------------------------------
+# Bu iki satir bir DAGITIM kusurunu bekliyor, bir yapilandirma tercihini
+# degil: index.html onbelleklenirse donen ziyaretci dagitimdan sonra ESKI
+# uygulamayi acar ve bunu kimse fark etmez - site ayakta, kontroller yesil,
+# yalnizca kullanicinin gordugu sey eskidir.
+satir "index.html onbelleklenmiyor" "no-cache" \
+  "$(curl -sS -D - -o /dev/null -m 20 "$ADRES/" \
+     | sed -n 's/^[Cc]ache-[Cc]ontrol:[[:space:]]*//p' | tr -d '\r')"
+# Olmayan bir paket 404 DONMELI. SPA geri dusumu onu index.html ile 200
+# donduruyordu; eski bir index.html eski paketi istediginde hata ses
+# cikarmiyor, uygulama sessizce bozuluyordu.
+satir "eksik paket 404 doner" "404" \
+  "$(kod "$ADRES/assets/olmayan-paket-kontrolu.js")"
+
 # --- 6. Sunucu tarafi (yerelde kosuyorsa) -----------------------------------
 if [ -d "$KURULUM" ]; then
   satir "sifirlama timer etkin" "enabled" \
