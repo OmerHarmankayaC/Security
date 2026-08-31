@@ -3350,3 +3350,54 @@ ortasında kırmızı, biri altta uçarken **iki kez** görünürdü. Sunucunun 
 Tarayıcıda ölçüldü: gerçek bir kaydetme denemesinde uyarı çıkıyor, satır içi
 kırmızı metin **boş** (`[]`), üç deneme tek kutu üretiyor, çarpı hemen
 kapatıyor, 10,5 saniye sonra kendiliğinden gidiyor.
+
+### Yayın öncesi: sürüm sınırı, silme ve zaten var olanlar
+
+**Talebin bir kısmı zaten karşılanıyordu, uydurma değişiklik yapılmadı:**
+
+- *"Hesap yöneticisi demo için hiçbir değişiklik yapamamalı"* — salt okunur
+  kapısı role bakmıyor, demo kipinde **herkes** için her yazma ucu kapalı.
+  Parametreli test bunu `POST /api/kullanici` dahil 40 uçta ölçüyor.
+- *"Kesinlikle çözüm yaptıramamalı"* — `POST /api/cozum` de o 40 ucun içinde.
+- *"Yalnızca yöneticiler sürüm yayınlayabilmeli"* — `cizelge` router'ının
+  tamamı zaten `idare_yetkisi` istiyor (SRS 5.10, rol kapsayıcı). Çalışan
+  rolü yayınlayamıyor; demo hesapları da zaten hiçbir şey yazamıyor.
+
+**Yeni olan ikisi:**
+
+`DONEM_BASINA_AZAMI_ACIK_SURUM = 20`. Sayım **yayınlanmış ve arşivlenmişi
+kapsamaz** — onlar kayıt: her yayın bir öncekini arşive düşürür ve bir dönem
+hayatı boyunca defalarca yayınlanabilir. Hepsi sayılsaydı yeterince
+düzeltilmiş bir dönem, sınıra takıldığı için **bir daha yayınlanamazdı**;
+sınır tam da yer açmak için var olduğu düzeltmeyi engellerdi.
+
+Denetim **tek yaratma noktasında** (`CizelgeSurumuDeposu.olustur`): sürüm
+açan dört yol var (boş taslak, türetilmiş taslak, kopya, çözüm başlatma) ve
+yarın beşincisi eklenebilir. Limit hatası da tek bir uygulama düzeyi
+işleyiciyle 409'a çevriliyor, uç noktalarda tek tek değil.
+
+`DELETE /api/surum/{id}` — **üç ret, üçü de farklı bir şeyi koruyor**:
+yayınlanmış sürümü çalışan paneli okur, arşiv sürüm FR-9.4'ün "değişen
+günler" işaretinin tabanıdır, zincire bağlı sürüm S8'in ve karşılaştırmanın
+dayanağıdır. Bağlı satırlar (atama, kapsama açığı, fazla kadro, çözüm işi)
+tek işlemde siliniyor: yarım silinmiş bir sürüm, boş taslaktan ayırt
+edilemez.
+
+Sınır ile silme **birlikte** çalışıyor ve bu bir testle kilitli: sınır tek
+başına çıkışı olmayan bir duvar olurdu.
+
+Demo kipinde silme de reddediliyor ve **parametreli salt-okunur testi yeni
+ucu kendiliğinden kapsadı** (43 → 44 test). Tarayıcıda doğrulandı: Sil
+düğmesi görünüyor, onay şeridi çıkıyor, onaylayınca uçan uyarı beliriyor.
+
+### DOKÜMAN BORCU — ek
+
+6. **SRS FR-7.x / SDD 5.6** — dönem başına açık sürüm sınırı bir
+   gereksinimdir. **Kayıtla çelişiyor:** `taslak_olarak_kopyala` docstring'i
+   ve Backlog "çoklu taslak sistemin olağan hâli; TD-8 de bir sınır
+   koymuyor" diyor. Sınır bu kararı değiştiriyor ve TD-8 güncellenmeli.
+7. **SRS FR-7.x / SDD 5.6** — yayınlanmamış sürümün silinmesi ve üç ret
+   nedeni.
+8. **SDD Ek B** — uç nokta denetimi **üç eksik** raporluyor:
+   `GET /api/ortam`, `GET /api/demo/kimlik`, `DELETE /api/surum/{surum_id}`
+   (uygulama 77, Ek B 74).
