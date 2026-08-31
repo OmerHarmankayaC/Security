@@ -80,7 +80,7 @@ export function TercihlerEkrani({ ekranSec }: Props) {
     .sort((a, b) => a.tarih.localeCompare(b.tarih))
 
   return (
-    <AppShell aktifEkran="Tercihler" ekranSec={ekranSec} baslik="Tercihler">
+    <AppShell aktifEkran="Tercihler" ekranSec={ekranSec} baslik={m.menu['Tercihler']}>
       {hata && <p className="text-sm text-signal">{hata}</p>}
 
       <div className="flex gap-2">

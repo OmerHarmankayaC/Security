@@ -626,7 +626,10 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
       altBaslik={
         surum ? (
           <span className="mono-caps rounded-sm bg-sunken px-2 py-1 text-ink-muted">
-            {buyukHarf(m.surumDurumu[surum.durum] ?? surum.durum)} · SÜRÜM {surum.surum_no}
+            {m.cizelge.surumRozeti(
+              buyukHarf(m.surumDurumu[surum.durum] ?? surum.durum, dil),
+              surum.surum_no,
+            )}
           </span>
         ) : undefined
       }

@@ -19,7 +19,8 @@ import { sayiBicimle, sapmaBicimle } from '../lib/sayi'
 import { adaletSatirlari, type AdaletSatiri } from '../lib/adalet'
 import { sonDonem } from '@/lib/donemSecimi'
 import { useMetin } from '@/i18n/DilBaglami'
-import type { Metinler } from '@/i18n/sozluk'
+import { SOZLUK, type Metinler } from '@/i18n/sozluk'
+import { etkinDil } from '@/i18n/etkinDil'
 import { hataMetni } from '@/i18n/hata'
 import { BOS } from '@/lib/sayi'
 
@@ -39,7 +40,7 @@ function yuzdeBicimle(oran: number | null, m: Metinler): string {
 // Birim burada eklenir, sayının kendisi lib/sayi.ts'ten gelir — işaret ve
 // ondalık ayracı kararı tek yerde durur.
 function saatSapmasi(sapma: number): string {
-  return `${sapmaBicimle(sapma, 1)} sa`
+  return `${sapmaBicimle(sapma, 1)} ${SOZLUK[etkinDil()].analiz.saatKisa}`
 }
 
 export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
@@ -192,7 +193,7 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
     <AppShell
       aktifEkran="Analiz"
       ekranSec={ekranSec}
-      baslik="Analiz"
+      baslik={m.menu['Analiz']}
       aksiyonlar={
         <>
           {/* Analizin Excel'i CIZELGENINKINDEN AYRI bir dosyadir: adalet
@@ -250,7 +251,7 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
             >
               {surumler.map((s) => (
                 <option key={s.surum_id} value={s.surum_id}>
-                  Sürüm {s.surum_no} ({m.surumDurumu[s.durum] ?? s.durum})
+                  {m.analiz.surumSecenegi(s.surum_no, m.surumDurumu[s.durum] ?? s.durum)}
                 </option>
               ))}
             </select>
@@ -281,7 +282,7 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                 olmaz (SRS 4.3 S1). */}
             <Kart>
               <KartEtiketi renk={analiz.toplam_fazla_kadro > 0 ? 'warn' : undefined}>
-                talepten fazla
+                {m.analiz.taleptenFazla}
               </KartEtiketi>
               <p
                 className={cn(
@@ -320,13 +321,13 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
               </p>
             </Kart>
             <Kart>
-              <KartEtiketi>en dengesiz</KartEtiketi>
+              <KartEtiketi>{m.analiz.enDengesiz}</KartEtiketi>
               <p className="m-0 text-sayi-buyuk font-semibold text-signal">
                 {analiz.en_dengesiz_ad_soyad ?? BOS}
               </p>
             </Kart>
             <Kart>
-              <KartEtiketi>toplam ceza</KartEtiketi>
+              <KartEtiketi>{m.analiz.toplamCezaBasligi}</KartEtiketi>
               <Sayi className="text-sayi-buyuk font-semibold text-ink">
                 {analiz.toplam_ceza !== null ? sayiBicimle(analiz.toplam_ceza, 0) : BOS}
               </Sayi>
@@ -411,10 +412,10 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                     <tr key={s.personel_id} className="border-t border-rule">
                       <td className="px-3 py-3 text-sm font-medium text-ink">{s.ad_soyad}</td>
                       <td className="px-3 py-3 font-mono text-sm text-ink-muted">
-                        {sayiBicimle(s.toplam_saat, 0)} sa
+                        {sayiBicimle(s.toplam_saat, 0)} {m.analiz.saatKisa}
                       </td>
                       <td className="px-3 py-3 font-mono text-sm text-ink-muted">
-                        {sayiBicimle(s.hedef_saat, 0)} sa
+                        {sayiBicimle(s.hedef_saat, 0)} {m.analiz.saatKisa}
                       </td>
                       {/* RENK, ORTANCADAN UZAKLIĞA GÖRE. Mutlak büyüklüğe
                           bakılıyordu ve talep hedeflerin toplamından düşük
@@ -556,11 +557,11 @@ function AdaletGrafigi({
           {/* SÜTUN BAŞLIKLARI: üçüncü sayının ne olduğu fareyle üstüne
               gelmeden okunabilmeli. */}
           <div className="flex items-center gap-3 border-b border-rule pb-1.5 etiket-caps text-ink-muted">
-            <span className="w-52 shrink-0">Personel</span>
+            <span className="w-52 shrink-0">{m.analiz.personel}</span>
             <span className="flex-1 text-center">{m.analiz.adilPayaGore}</span>
             <span className="w-14 shrink-0 text-right">{m.analiz.yuk}</span>
-            <span className="w-16 shrink-0 text-right">Adil pay</span>
-            <span className="w-16 shrink-0 text-right">Sapma</span>
+            <span className="w-16 shrink-0 text-right">{m.analiz.adilPayKisa}</span>
+            <span className="w-16 shrink-0 text-right">{m.analiz.sapma}</span>
           </div>
           <ul className="m-0 flex list-none flex-col gap-2 p-0 pt-2">
             {gosterilen.map((s) => (

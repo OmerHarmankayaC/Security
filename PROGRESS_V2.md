@@ -3776,3 +3776,95 @@ ait ama görünür bir eksik olduğu için burada kayda geçiyor.
     dil seçimi ve saklama kuralı hiçbir kanonik dokümanda yazmıyor.
 12. **Tasarım Referansı** — "Sayı biçimi" bölümü ondalık ayracını virgül
     olarak sabitliyor; artık dile bağlı.
+
+## Tur 19 — Faz 2 ve 3: hata kodları ve arayüzün tamamı iki dilli
+
+### Faz 2 — API hataları kod taşıyor
+
+`app/hatalar.py`: `Hata(HTTPException)` sınıfı, 34 alan hatasının kod
+kaydı, ve gövdeye `kod` alanını ekleyen tek bir işleyici. Seksen fırlatma
+noktasının 79'u dönüştürüldü (kalan biri gövdesiz 404, çevrilecek metni yok).
+
+**`detail` KALDI ve kaldırılmayacak.** Kaldırmak bütün testleri, günlükleri
+ve API'yi kabuktan kullanan herkesi aynı anda kırardı; `kod` eklemek hiçbir
+şeyi kırmaz — nitekim dönüşümden sonra 410 testin hepsi değişiklik
+görmeden geçti. Yan faydası bir güvenlik ağı: tanınmayan bir kod geldiğinde
+arayüz `detail`e düşüyor, yani kullanıcı boş kutu değil anlamlı bir cümle
+görüyor.
+
+**Kodlar sınıf adından TÜRETİLMİYOR.** Türetilseydi bir sınıfı yeniden
+adlandırmak API sözleşmesini sessizce değiştirir ve bunu ne derleyici ne
+test yakalardı. Elle yazılan her listenin eksik kalma eğilimi var; bekçisi
+iki test: `app/` altındaki her `*Error` sınıfının kodu olmalı, ve **ön
+yüzdeki `HataKodu` birleşimi arka uçtaki kümenin AYNISI olmalı** — iki yönde
+de. Sunucuya eklenip sözlüğe eklenmeyen bir kod hiçbir şeyi kırmaz, yalnızca
+İngilizce ekranda Türkçe bir cümle gösterir; sessiz olduğu için test var.
+
+Sözlükteki hata girdileri **fonksiyon** ve sunucunun kendi metnini alıyor:
+alan hatalarının bir kısmı ayrıntı taşıyor (`"S3 kural kataloğunda tanımlı
+değil."`) ve sabit bir cümle onu atardı. Türkçe tarafta `detay` olduğu gibi
+dönüyor (bugünkü davranış birebir korunuyor), İngilizce'de genel cümle
+yazılıyor. **Bilinçli ve sınırlı bir kayıp**; alternatifi sunucudan
+yapılandırılmış parametre taşımaktı ve bu tur onu kapsamıyor.
+
+`hataMetni` **asla yükselmiyor**. Modülü taklit eden bir test `ApiHatasi`'nı
+dışa vurmadığında `instanceof` bir TypeError yükseltiyordu ve o hata TAM DA
+hata işleyicisinin içinde patlayıp özgün hatayı gizliyordu.
+
+### Faz 3 — 41 bileşen, iki dil
+
+Sözlük 900 satırı aşkın metin taşıyor. Kalıcı olan kararlar:
+
+**Kimlik ile etiket ayrıldı.** `NavOgesi` ('Özet', 'Tanımlar'…), tanım
+sekmeleri, çalışan sekmeleri, tercih durumları, kural değişikliğinin alanı:
+hepsi kimlik olarak kaldı, görünen ad sözlükten geliyor. Çevirmek
+yönlendirmeyi kırardı. React anahtarları da kimlik: çevrilmiş bir etiket
+dil değişince değişir ve bütün listeyi yeniden kurardı.
+
+**`buyukHarf`/`kucukHarf` varsayılanı Türkçe kaldı**, ama `KartEtiketi`,
+`Rozet` ve `BuyukRakam` etkin dile geçti. Bu üçünün çocukları her zaman
+arayüz etiketi; Türkçe yereliyle büyütülünce İngilizce bozuluyordu:
+"Period view" → "PERİOD VİEW", "Fri" → "FRİ". Veriyi büyüten çağrılar
+(görev noktası adı, ızgara kısaltması) varsayılanda.
+
+**Yüzde işareti dile bağlı**: Türkçe'de sayının önünde, İngilizce'de
+arkasında. Ondalık ayracı da öyle.
+
+**Saf yardımcılara sözlük AÇIKÇA geçiyor** (`sonucDili`, `yetkinlikUyarisi`,
+`kuralAgirlik`, `donemAraligi`, `kuralParametre`, `blok`); yalnızca dile
+bağlı BİÇİMLEME (`sayi`, `tarih`) modül düzeyindeki `etkinDil`i okuyor.
+Ayrım şu: biçimleme iki yüzden fazla yerden çağrılıyor, cümle kuran
+fonksiyonlar bir avuç yerden.
+
+**`degisiklikleriBul` saf kaldı.** Alan adını sözlükten alacak olsaydı,
+yalnızca "değişiklik var mı" diye soran `kirliMi` de sözlük taşımak zorunda
+kalırdı; alan artık kimlik, adı ekran yazıyor.
+
+Uzun tire arayüzün **hiçbir yerinde** kalmadı: boş hücre işareti tek bir
+`BOS` sabitine indi (`-`), cümlelerdeki tireler iki nokta, virgül ya da orta
+noktayla değişti. Yorumlardaki tireler kaldı (ürün sahibinin kararı).
+
+### Tip sistemi üç kez sessiz hatayı durdurdu
+
+Kör yeniden adlandırmanın gerçek riskini üç kez tsc yakaladı: `.map((m) =>
+…)` geri çağırması sözlüğü gölgeledi, `EkleFormu`'nun `sekme` prop'una
+etiket geçirildi, `blokErisilebilirEtiket`'in çağrı yerleri eksik kaldı.
+Üçü de çalışma anında sessiz kalabilecek kusurlardı.
+
+### Durum
+
+41 dosya / 418 ön yüz testi, 420 arka uç testi (ağırlar hariç), tsc temiz,
+lint hatasız, biçim temiz. Testler **karışık sırada da** geçiyor — modül
+düzeyinde etkin dil tutulduğu için bu ayrıca doğrulandı.
+
+Tarayıcıda dokuz ekranın hepsi iki dilde gezildi; İngilizce arayüzde kalan
+tek Türkçe ürün adı (`VARDİS`) ve verinin kendisi (personel adı, görev
+noktası adı, yetkinlik adı).
+
+### DOKÜMAN BORCU — ek
+
+13. **SDD Ek B / API sözleşmesi** — hata yanıtları artık `kod` alanı
+    taşıyor. Ek B bunu yazmıyor; kodların listesi de bir sözleşmedir.
+14. **Tasarım Referansı** — "Sayı biçimi" ondalık ayracını virgüle
+    sabitliyor, artık dile bağlı. Yüzde işaretinin konumu da öyle.
+15. **SRS** — arayüz dili ve dil seçimi bir gereksinim değil.

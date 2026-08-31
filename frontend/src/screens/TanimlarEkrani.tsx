@@ -644,7 +644,7 @@ export function TanimlarEkrani({ ekranSec }: Props) {
                 setHata(null)
               }}
             >
-              {s}
+              {m.tanimlar.sekmeler[s]}
             </button>
           ))}
         </div>
