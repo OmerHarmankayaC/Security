@@ -73,6 +73,47 @@ export function oturumDustugunde(dinleyici: (() => void) | null): void {
   _oturumDustuDinleyicisi = dinleyici
 }
 
+// Gösterim ortamının yazma reddi (403 + kod) da tek yerden duyulur ve
+// nedeni 401'inkiyle aynı: her ekranın kendi başına ele alması, birini
+// atlayan ekranda kullanıcıya "kaydedildi" izlenimi bırakırdı.
+//
+// KODA BAKILIR, DURUM KODUNA DEĞİL. Rol tabanlı 403'ler (idarenin hesap
+// yönetimine erişmesi gibi) başka bir şeydir; aynı uyarıyı çıkarmak
+// kullanıcıya yanlış nedeni gösterirdi.
+const SALT_OKUNUR_KODU = 'salt_okunur'
+
+/**
+ * Gösterim ortamının yazma reddi.
+ *
+ * MESAJI BİLEREK BOŞTUR. Ekranlar hatayı `e instanceof Error ? e.message :
+ * '…'` ile alıp `{hata && <p>…</p>}` ile çizer; boş mesaj o satırı sessizce
+ * atlatır ve açıklama YALNIZCA uçan uyarıda kalır. Aksi hâlde aynı cümle
+ * biri ekranın ortasında kırmızı, biri altta uçarken iki kez görünürdü.
+ * Sunucunun metni `detay`da durur — kaybolmaz, yalnızca satır içi
+ * çizilmez.
+ */
+export class SaltOkunurHatasi extends ApiHatasi {
+  constructor(detay: unknown) {
+    super(403, detay)
+    this.message = ''
+  }
+}
+
+let _yazmaReddedildiDinleyicisi: ((mesaj: string) => void) | null = null
+
+export function yazmaReddedildiginde(dinleyici: ((mesaj: string) => void) | null): void {
+  _yazmaReddedildiDinleyicisi = dinleyici
+}
+
+function saltOkunurMu(durum: number, govde: unknown): govde is { detail: string } {
+  return (
+    durum === 403 &&
+    typeof govde === 'object' &&
+    govde !== null &&
+    (govde as { kod?: unknown }).kod === SALT_OKUNUR_KODU
+  )
+}
+
 const GIRIS_YOLU = '/api/giris'
 
 async function istek<T>(yol: string, secenekler?: RequestInit): Promise<T> {
@@ -85,6 +126,10 @@ async function istek<T>(yol: string, secenekler?: RequestInit): Promise<T> {
     // dinleyiciye haber vermek, giriş ekranını kendi kendine sıfırlardı.
     if (yanit.status === 401 && yol !== GIRIS_YOLU) _oturumDustuDinleyicisi?.()
     const govde = await yanit.json().catch(() => null)
+    if (saltOkunurMu(yanit.status, govde)) {
+      _yazmaReddedildiDinleyicisi?.(govde.detail)
+      throw new SaltOkunurHatasi(govde.detail)
+    }
     throw new ApiHatasi(yanit.status, govde?.detail ?? govde)
   }
   if (yanit.status === 204) return undefined as T

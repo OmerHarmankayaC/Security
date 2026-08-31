@@ -11,6 +11,7 @@ import { CalisanApp } from './CalisanApp'
 import { api, oturumDustugunde } from './api/client'
 import type { Ben } from './api/types'
 import { DemoSeridi } from './components/DemoSeridi'
+import { UcanUyari } from './components/UcanUyari'
 import { GirisEkrani } from './screens/GirisEkrani'
 import { ParolaDegistirmeEkrani } from './screens/ParolaDegistirmeEkrani'
 import { yuzeyBasligi, yuzeySec } from './lib/yetki'
@@ -63,6 +64,9 @@ export function Kok() {
     <>
       <DemoSeridi />
       {icerik}
+      {/* Uçan uyarı her yüzeyin üstünde: yazma reddi giriş ekranı dışında
+          her ekranda olabilir ve şerit gibi tek yerde çizilir. */}
+      <UcanUyari />
     </>
   )
 

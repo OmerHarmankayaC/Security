@@ -79,7 +79,11 @@ def test_demo_kipinde_her_yazma_ucu_reddedilir(monkeypatch, yontem: str, yol: st
     # KIMLIK DOGRULAMADAN ONCE reddedilir ve bu bilincli: oturumu olan bir
     # ziyaretci de yazamaz, yazamadigini da ayni mesajdan ogrenir.
     assert yanit.status_code == 403, f"{yontem} {yol} yazma yasagini gecti"
-    assert "kaydedilmez" in yanit.json()["detail"]
+    govde = yanit.json()
+    assert "kaydedilmez" in govde["detail"]
+    # KOD, arayuzun uyariyi yalnizca bu ret icin cikarabilmesi icin; rol
+    # tabanli 403'ler ayni uyariyi cikarmamali.
+    assert govde["kod"] == "salt_okunur"
 
 
 def test_okuma_uclari_demo_kipinde_de_calisir(monkeypatch) -> None:  # noqa: ANN001

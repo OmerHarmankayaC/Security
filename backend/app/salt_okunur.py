@@ -46,11 +46,17 @@ _IZINLI_YOLLAR = frozenset(
     }
 )
 
+# Metin KISA. Arayuz bunu ekranin altinda ucan kucuk bir uyari olarak
+# gosteriyor; uzun bir paragraf orada okunmaz ve ekrani orter.
 _MESAJ = (
-    "Gösterim ortamında değişiklikler kaydedilmez. Ekranı ve düzenleme "
-    "araçlarını serbestçe deneyebilirsiniz; kaydetme adımı herkesin gördüğü "
-    "veriyi değiştireceği için kapalıdır. Veri her gece yeniden kurulur."
+    "Gösterim ortamı: değişiklikler kaydedilmez. "
+    "Düzenleme araçlarını serbestçe deneyebilirsiniz."
 )
+
+# Yanit KOD tasir. Arayuz uyariyi yalnizca bu kodda cikarir; rol tabanli
+# 403'ler (ornegin idarenin hesap yonetimine erismesi) baska bir seydir ve
+# ayni uyariyi cikarmasi kullaniciyi yaniltirdi.
+_KOD = "salt_okunur"
 
 
 async def salt_okunur_kapisi(
@@ -65,7 +71,7 @@ async def salt_okunur_kapisi(
     # 403, 405 DEGIL: uc nokta vardir ve yontemi destekler; reddedilen sey
     # BU ORTAMDA yazma yetkisidir. 405 "boyle bir yontem yok" derdi ve
     # arayuzun gosterdigi dugmeyi yalancı çıkarırdı.
-    return JSONResponse(status_code=HTTP_403_FORBIDDEN, content={"detail": _MESAJ})
+    return JSONResponse(status_code=HTTP_403_FORBIDDEN, content={"detail": _MESAJ, "kod": _KOD})
 
 
 __all__ = ["salt_okunur_kapisi"]
