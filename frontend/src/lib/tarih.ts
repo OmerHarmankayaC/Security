@@ -1,3 +1,6 @@
+import { etkinDil } from '@/i18n/etkinDil'
+import { buyukHarf } from './metin'
+import type { Dil } from '@/i18n/diller'
 /**
  * Arayüzdeki BÜTÜN tarih ve saat biçimlemesinin tek kaynağı.
  *
@@ -23,44 +26,76 @@
  * değil bir tablo programıdır ve SRS 7.2 bu dosya için ISO 8601 şart koşar;
  * makine okunur çıktıyı yerelleştirmek onu bozar.
  */
-const GUN_KISALTMALARI = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt']
-const GUN_TAM_ADLARI = [
-  'Pazar',
-  'Pazartesi',
-  'Salı',
-  'Çarşamba',
-  'Perşembe',
-  'Cuma',
-  'Cumartesi',
-]
-const AY_TAM_ADLARI = [
-  'Ocak',
-  'Şubat',
-  'Mart',
-  'Nisan',
-  'Mayıs',
-  'Haziran',
-  'Temmuz',
-  'Ağustos',
-  'Eylül',
-  'Ekim',
-  'Kasım',
-  'Aralık',
-]
-const AY_KISALTMALARI = [
-  'Oca',
-  'Şub',
-  'Mar',
-  'Nis',
-  'May',
-  'Haz',
-  'Tem',
-  'Ağu',
-  'Eyl',
-  'Eki',
-  'Kas',
-  'Ara',
-]
+// GÜN VE AY ADLARI, iki dilde.
+//
+// `Intl.DateTimeFormat` KULLANILMIYOR ve bu bilinçli: tasarım kısaltmaların
+// tam olarak üç harf olmasını istiyor ("PZT", "MON") ve `Intl` yerelden
+// yerele değişen uzunluklar döndürüyor (İngilizce'de "Mon", Türkçe'de
+// "Pzt" ama bazı ortamlarda "Pt"). Izgara sütun genişliği bu üç harfe
+// göre kurulu; değişken uzunluk hizayı bozardı.
+const GUN_KISALTMALARI: Record<Dil, string[]> = {
+  tr: ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'],
+  en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+}
+
+const GUN_TAM_ADLARI: Record<Dil, string[]> = {
+  tr: ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'],
+  en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+}
+
+const AY_TAM_ADLARI: Record<Dil, string[]> = {
+  tr: [
+    'Ocak',
+    'Şubat',
+    'Mart',
+    'Nisan',
+    'Mayıs',
+    'Haziran',
+    'Temmuz',
+    'Ağustos',
+    'Eylül',
+    'Ekim',
+    'Kasım',
+    'Aralık',
+  ],
+  en: [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ],
+}
+
+const AY_KISALTMALARI: Record<Dil, string[]> = {
+  tr: ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'],
+  en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+}
+
+/** Göreli gün etiketleri; sayıya bağlı olanlar fonksiyon. */
+const GORELI: Record<Dil, { bugun: string; yarin: string; dun: string; gunOnce: (n: number) => string }> = {
+  tr: {
+    bugun: 'Bugün',
+    yarin: 'Yarın',
+    dun: 'dün',
+    gunOnce: (n) => `${n} gün önce`,
+  },
+  en: {
+    bugun: 'Today',
+    yarin: 'Tomorrow',
+    dun: 'yesterday',
+    gunOnce: (n) => (n === 1 ? '1 day ago' : `${n} days ago`),
+  },
+}
+
+const BUGUN_KUCUK: Record<Dil, string> = { tr: 'bugün', en: 'today' }
 
 export function isoAyristir(iso: string): Date {
   return new Date(`${iso}T00:00:00`)
@@ -94,23 +129,25 @@ export function gunlerListesi(baslangicIso: string, bitisIso: string): string[] 
 // "9 Ağustos 2026" — tekil tarihin genel biçimi. Gün başında sıfır yoktur;
 // aralık biçiminden (iki ucun hizalanması için sıfırlı) bilinçli olarak ayrılır.
 export function tarihBicimle(iso: string): string {
+  const d = etkinDil()
   const tarih = isoAyristir(iso)
-  return `${tarih.getDate()} ${AY_TAM_ADLARI[tarih.getMonth()]} ${tarih.getFullYear()}`
+  return `${tarih.getDate()} ${AY_TAM_ADLARI[d][tarih.getMonth()]} ${tarih.getFullYear()}`
 }
 
 // "03 – 09 Ağu 2026" (Dönem bloğu, Sayfa İskeleti — Yan menü). Ayrı ay/yıl
 // gerektiren nadir durumlarda her iki uca ay adı eklenir. Ayraç en tiredir
 // (–), kısa tire değil: iki tarih arasındaki aralığın tipografik karşılığı.
 export function donemAraligiBicimle(baslangicIso: string, bitisIso: string): string {
+  const d = etkinDil()
   const b = isoAyristir(baslangicIso)
   const s = isoAyristir(bitisIso)
   const bGun = String(b.getDate()).padStart(2, '0')
   const sGun = String(s.getDate()).padStart(2, '0')
-  const sAy = AY_KISALTMALARI[s.getMonth()]
+  const sAy = AY_KISALTMALARI[d][s.getMonth()]
   if (b.getFullYear() === s.getFullYear() && b.getMonth() === s.getMonth()) {
     return `${bGun} – ${sGun} ${sAy} ${s.getFullYear()}`
   }
-  const bAy = AY_KISALTMALARI[b.getMonth()]
+  const bAy = AY_KISALTMALARI[d][b.getMonth()]
   return `${bGun} ${bAy} – ${sGun} ${sAy} ${s.getFullYear()}`
 }
 
@@ -137,27 +174,38 @@ export function gunKisaltmasiVeNumarasi(iso: string): string {
  * yapılır — düz `toUpperCase` "i" harfini noktasız "I" yapar.
  */
 export function gunBasligiParcalari(iso: string): { kisaltma: string; numara: string } {
+  const d = etkinDil()
   const tarih = isoAyristir(iso)
   return {
-    kisaltma: GUN_KISALTMALARI[tarih.getDay()]!.toLocaleUpperCase('tr-TR'),
+    // Büyütme ETKİN DİLİN yereliyle: Türkçe'de düz `toUpperCase` "i" harfini
+    // noktasız "I" yapar, İngilizce'de ise tersi olur ve "Fri" → "FRİ" çıkardı.
+    kisaltma: buyukHarf(GUN_KISALTMALARI[d][tarih.getDay()]!, d),
     numara: String(tarih.getDate()),
   }
 }
 
 // Çalışan Paneli — Vardiyalarım (SDD 6.1): "03 Ağustos Pazartesi".
 export function tarihUzunBicim(iso: string): string {
+  const d = etkinDil()
   const tarih = isoAyristir(iso)
-  return `${String(tarih.getDate()).padStart(2, '0')} ${AY_TAM_ADLARI[tarih.getMonth()]} ${GUN_TAM_ADLARI[tarih.getDay()]}`
+  const gun = String(tarih.getDate()).padStart(2, '0')
+  const ay = AY_TAM_ADLARI[d][tarih.getMonth()]
+  const gunAdi = GUN_TAM_ADLARI[d][tarih.getDay()]
+  // Sıra dile göre: Türkçe "03 Ağustos Pazartesi", İngilizce'de gün adı
+  // öne geçer ("Monday 03 August"). Aynı şablonu iki dile dayatmak, birinde
+  // doğru diğerinde tuhaf okunan bir cümle üretirdi.
+  return d === 'tr' ? `${gun} ${ay} ${gunAdi}` : `${gunAdi} ${gun} ${ay}`
 }
 
 // "Bugün" / "Yarın" / tam gün adı ("Çarşamba") — Vardiyalarım listesi ve
 // sıradaki vardiya kartı bugunIso'ya göre kıyaslar.
 export function gunEtiketi(iso: string, bugunIso: string): string {
-  if (iso === bugunIso) return 'Bugün'
+  const d = etkinDil()
+  if (iso === bugunIso) return GORELI[d].bugun
   const yarin = new Date(isoAyristir(bugunIso))
   yarin.setDate(yarin.getDate() + 1)
-  if (iso === isoBicimle(yarin)) return 'Yarın'
-  return GUN_TAM_ADLARI[isoAyristir(iso).getDay()] ?? ''
+  if (iso === isoBicimle(yarin)) return GORELI[d].yarin
+  return GUN_TAM_ADLARI[d][isoAyristir(iso).getDay()] ?? ''
 }
 
 // ISO tarihe gün ekler (negatif değer geriye gider).
@@ -199,9 +247,10 @@ export function goreliZaman(iso: string): string {
   const gunBasi = (t: Date) => new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime()
   const gunFarki = Math.round((gunBasi(bugun) - gunBasi(zaman)) / 86_400_000)
 
-  if (gunFarki <= 0) return `bugün ${saat}`
-  if (gunFarki === 1) return `dün ${saat}`
-  return `${gunFarki} gün önce`
+  const d = etkinDil()
+  if (gunFarki <= 0) return `${BUGUN_KUCUK[d]} ${saat}`
+  if (gunFarki === 1) return `${GORELI[d].dun} ${saat}`
+  return GORELI[d].gunOnce(gunFarki)
 }
 
 // "9 Ağustos 2026 14:20" — tarih + saat. Tarih kısmı tarihBicimle'den gelir;

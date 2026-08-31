@@ -9,10 +9,9 @@
 //
 //   1. `<html lang>` — ekran okuyucu doğru sesletim için buna bakar,
 //      tarayıcının "bu sayfayı çevir" önerisi de buna bakar.
-//   2. `lib/sayi.ts` yereli — ondalık ayracı Türkçe'de virgül, İngilizce'de
-//      noktadır. Biçimleyicilere dil parametresi geçirmek iki yüzden fazla
-//      çağrı yerini değiştirmek demekti; yerel modül düzeyinde tutuluyor ve
-//      TEK yazan burasıdır.
+//   2. `i18n/etkinDil.ts` — saf yardımcılar (`lib/sayi`, `lib/tarih`) React
+//      bağlamını okuyamaz ama çıktıları dile bağlıdır: ondalık ayracı, ay
+//      adı, gün kısaltması. TEK yazan burasıdır.
 import {
   createContext,
   useCallback,
@@ -24,7 +23,7 @@ import {
 } from 'react'
 import { baslangicDili, diliSakla, type Dil } from './diller'
 import { SOZLUK, type Metinler } from './sozluk'
-import { yereliAyarla } from '@/lib/sayi'
+import { etkinDiliAyarla } from './etkinDil'
 
 interface DilDurumu {
   dil: Dil
@@ -42,9 +41,16 @@ export function DilSaglayici({ children }: PropsWithChildren) {
     diliSakla(yeni)
   }, [])
 
+  // ÇİZİM SIRASINDA, effect'te DEĞİL. Effect ilk çizimden SONRA koşar ve
+  // `lib/sayi`/`lib/tarih` ilk çizimde hâlâ eski dili okurdu; üstelik bu
+  // yazma bir durum değişikliği olmadığı için yeniden çizim de tetiklemez,
+  // yani yanlış dildeki sayılar ekranda ÖYLECE KALIRDI. Çağrı etkisizdir
+  // (aynı değeri yazar), o yüzden her çizimde koşması sorun değil.
+  etkinDiliAyarla(dil)
+
+  // `<html lang>` bir DOM yazması; o effect'te kalır.
   useEffect(() => {
     document.documentElement.lang = dil
-    yereliAyarla(dil)
   }, [dil])
 
   const deger = useMemo<DilDurumu>(

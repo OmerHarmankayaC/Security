@@ -15,7 +15,15 @@ import { DilSecici } from '@/components/DilSecici'
 import { useDil } from './DilBaglami'
 import { baslangicDili } from './diller'
 import { buyukHarf } from '@/lib/metin'
-import { sayiBicimle, sapmaBicimle, yereliAyarla, BOS } from '@/lib/sayi'
+import { sayiBicimle, sapmaBicimle, BOS } from '@/lib/sayi'
+import {
+  donemAraligiBicimle,
+  gunBasligiParcalari,
+  gunEtiketi,
+  tarihBicimle,
+  tarihUzunBicim,
+} from '@/lib/tarih'
+import { etkinDiliAyarla } from './etkinDil'
 
 function Ornek() {
   const { dil, metin } = useDil()
@@ -35,7 +43,7 @@ describe('dil seçimi', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
-    yereliAyarla('tr')
+    etkinDiliAyarla('tr')
   })
 
   it('sözlüğün etkin dalını verir', () => {
@@ -135,38 +143,38 @@ describe('başlangıç dili', () => {
 })
 
 describe('dile bağlı biçimleme', () => {
-  afterEach(() => yereliAyarla('tr'))
+  afterEach(() => etkinDiliAyarla('tr'))
 
   it('ondalık ayracı dile göre değişir', () => {
-    yereliAyarla('tr')
+    etkinDiliAyarla('tr')
     expect(sayiBicimle(3.39, 2)).toBe('3,39')
 
-    yereliAyarla('en')
+    etkinDiliAyarla('en')
     expect(sayiBicimle(3.39, 2)).toBe('3.39')
   })
 
   it('dil değişince önbellekten eski biçimleyici dönmez', () => {
     // Önbellek anahtarı yereli içermeseydi ilk çağrı biçimleyiciyi kilitler
     // ve sayılar dil değiştikten sonra da virgülle yazılırdı.
-    yereliAyarla('tr')
+    etkinDiliAyarla('tr')
     sayiBicimle(1.5, 1)
 
-    yereliAyarla('en')
+    etkinDiliAyarla('en')
 
     expect(sayiBicimle(1.5, 1)).toBe('1.5')
   })
 
   it('binlik ayracı iki dilde de yoktur', () => {
     // Tasarım Referansı v4: binlik ayracı YOKTUR. Dil bunu değiştirmez.
-    yereliAyarla('en')
+    etkinDiliAyarla('en')
     expect(sayiBicimle(10000)).toBe('10000')
 
-    yereliAyarla('tr')
+    etkinDiliAyarla('tr')
     expect(sayiBicimle(10000)).toBe('10000')
   })
 
   it('sapma işareti dile göre biçimlenir', () => {
-    yereliAyarla('en')
+    etkinDiliAyarla('en')
     expect(sapmaBicimle(3.4)).toBe('+3.4')
   })
 
@@ -191,5 +199,48 @@ describe('büyük harf', () => {
     // Bu testin işi doğru davranışı değil, TUZAĞI kayda geçirmek: parametre
     // unutulursa çıkan sonuç budur.
     expect(buyukHarf('title')).toBe('TİTLE')
+  })
+})
+
+describe('dile bağlı tarih', () => {
+  afterEach(() => etkinDiliAyarla('tr'))
+
+  it('ay adı dile göre yazılır', () => {
+    etkinDiliAyarla('tr')
+    expect(tarihBicimle('2026-08-31')).toBe('31 Ağustos 2026')
+
+    etkinDiliAyarla('en')
+    expect(tarihBicimle('2026-08-31')).toBe('31 August 2026')
+  })
+
+  it('dönem aralığı kısaltmaları dile göre', () => {
+    etkinDiliAyarla('en')
+    expect(donemAraligiBicimle('2026-08-31', '2026-09-06')).toBe('31 Aug – 06 Sep 2026')
+  })
+
+  it('gün kısaltması ETKİN DİLİN yereliyle büyütülür', () => {
+    // Türkçe yereliyle büyütülseydi "Fri" → "FRİ" olurdu: "i" harfi Türkçe'de
+    // noktalı büyür ve İngilizce bir kısaltmada bu apaçık yanlıştır.
+    etkinDiliAyarla('en')
+    expect(gunBasligiParcalari('2026-09-04').kisaltma).toBe('FRI')
+
+    etkinDiliAyarla('tr')
+    expect(gunBasligiParcalari('2026-09-04').kisaltma).toBe('CUM')
+  })
+
+  it('uzun biçimde sözcük SIRASI dile göre değişir', () => {
+    // Aynı şablonu iki dile dayatmak birinde tuhaf okunurdu.
+    etkinDiliAyarla('tr')
+    expect(tarihUzunBicim('2026-08-31')).toBe('31 Ağustos Pazartesi')
+
+    etkinDiliAyarla('en')
+    expect(tarihUzunBicim('2026-08-31')).toBe('Monday 31 August')
+  })
+
+  it('bugün ve yarın çevrilir', () => {
+    etkinDiliAyarla('en')
+    expect(gunEtiketi('2026-08-31', '2026-08-31')).toBe('Today')
+    expect(gunEtiketi('2026-09-01', '2026-08-31')).toBe('Tomorrow')
+    expect(gunEtiketi('2026-09-02', '2026-08-31')).toBe('Wednesday')
   })
 })

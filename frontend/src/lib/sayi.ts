@@ -15,7 +15,7 @@
  * ondalık ayracı sayar; burada üretilen `8,5` o dosyada hücre sınırını
  * bulanıklaştırır. Ekran biçimi insanın, CSV biçimi tablo programınındır.
  */
-import { YEREL, type Dil } from '@/i18n/diller'
+import { etkinYerel } from '@/i18n/etkinDil'
 
 
 /**
@@ -26,16 +26,6 @@ import { YEREL, type Dil } from '@/i18n/diller'
  * etmesi olurdu.
  */
 export const BOS = '-'
-
-/**
- * ETKİN YEREL. Ondalık ayracı Türkçe'de virgül, İngilizce'de noktadır.
- *
- * Modül düzeyinde tutuluyor çünkü `sayiBicimle` iki yüzden fazla yerden
- * çağrılıyor ve her birine dil parametresi geçirmek, biçimleme kuralını iki
- * yüz çağrı yerine dağıtmak demekti. TEK YAZAN `DilSaglayici`'dir; başka
- * hiçbir yerden çağrılmaz.
- */
-let yerelEtiketi = 'tr-TR'
 
 /**
  * Biçimleyici önbelleği. `Intl.NumberFormat` örneği her çağrıda yeniden
@@ -49,19 +39,15 @@ let yerelEtiketi = 'tr-TR'
 const ONBELLEK = new Map<string, Intl.NumberFormat>()
 
 function bicimleyici(tur: string, secenekler: Intl.NumberFormatOptions): Intl.NumberFormat {
-  const anahtar = `${yerelEtiketi}|${tur}`
+  const anahtar = `${etkinYerel()}|${tur}`
   let bulunan = ONBELLEK.get(anahtar)
   if (!bulunan) {
-    bulunan = new Intl.NumberFormat(yerelEtiketi, { useGrouping: false, ...secenekler })
+    bulunan = new Intl.NumberFormat(etkinYerel(), { useGrouping: false, ...secenekler })
     ONBELLEK.set(anahtar, bulunan)
   }
   return bulunan
 }
 
-/** Etkin yereli ayarlar. Yalnızca `DilSaglayici` çağırır. */
-export function yereliAyarla(dil: Dil): void {
-  yerelEtiketi = YEREL[dil]
-}
 
 /**
  * Sayıyı ekrana yazılacak biçime çevirir.
