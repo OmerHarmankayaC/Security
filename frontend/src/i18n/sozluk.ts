@@ -286,6 +286,92 @@ const tr = {
    * ("night fairness worsened by 2 hours"). Ortak bir şablon ikisinden
    * birini bozardı.
    */
+  tanimlar: {
+    sekmeler: {
+      'Talep': 'Talep',
+      'Personel': 'Personel',
+      'Yetkinlik': 'Yetkinlik',
+      'Bina': 'Bina',
+      'Görev Noktası': 'Görev Noktası',
+      'Özel Gün': 'Özel Gün',
+      'Kural': 'Kural',
+    },
+    gunTipi: { hafta_ici: 'Hafta içi', hafta_sonu: 'Hafta sonu', resmi_tatil: 'Resmî tatil' },
+    yuklenemedi: 'Tanımlar yüklenemedi.',
+    ozelGunSilinemedi: 'Özel gün silinemedi.',
+    talepSilinemedi: 'Talep aralığı silinemedi.',
+    kuralGuncellenemedi: 'Kural güncellenemedi.',
+    kayitKaydedilemedi: 'Kayıt kaydedilemedi.',
+    talepKaydedilemedi: 'Talep aralığı kaydedilemedi.',
+    ozelGunKaydedilemedi: 'Özel gün kaydedilemedi.',
+    araligiCakisiyor: (mesaj: string) =>
+      `Aralık çakışıyor: ${mesaj}. Aynı nokta ve gün tipi için saatler örtüşemez.`,
+    noktaSayisi: (sayi: number) => `${sayi} görev noktası`,
+    binaTanimliDegil:
+      'Bina tanımlı değil; mevcut uygulama alanında bütün noktalar tesis geneli (SRS 3.3.3).',
+    onkosulVar: 'Ön koşul var',
+    onkosulYok: 'Ön koşul yok',
+    degistir: 'Değiştir',
+    degisiklikYok: 'Değişiklik yok',
+    vazgec: 'Vazgeç',
+    iptal: 'İptal',
+    sil: 'Sil',
+    onceNoktaTanimla: 'Önce bir görev noktası tanımlayın',
+    onceAralikSec: 'Önce listeden bir aralık seçin',
+    onceGunSec: 'Önce listeden bir gün seçin',
+    onceKayitSec: 'Önce listeden bir kayıt seçin',
+    pasifleriGoster: 'Pasifleri göster',
+    talepBasligi: (sayi: number) => `talep aralıkları · ${sayi} kayıt`,
+    talepYok:
+      'Talep aralığı tanımlı değil. Aralık girilmeden çözüm hiç kimseyi istemez: kapsama kısıtı (SRS 4.3 S1) talep saatleri üzerinden yazılır ve boş talepte hiçbir açık doğmaz.',
+    talepSutunlari: ['GÖREV NOKTASI', 'GÜN TİPİ', 'TARİH', 'ARALIK', 'SÜRE', 'GEREKEN'],
+    talepNotu:
+      "Aralıklar saat başında başlar ve biter; gün sonu 24.00'tır. Aynı nokta ve gün tipi için çakışan iki aralık kabul edilmez: çakışan kayıtlar aynı saat için iki farklı gereken sayı üretirdi. Tarih dolu bir satır yalnız o güne aittir ve o gün genel satırların yerine geçer.",
+    haftalikYuk: 'HAFTALIK KİŞİ-SAAT YÜKÜ',
+    asgariKadro: 'ASGARİ KADRO (FAZLA ÇALIŞMA EŞİĞİNE GÖRE)',
+    tatilYok:
+      'Resmî tatil işaretlenmemiş. İşaretlenen günler talep matrisinin resmî tatil sütunundan beslenir ve adalet hesaplarında hafta sonuyla aynı sayaca eklenir (SRS TD-3).',
+    tatilTakvimi: (sayi: number) => `resmî tatil takvimi · ${sayi} gün`,
+    degisiklikleriKaydet: 'değişiklikleri kaydet',
+    kaydedilecek: (sayi: number) => `${sayi} değişiklik kaydedilecek`,
+    ardindanSekme: (sekme: string) => `, ardından ${sekme} sekmesine geçilecek.`,
+    s1Uyarisi: (s1: string, toplam: string) =>
+      `S1 ağırlığı (${s1}) diğer aktif esnek hedeflerin toplamının (${toplam}) üzerinde değil; talep karşılama baskınlığını kaybeder.`,
+    s1UyarisiUzun: (s1: string, toplam: string) =>
+      `S1 ağırlığı (${s1}) diğer aktif esnek hedeflerin toplamının (${toplam}) üzerinde değil. Talep karşılama baskınlığını kaybeder: çözücü, adalet veya tercih gibi bir hedefi iyileştirmek için kapsama açığı bırakmayı tercih edebilir.`,
+    duzenlemeyeDon: 'Düzenlemeye dön',
+    zorunluKisitlar: 'H1–H8 · zorunlu kısıtlar',
+    katalogNotu:
+      'Katalog kuralları modelin yapısını oluşturur; silinemez, yalnızca devre dışı bırakılır ve parametreleri değiştirilir.',
+    agirlik: 'Ağırlık',
+    formBasligi: (sekme: string, yeni: boolean) => `${sekme} ${yeni ? 'ekle' : 'değiştir'}`,
+    aktiflikBaslangic: 'Aktiflik Başlangıç',
+    aktiflikBitis: 'Aktiflik Bitiş',
+    devirFazlaCalisma: 'Devir Fazla Çalışma (saat)',
+    kotaYili: 'Kota Yılı',
+    aciklama: 'Açıklama',
+    onkosulYetkinlik: 'Ön Koşul Yetkinlik',
+    yetkinlikYok: 'Tanımlı yetkinlik yok; önce Yetkinlik sekmesinden ekleyin.',
+    pasifNotu: 'Pasif kayıt yeni çözümlerde kullanılmaz; mevcut çizelgelerde görünmeye devam eder.',
+    aktiflikNotu:
+      'Aktiflik penceresi dışındaki günlerde personel müsait sayılmaz (H7). Bitiş boş bırakılırsa pencere süresizdir; bugüne kadar çalıştırmak için Sil eylemini kullanın, pencereyi bir önceki güne kapatır.',
+    talepEkle: 'talep aralığı ekle',
+    talepDegistir: 'talep aralığı değiştir',
+    gorevNoktasi: 'Görev Noktası',
+    gunTipiEtiketi: 'Gün Tipi',
+    baslangic: 'Başlangıç',
+    bitis: 'Bitiş',
+    gerekenSayi: 'Gereken Sayı',
+    aralikNotu: (sure: string, yuk: string) =>
+      `Aralık ${sure} saat sürer ve gün başına ${yuk} kişi-saat yük getirir. Tarih boş bırakılırsa satır o gün tipinin tamamı için geçerlidir; doldurulursa yalnız o gün için geçerli bir istisna olur ve o gün genel satırların yerine geçer.`,
+    tatilIsaretle: 'resmî tatil işaretle',
+    tatilDegistir: 'resmî tatil değiştir',
+    tatilAdi: 'Tatil Adı',
+    tatilOrnegi: '29 Ekim Cumhuriyet Bayramı',
+    tatilNotu:
+      'İşaretlenen gün, talep matrisinin resmî tatil satırından beslenir ve adalet hesaplarında hafta sonuyla aynı sayaca eklenir (SRS TD-3). Yalnızca yeni çözümleri etkiler; üretilmiş çizelgeler değişmez.',
+  },
+
   cizelge: {
     tanimlarYuklenemedi: 'Tanımlar yüklenemedi.',
     surumlerYuklenemedi: 'Sürümler yüklenemedi.',
@@ -1035,6 +1121,96 @@ const en: Metinler = {
     cozuldu: 'Solved',
     yayinlandi: 'Published',
     arsiv: 'Archived',
+  },
+
+  tanimlar: {
+    sekmeler: {
+      'Talep': 'Demand',
+      'Personel': 'Staff',
+      'Yetkinlik': 'Competencies',
+      'Bina': 'Buildings',
+      'Görev Noktası': 'Duty points',
+      'Özel Gün': 'Special days',
+      'Kural': 'Rules',
+    },
+    gunTipi: { hafta_ici: 'Weekday', hafta_sonu: 'Weekend', resmi_tatil: 'Public holiday' },
+    yuklenemedi: 'Could not load the definitions.',
+    ozelGunSilinemedi: 'Could not delete the special day.',
+    talepSilinemedi: 'Could not delete the demand range.',
+    kuralGuncellenemedi: 'Could not update the rule.',
+    kayitKaydedilemedi: 'Could not save the record.',
+    talepKaydedilemedi: 'Could not save the demand range.',
+    ozelGunKaydedilemedi: 'Could not save the special day.',
+    araligiCakisiyor: (mesaj: string) =>
+      `The range overlaps: ${mesaj}. Hours cannot overlap for the same duty point and day type.`,
+    noktaSayisi: (sayi: number) => (sayi === 1 ? '1 duty point' : `${sayi} duty points`),
+    binaTanimliDegil:
+      'No buildings are defined; in the current application area every duty point is site-wide (SRS 3.3.3).',
+    onkosulVar: 'Has a prerequisite',
+    onkosulYok: 'No prerequisite',
+    degistir: 'Edit',
+    degisiklikYok: 'No changes',
+    vazgec: 'Discard',
+    iptal: 'Cancel',
+    sil: 'Delete',
+    onceNoktaTanimla: 'Define a duty point first',
+    onceAralikSec: 'Select a range from the list first',
+    onceGunSec: 'Select a day from the list first',
+    onceKayitSec: 'Select a record from the list first',
+    pasifleriGoster: 'Show inactive',
+    talepBasligi: (sayi: number) =>
+      sayi === 1 ? 'demand ranges · 1 record' : `demand ranges · ${sayi} records`,
+    talepYok:
+      'No demand range is defined. With no range entered the solve asks for nobody: the coverage constraint (SRS 4.3 S1) is written over demand hours, and empty demand produces no gaps at all.',
+    talepSutunlari: ['DUTY POINT', 'DAY TYPE', 'DATE', 'RANGE', 'LENGTH', 'REQUIRED'],
+    talepNotu:
+      'Ranges start and end on the hour; the end of the day is 24.00. Two overlapping ranges are not accepted for the same duty point and day type: overlapping records would give two different required counts for the same hour. A row with a date belongs to that day only and replaces the general rows for it.',
+    haftalikYuk: 'WEEKLY PERSON-HOUR LOAD',
+    asgariKadro: 'MINIMUM HEADCOUNT (BY THE OVERTIME THRESHOLD)',
+    tatilYok:
+      'No public holiday is marked. Marked days are fed from the public holiday column of the demand matrix and count towards the same fairness counter as weekends (SRS TD-3).',
+    tatilTakvimi: (sayi: number) =>
+      sayi === 1 ? 'public holiday calendar · 1 day' : `public holiday calendar · ${sayi} days`,
+    degisiklikleriKaydet: 'save the changes',
+    kaydedilecek: (sayi: number) =>
+      sayi === 1 ? '1 change will be saved' : `${sayi} changes will be saved`,
+    ardindanSekme: (sekme: string) => `, then the ${sekme} tab will open.`,
+    s1Uyarisi: (s1: string, toplam: string) =>
+      `The S1 weight (${s1}) is not above the sum of the other active soft goals (${toplam}); it loses its dominance over meeting demand.`,
+    s1UyarisiUzun: (s1: string, toplam: string) =>
+      `The S1 weight (${s1}) is not above the sum of the other active soft goals (${toplam}). It loses its dominance over meeting demand: the solver may prefer to leave a coverage gap in order to improve a goal such as fairness or preferences.`,
+    duzenlemeyeDon: 'Back to editing',
+    zorunluKisitlar: 'H1–H8 · hard constraints',
+    katalogNotu:
+      'Catalogue rules form the structure of the model; they cannot be deleted, only disabled, and their parameters changed.',
+    agirlik: 'Weight',
+    formBasligi: (sekme: string, yeni: boolean) => `${yeni ? 'add' : 'edit'} ${sekme}`,
+    aktiflikBaslangic: 'Active from',
+    aktiflikBitis: 'Active until',
+    devirFazlaCalisma: 'Carried-over overtime (hours)',
+    kotaYili: 'Quota year',
+    aciklama: 'Description',
+    onkosulYetkinlik: 'Prerequisite competency',
+    yetkinlikYok: 'No competencies defined; add one from the Competencies tab first.',
+    pasifNotu:
+      'An inactive record is not used in new solves; it keeps appearing in existing schedules.',
+    aktiflikNotu:
+      'On days outside the active window a person is not considered available (H7). Leaving the end empty makes the window open-ended; to run it up to today use the Delete action, which closes the window on the previous day.',
+    talepEkle: 'add demand range',
+    talepDegistir: 'edit demand range',
+    gorevNoktasi: 'Duty point',
+    gunTipiEtiketi: 'Day type',
+    baslangic: 'Start',
+    bitis: 'End',
+    gerekenSayi: 'Required count',
+    aralikNotu: (sure: string, yuk: string) =>
+      `The range lasts ${sure} hours and brings ${yuk} person-hours of load per day. Leaving the date empty makes the row apply to that whole day type; filling it makes it an exception valid for that day only, replacing the general rows.`,
+    tatilIsaretle: 'mark public holiday',
+    tatilDegistir: 'edit public holiday',
+    tatilAdi: 'Holiday name',
+    tatilOrnegi: '29 October Republic Day',
+    tatilNotu:
+      'A marked day is fed from the public holiday row of the demand matrix and counts towards the same fairness counter as weekends (SRS TD-3). It affects new solves only; schedules already produced do not change.',
   },
 
   cizelge: {

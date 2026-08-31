@@ -39,6 +39,9 @@ import {
   saatiYaz,
 } from '../lib/talepAraligi'
 import { yetkinlikCakismaUyarisi } from '../lib/yetkinlikUyarisi'
+import { useDil, useMetin } from '@/i18n/DilBaglami'
+import { hataMetni } from '@/i18n/hata'
+import { kucukHarf } from '@/lib/metin'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -78,12 +81,6 @@ type TanimSekmesi = (typeof TANIM_SEKMELERI)[number]
 // (FR-1.10) o günün talebini SESSİZCE sıfırlar — üstelik kapsama açığı da
 // doğmaz (talep sıfırdır), dolayısıyla hata hiçbir yerde görünmez. Liste bu
 // yüzden gün tipini ayrı bir sütunda gösterir ve üç tipin hepsi girilebilir.
-const GUN_TIPI_ETIKETI: Record<GunTipi, string> = {
-  hafta_ici: 'Hafta içi',
-  hafta_sonu: 'Hafta sonu',
-  resmi_tatil: 'Resmî tatil',
-}
-
 const GUN_TIPLERI = ['hafta_ici', 'hafta_sonu', 'resmi_tatil'] as const
 
 // Yeni aralık formunun açılış değeri: gün boyu (00.00–24.00), bir kişi.
@@ -132,6 +129,7 @@ const INPUT_SINIFI =
   'h-8 w-full rounded-sm border border-rule bg-surface px-2.5 font-mono text-sm text-ink outline-none focus-visible:border-accent focus-visible:ring-3 focus-visible:ring-accent/30'
 
 export function TanimlarEkrani({ ekranSec }: Props) {
+  const m = useMetin()
   const [sekme, setSekme] = useState<Sekme>('Talep')
   const [ekleAcik, setEkleAcik] = useState(false)
 
@@ -198,7 +196,7 @@ export function TanimlarEkrani({ ekranSec }: Props) {
         setKurallar(k)
         setOzelGunler(og)
       })
-      .catch((e) => setHata(e instanceof Error ? e.message : 'Tanımlar yüklenemedi'))
+      .catch((e) => setHata(hataMetni(e, m)))
   }
 
   useEffect(hepsiniYukle, [])
@@ -218,7 +216,7 @@ export function TanimlarEkrani({ ekranSec }: Props) {
       setOzelGunFormu(null)
       hepsiniYukle()
     } catch (e) {
-      setHata(e instanceof Error ? e.message : 'Özel gün silinemedi')
+      setHata(hataMetni(e, m))
     } finally {
       setOzelGunSiliniyor(false)
     }
@@ -276,7 +274,7 @@ export function TanimlarEkrani({ ekranSec }: Props) {
       setTalepFormu(null)
       setHata(null)
     } catch (e) {
-      setHata(e instanceof Error ? e.message : 'Talep aralığı silinemedi')
+      setHata(hataMetni(e, m))
     } finally {
       setTalepSiliniyor(false)
     }
@@ -334,7 +332,7 @@ export function TanimlarEkrani({ ekranSec }: Props) {
       setKurallar(await api.kuralListele())
       kuralKipiniKapat(hedefSekme)
     } catch (e) {
-      setHata(e instanceof Error ? e.message : 'Kural güncellenemedi')
+      setHata(hataMetni(e, m))
     } finally {
       setKuralKaydediliyor(false)
     }
@@ -382,10 +380,11 @@ export function TanimlarEkrani({ ekranSec }: Props) {
       kayitlar: binalar,
       kimlik: (b: Bina) => b.bina_id,
       baslik: (b: Bina) => b.ad,
-      ozet: (b: Bina) => `${noktalar.filter((n) => n.bina_id === b.bina_id).length} görev noktası`,
+      ozet: (b: Bina) =>
+        m.tanimlar.noktaSayisi(noktalar.filter((n) => n.bina_id === b.bina_id).length),
       aktifMi: (b: Bina) => b.aktif,
       bosMesaji:
-        'Bina tanımlı değil — mevcut uygulama alanında bütün noktalar tesis geneli (SRS 3.3.3).',
+        m.tanimlar.binaTanimliDegil,
     }),
     'Görev Noktası': gorunumKur({
       yol: 'nokta',
@@ -395,8 +394,8 @@ export function TanimlarEkrani({ ekranSec }: Props) {
       ozet: (n: GorevNoktasi) =>
         `${n.bina_id ? (binalar.find((b) => b.bina_id === n.bina_id)?.ad ?? 'Bina') : 'Tesis geneli'} · ${
           n.onkosul_yetkinlik_id
-            ? (yetkinlikMap.get(n.onkosul_yetkinlik_id)?.ad ?? 'Ön koşul var')
-            : 'Ön koşul yok'
+            ? (yetkinlikMap.get(n.onkosul_yetkinlik_id)?.ad ?? m.tanimlar.onkosulVar)
+            : m.tanimlar.onkosulYok
         }`,
       aktifMi: (n: GorevNoktasi) => n.aktif,
     }),
@@ -434,7 +433,7 @@ export function TanimlarEkrani({ ekranSec }: Props) {
     <AppShell
       aktifEkran="Tanımlar"
       ekranSec={ekranSec}
-      baslik="Tanımlar"
+      baslik={m.menu['Tanımlar']}
       // Ekle/Değiştir/Sil üçlüsü üst çubuğun sağında; beş tanım sekmesinin
       // hepsinde aynı konum, aynı sıra, aynı görünüm. Önceki hâlinde "Ekle"
       // yan menünün altındaydı ve yalnız bazı sekmelerde vardı.
@@ -442,20 +441,20 @@ export function TanimlarEkrani({ ekranSec }: Props) {
         sekme === 'Kural' ? (
           kuralKipi === 'okuma' ? (
             <Buton varyant="birincil" onClick={kuralDuzenlemeAc}>
-              Değiştir
+              {m.tanimlar.degistir}
             </Buton>
           ) : (
             <>
               <Buton
                 varyant="birincil"
                 disabled={kuralKaydediliyor || !kuralKirli}
-                title={kuralKirli ? undefined : 'Değişiklik yok'}
+                title={kuralKirli ? undefined : m.tanimlar.degisiklikYok}
                 onClick={() => setKuralOnayi({ hedefSekme: null })}
               >
                 Kaydet
               </Buton>
               <Buton varyant="ikincil" onClick={() => kuralCikisIste(null)}>
-                Vazgeç
+                {m.tanimlar.vazgec}
               </Buton>
             </>
           )
@@ -468,7 +467,7 @@ export function TanimlarEkrani({ ekranSec }: Props) {
             <Buton
               varyant="birincil"
               disabled={noktalar.length === 0}
-              title={noktalar.length === 0 ? 'Önce bir görev noktası tanımlayın' : undefined}
+              title={noktalar.length === 0 ? m.tanimlar.onceNoktaTanimla : undefined}
               onClick={() => {
                 setSeciliTalepId(null)
                 setTalepFormu({
@@ -487,7 +486,7 @@ export function TanimlarEkrani({ ekranSec }: Props) {
             <Buton
               varyant="ikincil"
               disabled={seciliTalep === null}
-              title={seciliTalep === null ? 'Önce listeden bir aralık seçin' : undefined}
+              title={seciliTalep === null ? m.tanimlar.onceAralikSec : undefined}
               onClick={() => {
                 if (seciliTalep === null) return
                 setTalepFormu({
@@ -501,12 +500,12 @@ export function TanimlarEkrani({ ekranSec }: Props) {
                 })
               }}
             >
-              Değiştir
+              {m.tanimlar.degistir}
             </Buton>
             <Buton
               varyant="ikincil"
               disabled={seciliTalep === null || talepSiliniyor}
-              title={seciliTalep === null ? 'Önce listeden bir aralık seçin' : undefined}
+              title={seciliTalep === null ? m.tanimlar.onceAralikSec : undefined}
               onClick={talepAraligiSil}
             >
               Sil
@@ -528,15 +527,15 @@ export function TanimlarEkrani({ ekranSec }: Props) {
             <Buton
               varyant="ikincil"
               disabled={seciliTarih === null}
-              title={seciliTarih === null ? 'Önce listeden bir gün seçin' : undefined}
+              title={seciliTarih === null ? m.tanimlar.onceGunSec : undefined}
               onClick={() => seciliTarih && setOzelGunFormu({ tarih: seciliTarih, yeni: false })}
             >
-              Değiştir
+              {m.tanimlar.degistir}
             </Buton>
             <Buton
               varyant="ikincil"
               disabled={seciliTarih === null || ozelGunSiliniyor}
-              title={seciliTarih === null ? 'Önce listeden bir gün seçin' : undefined}
+              title={seciliTarih === null ? m.tanimlar.onceGunSec : undefined}
               onClick={ozelGunuSil}
             >
               Sil
@@ -558,18 +557,18 @@ export function TanimlarEkrani({ ekranSec }: Props) {
             <Buton
               varyant="ikincil"
               disabled={seciliKayit === null}
-              title={seciliKayit === null ? 'Önce listeden bir kayıt seçin' : undefined}
+              title={seciliKayit === null ? m.tanimlar.onceKayitSec : undefined}
               onClick={() => {
                 setDuzenleniyor(true)
                 setEkleAcik(true)
               }}
             >
-              Değiştir
+              {m.tanimlar.degistir}
             </Buton>
             <Buton
               varyant="ikincil"
               disabled={seciliKayit === null}
-              title={seciliKayit === null ? 'Önce listeden bir kayıt seçin' : undefined}
+              title={seciliKayit === null ? m.tanimlar.onceKayitSec : undefined}
               onClick={() => {
                 if (!gorunum?.yol || seciliKayit === null || seciliId === null) return
                 setEkleAcik(false)
@@ -631,7 +630,7 @@ export function TanimlarEkrani({ ekranSec }: Props) {
               onChange={(e) => setPasifleriGoster(e.target.checked)}
               className="accent-accent"
             />
-            Pasifleri göster
+            {m.tanimlar.pasifleriGoster}
           </label>
         )}
       </div>
@@ -674,13 +673,11 @@ export function TanimlarEkrani({ ekranSec }: Props) {
           )}
           <Kart>
             <KartEtiketi>
-              talep aralıkları · {siraliTalepAraliklari.length} kayıt
+              {m.tanimlar.talepBasligi(siraliTalepAraliklari.length)}
             </KartEtiketi>
             {siraliTalepAraliklari.length === 0 ? (
               <p className="m-0 text-sm text-ink-muted">
-                Talep aralığı tanımlı değil. Aralık girilmeden çözüm hiç kimseyi
-                istemez: kapsama kısıtı (SRS 4.3 S1) talep saatleri üzerinden
-                yazılır ve boş talepte hiçbir açık doğmaz.
+                {m.tanimlar.talepYok}
               </p>
             ) : (
               // Tablo DEĞİL ızgara: satırın tamamı seçim düğmesi ve düğme
@@ -695,12 +692,9 @@ export function TanimlarEkrani({ ekranSec }: Props) {
                       'bg-sunken [&>span]:mono-caps [&>span]:px-3 [&>span]:py-2 [&>span]:text-ink-muted',
                     )}
                   >
-                    <span>GÖREV NOKTASI</span>
-                    <span>GÜN TİPİ</span>
-                    <span>TARİH</span>
-                    <span>ARALIK</span>
-                    <span>SÜRE</span>
-                    <span>GEREKEN</span>
+                    {m.tanimlar.talepSutunlari.map((b) => (
+                      <span key={b}>{b}</span>
+                    ))}
                   </div>
                   {siraliTalepAraliklari.map((t) => {
                     const secili = seciliTalepId === t.talep_id
@@ -720,7 +714,7 @@ export function TanimlarEkrani({ ekranSec }: Props) {
                         )}
                       >
                         <span className="font-medium text-ink">{noktaAdi(t.nokta_id)}</span>
-                        <span className="text-ink-muted">{GUN_TIPI_ETIKETI[t.gun_tipi]}</span>
+                        <span className="text-ink-muted">{m.tanimlar.gunTipi[t.gun_tipi]}</span>
                         <span className="font-mono text-ink-muted">{t.tarih ?? '—'}</span>
                         <span className="font-mono text-ink">
                           {saatEtiketi(baslangic)}–{saatEtiketi(bitis)}
@@ -736,12 +730,7 @@ export function TanimlarEkrani({ ekranSec }: Props) {
               </div>
             )}
             <p className="mt-4 mb-0 text-sm text-ink-muted">
-              Aralıklar saat başında başlar ve biter; gün sonu{' '}
-              <Sayi>24.00</Sayi>'tır. Aynı nokta ve gün tipi için çakışan iki
-              aralık kabul edilmez — çakışan kayıtlar aynı saat için iki farklı
-              gereken sayı üretirdi. <span className="font-medium">Tarih</span>{' '}
-              dolu bir satır yalnız o güne aittir ve o gün genel satırların
-              yerine geçer.
+              {m.tanimlar.talepNotu}
             </p>
           </Kart>
           {yukGostergesi && (
@@ -753,7 +742,7 @@ export function TanimlarEkrani({ ekranSec }: Props) {
                     Ölçü saattir. */}
                 <div>
                   <p className="m-0 etiket-caps text-ink-muted">
-                    HAFTALIK KİŞİ-SAAT YÜKÜ
+                    {m.tanimlar.haftalikYuk}
                   </p>
                   <Sayi className="text-sayi-buyuk font-semibold text-ink">
                     {yukGostergesi.haftalik_kisi_saat}
@@ -761,7 +750,7 @@ export function TanimlarEkrani({ ekranSec }: Props) {
                 </div>
                 <div>
                   <p className="m-0 etiket-caps text-ink-muted">
-                    ASGARİ KADRO (FAZLA ÇALIŞMA EŞİĞİNE GÖRE)
+                    {m.tanimlar.asgariKadro}
                   </p>
                   <Sayi className="text-sayi-buyuk font-semibold text-ink">{yukGostergesi.asgari_kadro}</Sayi>
                 </div>
@@ -819,13 +808,11 @@ export function TanimlarEkrani({ ekranSec }: Props) {
           )}
           {ozelGunler.length === 0 ? (
             <p className="text-sm text-ink-muted">
-              Resmî tatil işaretlenmemiş. İşaretlenen günler talep matrisinin{' '}
-              <span className="font-medium">resmî tatil</span> sütunundan beslenir ve adalet
-              hesaplarında hafta sonuyla aynı sayaca eklenir (SRS TD-3).
+              {m.tanimlar.tatilYok}
             </p>
           ) : (
             <Kart>
-              <KartEtiketi>resmî tatil takvimi · {ozelGunler.length} gün</KartEtiketi>
+              <KartEtiketi>{m.tanimlar.tatilTakvimi(ozelGunler.length)}</KartEtiketi>
               <ul className="m-0 flex list-none flex-col p-0">
                 {ozelGunler.map((g) => {
                   const secili = seciliTarih === g.tarih
@@ -856,11 +843,11 @@ export function TanimlarEkrani({ ekranSec }: Props) {
         <>
           {kuralOnayi && (
             <Kart vurgulu>
-              <KartEtiketi renk="accent">değişiklikleri kaydet</KartEtiketi>
+              <KartEtiketi renk="accent">{m.tanimlar.degisiklikleriKaydet}</KartEtiketi>
               <p className="m-0 text-sm text-ink">
-                {kuralDegisiklikleri.length} değişiklik kaydedilecek
+                {m.tanimlar.kaydedilecek(kuralDegisiklikleri.length)}
                 {kuralOnayi.hedefSekme
-                  ? `, ardından ${kuralOnayi.hedefSekme} sekmesine geçilecek.`
+                  ? m.tanimlar.ardindanSekme(m.tanimlar.sekmeler[kuralOnayi.hedefSekme])
                   : '.'}
               </p>
               <ul className="m-0 mt-2 flex list-none flex-col gap-1 p-0">
@@ -880,9 +867,7 @@ export function TanimlarEkrani({ ekranSec }: Props) {
               )}
               {s1BaskinligiKayboldu(s1Agirligi, esnekAgirlikToplami) && (
                 <p className="mt-3 border-l-2 border-signal pl-3 text-sm text-signal">
-                  S1 ağırlığı (<Sayi>{s1Agirligi}</Sayi>) diğer aktif esnek hedeflerin
-                  toplamının (<Sayi>{esnekAgirlikToplami}</Sayi>) üzerinde değil; talep
-                  karşılama baskınlığını kaybeder.
+                  {m.tanimlar.s1Uyarisi(String(s1Agirligi), String(esnekAgirlikToplami))}
                 </p>
               )}
               <div className="mt-4 flex gap-2">
@@ -905,16 +890,15 @@ export function TanimlarEkrani({ ekranSec }: Props) {
                   disabled={kuralKaydediliyor}
                   onClick={() => setKuralOnayi(null)}
                 >
-                  Düzenlemeye dön
+                  {m.tanimlar.duzenlemeyeDon}
                 </Buton>
               </div>
             </Kart>
           )}
           <Kart>
-            <KartEtiketi>H1–H8 · zorunlu kısıtlar</KartEtiketi>
+            <KartEtiketi>{m.tanimlar.zorunluKisitlar}</KartEtiketi>
             <p className="-mt-2 mb-4 text-sm text-ink-muted">
-              Katalog kuralları modelin yapısını oluşturur; silinemez, yalnızca devre dışı
-              bırakılır ve parametreleri değiştirilir.
+              {m.tanimlar.katalogNotu}
             </p>
             <div className="flex flex-col">
               {zorunluKurallar.map((k) => (
@@ -993,6 +977,7 @@ function KuralSatiri({
   parametreSutunu,
   onGuncelle,
 }: KuralSatiriProps) {
+  const m = useMetin()
   const esnek = kural.tip === 'esnek'
   const baskinlikUyarisi =
     kural.kimlik === 'S1' && s1BaskinligiKayboldu(s1Agirligi, esnekAgirlikToplami)
@@ -1057,7 +1042,7 @@ function KuralSatiri({
               htmlFor={`${kural.kimlik}-agirlik`}
               className="text-right text-sm text-ink-muted"
             >
-              Ağırlık
+              {m.tanimlar.agirlik}
             </label>
             {duzenlenebilir ? (
               <Input
@@ -1100,10 +1085,7 @@ function KuralSatiri({
 
       {baskinlikUyarisi && (
         <p className="mt-2 text-sm text-signal">
-          S1 ağırlığı (<Sayi>{s1Agirligi}</Sayi>) diğer aktif esnek hedeflerin toplamının (
-          <Sayi>{esnekAgirlikToplami}</Sayi>) üzerinde değil. Talep karşılama baskınlığını
-          kaybeder: çözücü, adalet veya tercih gibi bir hedefi iyileştirmek için kapsama açığı
-          bırakmayı tercih edebilir.
+          {m.tanimlar.s1UyarisiUzun(String(s1Agirligi), String(esnekAgirlikToplami))}
         </p>
       )}
     </div>
@@ -1137,6 +1119,7 @@ function EkleFormu({
   onKaydedildi,
   onHata,
 }: EkleFormuProps) {
+  const { dil, metin: m } = useDil()
   const mevcut = duzenlenen as Record<string, unknown> | null
   const kimlikAlani: Partial<Record<Sekme, string>> = {
     Personel: 'personel_id',
@@ -1270,7 +1253,7 @@ function EkleFormu({
       }
       onKaydedildi()
     } catch (e) {
-      onHata(e instanceof Error ? e.message : 'Kayıt kaydedilemedi')
+      onHata(hataMetni(e, m))
     } finally {
       setGonderiliyor(false)
     }
@@ -1279,7 +1262,7 @@ function EkleFormu({
   return (
     <Kart vurgulu>
       <KartEtiketi renk="accent">
-        {sekme.toLocaleLowerCase('tr-TR')} {id !== null ? 'değiştir' : 'ekle'}
+        {m.tanimlar.formBasligi(kucukHarf(m.tanimlar.sekmeler[sekme], dil), id === null)}
       </KartEtiketi>
       <div className="flex flex-wrap items-end gap-4">
         <div className="flex flex-col gap-1">
@@ -1318,7 +1301,7 @@ function EkleFormu({
             </div>
             <div className="flex flex-col gap-1">
               <label htmlFor="personel-aktif-baslangic" className="text-sm text-ink-muted">
-                Aktiflik Başlangıç
+                {m.tanimlar.aktiflikBaslangic}
               </label>
               <Input
                 id="personel-aktif-baslangic"
@@ -1330,7 +1313,7 @@ function EkleFormu({
             </div>
             <div className="flex flex-col gap-1">
               <label htmlFor="personel-aktif-bitis" className="text-sm text-ink-muted">
-                Aktiflik Bitiş
+                {m.tanimlar.aktiflikBitis}
               </label>
               <Input
                 id="personel-aktif-bitis"
@@ -1344,7 +1327,7 @@ function EkleFormu({
                 veriyi toplamak için var; kota hesabı Tur 4'ün işi. */}
             <div className="flex flex-col gap-1">
               <label htmlFor="personel-devir" className="text-sm text-ink-muted">
-                Devir Fazla Çalışma (saat)
+                {m.tanimlar.devirFazlaCalisma}
               </label>
               <Input
                 id="personel-devir"
@@ -1358,7 +1341,7 @@ function EkleFormu({
             </div>
             <div className="flex flex-col gap-1">
               <label htmlFor="personel-kota-yili" className="text-sm text-ink-muted">
-                Kota Yılı
+                {m.tanimlar.kotaYili}
               </label>
               <Input
                 id="personel-kota-yili"
@@ -1373,7 +1356,7 @@ function EkleFormu({
         )}
         {sekme === 'Yetkinlik' && (
           <div className="flex flex-col gap-1">
-            <label className="text-sm text-ink-muted">Açıklama</label>
+            <label className="text-sm text-ink-muted">{m.tanimlar.aciklama}</label>
             <Input
               value={ikinciAlan}
               onChange={(e) => setIkinciAlan(e.target.value)}
@@ -1395,7 +1378,7 @@ function EkleFormu({
               </select>
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-sm text-ink-muted">Ön Koşul Yetkinlik</label>
+              <label className="text-sm text-ink-muted">{m.tanimlar.onkosulYetkinlik}</label>
               <select
                 className={INPUT_SINIFI}
                 value={yetkinlikId}
@@ -1429,7 +1412,7 @@ function EkleFormu({
           Kaydet
         </Buton>
         <Buton varyant="hayalet" onClick={onIptal}>
-          İptal
+          {m.tanimlar.iptal}
         </Buton>
       </div>
 
@@ -1439,7 +1422,7 @@ function EkleFormu({
           <div className="flex flex-wrap gap-x-6 gap-y-2">
             {yetkinlikler.length === 0 && (
               <p className="m-0 text-sm text-ink-muted">
-                Tanımlı yetkinlik yok — önce Yetkinlik sekmesinden ekleyin.
+                {m.tanimlar.yetkinlikYok}
               </p>
             )}
             {yetkinlikler.map((y) => {
@@ -1477,14 +1460,12 @@ function EkleFormu({
 
       {id !== null && !personelMi && !aktif && (
         <p className="mt-3 text-sm text-ink-muted">
-          Pasif kayıt yeni çözümlerde kullanılmaz; mevcut çizelgelerde görünmeye devam eder.
+          {m.tanimlar.pasifNotu}
         </p>
       )}
       {personelMi && (
         <p className="mt-3 text-sm text-ink-muted">
-          Aktiflik penceresi dışındaki günlerde personel müsait sayılmaz (H7). Bitiş boş
-          bırakılırsa pencere süresizdir; bugüne kadar çalıştırmak için Sil eylemini kullanın —
-          pencereyi bir önceki güne kapatır.
+          {m.tanimlar.aktiflikNotu}
         </p>
       )}
     </Kart>
@@ -1537,6 +1518,7 @@ function TalepFormu({
   onKaydedildi,
   onHata,
 }: TalepFormuProps) {
+  const m = useMetin()
   const [gonderiliyor, setGonderiliyor] = useState(false)
   const talepId = degerler.talep_id
   const yeni = talepId === null
@@ -1563,10 +1545,10 @@ function TalepFormu({
       const cakisma = e instanceof ApiHatasi && e.status === 409
       onHata(
         cakisma
-          ? `Aralık çakışıyor: ${e.message}. Aynı nokta ve gün tipi için saatler örtüşemez.`
+          ? m.tanimlar.araligiCakisiyor(e.message)
           : e instanceof Error
             ? e.message
-            : 'Talep aralığı kaydedilemedi',
+            : m.tanimlar.talepKaydedilemedi,
       )
     } finally {
       setGonderiliyor(false)
@@ -1577,11 +1559,11 @@ function TalepFormu({
 
   return (
     <Kart vurgulu>
-      <KartEtiketi renk="accent">{yeni ? 'talep aralığı ekle' : 'talep aralığı değiştir'}</KartEtiketi>
+      <KartEtiketi renk="accent">{yeni ? m.tanimlar.talepEkle : m.tanimlar.talepDegistir}</KartEtiketi>
       <div className="flex flex-wrap items-end gap-4">
         <div className="flex flex-col gap-1">
           <label htmlFor="talep-nokta" className="text-sm text-ink-muted">
-            Görev Noktası
+            {m.tanimlar.gorevNoktasi}
           </label>
           <select
             id="talep-nokta"
@@ -1598,7 +1580,7 @@ function TalepFormu({
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="talep-gun-tipi" className="text-sm text-ink-muted">
-            Gün Tipi
+            {m.tanimlar.gunTipiEtiketi}
           </label>
           <select
             id="talep-gun-tipi"
@@ -1608,14 +1590,14 @@ function TalepFormu({
           >
             {GUN_TIPLERI.map((g) => (
               <option key={g} value={g}>
-                {GUN_TIPI_ETIKETI[g]}
+                {m.tanimlar.gunTipi[g]}
               </option>
             ))}
           </select>
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="talep-baslangic" className="text-sm text-ink-muted">
-            Başlangıç
+            {m.tanimlar.baslangic}
           </label>
           <select
             id="talep-baslangic"
@@ -1632,7 +1614,7 @@ function TalepFormu({
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="talep-bitis" className="text-sm text-ink-muted">
-            Bitiş
+            {m.tanimlar.bitis}
           </label>
           <select
             id="talep-bitis"
@@ -1649,7 +1631,7 @@ function TalepFormu({
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="talep-gereken" className="text-sm text-ink-muted">
-            Gereken Sayı
+            {m.tanimlar.gerekenSayi}
           </label>
           <Input
             id="talep-gereken"
@@ -1680,15 +1662,11 @@ function TalepFormu({
           Kaydet
         </Buton>
         <Buton varyant="hayalet" onClick={onIptal}>
-          İptal
+          {m.tanimlar.iptal}
         </Buton>
       </div>
       <p className="mt-3 text-sm text-ink-muted">
-        Aralık <Sayi>{sure}</Sayi> saat sürer ve gün başına{' '}
-        <Sayi>{sure * degerler.gereken_sayi}</Sayi> kişi-saat yük getirir.
-        Tarih boş bırakılırsa satır o gün tipinin tamamı için geçerlidir;
-        doldurulursa yalnız o gün için geçerli bir istisna olur ve o gün genel
-        satırların yerine geçer.
+        {m.tanimlar.aralikNotu(String(sure), String(sure * degerler.gereken_sayi))}
       </p>
     </Kart>
   )
@@ -1702,6 +1680,7 @@ function OzelGunFormu({
   onKaydedildi,
   onHata,
 }: OzelGunFormuProps) {
+  const m = useMetin()
   const [tarih, setTarih] = useState(ilkTarih)
   const [ad, setAd] = useState(mevcutAd)
   const [gonderiliyor, setGonderiliyor] = useState(false)
@@ -1713,7 +1692,7 @@ function OzelGunFormu({
       else await api.ozelGunGuncelle(tarih, ad)
       onKaydedildi(tarih)
     } catch (e) {
-      onHata(e instanceof Error ? e.message : 'Özel gün kaydedilemedi')
+      onHata(hataMetni(e, m))
     } finally {
       setGonderiliyor(false)
     }
@@ -1721,7 +1700,7 @@ function OzelGunFormu({
 
   return (
     <Kart vurgulu>
-      <KartEtiketi renk="accent">{yeni ? 'resmî tatil işaretle' : 'resmî tatil değiştir'}</KartEtiketi>
+      <KartEtiketi renk="accent">{yeni ? m.tanimlar.tatilIsaretle : m.tanimlar.tatilDegistir}</KartEtiketi>
       <div className="flex flex-wrap items-end gap-4">
         <div className="flex flex-col gap-1">
           <label htmlFor="ozel-gun-tarih" className="text-sm text-ink-muted">
@@ -1738,13 +1717,13 @@ function OzelGunFormu({
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="ozel-gun-ad" className="text-sm text-ink-muted">
-            Tatil Adı
+            {m.tanimlar.tatilAdi}
           </label>
           <Input
             id="ozel-gun-ad"
             value={ad}
             onChange={(e) => setAd(e.target.value)}
-            placeholder="29 Ekim Cumhuriyet Bayramı"
+            placeholder={m.tanimlar.tatilOrnegi}
             className="w-72 rounded-sm border-rule"
           />
         </div>
@@ -1752,13 +1731,11 @@ function OzelGunFormu({
           Kaydet
         </Buton>
         <Buton varyant="hayalet" onClick={onIptal}>
-          İptal
+          {m.tanimlar.iptal}
         </Buton>
       </div>
       <p className="mt-3 text-sm text-ink-muted">
-        İşaretlenen gün, talep matrisinin <span className="font-medium">resmî tatil</span> satırından
-        beslenir ve adalet hesaplarında hafta sonuyla aynı sayaca eklenir (SRS TD-3). Yalnızca
-        yeni çözümleri etkiler; üretilmiş çizelgeler değişmez.
+        {m.tanimlar.tatilNotu}
       </p>
     </Kart>
   )

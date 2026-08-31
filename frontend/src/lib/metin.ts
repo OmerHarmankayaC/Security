@@ -16,6 +16,13 @@ export function buyukHarf(metin: string, dil: Dil = 'tr'): string {
   return metin.toLocaleUpperCase(YEREL[dil])
 }
 
+// Kucultmenin de yereli var ve ayni tuzagi tasir: `toLowerCase()` Turkce
+// "I" harfini noktali "i" yapar (dogrusu noktasiz "ı"), Ingilizce metinde
+// ise tersi olur. Varsayilan yine Turkce, ayni gerekceyle.
+export function kucukHarf(metin: string, dil: Dil = 'tr'): string {
+  return metin.toLocaleLowerCase(YEREL[dil])
+}
+
 /**
  * Tanım adının ızgara kısaltması (SDD 6.3.3: "vardiya tipini ve görev
  * noktasını KISALTMAYLA gösterir").
