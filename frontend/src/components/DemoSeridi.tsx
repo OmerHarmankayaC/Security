@@ -12,8 +12,10 @@
 // birincisi "bu veri gerçek", ikincisi "bu sistem orada çalışıyor").
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
+import { useMetin } from '@/i18n/DilBaglami'
 
 export function DemoSeridi() {
+  const m = useMetin()
   const [gorunur, setGorunur] = useState(false)
 
   useEffect(() => {
@@ -33,10 +35,7 @@ export function DemoSeridi() {
       role="status"
       className="sticky top-0 z-50 w-full bg-amber-100 px-4 py-2 text-center text-sm text-amber-950"
     >
-      <strong className="font-semibold">Gösterim ortamı.</strong> Buradaki personel, izin ve
-      çizelge kayıtlarının tamamı gösterim amacıyla üretilmiştir; gerçek bir kurumu ya da
-      kişiyi göstermez. Veri her gece sıfırlanır, yaptığınız değişiklikler kaybolur. Sistem
-      herhangi bir kurumda kullanımda değildir.
+      <strong className="font-semibold">{m.demo.seritBasligi}</strong> {m.demo.seritGovdesi}
     </div>
   )
 }

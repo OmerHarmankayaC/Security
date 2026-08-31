@@ -1,8 +1,19 @@
-// Turkce buyuk harfe cevirirken DAIMA bunu kullan, duz .toUpperCase() DEGIL —
-// toUpperCase() "i" -> "I" cevirir (Turkce'de dogrusu "İ"), İ/ı harflerini
+import { YEREL, type Dil } from '@/i18n/diller'
+
+// Buyuk harfe cevirirken DAIMA bunu kullan, duz .toUpperCase() DEGIL:
+// toUpperCase() "i" -> "I" cevirir (Turkce'de dogrusu "İ") ve İ/ı harflerini
 // bozar (bkz. docs/tasarim/TASARIM_REFERANSI.md).
-export function buyukHarf(metin: string): string {
-  return metin.toLocaleUpperCase('tr-TR')
+//
+// VARSAYILAN TURKCE'DIR VE OYLE KALMALI. Bu fonksiyonun cagrilarinin cogu
+// arayuz etiketini degil VERIYI buyutuyor: gorev noktasi adi, personel adi,
+// izgara kisaltmasi. O veri kullanicinin girdigi dilde, yani Turkce'dir ve
+// arayuz Ingilizce'ye alindi diye "İzin" -> "IZIN" olmamalidir.
+//
+// Arayuzun KENDI etiketlerini buyuten yerler etkin dili acikca gecirir
+// (`buyukHarf(m.giris.baslik, dil)`); orada da tersi gecerlidir, Ingilizce
+// bir etiketi Turkce yereliyle buyutmek "title" -> "TİTLE" verirdi.
+export function buyukHarf(metin: string, dil: Dil = 'tr'): string {
+  return metin.toLocaleUpperCase(YEREL[dil])
 }
 
 /**

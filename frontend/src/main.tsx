@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import { Kok } from './Kok.tsx'
+import { DilSaglayici } from './i18n/DilBaglami'
 
 // Hangi panelin açılacağı artık ADRESTEN değil OTURUMDAN çıkıyor (SRS 5.10);
 // karar `Kok` bileşeninde, sekme başlığı da orada yüzeyle birlikte
@@ -9,6 +10,10 @@ import { Kok } from './Kok.tsx'
 // ayrıştırılıyordu; o yol kimlik doğrulamayla birlikte kaldırıldı.
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <Kok />
+    {/* Dil sağlayıcı EN DIŞTA: gösterim şeridi ve giriş ekranı da çevrili
+        metin okuyor ve ikisi de oturum açılmadan önce çiziliyor. */}
+    <DilSaglayici>
+      <Kok />
+    </DilSaglayici>
   </StrictMode>,
 )

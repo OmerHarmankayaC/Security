@@ -3707,3 +3707,72 @@ Sunucuda **19/19**, yerelde 17/17.
 **Kaydırma şikâyeti de aynı önbellekten geliyordu.** Taze yükte ölçüldü:
 `scrollHeight == clientHeight == 720`, taşma yok. Düzen kusuru değil, eski
 paketti.
+
+## Tur 18 — Arayüz iki dilli (İngilizce desteği)
+
+Ürün sahibinin dört kararı: API hata mesajları **kod** taşıyacak ve metin ön
+yüzde duracak · uzun tire yalnızca **arayüz metinlerinden** kalkacak (90 yer;
+228 yorumdaki kalır) · **kendi tipli sözlüğümüz**, kütüphane değil · dil
+seçici giriş ekranı ve üst çubukta, varsayılan **tarayıcı dili**.
+
+Ölçülen yüzey: ön yüzde ~992 yorum-olmayan Türkçe satır / 41 bileşen, arka
+uçta 79 `detail=` ve 20 kural adı. **Veritabanı katalogunda kullanıcıya
+görünen metin yok** — katalog yalnızca `H1`/`S3` kimliği tutuyor. Bu büyük
+bir şans: göç yazmak gerekmiyor.
+
+Faz: (1) altyapı ✅ · (2) arka uç hata kodları · (3) 41 bileşen · (4) kural
+adları ve `sonucDili.ts` · (5) uzun tire temizliği.
+
+### Faz 1 — altyapı
+
+`src/i18n/`: `diller.ts` (tip, algılama, saklama), `sozluk.ts`,
+`DilBaglami.tsx`, `components/DilSecici.tsx`, `test/ciz.tsx`.
+
+**Anahtar dizgi DEĞİL nesne.** `t('giris.baslik')` olsaydı eksik bir çeviri
+ancak o ekran o dilde açıldığında, yani büyük ihtimalle kullanıcıda ortaya
+çıkardı. `en` artık `typeof tr` olarak tipli: Türkçe'ye eklenip İngilizce'ye
+eklenmeyen her anahtar **derlemede** hata veriyor. Eksik çeviri diye bir
+durum kalmıyor ve bu yüzden "sözlük eksiksiz mi" testi de yazılmadı —
+sınanamayan bir şeydir, test dosyasına ulaşamaz.
+
+**Araya değer giren metinler fonksiyon.** Türkçe'de sayıya gelen ek sayının
+OKUNUŞUNA bağlı (`10'u` ama `12'si`, bkz. `belirtmeHaliEki`) ve İngilizce'de
+böyle bir ek yok. İki dilin cümlesi aynı şablondan kurulamaz; fonksiyon her
+dile kendi cümlesini kurma hakkı veriyor.
+
+**`buyukHarf` varsayılanı Türkçe KALDI.** Çağrılarının çoğu arayüz etiketini
+değil VERİYİ büyütüyor: görev noktası adı, personel adı, ızgara kısaltması.
+O veri kullanıcının girdiği dilde ve arayüz İngilizce'ye alındı diye "İzin"
+→ "IZIN" olmamalı. Arayüzün kendi etiketleri dili açıkça geçiyor. Tuzak bir
+testle kayıtlı: `buyukHarf('title')` → `TİTLE`.
+
+**Sayı yereli modül düzeyinde**, tek yazanı `DilSaglayici`. Alternatif,
+`sayiBicimle`'nin iki yüzden fazla çağrı yerine dil parametresi geçirmekti;
+biçimleme kuralını iki yüz yere dağıtmak olurdu. Önbellek anahtarı yereli de
+içeriyor — içermeseydi dil değişince eski biçimleyici dönerdi ve sayılar
+ondalığını virgülle yazmaya devam ederdi. Testle kilitli.
+
+**`useDil()` sağlayıcı yoksa yükseliyor**, sessizce Türkçe'ye düşmüyor.
+Düşseydi sarmayı unutan bir ağaç İngilizce arayüzde Türkçe metin çizerdi.
+Bedeli kırk test dosyasının sarmalayıcıyı elle kurması olurdu; `test/ciz.tsx`
+onu tek yerde ödüyor.
+
+Giriş yüzeyi tamamen çevrildi (giriş ekranı, gösterim şeridi, kimlik kutusu,
+uçan uyarı, marka alt başlığı, rol adları). Tarayıcıda iki yönde de
+doğrulandı: `GİRİŞ` Türkçe yereliyle, `SIGN IN` İngilizce yereliyle doğru
+büyüyor.
+
+`sayiBicimle` boş hücre için artık `-` döndürüyor, `—` değil.
+
+41 dosya / 412 test yeşil, tsc temiz, lint hatasız.
+
+**Kalan, sekme başlığı dahil:** `lib/yetki.ts` içindeki `yuzeyBasligi()` hâlâ
+Türkçe döndürüyor, yani İngilizce arayüzde sekme adı Türkçe kalıyor. Faz 3'e
+ait ama görünür bir eksik olduğu için burada kayda geçiyor.
+
+### DOKÜMAN BORCU — ek
+
+11. **SRS / SDD** — arayüz dili bir gereksinim değil; iki dilli arayüz,
+    dil seçimi ve saklama kuralı hiçbir kanonik dokümanda yazmıyor.
+12. **Tasarım Referansı** — "Sayı biçimi" bölümü ondalık ayracını virgül
+    olarak sabitliyor; artık dile bağlı.

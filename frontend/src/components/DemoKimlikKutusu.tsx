@@ -12,6 +12,7 @@
 // Tek tıkla form doldurmak süs değil: dört ayrı on iki karakterlik parolayı
 // elle kopyalamak, demoyu gezen kişinin ilk karşılaştığı sürtünme olurdu.
 import { useEffect, useState } from 'react'
+import { useMetin } from '@/i18n/DilBaglami'
 import { api } from '../api/client'
 import type { DemoHesabi, DemoKimlik, Rol } from '../api/types'
 
@@ -19,12 +20,8 @@ interface Props {
   doldur: (kullaniciAdi: string, parola: string) => void
 }
 
-const ROL_BASLIGI: Record<Rol, string> = {
-  sistem_yoneticisi: 'Sistem yöneticisi',
-  hesap_yoneticisi: 'Hesap yöneticisi',
-  idare: 'İdare',
-  calisan: 'Çalışan',
-}
+// Rol başlıkları sözlükten gelir; burada ayrı bir tablo tutmak, aynı dört
+// adı iki yerde tutmak olurdu.
 
 // Rol sırası ÜRÜNÜN ANLATIM SIRASI: önce çizelgeyi kuran rol, sonra hesap
 // yönetimi, en sonda çalışanın kendi paneli. Sunucudan gelen sıraya
@@ -38,6 +35,7 @@ function rolegoreGrupla(hesaplar: DemoHesabi[]): [Rol, DemoHesabi[]][] {
 }
 
 export function DemoKimlikKutusu({ doldur }: Props) {
+  const m = useMetin()
   const [kimlik, setKimlik] = useState<DemoKimlik | null>(null)
 
   useEffect(() => {
@@ -53,12 +51,12 @@ export function DemoKimlikKutusu({ doldur }: Props) {
 
   return (
     <section
-      aria-label="Gösterim hesapları"
+      aria-label={m.demo.hesaplarBasligi}
       className="mt-3 rounded-md border border-rule bg-surface px-4 py-3"
     >
       <p className="m-0 text-xs text-ink-muted">
-        <span className="font-semibold text-ink">Gösterim hesapları</span> — bir satıra tıklayın,
-        form dolsun.
+        <span className="font-semibold text-ink">{m.demo.hesaplarBasligi}</span>:{' '}
+        {m.demo.hesaplarYardimi}
       </p>
 
       <ul className="m-0 mt-2 list-none space-y-1 p-0">
@@ -74,7 +72,7 @@ export function DemoKimlikKutusu({ doldur }: Props) {
                 <code className="text-xs text-ink">{hesap.kullanici_adi}</code>
                 <code className="text-xs text-ink-muted">{hesap.parola}</code>
                 <span className="ml-auto shrink-0 text-[11px] text-ink-muted">
-                  {ROL_BASLIGI[rol]}
+                  {m.roller[rol]}
                 </span>
               </button>
             </li>

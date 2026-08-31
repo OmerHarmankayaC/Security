@@ -1,6 +1,7 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { GirisEkrani } from './GirisEkrani'
+import { ciz } from '@/test/ciz'
 
 function fetchYanit(durum: number, govde: unknown) {
   return vi.fn().mockResolvedValue({
@@ -24,13 +25,13 @@ describe('GirisEkrani', () => {
     // Bir "Kayıt ol" bağlantısı kurumda karşılığı olmayan bir yetki vaat
     // ederdi. Test bunu metin üzerinden arar çünkü bağlantı yanlışlıkla
     // eklenirse en görünür hâli budur.
-    const { container } = render(<GirisEkrani girisYapildi={vi.fn()} />)
+    const { container } = ciz(<GirisEkrani girisYapildi={vi.fn()} />)
     expect(container.textContent).not.toMatch(/kayıt ol|hesap oluştur|üye ol/i)
     expect(container.querySelectorAll('a')).toHaveLength(0)
   })
 
   it('kullanıcı adı ve parola alanlarını sunar', () => {
-    render(<GirisEkrani girisYapildi={vi.fn()} />)
+    ciz(<GirisEkrani girisYapildi={vi.fn()} />)
     expect(screen.getByLabelText('Kullanıcı adı')).toBeDefined()
     const parola = screen.getByLabelText('Parola') as HTMLInputElement
     // type=password: parola omuz üstünden okunmasın ve tarayıcı onu parola
@@ -39,7 +40,7 @@ describe('GirisEkrani', () => {
   })
 
   it('alanlar boşken gönderilemez', () => {
-    render(<GirisEkrani girisYapildi={vi.fn()} />)
+    ciz(<GirisEkrani girisYapildi={vi.fn()} />)
     const buton = screen.getByRole('button', { name: 'Giriş Yap' }) as HTMLButtonElement
     expect(buton.disabled).toBe(true)
   })
@@ -51,7 +52,7 @@ describe('GirisEkrani', () => {
     const metin = 'Kullanici adi veya parola hatali'
     vi.stubGlobal('fetch', fetchYanit(401, { detail: metin }))
 
-    const { container } = render(<GirisEkrani girisYapildi={vi.fn()} />)
+    const { container } = ciz(<GirisEkrani girisYapildi={vi.fn()} />)
     const kullanici = screen.getByLabelText('Kullanıcı adı') as HTMLInputElement
     const parola = screen.getByLabelText('Parola') as HTMLInputElement
 

@@ -8,10 +8,11 @@
 // Dört iddia: reddedilmeyen akışta bir şey çizilmez · reddedildiğinde
 // sunucunun mesajı görünür · on saniye sonra kendiliğinden gider · çarpı
 // sayacı beklemeden kapatır. Bir de aynı uyarının yığılmadığı.
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { UcanUyari } from './UcanUyari'
 import { api, ApiHatasi, SaltOkunurHatasi } from '../api/client'
+import { ciz } from '@/test/ciz'
 
 const MESAJ = 'Gösterim ortamı: değişiklikler kaydedilmez.'
 
@@ -41,14 +42,14 @@ describe('UcanUyari', () => {
   })
 
   it('reddetme gelmeden hiçbir şey çizmez', () => {
-    const { container } = render(<UcanUyari />)
+    const { container } = ciz(<UcanUyari />)
 
     expect(container.innerHTML).toBe('')
   })
 
   it('yazma reddedildiğinde sunucunun mesajını gösterir', async () => {
     yanitVer(403, { detail: MESAJ, kod: 'salt_okunur' })
-    render(<UcanUyari />)
+    ciz(<UcanUyari />)
 
     await yazmayiDene()
 
@@ -59,7 +60,7 @@ describe('UcanUyari', () => {
     // Kod yok: bu ret gösterim ortamıyla ilgili değil, yetkiyle. Aynı
     // uyarıyı çıkarmak kullanıcıya yanlış nedeni gösterirdi.
     yanitVer(403, { detail: 'Bu işlem için yetkiniz yok.' })
-    render(<UcanUyari />)
+    ciz(<UcanUyari />)
 
     await yazmayiDene()
 
@@ -68,7 +69,7 @@ describe('UcanUyari', () => {
 
   it('on saniye sonra kendiliğinden gider', async () => {
     yanitVer(403, { detail: MESAJ, kod: 'salt_okunur' })
-    render(<UcanUyari />)
+    ciz(<UcanUyari />)
     await yazmayiDene()
 
     act(() => {
@@ -80,7 +81,7 @@ describe('UcanUyari', () => {
 
   it('çarpı sayacı beklemeden kapatır', async () => {
     yanitVer(403, { detail: MESAJ, kod: 'salt_okunur' })
-    render(<UcanUyari />)
+    ciz(<UcanUyari />)
     await yazmayiDene()
 
     fireEvent.click(screen.getByLabelText('Uyarıyı kapat'))
@@ -113,7 +114,7 @@ describe('UcanUyari', () => {
 
   it('arka arkaya gelen reddetmeler yığılmaz', async () => {
     yanitVer(403, { detail: MESAJ, kod: 'salt_okunur' })
-    render(<UcanUyari />)
+    ciz(<UcanUyari />)
 
     await yazmayiDene()
     await yazmayiDene()

@@ -15,27 +15,52 @@
  * ondalık ayracı sayar; burada üretilen `8,5` o dosyada hücre sınırını
  * bulanıklaştırır. Ekran biçimi insanın, CSV biçimi tablo programınındır.
  */
+import { YEREL, type Dil } from '@/i18n/diller'
+
 
 /**
- * Ondalıksız biçimleyici. `Intl.NumberFormat` örneği her çağrıda yeniden
- * kurulmaz — kurulumu biçimlemenin kendisinden pahalıdır ve bu fonksiyon
- * Çizelge ızgarasında satır başına birden çok kez çağrılır.
+ * Değeri olmayan hücrenin yerine yazılan işaret.
+ *
+ * Uzun tire (—) kullanılmıyor: arayüzün hiçbir yerinde kullanılmıyor ve tek
+ * bir yerde kalması, kaldırıldığını sanılan bir şeyin tabloda yaşamaya devam
+ * etmesi olurdu.
  */
-const TAM_SAYI = new Intl.NumberFormat('tr-TR', { useGrouping: false })
+export const BOS = '-'
 
-const ONDALIKLI = new Map<number, Intl.NumberFormat>()
+/**
+ * ETKİN YEREL. Ondalık ayracı Türkçe'de virgül, İngilizce'de noktadır.
+ *
+ * Modül düzeyinde tutuluyor çünkü `sayiBicimle` iki yüzden fazla yerden
+ * çağrılıyor ve her birine dil parametresi geçirmek, biçimleme kuralını iki
+ * yüz çağrı yerine dağıtmak demekti. TEK YAZAN `DilSaglayici`'dir; başka
+ * hiçbir yerden çağrılmaz.
+ */
+let yerelEtiketi = 'tr-TR'
 
-function ondalikliBicimleyici(basamak: number): Intl.NumberFormat {
-  let bicimleyici = ONDALIKLI.get(basamak)
-  if (!bicimleyici) {
-    bicimleyici = new Intl.NumberFormat('tr-TR', {
-      useGrouping: false,
-      minimumFractionDigits: basamak,
-      maximumFractionDigits: basamak,
-    })
-    ONDALIKLI.set(basamak, bicimleyici)
+/**
+ * Biçimleyici önbelleği. `Intl.NumberFormat` örneği her çağrıda yeniden
+ * kurulmaz: kurulumu biçimlemenin kendisinden pahalıdır ve bu fonksiyon
+ * Çizelge ızgarasında satır başına birden çok kez çağrılır.
+ *
+ * ANAHTAR YERELİ DE İÇERİR. İçermeseydi dil değiştirildiğinde önbellek eski
+ * yerelin biçimleyicisini döndürür, sayılar ondalığını virgülle yazmaya
+ * devam ederdi.
+ */
+const ONBELLEK = new Map<string, Intl.NumberFormat>()
+
+function bicimleyici(tur: string, secenekler: Intl.NumberFormatOptions): Intl.NumberFormat {
+  const anahtar = `${yerelEtiketi}|${tur}`
+  let bulunan = ONBELLEK.get(anahtar)
+  if (!bulunan) {
+    bulunan = new Intl.NumberFormat(yerelEtiketi, { useGrouping: false, ...secenekler })
+    ONBELLEK.set(anahtar, bulunan)
   }
-  return bicimleyici
+  return bulunan
+}
+
+/** Etkin yereli ayarlar. Yalnızca `DilSaglayici` çağırır. */
+export function yereliAyarla(dil: Dil): void {
+  yerelEtiketi = YEREL[dil]
 }
 
 /**
@@ -46,13 +71,14 @@ function ondalikliBicimleyici(basamak: number): Intl.NumberFormat {
  * dizilen değerlerin aynı basamakta durması sütun hizasının şartıdır.
  */
 export function sayiBicimle(deger: number, ondalik?: number): string {
-  if (!Number.isFinite(deger)) return '—'
+  if (!Number.isFinite(deger)) return BOS
   return ondalik === undefined
-    ? TAM_SAYI.format(deger)
-    : ondalikliBicimleyici(ondalik).format(deger)
+    ? bicimleyici('tam', {}).format(deger)
+    : bicimleyici(`ondalik${ondalik}`, {
+        minimumFractionDigits: ondalik,
+        maximumFractionDigits: ondalik,
+      }).format(deger)
 }
-
-const ISARETLI = new Map<number, Intl.NumberFormat>()
 
 /**
  * İşaretli sapma: `+3,4` · `-1,2` · `0,0`.
@@ -63,16 +89,10 @@ const ISARETLI = new Map<number, Intl.NumberFormat>()
  * Sıfır işaretsizdir; "+0" sapma olmadığını değil, ölçülmediğini düşündürür.
  */
 export function sapmaBicimle(deger: number, ondalik = 1): string {
-  if (!Number.isFinite(deger)) return '—'
-  let bicimleyici = ISARETLI.get(ondalik)
-  if (!bicimleyici) {
-    bicimleyici = new Intl.NumberFormat('tr-TR', {
-      useGrouping: false,
-      signDisplay: 'exceptZero',
-      minimumFractionDigits: ondalik,
-      maximumFractionDigits: ondalik,
-    })
-    ISARETLI.set(ondalik, bicimleyici)
-  }
-  return bicimleyici.format(deger)
+  if (!Number.isFinite(deger)) return BOS
+  return bicimleyici(`isaretli${ondalik}`, {
+    signDisplay: 'exceptZero',
+    minimumFractionDigits: ondalik,
+    maximumFractionDigits: ondalik,
+  }).format(deger)
 }

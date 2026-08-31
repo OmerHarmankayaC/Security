@@ -8,10 +8,11 @@
 //      ve her gece kaybolduğunu.
 //   3. Uç nokta hata verirse şerit ÇİZİLMEZ. "Emin olamadım" hâli, gerçek
 //      bir kurulumda yanlış beyandır.
-import { render, screen, waitFor } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DemoSeridi } from './DemoSeridi'
 import { api } from '../api/client'
+import { ciz } from '@/test/ciz'
 
 describe('DemoSeridi', () => {
   beforeEach(() => {
@@ -21,7 +22,7 @@ describe('DemoSeridi', () => {
   it('ayar kapalıyken hiçbir şey çizmez', async () => {
     vi.spyOn(api, 'ortam').mockResolvedValue({ demo_kipi: false })
 
-    const { container } = render(<DemoSeridi />)
+    const { container } = ciz(<DemoSeridi />)
 
     await waitFor(() => expect(api.ortam).toHaveBeenCalled())
     expect(container.innerHTML).toBe('')
@@ -30,7 +31,7 @@ describe('DemoSeridi', () => {
   it('ayar açıkken üç şeyi de söyler: üretilmişlik, gecelik sıfırlama, kullanımda olmayış', async () => {
     vi.spyOn(api, 'ortam').mockResolvedValue({ demo_kipi: true })
 
-    render(<DemoSeridi />)
+    ciz(<DemoSeridi />)
 
     const serit = await screen.findByRole('status')
     expect(serit.textContent).toContain('üretilmiştir')
@@ -41,7 +42,7 @@ describe('DemoSeridi', () => {
   it('uç nokta hata verdiğinde şerit çizilmez', async () => {
     vi.spyOn(api, 'ortam').mockRejectedValue(new Error('ağ hatası'))
 
-    const { container } = render(<DemoSeridi />)
+    const { container } = ciz(<DemoSeridi />)
 
     await waitFor(() => expect(api.ortam).toHaveBeenCalled())
     expect(container.innerHTML).toBe('')

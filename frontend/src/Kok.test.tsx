@@ -11,7 +11,7 @@
 // App ve CalisanApp SAHTELENİR: bu testin sorusu şeridin nerede çizildiği,
 // o iki ekranın ne çizdiği değil. Gerçekleri bırakılsaydı test, ilgisiz
 // onlarca uç noktayı sahtelemek zorunda kalırdı.
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('./App', () => ({ default: () => <div>yönetici arayüzü</div> }))
@@ -20,6 +20,7 @@ vi.mock('./CalisanApp', () => ({ CalisanApp: () => <div>çalışan paneli</div> 
 import { Kok } from './Kok'
 import { api } from './api/client'
 import type { Ben, Rol } from './api/types'
+import { ciz } from '@/test/ciz'
 
 function ben(rol: Rol): Ben {
   return {
@@ -44,7 +45,7 @@ describe('Kok — gösterim şeridi', () => {
     vi.spyOn(api, 'ortam').mockResolvedValue({ demo_kipi: true })
     vi.spyOn(api, 'ben').mockResolvedValue(ben('idare'))
 
-    render(<Kok />)
+    ciz(<Kok />)
 
     expect(await screen.findByText('yönetici arayüzü')).toBeTruthy()
     expect((await screen.findByRole('status')).textContent).toContain('Gösterim ortamı')
@@ -54,7 +55,7 @@ describe('Kok — gösterim şeridi', () => {
     vi.spyOn(api, 'ortam').mockResolvedValue({ demo_kipi: true })
     vi.spyOn(api, 'ben').mockResolvedValue(ben('calisan'))
 
-    render(<Kok />)
+    ciz(<Kok />)
 
     expect(await screen.findByText('çalışan paneli')).toBeTruthy()
     expect((await screen.findByRole('status')).textContent).toContain('Gösterim ortamı')
@@ -64,7 +65,7 @@ describe('Kok — gösterim şeridi', () => {
     vi.spyOn(api, 'ortam').mockResolvedValue({ demo_kipi: false })
     vi.spyOn(api, 'ben').mockResolvedValue(ben('idare'))
 
-    render(<Kok />)
+    ciz(<Kok />)
 
     await screen.findByText('yönetici arayüzü')
     await waitFor(() => expect(api.ortam).toHaveBeenCalled())

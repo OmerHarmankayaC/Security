@@ -14,10 +14,12 @@
 // aynı cümleyle dolardı.
 import { useEffect, useState } from 'react'
 import { yazmaReddedildiginde } from '../api/client'
+import { useMetin } from '@/i18n/DilBaglami'
 
 const SURE_MS = 10_000
 
 export function UcanUyari() {
+  const m = useMetin()
   const [mesaj, setMesaj] = useState<string | null>(null)
   // Aynı mesaj tekrar geldiğinde sayacın yeniden başlaması için: `mesaj`
   // değişmediğinde effect yeniden kurulmaz, sayaç eski kalırdı.
@@ -54,7 +56,7 @@ export function UcanUyari() {
         <button
           type="button"
           onClick={() => setMesaj(null)}
-          aria-label="Uyarıyı kapat"
+          aria-label={m.demo.uyariyiKapat}
           className="-mt-0.5 shrink-0 rounded-sm px-1 text-sm leading-none text-ink-muted transition-colors hover:text-ink focus-visible:ring-3 focus-visible:ring-accent/30 focus-visible:outline-none"
         >
           ×

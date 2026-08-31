@@ -3,11 +3,12 @@
 // Asıl iddia OLUMSUZ: gerçek bir kurulumda uç nokta yoktur (404) ve ekranda
 // hiçbir kullanıcı adı, hiçbir parola görünmez. Bu testin düşmesi, demoya
 // ait kimlik bilgisinin üretim ekranına sızdığı anlamına gelir.
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DemoKimlikKutusu } from './DemoKimlikKutusu'
 import { api } from '../api/client'
 import type { DemoKimlik } from '../api/types'
+import { ciz } from '@/test/ciz'
 
 // Parolalar hesap başına AYRI; testin tamamı bu ayrımın üstünde duruyor.
 const KIMLIK: DemoKimlik = {
@@ -48,7 +49,7 @@ describe('DemoKimlikKutusu', () => {
   it('uç nokta 404 dönerse hiçbir kimlik bilgisi göstermez', async () => {
     vi.spyOn(api, 'demoKimlik').mockRejectedValue(new Error('404'))
 
-    const { container } = render(<DemoKimlikKutusu doldur={() => {}} />)
+    const { container } = ciz(<DemoKimlikKutusu doldur={() => {}} />)
 
     await waitFor(() => expect(api.demoKimlik).toHaveBeenCalled())
     expect(container.innerHTML).toBe('')
@@ -57,7 +58,7 @@ describe('DemoKimlikKutusu', () => {
   it('üç rolü de etiketler ve her hesabın kendi parolasını yazar', async () => {
     vi.spyOn(api, 'demoKimlik').mockResolvedValue(KIMLIK)
 
-    render(<DemoKimlikKutusu doldur={() => {}} />)
+    ciz(<DemoKimlikKutusu doldur={() => {}} />)
 
     await screen.findByText('İdare')
     expect(screen.getByText('Hesap yöneticisi')).toBeTruthy()
@@ -73,7 +74,7 @@ describe('DemoKimlikKutusu', () => {
     vi.spyOn(api, 'demoKimlik').mockResolvedValue(KIMLIK)
     const doldur = vi.fn()
 
-    render(<DemoKimlikKutusu doldur={doldur} />)
+    ciz(<DemoKimlikKutusu doldur={doldur} />)
     fireEvent.click(await screen.findByText('demo_d1010'))
 
     // Ortak bir parola değil, o satırın parolası gitmeli.
@@ -87,7 +88,7 @@ describe('DemoKimlikKutusu', () => {
     }
     vi.spyOn(api, 'demoKimlik').mockResolvedValue(baska)
 
-    render(<DemoKimlikKutusu doldur={() => {}} />)
+    ciz(<DemoKimlikKutusu doldur={() => {}} />)
 
     expect(await screen.findByText('xaa111bbb222')).toBeTruthy()
   })

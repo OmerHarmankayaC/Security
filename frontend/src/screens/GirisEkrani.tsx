@@ -12,6 +12,8 @@ import { api, ApiHatasi } from '@/api/client'
 import type { Ben } from '@/api/types'
 import { Buton } from '@/components/app-ui'
 import { buyukHarf } from '@/lib/metin'
+import { useDil } from '@/i18n/DilBaglami'
+import { DilSecici } from '@/components/DilSecici'
 import { Marka } from '@/components/Marka'
 import { DemoKimlikKutusu } from '@/components/DemoKimlikKutusu'
 
@@ -24,6 +26,7 @@ const ALAN_SINIFI =
   'focus-visible:border-accent focus-visible:ring-3 focus-visible:ring-accent/30'
 
 export function GirisEkrani({ girisYapildi }: Props) {
+  const { dil, metin: m } = useDil()
   const [kullaniciAdi, setKullaniciAdi] = useState('')
   const [parola, setParola] = useState('')
   const [hata, setHata] = useState<string | null>(null)
@@ -40,11 +43,7 @@ export function GirisEkrani({ girisYapildi }: Props) {
       // Sunucu, kullanıcının var olup olmadığını ele vermeyecek biçimde tek
       // bir metin döndürüyor (SDD 5.1b); arayüzün "kullanıcı adı yanlış" gibi
       // bir yorum eklemesi o özeni tek satırda geçersiz kılardı.
-      setHata(
-        e instanceof ApiHatasi
-          ? e.message
-          : 'Giriş yapılamadı. Bağlantınızı kontrol edin.',
-      )
+      setHata(e instanceof ApiHatasi ? e.message : m.giris.baglantiHatasi)
       setGonderiliyor(false)
     }
   }
@@ -58,7 +57,7 @@ export function GirisEkrani({ girisYapildi }: Props) {
     <div className="flex flex-1 items-center justify-center bg-chrome-base px-6 py-8">
       <div className="w-full max-w-[380px]">
         <div className="mb-6">
-          <Marka altBaslik="vardiya çizelgeleme karar destek aracı" />
+          <Marka altBaslik={m.marka.altBaslik} />
         </div>
 
         <form
@@ -67,11 +66,11 @@ export function GirisEkrani({ girisYapildi }: Props) {
           noValidate
         >
           <p className="mb-4 etiket-caps text-ink-muted">
-            {buyukHarf('Giriş')}
+            {buyukHarf(m.giris.baslik, dil)}
           </p>
 
           <label className="mb-1 block text-sm text-ink-muted" htmlFor="kullanici-adi">
-            Kullanıcı adı
+            {m.giris.kullaniciAdi}
           </label>
           <input
             id="kullanici-adi"
@@ -84,7 +83,7 @@ export function GirisEkrani({ girisYapildi }: Props) {
           />
 
           <label className="mt-4 mb-1 block text-sm text-ink-muted" htmlFor="parola">
-            Parola
+            {m.giris.parola}
           </label>
           <input
             id="parola"
@@ -108,7 +107,7 @@ export function GirisEkrani({ girisYapildi }: Props) {
             className="mt-5 w-full"
             disabled={gonderiliyor || !kullaniciAdi || !parola}
           >
-            {gonderiliyor ? 'Giriş yapılıyor…' : 'Giriş Yap'}
+            {gonderiliyor ? m.giris.gonderiliyor : m.giris.gonder}
           </Buton>
         </form>
 
@@ -125,8 +124,15 @@ export function GirisEkrani({ girisYapildi }: Props) {
         />
 
         <p className="mt-4 text-center text-xs text-chrome-ink-muted">
-          Hesabınız yoksa veya parolanızı unuttuysanız yönetime başvurun.
+          {m.giris.yardim}
         </p>
+
+        {/* Dil seçici giriş ekranında da DURMALI: kullanıcı arayüzün dilini
+            oturum açmadan önce seçebilmeli, yoksa anlamadığı bir ekranda
+            seçiciyi aramak zorunda kalır. */}
+        <div className="mt-4 flex justify-center">
+          <DilSecici />
+        </div>
       </div>
     </div>
   )
