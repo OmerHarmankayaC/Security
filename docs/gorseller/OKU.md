@@ -1,7 +1,14 @@
-# Görseller — README'ye gömülecek ekran görüntüleri
+# Görseller — README'ye gömülecek gezinti kaydı ve ekran görüntüleri
 
-README bu dizindeki beş dosyaya isimle bağlıdır. Dosya adları **birebir** bu
+README bu dizindeki yedi dosyaya isimle bağlıdır. Dosya adları **birebir** bu
 olmalı, yoksa README'de kırık görsel çıkar:
+
+| Dosya | Ne göstermeli |
+|---|---|
+| `gezinti.gif` | Gezinti kaydı, README'de gömülü olan. **8 MB altında kalmalı**; GitHub daha büyüğünü de gösterir ama sayfayı bekletir |
+| `gezinti.mp4` | Aynı kaydın videosu; GIF'ten keskin ve küçüktür, README'den bağlantıyla verilir |
+
+Ekran görüntüleri:
 
 | Dosya | Ne göstermeli |
 |---|---|
@@ -26,8 +33,46 @@ koşturulur, salt okunurdur.
   kurum personelinin adı ekran görüntüsünde durmamalı.
 - PNG, kayıpsız. Ekran görüntüsü JPEG'de metin kenarlarını bulandırır.
 
+## Gezinti kaydını yeniden almak
+
+Betik: [`scripts/gezinti_kaydi.mjs`](../../scripts/gezinti_kaydi.mjs).
+
+```bash
+# API ve ön yüz gösterim kipinde koşarken, ayrı bir kabukta:
+/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
+  --headless=new --remote-debugging-port=9222 --disable-gpu \
+  --hide-scrollbars --force-device-scale-factor=1 about:blank &
+P=<demo_idare parolasi> GUNCEL='<yayinlanmis donem>' \
+  SIKISIK='<sikisik donem>' GELECEK='<taslakli donem>' \
+  node scripts/gezinti_kaydi.mjs <cikti-dizini>
+```
+
+Dönem etiketleri ortamdan verilir çünkü demo verisi **bugüne göre** üretilir;
+betiğe gömülselerdi bir sonraki sıfırlamadan sonra hiçbirini bulamazdı.
+
+Kayıt headless Chrome'u CDP üzerinden sürer; kareler `Page.captureScreenshot`
+**döngüsüyle** alınır, `startScreencast` ile değil — screencast yalnızca
+öndeki sekmeye akıyor ve headless'ta hiç kare göndermedi. Kareler değişken
+süreli bir listeyle (ffmpeg concat demuxer) birleştirilir; sabit kare hızı
+varsayılsaydı iş yüküne göre uzayan aralıklar videoyu hızlandırıp yavaşlatırdı.
+
+Sıra: giriş ekranı ve kimlik kutusu · özet · gün ızgarası · hafta şeridi ·
+analiz (dönem, 90 gün ufku, kota kartı) · sürüm karşılaştırma · çalışan paneli.
+
+**Kayıtta yazma yoktur.** Çözüm başlatılmaz, kaydedilmez, silinmez; tek yazma
+benzeri eylem giriştir. Ön kontrol serbesttir, salt okunurdur.
+
+Kadraja metinle kaydırılır, pikselle değil — kart etiketleri `buyukHarf()` ile
+büyütüldüğü için arama **Türkçe katlamayla** yapılır: düz `toLowerCase()`
+"YILLIK" ile "yıllık"ı eşleştiremez ve kota kartı ilk denemede tam bu yüzden
+kadraja hiç girmedi.
+
+Kabul: hiçbir karede kurum adı, gerçek kişi adı, IP ya da alan adı görünmemeli.
+Kimlik kutusundaki parolaların okunaklı olması sorun değildir; parolalar
+gösterim ortamına özgüdür ve gecelik sıfırlamayla birlikte anlamlarını korur.
+
 ## Yerleştirdikten sonra
 
-README'deki beş `![...]` satırı kendiliğinden çalışır; başka değişiklik
+README'deki `![...]` satırları kendiliğinden çalışır; başka değişiklik
 gerekmez. Kontrol için README'yi bir markdown önizleyicide aç ya da GitHub'a
 gönderdikten sonra bak.

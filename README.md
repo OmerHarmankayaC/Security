@@ -34,6 +34,16 @@ they remain in the git history.
 
 ## Screenshots
 
+A walkthrough of the demo environment, about eighty seconds: the login screen,
+the period summary, the day grid, the week strip, the analysis screen, a
+comparison of two schedule versions, and the employee panel. Nothing is written
+during the recording -- no solve is started, nothing is saved or deleted.
+
+![Walkthrough](docs/gorseller/gezinti.gif)
+
+The same walkthrough as MP4, which is sharper and a third of the size:
+[`docs/gorseller/gezinti.mp4`](docs/gorseller/gezinti.mp4).
+
 The day grid, where demand and assignments are read hour by hour. This is the
 deliberately tight period in the demo data: the coverage strip and the badges
 on the day headers mark the hours the roster cannot cover.

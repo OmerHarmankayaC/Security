@@ -3401,3 +3401,78 @@ düğmesi görünüyor, onay şeridi çıkıyor, onaylayınca uçan uyarı belir
 8. **SDD Ek B** — uç nokta denetimi **üç eksik** raporluyor:
    `GET /api/ortam`, `GET /api/demo/kimlik`, `DELETE /api/surum/{surum_id}`
    (uygulama 77, Ek B 74).
+
+## Tur 16 — Kapanış: gezinti kaydı ve dizinlemeye kapatma
+
+Üç iş: aracı gezdiren bir kayıt, README'nin görsel bölümünün başına o kayıt,
+ve gösterim örneğinin arama motorlarına kapatılması. Canlı adres README'ye
+**yazılmadı** — depo halka açık, örnek ise gezilmesin diye duruyor.
+
+### Arama motorlarına kapatma üç katmanda
+
+`frontend/public/robots.txt` (tüm gezginlere `Disallow: /`),
+`frontend/index.html` içinde `<meta name="robots">`, ve
+`backend/app/dizinleme.py` ara katmanıyla **her yanıtta** `X-Robots-Tag`.
+
+Üçü birden gerekli, çünkü üçü farklı şeyi yakalıyor: `robots.txt` uyan
+gezgini kök dizinde durdurur, meta etiketi indirilmiş HTML'i işaretler,
+başlık ise HTML olmayan yanıtları — API çıktısını, hata sayfalarını — kapsar.
+
+**Başlık demo kipine bağlanmadı.** Koşula bağlansaydı, ayarın kapalı olduğu
+bir kurulumda uç noktalar dizine açılırdı; bir iç kullanım aracı için de
+istenmez. Aynı gerekçeyle başarısız yanıtlar dışarıda bırakılmadı: hata
+sayfalarını atlamak, dizine giren tek şeyin uygulamanın hata mesajları olması
+demekti. `test_dizinleme.py` ikisini de kilitliyor (7 test), biri de salt
+okunur reddinin başlık taşıdığını — o yanıt ara katmanda üretiliyor ve iki
+ara katmanın sırası yanlış olsaydı başlıksız çıkardı.
+
+Canlı doğrulandı: `x-robots-tag: noindex, nofollow`, `dist/robots.txt` var,
+`dist/index.html` meta etiketini taşıyor.
+
+### Gezinti kaydı: iki kusur, ikisi de sessizdi
+
+`Page.startScreencast` **sıfır kare** üretti. Screencast yalnızca öndeki
+sekmeye akıyor ve headless'ta yeni açılan hedef ön plana gelmiyor; hata
+vermeden hiçbir şey göndermedi. Yerine `Page.captureScreenshot` **döngüsü**:
+her kare açıkça isteniyor, görünürlükten bağımsız.
+
+Kareler değişken süreli bir listeyle (ffmpeg concat demuxer) birleştiriliyor.
+Sabit kare hızı varsayılsaydı iş yüküne göre uzayan aralıklar videoyu
+hızlandırıp yavaşlatırdı.
+
+**Kota kartı kadraja hiç girmedi** ve bunu ancak kontak baskısına bakınca
+gördüm — pikselle kaydırmak "kaydırdım" demekti, "gördüm" değil. Metne
+kaydırmaya geçince bu sefer öge bulunamadı: kart etiketleri `buyukHarf()`
+ile büyütülüyor, orada "ı" → "I" oluyor, düz `toLowerCase()` ise "I" → "i"
+yapıyor. Yani "YILLIK" ile "yıllık" eşleşmiyordu — `buyukHarf()`in var olma
+nedeninin ta kendisi, bu kez kendi betiğimde. Türkçe katlamayla çözüldü.
+
+Üçüncüsü: yanıtsız kalan tek bir CDP isteği betiği süresiz bekletiyordu.
+Gezinti sonuna kadar koşuyor, sonra bekleyen bir `captureScreenshot` hiç
+dönmüyor ve ffmpeg listesi hiç yazılmıyordu. `cmd`'ye zaman aşımı eklendi;
+reddetmek doğru davranış, kare döngüsü zaten düşen kareyi yutuyor.
+
+Sonuç: 653 kare, 80,5 sn. `gezinti.mp4` 1,6 MB (1440×900, 12 fps),
+`gezinti.gif` 3,8 MB (960 px, 10 fps, 128 renk) — sınır 8 MB.
+
+**Kayıtta yazma yok**: çözüm başlatılmadı, kaydedilmedi, silinmedi. Tek
+yazma benzeri eylem giriş. Ön kontrol koşturuldu, o salt okunur.
+
+Kabul kontrolü: hiçbir karede kurum adı, gerçek kişi adı, IP ya da alan adı
+yok. Tarayıcı çerçevesi headless'ta çizilmediği için adres çubuğu da yok.
+Künye ekranı — geliştirici adının bulunduğu tek yer — gezintiye dahil değil.
+
+### README ve OKU.md
+
+GIF görsel bölümünün başına kondu, beş ekran görüntüsü altında kaldı. Tur
+metni "üç ekran görüntüsü" diyordu; bölümde beş var ve **hiçbiri
+silinmedi** — silmek istenmiş olsaydı bu ayrıca söylenirdi, sayı sayımdan
+gelme bir yanlış olabilir.
+
+Betik depoya alındı (`scripts/gezinti_kaydi.mjs`); yoksa OKU.md'deki tarif
+uygulanamaz bir metin olurdu. Dönem etiketleri ortamdan veriliyor çünkü demo
+verisi **bugüne göre** üretiliyor: betiğe gömülselerdi bir sonraki
+sıfırlamadan sonra hiçbirini bulamazdı.
+
+Bağlantı denetimi: README'deki on yerel bağlantının onu da açılıyor, dış
+adres ve IP yok.
