@@ -1,5 +1,6 @@
 import { Kart, KartEtiketi } from './app-ui'
 import { MarkaIsareti } from './Marka'
+import { useMetin } from '@/i18n/DilBaglami'
 
 /**
  * Künye içeriği — İKİ KABUKTA DA AYNI.
@@ -9,6 +10,7 @@ import { MarkaIsareti } from './Marka'
  * yerde ayrı yazılsaydı biri güncellendiğinde diğeri geride kalırdı.
  */
 export function KunyeIcerigi() {
+  const m = useMetin()
   return (
     <>
     <Kart>
@@ -19,65 +21,56 @@ export function KunyeIcerigi() {
         <div>
           <p className="m-0 text-baslik-ekran font-semibold tracking-tight text-ink">VARDİS</p>
           <p className="m-0 mt-0.5 text-sm text-ink-muted">
-            Vardiya çizelgeleme karar destek aracı
+            {m.kunye.altBaslik}
           </p>
         </div>
       </div>
     </Kart>
 
     <Kart>
-      <KartEtiketi>proje</KartEtiketi>
+      <KartEtiketi>{m.kunye.projeBasligi}</KartEtiketi>
       <p className="m-0 text-sm leading-relaxed text-ink">
-        VARDİS, vardiya çizelgesini elle kurmak yerine <strong>kısıt programlama</strong> ile
-        üreten bir karar destek aracıdır. Personeli saatlik talebe atarken dinlenme süresi,
-        haftalık saat tavanı ve yetkinlik gibi <em>zorunlu</em> kuralları ihlal etmez; gece
-        saati, hafta sonu ve toplam yük gibi <em>esnek</em> hedefleri ise adil dağıtmaya
-        çalışır.
+        {m.kunye.tanitim1}
       </p>
       <p className="m-0 mt-3 text-sm leading-relaxed text-ink">
-        Aracın verdiği şey bir emir değil bir öneridir: üretilen her çizelge açıklanabilir —
-        hangi kuralın ne kadar cezalandırıldığı, kimin payından ne kadar saptığı ve talebin
-        nerede karşılanamadığı ekranda görünür. Karar yöneticidedir; araç yalnızca kararın
-        bedelini görünür kılar.
+        {m.kunye.tanitim2}
       </p>
     </Kart>
 
     <Kart>
-      <KartEtiketi>geliştirme</KartEtiketi>
+      <KartEtiketi>{m.kunye.gelistirmeBasligi}</KartEtiketi>
       <dl className="m-0 grid grid-cols-[140px_1fr] gap-x-4 gap-y-2 text-sm">
-        <dt className="text-ink-muted">Geliştiren</dt>
+        <dt className="text-ink-muted">{m.kunye.gelistiren}</dt>
         {/* Kendi adı ATIFTIR, redaksiyon hedefi değil. Bir önceki
             turda kurum adıyla birlikte silinmişti; ikisi aynı şey
             değil — biri ilişki iddiası, diğeri eser sahipliği. */}
         <dd className="m-0 text-ink">Ömer HARMANKAYA</dd>
-        <dt className="text-ink-muted">Rol</dt>
-        <dd className="m-0 text-ink">Sistem analisti ve geliştirici — projenin yürütücüsü</dd>
-        <dt className="text-ink-muted">Kapsam</dt>
+        <dt className="text-ink-muted">{m.kunye.rolEtiketi}</dt>
+        <dd className="m-0 text-ink">{m.kunye.rol}</dd>
+        <dt className="text-ink-muted">{m.kunye.kapsam}</dt>
         <dd className="m-0 text-ink">
-          Bir yaz stajı çalışması kapsamında geliştirildi; hiçbir kurumun verisini içermez.
+          {m.kunye.kapsamMetni}
         </dd>
       </dl>
       <p className="m-0 mt-3 text-sm leading-relaxed text-ink-muted">
-        Uygulamadaki personel, görev noktası ve talep kayıtları <strong>üretilmiş demo
-        verisidir</strong>; gerçek bir kadroyu ya da çalışma düzenini yansıtmaz.
+        {m.kunye.demoNotu}
       </p>
     </Kart>
 
     <Kart>
-      <KartEtiketi>teknik künye</KartEtiketi>
+      <KartEtiketi>{m.kunye.teknikBaslik}</KartEtiketi>
       <dl className="m-0 grid grid-cols-[140px_1fr] gap-x-4 gap-y-2 text-sm">
-        <dt className="text-ink-muted">Çözücü</dt>
+        <dt className="text-ink-muted">{m.kunye.cozucu}</dt>
         <dd className="m-0 text-ink">Google OR-Tools CP-SAT</dd>
-        <dt className="text-ink-muted">Sunucu</dt>
+        <dt className="text-ink-muted">{m.kunye.sunucu}</dt>
         <dd className="m-0 text-ink">Python · FastAPI · SQLAlchemy · Alembic</dd>
-        <dt className="text-ink-muted">Arayüz</dt>
+        <dt className="text-ink-muted">{m.kunye.arayuz}</dt>
         <dd className="m-0 text-ink">React · TypeScript · Vite · Tailwind</dd>
-        <dt className="text-ink-muted">Veritabanı</dt>
+        <dt className="text-ink-muted">{m.kunye.veritabani}</dt>
         <dd className="m-0 text-ink">PostgreSQL</dd>
-        <dt className="text-ink-muted">Mimari</dt>
+        <dt className="text-ink-muted">{m.kunye.mimari}</dt>
         <dd className="m-0 text-ink">
-          Çözücü ayrı bir süreçte koşar; uygulama sunucusu iş kaydı oluşturur, işçi kuyruktan
-          alır. İki süreç arasındaki tek sözleşme veritabanıdır.
+          {m.kunye.surecNotu}
         </dd>
       </dl>
     </Kart>

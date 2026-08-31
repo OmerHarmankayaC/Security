@@ -267,6 +267,62 @@ const tr = {
   },
 
 
+  parolaEkrani: {
+    urunAdi: 'Vardiya Çizelgeleme',
+    baslik: 'Parola Değiştir',
+    zorunluAciklama:
+      'Parolanız yönetim tarafından atandı. Devam etmeden önce kendi parolanızı belirlemeniz gerekiyor.',
+    mevcut: 'Mevcut parola',
+    yeni: 'Yeni parola',
+    tekrar: 'Yeni parola (tekrar)',
+    asgariUzunluk: (n: number) => `Yeni parola en az ${n} karakter olmalı.`,
+    ayniDegil: 'İki parola aynı değil.',
+    kaydediliyor: 'Kaydediliyor…',
+    kaydet: 'Parolayı Değiştir',
+    vazgec: 'Vazgeç',
+    degistirilemedi: 'Parola değiştirilemedi.',
+  },
+
+  tercihYonetimi: {
+    bekleyen: 'Bekleyen',
+    onaylandi: 'Onaylandı',
+    reddedildi: 'Reddedildi',
+    calismamaTercihi: 'Çalışmama tercihi',
+    zamanAraligiTercihi: 'Zaman aralığı tercihi',
+    araligiTercihi: (aralik: string) => `${aralik} tercihi`,
+    buDurumdaYok: 'Bu durumda tercih yok.',
+    retGerekcesi: 'Ret gerekçesi (isteğe bağlı)',
+    reddet: 'Reddet',
+    onayla: 'Onayla',
+    yuklenemedi: 'Tercihler yüklenemedi.',
+    guncellenemedi: 'Tercih güncellenemedi.',
+  },
+
+  kunye: {
+    altBaslik: 'Vardiya çizelgeleme karar destek aracı',
+    tanitim1:
+      'VARDİS, vardiya çizelgesini elle kurmak yerine kısıt programlama ile üreten bir karar destek aracıdır. Personeli saatlik talebe atarken dinlenme süresi, haftalık saat tavanı ve yetkinlik gibi zorunlu kuralları ihlal etmez; gece saati, hafta sonu ve toplam yük gibi esnek hedefleri ise adil dağıtmaya çalışır.',
+    tanitim2:
+      'Aracın verdiği şey bir emir değil bir öneridir: üretilen her çizelge açıklanabilir. Hangi kuralın ne kadar cezalandırıldığı, kimin payından ne kadar saptığı ve talebin nerede karşılanamadığı ekranda görünür. Karar yöneticidedir; araç yalnızca kararın bedelini görünür kılar.',
+    projeBasligi: 'proje',
+    gelistirmeBasligi: 'geliştirme',
+    sunucu: 'Sunucu',
+    mimari: 'Mimari',
+    gelistiren: 'Geliştiren',
+    rol: 'Sistem analisti ve geliştirici, projenin yürütücüsü',
+    rolEtiketi: 'Rol',
+    kapsam: 'Kapsam',
+    kapsamMetni: 'Bir yaz stajı çalışması kapsamında geliştirildi; hiçbir kurumun verisini içermez.',
+    demoNotu:
+      'Uygulamadaki personel, görev noktası ve talep kayıtları üretilmiş demo verisidir; gerçek bir kadroyu ya da çalışma düzenini yansıtmaz.',
+    teknikBaslik: 'teknik künye',
+    cozucu: 'Çözücü',
+    arayuz: 'Arayüz',
+    veritabani: 'Veritabanı',
+    surecNotu:
+      'Çözücü ayrı bir süreçte koşar; uygulama sunucusu iş kaydı oluşturur, işçi kuyruktan alır. İki süreç arasındaki tek sözleşme veritabanıdır.',
+  },
+
   calisan: {
     donemYok: 'Aktif bir planlama dönemi yok.',
     cizelgeYok: 'Bu dönem için henüz yayınlanmış bir çizelge yok.',
@@ -548,6 +604,63 @@ const en: Metinler = {
     verilerYuklenemedi: 'Could not load the data.',
   },
 
+
+  parolaEkrani: {
+    urunAdi: 'Shift Scheduling',
+    baslik: 'Change password',
+    zorunluAciklama:
+      'Your password was assigned by an administrator. You must set your own password before continuing.',
+    mevcut: 'Current password',
+    yeni: 'New password',
+    tekrar: 'New password (again)',
+    asgariUzunluk: (n: number) => `The new password must be at least ${n} characters.`,
+    ayniDegil: 'The two passwords do not match.',
+    kaydediliyor: 'Saving…',
+    kaydet: 'Change password',
+    vazgec: 'Cancel',
+    degistirilemedi: 'Could not change the password.',
+  },
+
+  tercihYonetimi: {
+    bekleyen: 'Pending',
+    onaylandi: 'Approved',
+    reddedildi: 'Rejected',
+    calismamaTercihi: 'Prefers not to work',
+    zamanAraligiTercihi: 'Time range preference',
+    araligiTercihi: (aralik: string) => `prefers ${aralik}`,
+    buDurumdaYok: 'No preferences in this state.',
+    retGerekcesi: 'Reason for rejection (optional)',
+    reddet: 'Reject',
+    onayla: 'Approve',
+    yuklenemedi: 'Could not load the preferences.',
+    guncellenemedi: 'Could not update the preference.',
+  },
+
+  kunye: {
+    altBaslik: 'Shift scheduling decision support tool',
+    tanitim1:
+      'VARDİS builds shift schedules with constraint programming instead of by hand. Assigning staff to hourly demand, it never violates the hard rules such as rest periods, weekly hour caps and competencies, and it tries to distribute the soft goals such as night hours, weekend hours and total load fairly.',
+    tanitim2:
+      'What the tool produces is a proposal, not an instruction: every schedule it builds can be explained. Which rule was penalised and by how much, who deviated from their share and by how much, and where demand could not be met are all visible on screen. The decision belongs to the administrator; the tool only makes its cost visible.',
+    projeBasligi: 'the project',
+    gelistirmeBasligi: 'development',
+    sunucu: 'Server',
+    mimari: 'Architecture',
+    gelistiren: 'Developed by',
+    rol: 'Systems analyst and developer, project lead',
+    rolEtiketi: 'Role',
+    kapsam: 'Scope',
+    kapsamMetni:
+      'Built as a summer internship project; it contains no data from any organisation.',
+    demoNotu:
+      'The staff, duty point and demand records in this application are generated demonstration data; they do not reflect a real roster or working arrangement.',
+    teknikBaslik: 'technical details',
+    cozucu: 'Solver',
+    arayuz: 'Interface',
+    veritabani: 'Database',
+    surecNotu:
+      'The solver runs in a separate process; the application server creates a job record and the worker picks it up from the queue. The only contract between the two processes is the database.',
+  },
 
   calisan: {
     donemYok: 'There is no active planning period.',

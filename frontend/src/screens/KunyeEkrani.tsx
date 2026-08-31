@@ -1,5 +1,6 @@
 import { AppShell, type NavOgesi } from '../components/AppShell'
 import { KunyeIcerigi } from '../components/KunyeIcerigi'
+import { useMetin } from '@/i18n/DilBaglami'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -17,8 +18,9 @@ interface Props {
  * gösterir.
  */
 export function KunyeEkrani({ ekranSec }: Props) {
+  const m = useMetin()
   return (
-    <AppShell aktifEkran="Künye" ekranSec={ekranSec} baslik="Künye">
+    <AppShell aktifEkran="Künye" ekranSec={ekranSec} baslik={m.menu['Künye']}>
       <KunyeIcerigi />
     </AppShell>
   )

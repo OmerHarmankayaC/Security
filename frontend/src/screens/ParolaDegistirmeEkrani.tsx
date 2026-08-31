@@ -8,10 +8,12 @@
 // Tek ekran olmasının nedeni, ikisinin gerçekten aynı işlem olması: farklı
 // iki ekran, aynı doğrulama kurallarının iki yerde tutulması demekti.
 import { useState, type FormEvent } from 'react'
-import { api, ApiHatasi } from '@/api/client'
+import { api } from '@/api/client'
 import type { Ben } from '@/api/types'
 import { Buton } from '@/components/app-ui'
 import { buyukHarf } from '@/lib/metin'
+import { useDil } from '@/i18n/DilBaglami'
+import { hataMetni } from '@/i18n/hata'
 
 interface Props {
   ben: Ben
@@ -31,6 +33,7 @@ const ALAN_SINIFI =
 const ASGARI_UZUNLUK = 12
 
 export function ParolaDegistirmeEkrani({ ben, degistirildi, vazgec }: Props) {
+  const { dil, metin: m } = useDil()
   const [mevcut, setMevcut] = useState('')
   const [yeni, setYeni] = useState('')
   const [tekrar, setTekrar] = useState('')
@@ -50,7 +53,7 @@ export function ParolaDegistirmeEkrani({ ben, degistirildi, vazgec }: Props) {
     try {
       degistirildi(await api.parolaDegistir(mevcut, yeni))
     } catch (e) {
-      setHata(e instanceof ApiHatasi ? e.message : 'Parola değiştirilemedi.')
+      setHata(hataMetni(e, m))
       setGonderiliyor(false)
     }
   }
@@ -61,7 +64,7 @@ export function ParolaDegistirmeEkrani({ ben, degistirildi, vazgec }: Props) {
       <div className="w-full max-w-[380px]">
         <div className="mb-6">
           <p className="m-0 text-base font-semibold tracking-wide text-chrome-ink">
-            {buyukHarf('Vardiya Çizelgeleme')}
+            {buyukHarf(m.parolaEkrani.urunAdi, dil)}
           </p>
           <p className="m-0 mt-[3px] text-xs text-chrome-ink-muted">{ben.kullanici_adi}</p>
         </div>
@@ -72,18 +75,18 @@ export function ParolaDegistirmeEkrani({ ben, degistirildi, vazgec }: Props) {
           noValidate
         >
           <p className="mb-4 etiket-caps text-ink-muted">
-            {buyukHarf('Parola Değiştir')}
+            {buyukHarf(m.parolaEkrani.baslik, dil)}
           </p>
 
           {zorunlu && (
             <p className="mt-0 mb-4 text-sm text-ink">
-              Parolanız yönetim tarafından atandı. Devam etmeden önce kendi parolanızı
+              {m.parolaEkrani.zorunluAciklama}
               belirlemelisiniz.
             </p>
           )}
 
           <label className="mb-1 block text-sm text-ink-muted" htmlFor="mevcut-parola">
-            Mevcut parola
+            {m.parolaEkrani.mevcut}
           </label>
           <input
             id="mevcut-parola"
@@ -96,7 +99,7 @@ export function ParolaDegistirmeEkrani({ ben, degistirildi, vazgec }: Props) {
           />
 
           <label className="mt-4 mb-1 block text-sm text-ink-muted" htmlFor="yeni-parola">
-            Yeni parola
+            {m.parolaEkrani.yeni}
           </label>
           <input
             id="yeni-parola"
@@ -124,11 +127,11 @@ export function ParolaDegistirmeEkrani({ ben, degistirildi, vazgec }: Props) {
 
           {kisa && (
             <p className="mt-4 mb-0 text-sm text-signal">
-              Yeni parola en az {ASGARI_UZUNLUK} karakter olmalı.
+              {m.parolaEkrani.asgariUzunluk(ASGARI_UZUNLUK)}
             </p>
           )}
           {uyusmuyor && (
-            <p className="mt-4 mb-0 text-sm text-signal">İki parola aynı değil.</p>
+            <p className="mt-4 mb-0 text-sm text-signal">{m.parolaEkrani.ayniDegil}</p>
           )}
           {hata && (
             <p role="alert" className="mt-4 mb-0 text-sm text-signal">
@@ -138,11 +141,11 @@ export function ParolaDegistirmeEkrani({ ben, degistirildi, vazgec }: Props) {
 
           <div className="mt-5 flex gap-2">
             <Buton varyant="birincil" type="submit" className="flex-1" disabled={!gonderilebilir}>
-              {gonderiliyor ? 'Kaydediliyor…' : 'Parolayı Değiştir'}
+              {gonderiliyor ? m.parolaEkrani.kaydediliyor : m.parolaEkrani.kaydet}
             </Buton>
             {vazgec && (
               <Buton varyant="ikincil" type="button" onClick={vazgec} disabled={gonderiliyor}>
-                Vazgeç
+                {m.parolaEkrani.vazgec}
               </Buton>
             )}
           </div>
