@@ -13,6 +13,21 @@
 > the institution named in the documents, and contains no real institutional
 > data. All staffing figures are illustrative assumptions.
 
+## Live demo
+
+**<https://vardiya.omerharmankaya.com>**
+
+Sign in from the box on the login screen: it lists the demo accounts and their
+passwords -- one administrator, one account manager and two employees -- so
+the same schedule can be read from each role's side.
+
+The instance is **read only**. Every editing control is there and can be
+opened, but no change of yours is ever saved: a write is refused and a small
+notice says so. The data is generated and contains nothing real, and it is
+**rebuilt every night**, which re-anchors the periods to the current date.
+
+The demo is closed to search engines; it is reachable by this link only.
+
 A constraint-programming (Google OR-Tools CP-SAT) decision support tool for
 building shift schedules: it assigns staff to hourly demand under hard rules
 (rest periods, weekly caps, competencies) while balancing night hours,

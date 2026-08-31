@@ -7,7 +7,7 @@ yazılabilmesi için gereken ve JSON'da bulunmayan bilgileri kaydeder.
 
 | | |
 |---|---|
-| Sunucu | Hetzner, Ubuntu 26.04 LTS, **4 çekirdek / 7 GB** |
+| Sunucu | Adanmış bulut sunucu, Ubuntu 26.04 LTS, **4 çekirdek / 7 GB** |
 | Çekirdek (kernel) | Linux 7.0.0-29-generic x86_64, glibc 2.43 |
 | PostgreSQL | **18.6** |
 | Python | **3.14.4** |

@@ -1995,7 +1995,7 @@ Tipi sekmesi ve Sabit Vardiya alanı silindi.
 - Uyum testi (SDD 3.2.1) `optimal` yerine `optimal | uygun` kabul ediyor:
   test **mutabakat** ölçüyor, optimallik değil, ve saat modelinde optimallik
   kanıtı belirgin biçimde pahalı.
-- Kanonik belgeler `BOTAS_Vardiya_Cizelgeleme_*` → **`VARDIS_*`** olarak
+- Kanonik belgeler, kurum kısaltmasını taşıyan adlardan **`VARDIS_*`**'a
   `git mv` ile yeniden adlandırıldı, atıflar güncellendi.
 - Sunucuya dağıtım **yok**; `push`/`remote` **çalıştırılmadı**.
 
@@ -2969,8 +2969,8 @@ hiçbir şey bulunmaz ve ölçüt hiçbir şeyi ayırt etmeden ölçülmüş gö
 ### 5c. Kurulum bilgisinin genelleştirilmesi
 
 `deploy/DAGITIM.md` depodan çıkarıldı → `docs/old/2026-08-28-DAGITIM.md`
-(izlenmez). Dosya sunucu IP'sini, barındırıcıyı, alan adını, `root@` SSH
-komutlarını ve `$HOME/.ssh/vera_hetzner` anahtar yolunu taşıyordu.
+(izlenmez). Dosya sunucu IP'sini, barındırıcının adını, alan adını, `root@`
+SSH komutlarını ve özel anahtarın tam yolunu taşıyordu.
 
 Yerine README'ye **Deployment** bölümü yazıldı: `<SERVICE_USER>`,
 `<INSTALL_DIR>` yer tutucuları, systemd birimlerinin kurulumu, ters vekil
@@ -3476,3 +3476,121 @@ sıfırlamadan sonra hiçbirini bulamazdı.
 
 Bağlantı denetimi: README'deki on yerel bağlantının onu da açılıyor, dış
 adres ve IP yok.
+
+## Tur 17 — Site turu: canlı adres README'ye, yayın öncesi doğrulama
+
+Doküman sürümleri koşum başında doğrulandı: Charter 1.8 · SRS 1.29 ·
+SDD 1.38 · Backlog 1.28 · DEMO_SENARYOSU 1.0 — beşi de uyuştu.
+
+### Canlı demo README'de
+
+Kapsam notunun hemen altında **Live demo** bölümü: adres, hesapların giriş
+ekranında yazdığı, ortamın salt okunur olduğu, verinin üretilmiş ve her gece
+yeniden kurulduğu, aramaya kapalı olduğu. Adres **tek yerde** geçiyor;
+kurulum ve dağıtım bölümlerinde `<SERVICE_USER>` / `<INSTALL_DIR>` yer
+tutucuları olduğu gibi duruyor.
+
+Adresi sormaya gerek kalmadı: PROGRESS_V2.md:1428 ve `docs/README_GITHUB.md`
+zaten taşıyordu.
+
+### CANLI SUNUCU ESKİ SÜRÜMÜ KOŞUYOR — yayın buna bağlı
+
+Yayın öncesi doğrulama tek bir kök nedene indi: **sunucudaki dağıtım, salt
+okunur turundan öncesine ait.** Üç bağımsız kanıt:
+
+1. Oturumsuz `POST /api/personel` **401** dönüyor, 403 değil. Kapı ara
+   katmanda ve yetkilendirmeden **önce** koşuyor; 401 görülüyorsa kapı orada
+   yok demektir. Bu, hiçbir şey yazmadan alınmış bir kanıttır.
+2. `DELETE /api/surum/1` **404** — sürüm silme ucu hiç yok.
+3. `GET /api/demo/kimlik` **tek ortak parola** dönüyor (`"parola"` gövdenin
+   kökünde), hesap başına türetilmiş parolaları değil.
+
+Sonucu: **giriş yapan bir demo kullanıcısı şu anda yazabilir.** Yazarak
+göstermedim; kapının yokluğu zaten kanıt.
+
+Aynı kök neden `robots.txt`i de açıklıyor: dosya yayındaki `dist/` içinde
+yok, SPA geri düşüşü onu `index.html`e çeviriyor. Vekilin `X-Robots-Tag`
+başlığı da eklenmemiş.
+
+**Yeniden dağıtım yapılmadan README'deki "read only" cümlesi doğru
+değildir.** Sıralama bu yüzden bağlayıcı: önce dağıtım, sonra `push`.
+
+### `deploy/yayin_kontrolu.sh`
+
+Onbeş satırlık tek tablo üreten kontrol betiği. Yazma yapmaz; yazıyor
+görünen tek adım oturumsuz `POST`tur ve o da kasıtlıdır — kapının
+reddettiğini kanıtlamanın başka yolu yok, istek yetkilendirmeye ulaşmadan
+403 alır.
+
+Betiğin kendisi iki kez yanlış alarm verdi ve ikisi de düzeltildi:
+
+- Giriş gövdesi `$(kod ... -d "{...}")` içinde yazılınca **iç içe tırnaklar
+  gövdeyi virgülden ikiye bölüp iki ayrı `-d` argümanı yapıyordu**; istek 422
+  dönüyor, kontrol **çalışan** bir girişi "kaldı" gösteriyordu.
+- `robots.txt` denetimi ilk satırın `User-agent` olmasını bekliyordu; dosya
+  yorumla başlıyor.
+
+Yanlış alarm veren bir doğrulama hiç olmayandan kötüdür: ikisi de sessizce
+yeşile döndürülmedi, kök nedeniyle birlikte yazıldı.
+
+Yerelde **14/15 geçiyor**. Geçmeyen tek satır `/` üzerindeki `X-Robots-Tag`
+ve o doğru davranış: geliştirme sunucusunda ters vekil yok, başlığı vekil
+ekler. Canlıda **2/15**.
+
+### Yayın taraması
+
+`.yasakli-metinler`in altı deseni yeniden tarandı. `docs/` dışında kalan altı
+isabetin üçü düzeltildi:
+
+| Yer | Neydi | Ne yapıldı |
+|---|---|---|
+| PROGRESS_V2.md:1998 | kanonik doküman adlarının eski, kurum kısaltmalı hâli | düzeltildi — olgu korundu, ad çıkarıldı |
+| PROGRESS_V2.md:2973 | özel SSH anahtarının tam yolu ve barındırıcının adı | düzeltildi — "özel anahtarın tam yolu" |
+| olcum/OLCUM_ORTAMI.md:10 | barındırıcının adı | düzeltildi — "adanmış bulut sunucu"; **ölçülen hiçbir sayı değişmedi** |
+| README.md:4 | kapsam notundaki kurum adı | **kasıtlı** — feragatnamenin kendisi |
+
+Kalan iki desende `docs/` dışı isabet yok. IPv4 yok. SSH deseni yalnızca
+`.gitignore` kalıplarında ve kabul betiğinin kendi arama ifadesinde — ikisi
+de kasıtlı. Dış adres yalnızca yeni eklenen demo adresi (npm registry ve
+test `https://testserver` sayılmadı). `docs/` altındaki isabetler yalnız
+raporlanır, dokunulmadı.
+
+Görseller temiz: beş PNG'de metin parçası yok, MP4 üstverisi yalnızca
+`Lavf`, GIF'te yol izi yok. README'nin on bir yerel bağlantısının hepsi
+açılıyor.
+
+Yerel gösterim veritabanı DEMO_SENARYOSU §9'un ölçülebilir beş ölçütünü
+geçiyor (9.5 tek koşumda ölçülemez; özet
+`240dc0ef79119b49ee525b34f9291a8175acd534ed56ecb9efd60736617c7b43`). 9.6
+sıfır isabet — ölçüt `.yasakli-metinler`i bulduğu için ölçülebildi;
+**sunucuda "ölçülemedi" dönüyorsa nedeni tek başına o dosyanın
+`/opt/vardiya/` altında olmamasıdır.**
+
+### GEZİNTİ KAYDININ TOHUMU
+
+Kayıt ve ekran görüntüleri **`DEMO_PAROLA_TOHUMU=gosterim-tohumu-yerel`** ile
+alındı. Türetilen parolalar:
+
+| hesap | parola |
+|---|---|
+| demo_idare | y88n573ul3iq |
+| demo_hesap | zq4vtrorpd40 |
+| demo_d1010 | r8z6b8da5ut6 |
+| demo_d1020 | dyexyhh45ra9 |
+
+Bu bilgi bilerek OKU.md'ye değil buraya yazıldı: OKU.md görseli **nasıl
+alacağını** anlatır, tohum ise **hangi koşumun** kaydı olduğunun kaydıdır.
+
+**Parolalar GIF'te okunaklı** — ölçüldü, 960 px'lik karede dördü de
+seçiliyor. Önceki tur "okunaklı olmasa da olur" demişti; okunaklı çıktılar ve
+bu, tohumu bir bağımlılık hâline getirdi: sunucudaki tohum başkaysa kaydı
+okuyup gelen ziyaretçinin denediği parola tutmaz. Tohumun gizliliği yok —
+türetilen parolalar zaten giriş ekranında yazıyor.
+
+### DOKÜMAN BORCU — ek
+
+9. **Charter / SRS** — README artık canlı bir gösterim örneği ilan ediyor
+   (salt okunur, gecelik sıfırlama, aramaya kapalı). Bu bir dağıtım
+   taahhüdüdür ve hiçbir kanonik dokümanda yazmıyor.
+10. **DEMO_SENARYOSU §9** — ölçüt 9.6 sunucuda `.yasakli-metinler` yoksa
+    "ölçülemedi" döner; doküman bunu bir kurulum önkoşulu olarak yazmıyor.
