@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import type {
   Atama,
@@ -10,6 +10,7 @@ import type {
 } from '@/api/types'
 import type { CizelgeVerisi } from '@/lib/disaAktarma'
 import { YazdirilabilirCizelge } from './YazdirilabilirCizelge'
+import { ciz as sarmalayarakCiz } from '@/test/ciz'
 
 afterEach(cleanup)
 
@@ -110,7 +111,7 @@ function acik(id: number, tarih: string, bas: number, nokta: number, eksik: numb
 }
 
 function ciz(atamalar: Atama[], acikSatirlari: KapsamaAcigi[] = []) {
-  return render(
+  return sarmalayarakCiz(
     <YazdirilabilirCizelge {...veriKur(atamalar, acikSatirlari)} uretimTarihi="2026-02-01" />,
   )
 }

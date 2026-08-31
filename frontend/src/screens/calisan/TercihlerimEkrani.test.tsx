@@ -1,10 +1,11 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { CalisanTercihListesi } from '@/api/types'
 import { bugunIso, isoBicimle } from '@/lib/tarih'
 
 import { TercihlerimEkrani } from './TercihlerimEkrani'
+import { ciz } from '@/test/ciz'
 
 let _liste: CalisanTercihListesi
 let _hata: unknown = null
@@ -46,7 +47,7 @@ afterEach(() => {
 describe('TercihlerimEkrani', () => {
   it('tarih alanını açık dönemle sınırlar', async () => {
     _liste = ACIK
-    render(<TercihlerimEkrani />)
+    ciz(<TercihlerimEkrani />)
     const alan = (await screen.findByLabelText(/gün/i)) as HTMLInputElement
     expect(alan.max).toBe('2099-01-11')
     // Alt sınır bugünden önce olamaz; dönem geleceğe düştüğü için başlangıç.
@@ -73,7 +74,7 @@ describe('TercihlerimEkrani', () => {
       },
       tercihler: [],
     }
-    render(<TercihlerimEkrani />)
+    ciz(<TercihlerimEkrani />)
     const alan = (await screen.findByLabelText(/gün/i)) as HTMLInputElement
     expect(alan.min).toBe(bugun)
     expect(alan.value).toBe(bugun)
@@ -96,7 +97,7 @@ describe('TercihlerimEkrani', () => {
         },
       ],
     }
-    render(<TercihlerimEkrani />)
+    ciz(<TercihlerimEkrani />)
     expect(await screen.findByText(/tercihe açık bir dönem yok/i)).toBeTruthy()
     expect(screen.queryByRole('button', { name: /Tercihi Gönder/i })).toBeNull()
     // Brief'in adını koyarak uyardığı regresyon: erken dönüş "Bildirdiğim
@@ -111,7 +112,7 @@ describe('TercihlerimEkrani', () => {
 
   it('başarılı gönderimde onay gösterir', async () => {
     _liste = ACIK
-    render(<TercihlerimEkrani />)
+    ciz(<TercihlerimEkrani />)
     fireEvent.click(await screen.findByRole('button', { name: /Tercihi Gönder/i }))
     expect(await screen.findByText(/tercihin alındı/i)).toBeTruthy()
   })
@@ -120,14 +121,14 @@ describe('TercihlerimEkrani', () => {
     _liste = ACIK
     const { ApiHatasi } = await import('@/api/client')
     _hata = new ApiHatasi(409, 'kararlanmis')
-    render(<TercihlerimEkrani />)
+    ciz(<TercihlerimEkrani />)
     fireEvent.click(await screen.findByRole('button', { name: /Tercihi Gönder/i }))
     expect(await screen.findByText(/yöneticine başvur/i)).toBeTruthy()
   })
 
   it('tüm gün seçimini açıkça yazar', async () => {
     _liste = ACIK
-    const { container } = render(<TercihlerimEkrani />)
+    const { container } = ciz(<TercihlerimEkrani />)
     fireEvent.click(await screen.findByRole('button', { name: /Şu saatlerde/i }))
     // `getByLabelText(/bitiş/i)` KULLANILMAZ: etiket `buyukHarf('Bitiş')` ile
     // "BİTİŞ" (noktalı büyük İ) yazar ve JS'in case-insensitive regex
@@ -154,7 +155,7 @@ describe('TercihlerimEkrani', () => {
       },
       tercihler: [],
     }
-    render(<TercihlerimEkrani />)
+    ciz(<TercihlerimEkrani />)
     // Dönem aralığı cümlenin içinde geçmeli; "bir sonraki" gibi konuma
     // dayalı bir ifade değil.
     expect(await screen.findByText(/05\s*[–-]\s*11 Oca/)).toBeTruthy()

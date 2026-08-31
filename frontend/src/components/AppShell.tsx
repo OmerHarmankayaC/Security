@@ -1,5 +1,4 @@
 import { type PropsWithChildren, type ReactNode } from 'react'
-import type { Rol } from '@/api/types'
 import { cn } from '@/lib/utils'
 import { buyukHarf } from '@/lib/metin'
 import { navGruplari } from '@/lib/yetki'
@@ -7,15 +6,9 @@ import { useAktifIs } from './AktifIsBaglami'
 import { useOturum } from './OturumBaglami'
 import { NAV_SIMGELERI, type NavOgesi } from './nav'
 import { Marka } from './Marka'
+import { useDil, useMetin } from '@/i18n/DilBaglami'
 
 export type { NavOgesi }
-
-const ROL_ETIKETI: Record<Rol, string> = {
-  calisan: 'Çalışan',
-  idare: 'İdare',
-  hesap_yoneticisi: 'Hesap yöneticisi',
-  sistem_yoneticisi: 'Sistem yöneticisi',
-}
 
 interface AppShellProps {
   aktifEkran: NavOgesi
@@ -23,17 +16,6 @@ interface AppShellProps {
   baslik: string
   altBaslik?: ReactNode
   aksiyonlar?: ReactNode
-}
-
-const IS_DURUM_METNI: Record<string, string> = {
-  kuyrukta: 'Kuyrukta',
-  on_kontrol: 'Ön kontrol',
-  cozuluyor: 'Çözülüyor',
-  durduruldu: 'Karar bekliyor',
-  tamamlandi: 'Tamamlandı',
-  uyarili: 'Uyarılı tamamlandı',
-  basarisiz: 'Başarısız',
-  iptal: 'İptal edildi',
 }
 
 function sureBicimle(saniye: number): string {
@@ -56,6 +38,7 @@ function sureBicimle(saniye: number): string {
 function CalisanIsGostergesi({ ekranSec }: { ekranSec: (ekran: NavOgesi) => void }) {
   const { aktifIs, sonuclananIs, bildirimGorunur, gecenSure, sonucuKapat } = useAktifIs()
 
+  const m = useMetin()
   const is = aktifIs ?? (bildirimGorunur ? sonuclananIs : null)
   if (is === null) return null
   const kararBekliyor = is.durum === 'durduruldu'
@@ -76,7 +59,7 @@ function CalisanIsGostergesi({ ekranSec }: { ekranSec: (ekran: NavOgesi) => void
             ? 'border-rule bg-surface text-ink-muted hover:bg-sunken'
             : 'border-accent/60 bg-accent/10 text-ink hover:bg-accent/20',
       )}
-      title="Çözüm ekranını aç"
+      title={m.kabuk.cozumEkraniniAc}
     >
       {/* Süren işte nabız; duran işte sabit nokta. Renk tek başına ayrım
           taşımasın diye durum adı da yazılı. */}
@@ -87,7 +70,7 @@ function CalisanIsGostergesi({ ekranSec }: { ekranSec: (ekran: NavOgesi) => void
         )}
         aria-hidden
       />
-      <span className="font-medium">{IS_DURUM_METNI[is.durum] ?? is.durum}</span>
+      <span className="font-medium">{m.isDurumu[is.durum as keyof typeof m.isDurumu] ?? is.durum}</span>
       {!bitti && (
         <span className="font-mono text-mono-kucuk text-ink-muted">{sureBicimle(gecenSure)}</span>
       )}
@@ -109,6 +92,7 @@ export function AppShell({
   children,
 }: PropsWithChildren<AppShellProps>) {
   const { ben, cikis, parolaDegistir } = useOturum()
+  const { dil, metin: m } = useDil()
   return (
     // Kabuk, görünür alanın TAMAMINI kaplar ve kendisi kaydırılmaz
     // (`overflow-hidden`): kaydırma, aşağıdaki içerik alanının kendi
@@ -136,13 +120,13 @@ export function AppShell({
             olmadan flex öğesi içeriğinden küçülemez, dolayısıyla
             `overflow-y-auto` hiç devreye girmez. */}
         <div className="flex min-h-0 flex-1 flex-col">
-          <Marka />
+          <Marka altBaslik={m.marka.altBaslikKisa} />
 
           <nav className="mt-6 flex min-h-0 flex-1 flex-col overflow-y-auto">
             {navGruplari(ben.rol).map((grup, i) => (
               <div key={grup.baslik ?? `grup-${i}`} className={cn(i > 0 && 'mt-3.5')}>
                 {grup.baslik && (
-                  <p className="etiket-caps mb-1 text-chrome-ink-muted">{grup.baslik}</p>
+                  <p className="etiket-caps mb-1 text-chrome-ink-muted">{m.menuGruplari[grup.baslik]}</p>
                 )}
                 <div className="flex flex-col gap-0.5">
                   {grup.ogeler.map((oge) => {
@@ -165,7 +149,7 @@ export function AppShell({
                         {/* Boyut 17, kontur 2, dolgu yok; rengi `currentColor`
                             olduğu için butonun kendi renginden gelir. */}
                         <Simge size={17} strokeWidth={2} className="shrink-0" aria-hidden />
-                        {oge}
+                        {m.menu[oge]}
                       </button>
                     )
                   })}
@@ -181,14 +165,14 @@ export function AppShell({
               taşır ve giriş yapan kişi de bir bağlamdır — ekran eylemleri
               üst çubukta kalır (Tasarım Referansı, arayüz turu notu). */}
           <div className="border-t border-chrome-line pt-3">
-            <p className="etiket-caps m-0 text-chrome-ink-muted">{buyukHarf('Oturum')}</p>
+            <p className="etiket-caps m-0 text-chrome-ink-muted">{buyukHarf(m.kabuk.oturum, dil)}</p>
             <p className="m-0 mt-1.5 truncate text-sm font-medium text-chrome-ink">
               {ben.ad_soyad ?? ben.kullanici_adi}
             </p>
             {/* Yalnızca kullanıcı adı mono: rol adı ("Yönetici") düz metindir
                 ve Mono sayıya/koda ayrılmıştır (TASARIM_REFERANSI.md). */}
             <p className="m-0 mt-0.5 text-mono-kucuk text-chrome-ink-muted">
-              <span className="font-mono">{ben.kullanici_adi}</span> · {ROL_ETIKETI[ben.rol]}
+              <span className="font-mono">{ben.kullanici_adi}</span> · {m.roller[ben.rol]}
             </p>
             <div className="mt-2 flex gap-3">
               <button
@@ -196,14 +180,14 @@ export function AppShell({
                 onClick={parolaDegistir}
                 className="text-xs text-chrome-ink-muted underline-offset-2 transition-colors hover:text-chrome-ink hover:underline"
               >
-                Parola değiştir
+                {m.kabuk.parolaDegistir}
               </button>
               <button
                 type="button"
                 onClick={cikis}
                 className="text-xs text-chrome-ink-muted underline-offset-2 transition-colors hover:text-chrome-ink hover:underline"
               >
-                Çıkış
+                {m.kabuk.cikis}
               </button>
             </div>
           </div>

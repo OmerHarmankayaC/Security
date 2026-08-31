@@ -1,9 +1,10 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import type { Vardiyalarim } from '@/api/types'
 
 import { VardiyalarimEkrani } from './VardiyalarimEkrani'
+import { ciz } from '@/test/ciz'
 
 function vardiya(tarih: string, noktaAd: string) {
   return {
@@ -34,7 +35,7 @@ afterEach(cleanup)
 
 describe('VardiyalarimEkrani', () => {
   it('aynı üç harfe düşen iki noktayı ızgarada ayrıştırır', () => {
-    render(<VardiyalarimEkrani veri={VERI} />)
+    ciz(<VardiyalarimEkrani veri={VERI} />)
     // İkisi de "GÜV" görünseydi çalışan hangi noktaya gittiğini okuyamazdı.
     const hucreler = screen.getAllByText(/^GÜV/)
     expect(new Set(hucreler.map((h) => h.textContent)).size).toBe(2)
@@ -52,7 +53,7 @@ describe('VardiyalarimEkrani', () => {
         },
       ],
     } as unknown as Vardiyalarim
-    render(<VardiyalarimEkrani veri={veri} />)
+    ciz(<VardiyalarimEkrani veri={veri} />)
     // Rozet, çocuklarını buyukHarf() ile Türkçe büyütür (Kaldırıldı → KALDIRILDI);
     // sorgu gerçek DOM çıktısına göre — İ/ı bozulmasın diye .toUpperCase()
     // değil buyukHarf() kullanılıyor ve regex /i bunu doğru katlamıyor. Rozet

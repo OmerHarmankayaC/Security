@@ -8,9 +8,11 @@
 import { useState, type PropsWithChildren } from 'react'
 import { buyukHarf } from '@/lib/metin'
 import { donemAraligiBicimle } from '@/lib/tarih'
+import { BOS } from '@/lib/sayi'
 import { cn } from '@/lib/utils'
 import { useOturum } from './OturumBaglami'
 import { KunyeIcerigi } from './KunyeIcerigi'
+import { useDil } from '@/i18n/DilBaglami'
 
 export type CalisanSekmesi = 'Vardiyalarım' | 'Dönem Özetim' | 'Tercihlerim'
 
@@ -37,6 +39,7 @@ export function CalisanShell({
   children,
 }: PropsWithChildren<Props>) {
   const { cikis, parolaDegistir } = useOturum()
+  const { dil, metin: m } = useDil()
   const [kunyeAcik, kunyeAc] = useState(false)
   return (
     // `min-h-svh` DEĞİL `flex-1`: gösterim şeridi eklendiğinde toplam
@@ -63,11 +66,11 @@ export function CalisanShell({
               bu yüzden dönem etiketi + tarihi kendi sarmalayıcısına alındı. */}
           <div className="flex items-end justify-between gap-4 sm:block sm:shrink-0 sm:text-right">
             <div>
-              <p className="etiket-caps m-0 text-chrome-ink-muted">{buyukHarf('Dönem')}</p>
+              <p className="etiket-caps m-0 text-chrome-ink-muted">{buyukHarf(m.kabuk.donem, dil)}</p>
               <p className="m-0 mt-1 font-mono text-sayi-orta font-semibold text-chrome-ink">
                 {donemBaslangic && donemBitis
                   ? buyukHarf(donemAraligiBicimle(donemBaslangic, donemBitis))
-                  : '—'}
+                  : BOS}
               </p>
             </div>
             {/* Oturum eylemleri üst çubukta, dönem bilgisinin altında:
@@ -82,21 +85,21 @@ export function CalisanShell({
                 onClick={() => kunyeAc(true)}
                 className="text-xs text-chrome-ink-muted underline-offset-2 transition-colors hover:text-chrome-ink hover:underline"
               >
-                Künye
+                {m.menu['Künye']}
               </button>
               <button
                 type="button"
                 onClick={parolaDegistir}
                 className="text-xs text-chrome-ink-muted underline-offset-2 transition-colors hover:text-chrome-ink hover:underline"
               >
-                Parola
+                {m.kabuk.parolaDegistir}
               </button>
               <button
                 type="button"
                 onClick={cikis}
                 className="text-xs text-chrome-ink-muted underline-offset-2 transition-colors hover:text-chrome-ink hover:underline"
               >
-                Çıkış
+                {m.kabuk.cikis}
               </button>
             </div>
           </div>
@@ -115,7 +118,7 @@ export function CalisanShell({
                 sekme === aktifSekme && 'border-accent font-medium text-chrome-ink',
               )}
             >
-              {sekme}
+              {m.calisanSekmeleri[sekme]}
             </button>
           ))}
         </nav>
@@ -128,7 +131,7 @@ export function CalisanShell({
               onClick={() => kunyeAc(false)}
               className="self-start text-sm text-accent underline-offset-2 hover:underline"
             >
-              ← Panele dön
+              ← {m.kabuk.paneleDon}
             </button>
             <KunyeIcerigi />
           </>

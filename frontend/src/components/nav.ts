@@ -59,15 +59,21 @@ export const NAV_SIMGELERI: Record<NavOgesi, LucideIcon> = {
 }
 
 // Tasarım Referansı sürüm 4: yan menü düz bir liste değil, üç başlık
-// altında toplanır (bkz. "Sayfa İskeleti — Yan menü").
+// altında toplanır (bkz. "Sayfa İskeleti, Yan menü").
+//
+// Başlık bir KİMLİK, görünen metin değil: menü iki dilli ve başlığın
+// kendisi burada yazılı olsaydı çeviri bileşenin içinde bir tabloya
+// bakmak zorunda kalırdı. Görünen ad sözlükte (`menuGruplari`).
+export type NavGrubuAdi = 'veri' | 'uretim' | 'degerlendirme' | 'yonetim'
+
 export interface NavGrubu {
-  baslik: string | null
+  baslik: NavGrubuAdi | null
   ogeler: NavOgesi[]
 }
 
 export const NAV_GRUPLARI: NavGrubu[] = [
   { baslik: null, ogeler: ['Özet'] },
-  { baslik: 'VERİ', ogeler: ['Tanımlar', 'Müsaitlik', 'Tercihler'] },
-  { baslik: 'ÜRETİM', ogeler: ['Çizelge', 'Çözüm'] },
-  { baslik: 'DEĞERLENDİRME', ogeler: ['Analiz', 'Sürümler'] },
+  { baslik: 'veri', ogeler: ['Tanımlar', 'Müsaitlik', 'Tercihler'] },
+  { baslik: 'uretim', ogeler: ['Çizelge', 'Çözüm'] },
+  { baslik: 'degerlendirme', ogeler: ['Analiz', 'Sürümler'] },
 ]

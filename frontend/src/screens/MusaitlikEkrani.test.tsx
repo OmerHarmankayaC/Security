@@ -5,12 +5,13 @@
  * olmayan yükletir. İçeriğin kendisi burada sınanmaz — o backend'in işi ve
  * `tests/test_girdi_api.py` gerçek baytlarla gidiş dönüş yapıyor.
  */
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { Musaitlik, Personel } from '@/api/types'
 
 import { MusaitlikEkrani } from './MusaitlikEkrani'
+import { ciz } from '@/test/ciz'
 
 let _kayitlar: Musaitlik[] = []
 
@@ -54,13 +55,13 @@ afterEach(cleanup)
 describe('izin belgesi düğmesi', () => {
   it('belgesi olan kayıtta İNDİR gösterir', async () => {
     _kayitlar = [kayit(1, true)]
-    render(<MusaitlikEkrani ekranSec={vi.fn()} />)
+    ciz(<MusaitlikEkrani ekranSec={vi.fn()} />)
     await waitFor(() => expect(screen.getByRole('button', { name: 'İndir' })).toBeTruthy())
   })
 
   it('belgesi olmayan kayıtta EKLE gösterir', async () => {
     _kayitlar = [kayit(2, false)]
-    render(<MusaitlikEkrani ekranSec={vi.fn()} />)
+    ciz(<MusaitlikEkrani ekranSec={vi.fn()} />)
     await waitFor(() => expect(screen.getByRole('button', { name: 'Ekle' })).toBeTruthy())
     expect(screen.queryByRole('button', { name: 'İndir' })).toBeNull()
   })
@@ -70,7 +71,7 @@ describe('izin belgesi düğmesi', () => {
     // aynı listeyi taşımalı, yoksa kullanıcı reddedilecek bir dosyayı
     // seçebiliyor ve hatayı ancak yükledikten sonra görüyor.
     _kayitlar = [kayit(3, false)]
-    const { container } = render(<MusaitlikEkrani ekranSec={vi.fn()} />)
+    const { container } = ciz(<MusaitlikEkrani ekranSec={vi.fn()} />)
     await waitFor(() => expect(screen.getByRole('button', { name: 'Ekle' })).toBeTruthy())
     const girdi = container.querySelector('input[type="file"]')
     expect(girdi?.getAttribute('accept')).toBe('image/png,image/jpeg,application/pdf')

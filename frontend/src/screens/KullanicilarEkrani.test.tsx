@@ -1,9 +1,10 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Ben, Kullanici, Personel } from '@/api/types'
 import { AktifIsSaglayici } from '@/components/AktifIsBaglami'
 import { OturumBaglami } from '@/components/OturumBaglami'
 import { KullanicilarEkrani } from './KullanicilarEkrani'
+import { ciz } from '@/test/ciz'
 
 const BEN: Ben = {
   kullanici_adi: 'hesap_yoneticisi',
@@ -63,7 +64,7 @@ function fetchTaklidi() {
 
 function ekraniCiz() {
   vi.stubGlobal('fetch', fetchTaklidi())
-  return render(
+  return ciz(
     <OturumBaglami.Provider
       value={{ ben: BEN, cikis: vi.fn(), parolaDegistir: vi.fn() }}
     >

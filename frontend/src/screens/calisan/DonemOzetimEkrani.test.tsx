@@ -5,12 +5,13 @@
  * hangi ufkun çekildiği, kıyasın hangi sayıya göre yapıldığı, havuz dışı
  * metinlerin ne dediği.
  */
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { DonemOzeti, Vardiyalarim } from '@/api/types'
 
 import { DonemOzetimEkrani } from './DonemOzetimEkrani'
+import { ciz } from '@/test/ciz'
 
 let _ozet: DonemOzeti | null
 // Varsayılan davranış senkron gibi çözülür (`_ozet`). Yarış/hata senaryolarını
@@ -67,13 +68,13 @@ afterEach(() => {
 describe('DonemOzetimEkrani', () => {
   it('açılışta dönem ufkunu çeker', async () => {
     _ozet = OZET
-    render(<DonemOzetimEkrani veri={VERI} />)
+    ciz(<DonemOzetimEkrani veri={VERI} />)
     await waitFor(() => expect(calisanOzetim).toHaveBeenCalledWith('donem'))
   })
 
   it('ufuk değişince adalet ufkunu çeker', async () => {
     _ozet = OZET
-    render(<DonemOzetimEkrani veri={VERI} />)
+    ciz(<DonemOzetimEkrani veri={VERI} />)
     await screen.findByText(/Gece Saati/i)
     fireEvent.click(screen.getByRole('button', { name: /90 gün/i }))
     await waitFor(() => expect(calisanOzetim).toHaveBeenCalledWith('adalet'))
@@ -83,7 +84,7 @@ describe('DonemOzetimEkrani', () => {
     // gece: sen 24, adil pay 16 -> 8 saat ÜSTÜNDE. Ekip ortalaması 20 olsaydı
     // fark 4 saat olurdu; hangi referansın kullanıldığı metinden okunur.
     _ozet = OZET
-    render(<DonemOzetimEkrani veri={VERI} />)
+    ciz(<DonemOzetimEkrani veri={VERI} />)
     expect(await screen.findByText(/8,0 saat üzerindesin/)).toBeTruthy()
   })
 
@@ -98,7 +99,7 @@ describe('DonemOzetimEkrani', () => {
     // regex katlaması bunu ASCII "i" ile eşleştiremez (bkz. proje kuralı) —
     // bu yüzden büyük harfli tam metin, /i BAYRAKSIZ sorgulanır.
     _ozet = OZET
-    render(<DonemOzetimEkrani veri={VERI} />)
+    ciz(<DonemOzetimEkrani veri={VERI} />)
     expect(await screen.findByText('ADİL PAYIN ÜSTÜNDE')).toBeTruthy()
     expect(screen.queryByText(/Ortalaman/i)).toBeNull()
   })
@@ -110,7 +111,7 @@ describe('DonemOzetimEkrani', () => {
     // employee'nin ekip ortalamasının altında olduğunu gösterip
     // birbirleriyle çelişirdi (final review bulgu 2, tam bu senaryo).
     _ozet = { ...OZET, gece_saati: 24, adil_pay_gece: 16, ekip_ortalama_gece: 30 }
-    render(<DonemOzetimEkrani veri={VERI} />)
+    ciz(<DonemOzetimEkrani veri={VERI} />)
     expect(await screen.findByText('ADİL PAYIN ÜSTÜNDE')).toBeTruthy()
   })
 
@@ -118,7 +119,7 @@ describe('DonemOzetimEkrani', () => {
     // toplam: sen 160, hedef 160 -> fark 0. Hafta sonu 8 vs 8 -> fark 0.
     // gece payı 100, sen 103 -> fark 3 < 5 (100 * %5) -> "yakınsın".
     _ozet = { ...OZET, gece_saati: 103, adil_pay_gece: 100 }
-    render(<DonemOzetimEkrani veri={VERI} />)
+    ciz(<DonemOzetimEkrani veri={VERI} />)
     // Referans artık ekip ortalaması değil adil pay — metin de öyle demeli.
     expect(await screen.findByText(/gece saatinde adil payına yakınsın/)).toBeTruthy()
   })
@@ -132,7 +133,7 @@ describe('DonemOzetimEkrani', () => {
     // artık hiçbir istisna metni taşımaması GEREKİR, yoksa doğru sayının
     // üstüne yanlış bir uyarı basmış oluruz.
     _ozet = { ...OZET, ufuk: 'adalet', toplam_saat: 480, hedef_saat: 460 }
-    render(<DonemOzetimEkrani veri={VERI} />)
+    ciz(<DonemOzetimEkrani veri={VERI} />)
     await screen.findByText('SON 90 GÜN')
     expect(screen.queryByText(/DÖNEM İÇİNİ kapsar/)).toBeNull()
     expect(screen.queryByText(/90 günü değil/)).toBeNull()
@@ -143,13 +144,13 @@ describe('DonemOzetimEkrani', () => {
 
   it('özet yoksa çizelge olmadığını söyler', async () => {
     _ozet = null
-    render(<DonemOzetimEkrani veri={VERI} />)
+    ciz(<DonemOzetimEkrani veri={VERI} />)
     expect(await screen.findByText(/henüz yayınlanmış bir çizelge yok/i)).toBeTruthy()
   })
 
   it('havuz dışındaki karşılaştırmayı hiç göstermez', async () => {
     _ozet = { ...OZET, gece_havuzunda: false, adil_pay_gece: null }
-    render(<DonemOzetimEkrani veri={VERI} />)
+    ciz(<DonemOzetimEkrani veri={VERI} />)
     await screen.findByText(/Hafta Sonu/i)
     expect(screen.queryByText(/Gece Saati/i)).toBeNull()
     expect(screen.getByText(/gece vardiyası bulunmadığı için/i)).toBeTruthy()
@@ -161,7 +162,7 @@ describe('DonemOzetimEkrani', () => {
     // kesinlik verir. Etiket EKRANDAKİ SAYININ ufkunu (ozet.ufuk) yazmalı,
     // düğmenin hangi ufku istediğini değil.
     _yavas = true
-    render(<DonemOzetimEkrani veri={VERI} />)
+    ciz(<DonemOzetimEkrani veri={VERI} />)
     await waitFor(() => expect(_bekleyenler).toHaveLength(1))
     _bekleyenler.shift()!.resolve(OZET) // ilk (dönem) yanıtı gelir
     await screen.findByText(/DÖNEMİ/)
@@ -184,7 +185,7 @@ describe('DonemOzetimEkrani', () => {
     // Ağ hatası / 500 / düşmüş oturum, meşru "yayınlanmış çizelge yok"
     // yanıtıyla (`null`) KARIŞTIRILMAZ — biri sunucu sorunu, biri normal hâl.
     _hata = new Error('Sunucuya ulaşılamadı')
-    render(<DonemOzetimEkrani veri={VERI} />)
+    ciz(<DonemOzetimEkrani veri={VERI} />)
     expect(await screen.findByText('Sunucuya ulaşılamadı')).toBeTruthy()
     expect(screen.queryByText(/henüz yayınlanmış bir çizelge yok/i)).toBeNull()
   })
@@ -196,7 +197,7 @@ describe('DonemOzetimEkrani', () => {
     // isteğin üstüne eski veriyle yazardı — düğme "Son 90 Gün" basılı
     // görünürken kartlar dönem sayılarına dönerdi.
     _yavas = true
-    render(<DonemOzetimEkrani veri={VERI} />)
+    ciz(<DonemOzetimEkrani veri={VERI} />)
     await waitFor(() => expect(_bekleyenler).toHaveLength(1))
     const donemIstegi = _bekleyenler[0]!
 

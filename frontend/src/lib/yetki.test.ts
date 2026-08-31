@@ -1,3 +1,4 @@
+import { SOZLUK } from '@/i18n/sozluk'
 import { describe, expect, it } from 'vitest'
 import type { Ben, Rol } from '@/api/types'
 import { navGruplari, yuzeyBasligi, yuzeySec } from './yetki'
@@ -61,9 +62,17 @@ describe('navGruplari', () => {
 })
 
 describe('yuzeyBasligi', () => {
-  it('her yüzeye ayrı bir sekme başlığı verir', () => {
-    const basliklar = (['giris', 'parola', 'calisan', 'idare'] as const).map(yuzeyBasligi)
+  // Başlıkların AYRI olması, ürün adıyla başlamasından daha önemli:
+  // yeni bir yüzey eklendiğinde sekme adı eskisinde kalmasın diye
+  // yüzeyle birlikte seçiliyor. İki dilde de sınanıyor, çünkü sözlükte
+  // aynı metni iki yüzeye vermek bu ayrımı sessizce bozardı.
+  it.each(['tr', 'en'] as const)('%s: her yüzeye ayrı bir sekme başlığı verir', (dil) => {
+    const m = SOZLUK[dil]
+    const basliklar = (['giris', 'parola', 'calisan', 'idare'] as const).map((y) =>
+      yuzeyBasligi(y, m),
+    )
+
     expect(new Set(basliklar).size).toBe(basliklar.length)
-    for (const baslik of basliklar) expect(baslik.startsWith('Vardiya')).toBe(true)
+    for (const baslik of basliklar) expect(baslik.startsWith('VARDİS')).toBe(true)
   })
 })

@@ -1,4 +1,5 @@
 import type { Ben, Rol } from '@/api/types'
+import type { Metinler } from '@/i18n/sozluk'
 
 /** Hesap uç noktalarına giren roller (SRS 5.10, FR-10.5). */
 export const HESAP_YONETEN_ROLLER: readonly Rol[] = ['hesap_yoneticisi', 'sistem_yoneticisi']
@@ -30,17 +31,8 @@ export function yuzeySec(ben: Ben | null): Yuzey {
 
 /** Sekme başlığı — yüzeyle BİRLİKTE seçilir ki yeni yüzey eklendiğinde
  * başlık eskisinde kalmasın (main.tsx'teki aynı gerekçe). */
-export function yuzeyBasligi(yuzey: Yuzey): string {
-  switch (yuzey) {
-    case 'giris':
-      return 'Vardiya — Giriş'
-    case 'parola':
-      return 'Vardiya — Parola'
-    case 'calisan':
-      return 'Vardiya — Çalışan'
-    case 'idare':
-      return 'Vardiya — Admin'
-  }
+export function yuzeyBasligi(yuzey: Yuzey, metin: Metinler): string {
+  return metin.sekmeBasligi[yuzey]
 }
 
 /** Yönetici arayüzünün menüsü. Kullanıcılar grubu yalnız yönetim rolünde. */
@@ -52,5 +44,5 @@ export function navGruplari(rol: Rol): NavGrubu[] {
   // yetkilendirme DEĞİLDİR (FR-10.4) — kapı sunucudadır; buradaki gizleme
   // yalnızca kullanıcıya erişemeyeceği bir yolu göstermemek içindir.
   if (!HESAP_YONETEN_ROLLER.includes(rol)) return [...NAV_GRUPLARI, kunye]
-  return [...NAV_GRUPLARI, { baslik: 'YÖNETİM', ogeler: ['Kullanıcılar'] }, kunye]
+  return [...NAV_GRUPLARI, { baslik: 'yonetim', ogeler: ['Kullanıcılar'] }, kunye]
 }

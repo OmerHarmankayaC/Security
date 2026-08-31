@@ -1,8 +1,9 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Atama, CizelgeSurumu, Donem, GorevNoktasi, Personel } from '@/api/types'
 import type { CizelgeVerisi } from '@/lib/disaAktarma'
 import { YazdirmaOnizlemesi } from './YazdirmaOnizlemesi'
+import { ciz } from '@/test/ciz'
 
 afterEach(cleanup)
 
@@ -92,7 +93,7 @@ describe('önizleme GÖVDEYE bağlanır — baskı CSS i buna dayanıyor', () =>
     // `render` kendi kabını gövdeye ekler; portal olmasaydı önizleme o
     // kabın İÇİNDE kalırdı. Baskıda `#root` gizlendiği için, içeride kalan
     // bir önizleme hiç basılmazdı.
-    const { container } = render(<YazdirmaOnizlemesi veri={VERI} onKapat={vi.fn()} />)
+    const { container } = ciz(<YazdirmaOnizlemesi veri={VERI} onKapat={vi.fn()} />)
     const kok = document.querySelector('.yazdirma-kok')
     expect(kok).not.toBeNull()
     expect(kok!.parentElement).toBe(document.body)
@@ -100,14 +101,14 @@ describe('önizleme GÖVDEYE bağlanır — baskı CSS i buna dayanıyor', () =>
   })
 
   it('baskı CSS inin tutunduğu iki sınıfı da taşır', () => {
-    render(<YazdirmaOnizlemesi veri={VERI} onKapat={vi.fn()} />)
+    ciz(<YazdirmaOnizlemesi veri={VERI} onKapat={vi.fn()} />)
     // `.yazdirma-kok` katmanı akışa geri döndürür, `.yazdirma-alani`
     // basılacak içeriğin kendisidir.
     expect(document.querySelector('.yazdirma-kok .yazdirma-alani')).not.toBeNull()
   })
 
   it('dönemin BÜTÜN günlerini çizer — seçili günü değil', () => {
-    render(<YazdirmaOnizlemesi veri={VERI} onKapat={vi.fn()} />)
+    ciz(<YazdirmaOnizlemesi veri={VERI} onKapat={vi.fn()} />)
     // Yedi günlük dönem, tek atama. Atamasız günler de basılır: kâğıda
     // bakan kişi o günün boş olduğunu ancak sayfayı görürse bilir.
     expect(document.querySelectorAll('.yazdirma-tablo')).toHaveLength(7)
@@ -115,7 +116,7 @@ describe('önizleme GÖVDEYE bağlanır — baskı CSS i buna dayanıyor', () =>
   })
 
   it('ekran düğmeleri baskıda gizlenecek sınıfı taşır', () => {
-    render(<YazdirmaOnizlemesi veri={VERI} onKapat={vi.fn()} />)
+    ciz(<YazdirmaOnizlemesi veri={VERI} onKapat={vi.fn()} />)
     const gizli = document.querySelector('.yazdirma-gizle')
     expect(gizli).not.toBeNull()
     expect(screen.getByRole('button', { name: 'Yazdır' })).toBeTruthy()

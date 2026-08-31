@@ -1,9 +1,10 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CizelgeSurumu, Donem, DogrulamaSonucu, GorevNoktasi, Personel } from '../api/types'
 import { AktifIsSaglayici } from '../components/AktifIsBaglami'
 import { OturumBaglami } from '../components/OturumBaglami'
 import { CizelgeEkrani } from './CizelgeEkrani'
+import { ciz } from '@/test/ciz'
 
 const DONEM: Donem = {
   donem_id: 1,
@@ -92,7 +93,7 @@ function ekraniAc(surumler: CizelgeSurumu[], donemId: number | null = 1, sonraki
   const sahte = fetchSahtesi(surumler, sonrakiSurum)
   vi.stubGlobal('fetch', sahte)
   const donemIdSec = vi.fn()
-  const sonuc = render(
+  const sonuc = ciz(
     <OturumBaglami.Provider
       value={{
         ben: {
@@ -237,7 +238,7 @@ describe('"Boş Taslak Aç" düğmesi (FR-7.3)', () => {
       throw new Error(`beklenmeyen yol ${yol}`)
     })
     vi.stubGlobal('fetch', sahte)
-    render(
+    ciz(
       <OturumBaglami.Provider
         value={{
           ben: {
@@ -308,7 +309,7 @@ describe('boş hâl metni', () => {
       throw new Error(`beklenmeyen yol ${yol}`)
     })
     vi.stubGlobal('fetch', sahte)
-    render(
+    ciz(
       <OturumBaglami.Provider
         value={{
           ben: {
@@ -371,7 +372,7 @@ describe('"Kaydet" (SRS FR-6.7, TD-16)', () => {
       throw new Error(`beklenmeyen yol ${yol}`)
     })
     vi.stubGlobal('fetch', sahte)
-    render(
+    ciz(
       <OturumBaglami.Provider
         value={{
           ben: {
@@ -461,7 +462,7 @@ describe('"Yeniden Çöz" düğmesi (SDD 5.6)', () => {
     })
     vi.stubGlobal('fetch', sahte)
     const yenidenCozIste = vi.fn()
-    render(
+    ciz(
       <OturumBaglami.Provider
         value={{
           ben: {

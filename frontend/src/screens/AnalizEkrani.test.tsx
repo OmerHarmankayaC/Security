@@ -7,12 +7,13 @@
  * hangi ölçüye göre olduğu, boş hâlin ne dediği. Yerleşim, okunabilirlik ve
  * ufuk anahtarının görsel durumu insan gözü ister.
  */
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { Analiz, AnalizCezaKalemi, KotaDurumu, KumulatifDegisim } from '../api/types'
 
 import { AnalizEkrani } from './AnalizEkrani'
+import { ciz } from '@/test/ciz'
 
 // İstemci modül düzeyinde taklit edilir; yanıt testten teste değişsin diye
 // değiştirilebilir bir değişkenden okunur.
@@ -114,7 +115,7 @@ function analiz(ek: Partial<Analiz> = {}): Analiz {
 function ekraniKur(cevap: Analiz = analiz()) {
   _cevap = cevap
   analizGetir.mockClear()
-  render(<AnalizEkrani ekranSec={vi.fn()} donemId={1} donemIdSec={vi.fn()} />)
+  ciz(<AnalizEkrani ekranSec={vi.fn()} donemId={1} donemIdSec={vi.fn()} />)
 }
 
 describe('Analiz ekranı — üst şerit', () => {

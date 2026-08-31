@@ -7,11 +7,12 @@
  * v4'ün SIFIR ataması olduğunu söylemiyor — sonuç, çalışan panelinde
  * herkesin vardiyasının kaybolması.
  */
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { CizelgeSurumu, Donem } from '../api/types'
 import { SurumlerEkrani } from './SurumlerEkrani'
+import { ciz } from '@/test/ciz'
 
 // AppShell oturum bağlamı ister ve bu testlerin konusu değil; çocuklarını
 // döken bir kabukla değiştirilir (bkz. OzetEkrani.test.tsx).
@@ -69,7 +70,7 @@ afterEach(cleanup)
 
 function ekraniKur(surumler: CizelgeSurumu[]) {
   _surumler = surumler
-  render(<SurumlerEkrani ekranSec={vi.fn()} donemId={1} donemIdSec={vi.fn()} />)
+  ciz(<SurumlerEkrani ekranSec={vi.fn()} donemId={1} donemIdSec={vi.fn()} />)
 }
 
 describe('Yayınla düğmesi — atamasız sürüm koruması', () => {

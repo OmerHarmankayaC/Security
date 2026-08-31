@@ -15,8 +15,10 @@ import { UcanUyari } from './components/UcanUyari'
 import { GirisEkrani } from './screens/GirisEkrani'
 import { ParolaDegistirmeEkrani } from './screens/ParolaDegistirmeEkrani'
 import { yuzeyBasligi, yuzeySec } from './lib/yetki'
+import { useMetin } from './i18n/DilBaglami'
 
 export function Kok() {
+  const m = useMetin()
   const [ben, setBen] = useState<Ben | null>(null)
   // Sayfa yenilendiğinde çerez hâlâ geçerli olabilir; giriş ekranını
   // göstermeden önce sunucuya sorulur. Bu bekleme olmasaydı, oturumu açık
@@ -48,8 +50,8 @@ export function Kok() {
   const yuzey = ben !== null && parolaKipi ? 'parola' : yuzeySec(ben)
 
   useEffect(() => {
-    document.title = yuzeyBasligi(yuzey)
-  }, [yuzey])
+    document.title = yuzeyBasligi(yuzey, m)
+  }, [yuzey, m])
 
   // İlk sorgu bitene kadar hiçbir şey çizilmez. Bir yükleniyor animasyonu
   // koymamak bilinçli: bekleme aynı makinedeki tek bir istek kadar ve

@@ -1,9 +1,10 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CozumIsi } from '../api/types'
 import { AktifIsSaglayici } from '../components/AktifIsBaglami'
 import { OturumBaglami } from '../components/OturumBaglami'
 import { CozumEkrani } from './CozumEkrani'
+import { ciz } from '@/test/ciz'
 
 const DONEM = {
   donem_id: 1,
@@ -42,7 +43,7 @@ function fetchSahtesi(aktifIs: CozumIsi | null) {
 
 function ekraniAc(aktifIs: CozumIsi | null) {
   vi.stubGlobal('fetch', fetchSahtesi(aktifIs))
-  return render(
+  return ciz(
     <OturumBaglami.Provider
       value={{
         ben: {
@@ -165,7 +166,7 @@ describe('Çalışan iş göstergesi (SRS FR-4.11)', () => {
     // göstergeyi kaybettirmiyor.
     const sahte = fetchSahtesi(DURDURULMUS)
     vi.stubGlobal('fetch', sahte)
-    render(
+    ciz(
       <OturumBaglami.Provider
         value={{
           ben: {
@@ -219,7 +220,7 @@ describe('Yeniden çözüm — kilitli atamaların korunması (SDD 5.6)', () => 
   function ekraniAcSurumle(oncekiSurumId: number | null) {
     const sahte = fetchSahtesi(null)
     vi.stubGlobal('fetch', sahte)
-    render(
+    ciz(
       <OturumBaglami.Provider
         value={{
           ben: {

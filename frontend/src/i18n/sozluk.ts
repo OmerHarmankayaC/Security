@@ -205,6 +205,74 @@ const tr = {
 
   bilinmeyenHata: 'Beklenmeyen bir hata oluştu.',
 
+  /**
+   * MENÜ ETİKETLERİ, kimlikleri DEĞİL.
+   *
+   * `NavOgesi` ('Özet', 'Tanımlar'…) uygulamanın iç kimliği: hangi ekranın
+   * açık olduğu, `App.tsx`teki `switch`, seçili öğe hep bu değerlerle
+   * konuşuyor. Türkçe sözcükler olmaları tarihsel bir tesadüf; çevrilirlerse
+   * kimlik kırılır. Bu yüzden kimlikler yerinde duruyor ve GÖRÜNEN ad
+   * buradan geliyor.
+   */
+  menu: {
+    'Özet': 'Özet',
+    'Tanımlar': 'Tanımlar',
+    'Müsaitlik': 'Müsaitlik',
+    'Tercihler': 'Tercihler',
+    'Çizelge': 'Çizelge',
+    'Çözüm': 'Çözüm',
+    'Analiz': 'Analiz',
+    'Sürümler': 'Sürümler',
+    'Kullanıcılar': 'Kullanıcılar',
+    'Künye': 'Künye',
+  },
+
+  menuGruplari: {
+    veri: 'VERİ',
+    uretim: 'ÜRETİM',
+    degerlendirme: 'DEĞERLENDİRME',
+    yonetim: 'YÖNETİM',
+  },
+
+  /** Sekme başlığı. Ürün adı çevrilmez, yüzeyin adı çevrilir. */
+  sekmeBasligi: {
+    giris: 'VARDİS: Giriş',
+    parola: 'VARDİS: Parola',
+    calisan: 'VARDİS: Çalışan',
+    idare: 'VARDİS: Yönetim',
+  },
+
+  /** Çözüm işinin durumu (üst çubuktaki iş kartı). */
+  isDurumu: {
+    kuyrukta: 'Kuyrukta',
+    on_kontrol: 'Ön kontrol',
+    cozuluyor: 'Çözülüyor',
+    durduruldu: 'Karar bekliyor',
+    tamamlandi: 'Tamamlandı',
+    uyarili: 'Uyarılı tamamlandı',
+    basarisiz: 'Başarısız',
+    iptal: 'İptal edildi',
+  },
+
+  kabuk: {
+    oturum: 'Oturum',
+    parolaDegistir: 'Parola değiştir',
+    cikis: 'Çıkış',
+    cozumEkraniniAc: 'Çözüm ekranını aç',
+    paneleDon: 'Panele dön',
+    donem: 'Dönem',
+    yapimAsamasinda: 'Bu ekran henüz uygulanmadı.',
+    yakinda: 'yakında',
+    verilerYuklenemedi: 'Veriler yüklenemedi.',
+  },
+
+  calisanSekmeleri: {
+    'Vardiyalarım': 'Vardiyalarım',
+    'Dönem Özetim': 'Dönem Özetim',
+    'Tercihlerim': 'Tercihlerim',
+  },
+
+
 
   /**
    * SUNUCU HATALARININ METNİ, koda göre.
@@ -341,6 +409,63 @@ const en: Metinler = {
   },
 
   bilinmeyenHata: 'Something went wrong.',
+
+  menu: {
+    'Özet': 'Overview',
+    'Tanımlar': 'Definitions',
+    'Müsaitlik': 'Availability',
+    'Tercihler': 'Preferences',
+    'Çizelge': 'Schedule',
+    'Çözüm': 'Solve',
+    'Analiz': 'Analysis',
+    'Sürümler': 'Versions',
+    'Kullanıcılar': 'Users',
+    'Künye': 'About',
+  },
+
+  menuGruplari: {
+    veri: 'DATA',
+    uretim: 'PRODUCTION',
+    degerlendirme: 'EVALUATION',
+    yonetim: 'ADMINISTRATION',
+  },
+
+  sekmeBasligi: {
+    giris: 'VARDİS: Sign in',
+    parola: 'VARDİS: Password',
+    calisan: 'VARDİS: Employee',
+    idare: 'VARDİS: Administration',
+  },
+
+  isDurumu: {
+    kuyrukta: 'Queued',
+    on_kontrol: 'Pre-check',
+    cozuluyor: 'Solving',
+    durduruldu: 'Awaiting decision',
+    tamamlandi: 'Completed',
+    uyarili: 'Completed with warnings',
+    basarisiz: 'Failed',
+    iptal: 'Cancelled',
+  },
+
+  kabuk: {
+    oturum: 'Session',
+    parolaDegistir: 'Change password',
+    cikis: 'Sign out',
+    cozumEkraniniAc: 'Open the solve screen',
+    paneleDon: 'Back to the panel',
+    donem: 'Period',
+    yapimAsamasinda: 'This screen has not been built yet.',
+    yakinda: 'coming soon',
+    verilerYuklenemedi: 'Could not load the data.',
+  },
+
+  calisanSekmeleri: {
+    'Vardiyalarım': 'My shifts',
+    'Dönem Özetim': 'My period summary',
+    'Tercihlerim': 'My preferences',
+  },
+
 
 
   hatalar: EN_HATALAR,

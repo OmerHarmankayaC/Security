@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type {
   Ben,
@@ -12,6 +12,7 @@ import type {
 import { AktifIsSaglayici } from '@/components/AktifIsBaglami'
 import { OturumBaglami } from '@/components/OturumBaglami'
 import { TanimlarEkrani } from './TanimlarEkrani'
+import { ciz } from '@/test/ciz'
 
 /**
  * Personel formunun sözleşmesi (bulgu B3 ve madde 6).
@@ -173,7 +174,7 @@ function ekraniCiz() {
   gonderilenler = []
   talepYazmaHatasi = null
   vi.stubGlobal('fetch', fetchTaklidi())
-  return render(
+  return ciz(
     <OturumBaglami.Provider value={{ ben: BEN, cikis: vi.fn(), parolaDegistir: vi.fn() }}>
       {/* Kabuk üst çubuğu çalışan iş göstergesini taşıyor; sağlayıcısı
           olmadan AppShell çizilemez (SDD 6.1). */}

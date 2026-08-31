@@ -7,7 +7,7 @@
  * yerleşim ve okunabilirlik insan gözü ister (bkz. AnalizEkrani.test.tsx
  * aynı notu taşır).
  */
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type {
@@ -21,6 +21,7 @@ import type {
 } from '../api/types'
 
 import { OzetEkrani } from './OzetEkrani'
+import { ciz } from '@/test/ciz'
 
 // AppShell oturum bağlamı ister ve bu testlerin konusu değil; çocuklarını
 // döken bir kabukla değiştirilir (bkz. AnalizEkrani.test.tsx).
@@ -207,7 +208,7 @@ vi.mock('../api/client', () => ({
 afterEach(cleanup)
 
 function ekraniKur() {
-  render(<OzetEkrani ekranSec={vi.fn()} />)
+  ciz(<OzetEkrani ekranSec={vi.fn()} />)
 }
 
 describe('Özet ekranı — aralık metni', () => {

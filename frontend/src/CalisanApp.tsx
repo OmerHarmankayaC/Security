@@ -1,3 +1,5 @@
+import { hataMetni } from './i18n/hata'
+import { useMetin } from './i18n/DilBaglami'
 import { useEffect, useState } from 'react'
 import { api } from './api/client'
 import type { Ben, Vardiyalarim } from './api/types'
@@ -17,6 +19,7 @@ interface Props {
 // sunucu oturumdan belirliyor (SRS FR-9.1); istemcinin kimliği taşıması,
 // sunucu onu yok saysa bile "seçimi istemci yapıyor" izlenimi verirdi.
 export function CalisanApp({ ben, cikis, parolaDegistir }: Props) {
+  const m = useMetin()
   const [sekme, setSekme] = useState<CalisanSekmesi>('Vardiyalarım')
   const [veri, setVeri] = useState<Vardiyalarim | null>(null)
   const [hata, setHata] = useState<string | null>(null)
@@ -28,7 +31,7 @@ export function CalisanApp({ ben, cikis, parolaDegistir }: Props) {
       // 401 buraya düşmez: oturum düştüğünde kök bileşen giriş ekranına
       // döner (api/client.ts, `oturumDustugunde`). Kalan hatalar gerçek
       // hatadır ve kullanıcıya söylenir.
-      .catch((e) => setHata(e instanceof Error ? e.message : 'Veriler yüklenemedi'))
+      .catch((e) => setHata(hataMetni(e, m)))
   }, [])
 
   if (hata) {

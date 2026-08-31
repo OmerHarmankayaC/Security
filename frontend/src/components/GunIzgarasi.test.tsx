@@ -1,7 +1,8 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Atama, GorevNoktasi, KapsamaAcigi, Personel } from '@/api/types'
 import { GunIzgarasi } from './GunIzgarasi'
+import { ciz } from '@/test/ciz'
 
 afterEach(cleanup)
 
@@ -67,7 +68,7 @@ const VARSAYILAN = {
 
 describe('İş 1 kabul — gece yarısını aşan blok iki günde de görünür, TEK bloktur', () => {
   it('başladığı günün ızgarasında görünür ve ertesi güne taşıdığını söyler', () => {
-    render(<GunIzgarasi {...VARSAYILAN} gun="2026-02-02" />)
+    ciz(<GunIzgarasi {...VARSAYILAN} gun="2026-02-02" />)
     const serit = screen.getByLabelText('20.00–06.00 · Güvenlik · ertesi güne taşıyor')
     // Sağ kenara dayanır: 20.00'den gün sonuna, yani genişliğin 4/24'ü.
     expect(serit.style.left).toBe(`${(20 / 24) * 100}%`)
@@ -75,17 +76,17 @@ describe('İş 1 kabul — gece yarısını aşan blok iki günde de görünür,
   })
 
   it('ertesi günün ızgarasında sol kenardan başlar ve önceki günden geldiğini söyler', () => {
-    render(<GunIzgarasi {...VARSAYILAN} gun="2026-02-03" />)
+    ciz(<GunIzgarasi {...VARSAYILAN} gun="2026-02-03" />)
     const serit = screen.getByLabelText('20.00–06.00 · Güvenlik · önceki günden devam ediyor')
     expect(serit.style.left).toBe('0%')
     expect(serit.style.width).toBe(`${(6 / 24) * 100}%`)
   })
 
   it('iki günde de AYNI aralığı yazar — iki ayrı blok gibi okunmaz', () => {
-    const { unmount } = render(<GunIzgarasi {...VARSAYILAN} gun="2026-02-02" />)
+    const { unmount } = ciz(<GunIzgarasi {...VARSAYILAN} gun="2026-02-02" />)
     expect(screen.getByText('20.00–06.00')).toBeTruthy()
     unmount()
-    render(<GunIzgarasi {...VARSAYILAN} gun="2026-02-03" />)
+    ciz(<GunIzgarasi {...VARSAYILAN} gun="2026-02-03" />)
     // "20.00–24.00" ve "00.00–06.00" yazılsaydı model tam olarak yasakladığı
     // şeyi ekranda üretmiş olurdu (SRS TD-13).
     expect(screen.getByText('20.00–06.00')).toBeTruthy()
@@ -93,17 +94,17 @@ describe('İş 1 kabul — gece yarısını aşan blok iki günde de görünür,
   })
 
   it('blok BAŞLADIĞI güne sayılır: toplam saat başlangıç gününde yazar', () => {
-    const { unmount } = render(<GunIzgarasi {...VARSAYILAN} gun="2026-02-02" />)
+    const { unmount } = ciz(<GunIzgarasi {...VARSAYILAN} gun="2026-02-02" />)
     expect(screen.getByText(/P-001 · 10 sa/)).toBeTruthy()
     unmount()
-    render(<GunIzgarasi {...VARSAYILAN} gun="2026-02-03" />)
+    ciz(<GunIzgarasi {...VARSAYILAN} gun="2026-02-03" />)
     // Ertesi gün altı saat GÖRÜNÜR ama o günün toplamına yazılmaz (SRS TD-1).
     expect(screen.queryByText(/6 sa/)).toBeNull()
     expect(screen.getByText('P-001')).toBeTruthy()
   })
 
   it('üçüncü güne hiç değmez', () => {
-    render(<GunIzgarasi {...VARSAYILAN} gun="2026-02-04" />)
+    ciz(<GunIzgarasi {...VARSAYILAN} gun="2026-02-04" />)
     expect(screen.queryByText('20.00–06.00')).toBeNull()
   })
 })
@@ -117,7 +118,7 @@ describe('İş 4 kabul — sürükleyerek blok tanımlama', () => {
 
   it('sürükleme bittiğinde yarı açık saat aralığını bildirir', () => {
     const onBlokTanimla = vi.fn()
-    const { container } = render(
+    const { container } = ciz(
       <GunIzgarasi {...VARSAYILAN} atamalar={[]} gun="2026-02-02" onBlokTanimla={onBlokTanimla} />,
     )
     fireEvent.pointerDown(saatHucresi(8))
@@ -129,7 +130,7 @@ describe('İş 4 kabul — sürükleyerek blok tanımlama', () => {
 
   it('geriye doğru sürükleme de aynı aralığı verir', () => {
     const onBlokTanimla = vi.fn()
-    const { container } = render(
+    const { container } = ciz(
       <GunIzgarasi {...VARSAYILAN} atamalar={[]} gun="2026-02-02" onBlokTanimla={onBlokTanimla} />,
     )
     fireEvent.pointerDown(saatHucresi(15))
@@ -141,7 +142,7 @@ describe('İş 4 kabul — sürükleyerek blok tanımlama', () => {
   it('TEK TIK blok tanımlamaz — yalnızca satırı seçer', () => {
     const onBlokTanimla = vi.fn()
     const onSatirSec = vi.fn()
-    const { container } = render(
+    const { container } = ciz(
       <GunIzgarasi
         {...VARSAYILAN}
         atamalar={[]}
@@ -157,7 +158,7 @@ describe('İş 4 kabul — sürükleyerek blok tanımlama', () => {
   })
 
   it('asgari süreden kısa seçim sürükleme SIRASINDA anlaşılır biçimde engellenir', () => {
-    render(<GunIzgarasi {...VARSAYILAN} atamalar={[]} gun="2026-02-02" />)
+    ciz(<GunIzgarasi {...VARSAYILAN} atamalar={[]} gun="2026-02-02" />)
     fireEvent.pointerDown(saatHucresi(8))
     fireEvent.pointerEnter(saatHucresi(9))
     // İki saatlik seçim asgari dördün altında: önizleme sınırı ve NEDENİNİ
@@ -166,14 +167,14 @@ describe('İş 4 kabul — sürükleyerek blok tanımlama', () => {
   })
 
   it('günlük tavanı aşan seçim de sürükleme sırasında görünür', () => {
-    render(<GunIzgarasi {...VARSAYILAN} atamalar={[]} gun="2026-02-02" />)
+    ciz(<GunIzgarasi {...VARSAYILAN} atamalar={[]} gun="2026-02-02" />)
     fireEvent.pointerDown(saatHucresi(6))
     fireEvent.pointerEnter(saatHucresi(18))
     expect(screen.getByText('Günlük azami 11 saat (H9)')).toBeTruthy()
   })
 
   it('sınırların içindeki seçimde önizleme saat aralığını gösterir', () => {
-    render(<GunIzgarasi {...VARSAYILAN} atamalar={[]} gun="2026-02-02" />)
+    ciz(<GunIzgarasi {...VARSAYILAN} atamalar={[]} gun="2026-02-02" />)
     fireEvent.pointerDown(saatHucresi(8))
     fireEvent.pointerEnter(saatHucresi(15))
     expect(screen.getByText('08.00–16.00')).toBeTruthy()
@@ -181,7 +182,7 @@ describe('İş 4 kabul — sürükleyerek blok tanımlama', () => {
 
   it('düzenlenemeyen sürümde sürükleme hiç başlamaz', () => {
     const onBlokTanimla = vi.fn()
-    const { container } = render(
+    const { container } = ciz(
       <GunIzgarasi
         {...VARSAYILAN}
         atamalar={[]}
@@ -197,7 +198,7 @@ describe('İş 4 kabul — sürükleyerek blok tanımlama', () => {
   })
 
   it('pasif kural sınır koymaz: iki saatlik seçim uyarısız geçer', () => {
-    render(
+    ciz(
       <GunIzgarasi
         {...VARSAYILAN}
         atamalar={[]}
@@ -223,7 +224,7 @@ describe('kapsama açığı — SAAT düzeyinde ve renkten bağımsız işaretli
   ]
 
   it('açık verilen saatlerde sayıyı ve şekil işaretini gösterir', () => {
-    render(<GunIzgarasi {...VARSAYILAN} gun="2026-02-02" kapsamaAcigi={ACIK} />)
+    ciz(<GunIzgarasi {...VARSAYILAN} gun="2026-02-02" kapsamaAcigi={ACIK} />)
     // Aralık iki saat sürüyor: 06 ve 07 işaretlenir, 08 işaretlenmez.
     expect(screen.getAllByText('▲2')).toHaveLength(2)
   })
@@ -238,7 +239,7 @@ describe('İş 1 kabul — sınıra dayanınca sürükleme DURUR', () => {
 
   it('asgari süreden kısa seçim yapılamaz — aralık asgariye ÇEKİLİR', () => {
     const onBlokTanimla = vi.fn()
-    const { container } = render(
+    const { container } = ciz(
       <GunIzgarasi {...VARSAYILAN} atamalar={[]} gun="2026-02-02" onBlokTanimla={onBlokTanimla} />,
     )
     // 08'den 09'a: iki saat, asgari dördün altında.
@@ -251,7 +252,7 @@ describe('İş 1 kabul — sınıra dayanınca sürükleme DURUR', () => {
 
   it('günlük tavanı aşan seçim azamide durur', () => {
     const onBlokTanimla = vi.fn()
-    const { container } = render(
+    const { container } = ciz(
       <GunIzgarasi {...VARSAYILAN} atamalar={[]} gun="2026-02-02" onBlokTanimla={onBlokTanimla} />,
     )
     fireEvent.pointerDown(saatHucresi(6))
@@ -262,7 +263,7 @@ describe('İş 1 kabul — sınıra dayanınca sürükleme DURUR', () => {
   })
 
   it('sınıra dayanıldığı önizlemede yazar', () => {
-    render(<GunIzgarasi {...VARSAYILAN} atamalar={[]} gun="2026-02-02" />)
+    ciz(<GunIzgarasi {...VARSAYILAN} atamalar={[]} gun="2026-02-02" />)
     fireEvent.pointerDown(saatHucresi(8))
     fireEvent.pointerEnter(saatHucresi(9))
     expect(screen.getByText('Asgari blok 4 saat (H1)')).toBeTruthy()
@@ -270,7 +271,7 @@ describe('İş 1 kabul — sınıra dayanınca sürükleme DURUR', () => {
 
   it('pasif kuralda kırpma da yapılmaz', () => {
     const onBlokTanimla = vi.fn()
-    const { container } = render(
+    const { container } = ciz(
       <GunIzgarasi
         {...VARSAYILAN}
         atamalar={[]}
@@ -307,7 +308,7 @@ describe('İş 1 kabul — blok taşıma ve menü', () => {
 
   it('gövdeden tutup BAŞKA personelin satırına taşır', () => {
     const onBlokTasi = vi.fn()
-    const { container } = render(
+    const { container } = ciz(
       <GunIzgarasi
         {...VARSAYILAN}
         personeller={IKI_PERSONEL}
@@ -332,7 +333,7 @@ describe('İş 1 kabul — blok taşıma ve menü', () => {
 
   it('kıpırdamadan bırakmak taşıma DEĞİL menü açar', () => {
     const onBlokTasi = vi.fn()
-    const { container } = render(
+    const { container } = ciz(
       <GunIzgarasi
         {...VARSAYILAN}
         personeller={IKI_PERSONEL}
@@ -349,7 +350,7 @@ describe('İş 1 kabul — blok taşıma ve menü', () => {
 
   it('menüden silme TEK TIKLA yapılır', () => {
     const onBlokSil = vi.fn()
-    const { container } = render(
+    const { container } = ciz(
       <GunIzgarasi {...VARSAYILAN} atamalar={[GUNDUZ]} gun="2026-02-02" onBlokSil={onBlokSil} />,
     )
     fireEvent.pointerDown(serit())
@@ -371,7 +372,7 @@ describe('İş 1 kabul — blok taşıma ve menü', () => {
       onkosul_yetkinlik_id: null,
       aktif: true,
     })
-    const { container } = render(
+    const { container } = ciz(
       <GunIzgarasi
         {...VARSAYILAN}
         atamalar={[GUNDUZ]}
@@ -395,7 +396,7 @@ describe('İş 1 kabul — blok taşıma ve menü', () => {
   })
 
   it('düzenlenemeyen sürümde menü hiç açılmaz', () => {
-    const { container } = render(
+    const { container } = ciz(
       <GunIzgarasi
         {...VARSAYILAN}
         atamalar={[GUNDUZ]}

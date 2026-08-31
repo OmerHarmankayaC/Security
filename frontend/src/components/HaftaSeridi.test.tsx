@@ -1,8 +1,9 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Atama, GorevNoktasi, KapsamaAcigi, Personel } from '@/api/types'
 import { gunlerListesi } from '@/lib/tarih'
 import { HaftaSeridi } from './HaftaSeridi'
+import { ciz } from '@/test/ciz'
 
 afterEach(cleanup)
 
@@ -66,7 +67,7 @@ describe('İş 2 kabul — yedi gün, otuz personel akıcı açılıyor', () => 
       GUNLER.map((g, j) => blok(p.personel_id * 100 + j, p.personel_id, g, 6 + (i % 12), 8)),
     )
 
-    const { container } = render(
+    const { container } = ciz(
       <HaftaSeridi {...VARSAYILAN} personeller={personeller} atamalar={atamalar} />,
     )
 
@@ -86,7 +87,7 @@ describe('İş 2 kabul — yedi gün, otuz personel akıcı açılıyor', () => 
 
   it('bir gün hücresine tıklandığında o günün ızgarasına geçilir', () => {
     const onGunSec = vi.fn()
-    render(
+    ciz(
       <HaftaSeridi
         {...VARSAYILAN}
         personeller={[personel(1)]}
@@ -100,7 +101,7 @@ describe('İş 2 kabul — yedi gün, otuz personel akıcı açılıyor', () => 
 
   it('gün başlığından da ızgaraya geçilir', () => {
     const onGunSec = vi.fn()
-    render(
+    ciz(
       <HaftaSeridi {...VARSAYILAN} personeller={[personel(1)]} atamalar={[]} onGunSec={onGunSec} />,
     )
     fireEvent.click(screen.getByTitle('4 Şubat 2026 — gün ızgarasına geç'))
@@ -110,7 +111,7 @@ describe('İş 2 kabul — yedi gün, otuz personel akıcı açılıyor', () => 
 
 describe('gece yarısını aşan blok şeritte de tek bloktur', () => {
   it('iki günün hücresinde de aynı aralığı yazar ve nereden geldiğini söyler', () => {
-    render(
+    ciz(
       <HaftaSeridi
         {...VARSAYILAN}
         personeller={[personel(1)]}
@@ -126,7 +127,7 @@ describe('gece yarısını aşan blok şeritte de tek bloktur', () => {
 
 describe('kapsama açığı gün başlığında toplanır', () => {
   it('açık veren günün başlığında sayı ve şekil işareti bulunur', () => {
-    render(
+    ciz(
       <HaftaSeridi
         {...VARSAYILAN}
         personeller={[personel(1)]}
@@ -148,7 +149,7 @@ describe('kapsama açığı gün başlığında toplanır', () => {
 
 describe('satır toplamı', () => {
   it('dönem toplamı blokların süresidir — hücrelerin değil', () => {
-    render(
+    ciz(
       <HaftaSeridi
         {...VARSAYILAN}
         personeller={[personel(1)]}
@@ -162,7 +163,7 @@ describe('satır toplamı', () => {
 
 describe('İş 6 — hücre OKUNUR: saat aralığı metni + konum çubuğu', () => {
   it('saat aralığını ve nokta kısaltmasını METİN olarak yazar', () => {
-    render(
+    ciz(
       <HaftaSeridi
         {...VARSAYILAN}
         personeller={[personel(1)]}
@@ -175,7 +176,7 @@ describe('İş 6 — hücre OKUNUR: saat aralığı metni + konum çubuğu', () 
   })
 
   it('çubuk bloğun günün neresinde durduğunu gösterir', () => {
-    const { container } = render(
+    const { container } = ciz(
       <HaftaSeridi
         {...VARSAYILAN}
         personeller={[personel(1)]}
@@ -189,7 +190,7 @@ describe('İş 6 — hücre OKUNUR: saat aralığı metni + konum çubuğu', () 
   })
 
   it('gece yarısını aşan blokta iki günün çubukları kenarlara dayanır', () => {
-    const { container } = render(
+    const { container } = ciz(
       <HaftaSeridi
         {...VARSAYILAN}
         personeller={[personel(1)]}
@@ -205,7 +206,7 @@ describe('İş 6 — hücre OKUNUR: saat aralığı metni + konum çubuğu', () 
   })
 
   it('önceki günden gelen parçanın metni ‹ ile işaretlenir', () => {
-    render(
+    ciz(
       <HaftaSeridi
         {...VARSAYILAN}
         personeller={[personel(1)]}
@@ -219,7 +220,7 @@ describe('İş 6 — hücre OKUNUR: saat aralığı metni + konum çubuğu', () 
   })
 
   it('boş günde tire yazar ve çubuk çizmez', () => {
-    const { container } = render(
+    const { container } = ciz(
       <HaftaSeridi {...VARSAYILAN} personeller={[personel(1)]} atamalar={[]} />,
     )
     expect(screen.getAllByText('–')).toHaveLength(7)
