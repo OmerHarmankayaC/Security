@@ -3289,3 +3289,41 @@ D+1'in yerinde**. Çalışan paneli "bu dönem için henüz yayınlanmış bir �
 yok" diyor, çünkü içinde bulunulan hafta artık taslak olan dönem. Kusur değil,
 göreli tarihlerin beklenen davranışı; gecelik yeniden üretim takvimi her gece
 bugüne yeniden çapalıyor (Demo Senaryosu 2.3, 10).
+
+### Gösterim ortamı salt okunur oldu
+
+Paylaşılan bir ortamda herkesin aynı çizelgeyi değiştirebilmesi, öğlene
+kalmadan bozulan bir gösterim demekti; "her gece sıfırlanır" sözü gün içinde
+bakan kimseyi kurtarmıyor.
+
+**Arayüz kısıtlanmadı, sunucu reddediyor.** Ziyaretçi hücreye tıklıyor, bloğu
+taşıyor, doğrulamanın ne dediğini görüyor — yalnızca kaydetme adımı gerekçeli
+bir mesajla geri dönüyor. Düzenleme araçlarını gizlemek ürünün yaptığı işi
+gösterememek olurdu; gösterim ortamının bütün amacı o.
+
+Kapı **ara katmanda**, uç nokta bağımlılığı değil: yarın eklenen bir yazma ucu
+onu unutamaz, varsayılan reddetmektir. Dört POST açık kalıyor çünkü hiçbir şey
+yazmıyorlar — giriş, çıkış, ön kontrol ve elle düzenlemenin canlı doğrulaması.
+Son ikisi kapatılsaydı düzenleme yolu **görünür ama denenemez** kalırdı.
+
+Test, elle yazılmış bir liste yerine **uygulamanın kendi yol tablosunu**
+geziyor (43 parametre); yarın eklenen bir yazma ucu ilk günden kapsanır.
+Listenin boş dönüp testin sessizce geçmesine karşı ayrıca bir alt sınır
+kontrolü var.
+
+Ölçüldü: on yazma ucu 403, `on-kontrol` ve `atama/dogrula` gerçek kimliklerle
+200, `GET /api/personel` 200, çıkış 204. Ön yüz 403'ü oturum düşmesi saymıyor
+(yalnız 401 öyle işleniyor), mesaj olduğu gibi ekrana çıkıyor.
+
+### Yan menü rolüne göre taşıyordu
+
+Hesap yöneticisinde fazladan bir "YÖNETİM" grubu var ve tek parça bir sütunda
+oturum bloğu ekranın altından taşıyordu. Gezinme artık kendi içinde kayıyor,
+oturum bloğu altta sabit. Ölçüldü (hesap yöneticisi rolü): 700px'te menü
+kayıyor ama oturum bloğu görünür, 900px'te ikisi de sığıyor.
+
+### DOKÜMAN BORCU — ek
+
+5. **SRS 5.x / SDD 3.x** — gösterim kipinde yazma yasağı bir gereksinimdir:
+   arayüz kısıtlanmaz, sunucu reddeder; dört okuma-POST'u açık kalır. Hangi
+   uçların açık olduğu ve neden açık olduğu tasarım kararıdır.
