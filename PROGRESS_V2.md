@@ -3594,3 +3594,48 @@ türetilen parolalar zaten giriş ekranında yazıyor.
    taahhüdüdür ve hiçbir kanonik dokümanda yazmıyor.
 10. **DEMO_SENARYOSU §9** — ölçüt 9.6 sunucuda `.yasakli-metinler` yoksa
     "ölçülemedi" döner; doküman bunu bir kurulum önkoşulu olarak yazmıyor.
+
+### GECELİK SIFIRLAMA KURULDUĞUNDAN BERİ HİÇ KOŞMAMIŞ
+
+Sunucu günlüğü, kurulumdan sonraki her gece aynı satırı yazıyor:
+
+```
+systemctl[303817]: Failed to stop vardiya-cozucu.service: Access denied ...
+                   requires interactive authentication
+vardis-demo-sifirlama.service: Failed with result 'exit-code'
+```
+
+Birim `User=vardiya` ile koşuyor; o kullanıcının başka bir servisi durdurma
+yetkisi yok. `ExecStartPre` düşünce birim `demo_veri_uret.py`ye **hiç
+ulaşmıyor** — veri hiç yenilenmedi, dönemler bugüne çapalanmadı.
+
+**Dışarıdan bakınca sağlam görünüyordu:** `systemctl is-enabled` → `enabled`,
+`list-timers` sonraki koşumu gösteriyor, servisler `active`. Timer'ın etkin
+olması servisin *başarılı* olduğu anlamına gelmiyor ve kontrol listesinde
+yalnızca timer'ı sormak tam bu yüzden yetersiz. Sessiz başarısızlığın ders
+kitabı örneği.
+
+Düzeltme: `ExecStartPre` ve `ExecStopPost` satırlarına **`+` öneki**. `+`
+yalnızca o satırı tam yetkiyle koşturur; `ExecStart` hâlâ `vardiya`
+kullanıcısındadır — yani üretim ayrıcalık kazanmıyor, yalnızca servis
+durdurma kazanıyor.
+
+`deploy/yayin_kontrolu.sh`'a bu yüzden **son koşumun sonucunu** soran bir
+satır da eklenmeli; "timer etkin" tek başına yanıltıcıydı.
+
+### Sunucudaki durum (ölçüldü)
+
+| | |
+|---|---|
+| `.env` | `DEMO_PAROLA` var, **`DEMO_PAROLA_TOHUMU` yok** |
+| `.yasakli-metinler` | `/opt/vardiya/` altında, 6 desen — 9.6 ölçülebilir |
+| sıfırlama timer | etkin, sonraki 01.09.2026 03:00 UTC; **son sonuç: exit-code** |
+| Caddy | tek paylaşılan Caddyfile, dört site; vardiya bloğunda `X-Robots-Tag` yok |
+| web kökü | `/opt/vardiya/web`, `robots.txt` yok |
+| API portu | 127.0.0.1:**8002** |
+| dağıtım biçimi | sunucuda git yok; **yerelden `rsync`** |
+
+**`DEMO_PAROLA` .env'de kalırsa yeni API hiç açılmaz:** `Ayarlar`
+`extra='forbid'` taşıyor ve alan artık tanımlı değil; import anında
+`extra_forbidden` ile düşer. `.env` düzeltmesi yeniden başlatmadan ÖNCE
+yapılmalıdır.

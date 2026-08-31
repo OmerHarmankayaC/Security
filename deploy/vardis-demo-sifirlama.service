@@ -38,12 +38,20 @@ Environment=VERI_TEMIZLIGINE_IZIN=1
 # COZUM ISCISI DURDURULUR. Uretec cizelgeleri KENDI SURECINDE cozer; isci
 # ayakta kalirsa ayni kuyrugu iki surec yoklar ve temizlik, iscinin yarim
 # yazdigi bir surumun ustune duser.
-ExecStartPre=/usr/bin/systemctl stop vardiya-cozucu.service
+#
+# BASTAKI `+` SART. Birim `User=vardiya` ile kosuyor ve o kullanicinin baska
+# bir servisi durdurma yetkisi YOK; `+` olmadan systemd bu satiri "Access
+# denied ... requires interactive authentication" ile dusuruyor ve birim
+# `demo_veri_uret.py`ye HIC ULASMIYOR. Kurulumdan sonraki her gece boyle
+# dustu: timer tetikliyor, servis basarisiz oluyor, veri hic yenilenmiyordu
+# ve disaridan bakinca "timer etkin" gorunuyordu. `+` yalnizca O SATIRI tam
+# yetkiyle kosturur; ExecStart hala `vardiya` kullanicisindadir.
+ExecStartPre=+/usr/bin/systemctl stop vardiya-cozucu.service
 ExecStart=/opt/vardiya/backend/.venv/bin/python scripts/demo_veri_uret.py --reset
 # Uretimden sonra olcut raporu gunluge yazilir: sessizce bozulan bir
 # gosterim ortami, bozuk oldugu fark edilene kadar bozuk kalirdi.
 ExecStartPost=/opt/vardiya/backend/.venv/bin/python scripts/demo_kabul_olcutleri.py
-ExecStopPost=/usr/bin/systemctl start vardiya-cozucu.service
+ExecStopPost=+/usr/bin/systemctl start vardiya-cozucu.service
 
 # On bes donemin cozumu referans donanimda yaklasik bir saat surer; ust
 # sinir bunun belirgin ustunde tutulur, aksi halde systemd uretimi
