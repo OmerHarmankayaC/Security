@@ -19,17 +19,23 @@ import {
 } from '@/lib/tarih'
 import { buyukHarf } from '@/lib/metin'
 import { cn } from '@/lib/utils'
+import { useDil } from '@/i18n/DilBaglami'
+import { hataMetni } from '@/i18n/hata'
+import type { Metinler } from '@/i18n/sozluk'
 
-const DURUM_ROZET: Record<string, { varyant: 'notr' | 'kilitli' | 'eksik'; etiket: string }> = {
-  beklemede: { varyant: 'notr', etiket: 'Beklemede' },
-  onaylandi: { varyant: 'kilitli', etiket: 'Onaylandı' },
-  reddedildi: { varyant: 'eksik', etiket: 'Reddedildi' },
+// Rozet VARYANTI burada, ETİKETİ sözlükte: varyant bir görsel karar ve
+// dile bağlı değil, etiket ise çevrilir. İkisini bir arada tutmak, sözlüğe
+// renk sınıfı taşımak ya da bileşene metin taşımak demekti.
+const DURUM_VARYANTI: Record<string, 'notr' | 'kilitli' | 'eksik'> = {
+  beklemede: 'notr',
+  onaylandi: 'kilitli',
+  reddedildi: 'eksik',
 }
 
-const KARSILANMA_METNI: Record<KarsilanmaDurumu, { renk: string; etiket: string }> = {
-  karsilandi: { renk: 'bg-accent', etiket: 'Karşılandı' },
-  karsilanmadi: { renk: 'bg-signal', etiket: 'Karşılanmadı' },
-  henuz_belirsiz: { renk: 'bg-ink-muted', etiket: 'Henüz Belirsiz' },
+const KARSILANMA_RENGI: Record<KarsilanmaDurumu, string> = {
+  karsilandi: 'bg-accent',
+  karsilanmadi: 'bg-signal',
+  henuz_belirsiz: 'bg-ink-muted',
 }
 
 // Bulgu 5: alan sınırının (`min`) VE varsayılan değerin AYNI alt sınırdan
@@ -46,15 +52,17 @@ function tercihAciklamasi(
   tip: TercihTipi,
   baslangic: string | null,
   bitis: string | null,
+  m: Metinler,
 ): string {
-  if (tip === 'calismama') return 'Çalışmak istemiyorum'
+  if (tip === 'calismama') return m.calisan.calismakIstemiyorum
   // Tercih artık bir vardiya TİPİ değil bir ZAMAN ARALIĞI (SRS FR-3.2).
   return baslangic && bitis
-    ? `${araligiYaz(baslangic, bitis)} arası çalışmak istiyorum`
-    : 'Belirli saatlerde çalışmak istiyorum'
+    ? m.calisan.araliktaCalismak(araligiYaz(baslangic, bitis))
+    : m.calisan.belirliSaatlerde
 }
 
 export function TercihlerimEkrani() {
+  const { dil, metin: m } = useDil()
   const [liste, setListe] = useState<CalisanTercihListesi | null>(null)
   const [hata, setHata] = useState<string | null>(null)
   const [bilgi, setBilgi] = useState<string | null>(null)
@@ -80,7 +88,7 @@ export function TercihlerimEkrani() {
         // bildirir.
         setTarih((mevcut) => mevcut || enErkenTarih(t.acik_donem, bugunIso()))
       })
-      .catch((e) => setHata(e instanceof Error ? e.message : 'Tercihler yüklenemedi'))
+      .catch((e) => setHata(hataMetni(e, m)))
   }
 
   useEffect(yukle, [])
@@ -99,16 +107,16 @@ export function TercihlerimEkrani() {
         calisan_notu: not.trim() || null,
       })
       setNot('')
-      setBilgi('Tercihin alındı.')
+      setBilgi(m.calisan.tercihAlindi)
       yukle()
     } catch (e) {
       setBilgi(null)
       setHata(
         e instanceof ApiHatasi && e.status === 409
-          ? 'Bu gün için kararlanmış bir tercihin var; değiştirmek için yöneticine başvur.'
+          ? m.calisan.tercihKararlanmis
           : e instanceof Error
             ? e.message
-            : 'Tercih gönderilemedi',
+            : m.calisan.tercihGonderilemedi,
       )
     } finally {
       setGonderiliyor(false)
@@ -128,43 +136,48 @@ export function TercihlerimEkrani() {
 
   const bildirdiklerimKarti = (
     <Kart>
-      <KartEtiketi>Bildirdiğim Tercihler · {liste.tercihler.length}</KartEtiketi>
+      <KartEtiketi>{m.calisan.bildirdigimTercihler(liste.tercihler.length)}</KartEtiketi>
       {liste.tercihler.length === 0 ? (
-        <p className="m-0 text-sm text-ink-muted">Henüz tercih bildirmedin.</p>
+        <p className="m-0 text-sm text-ink-muted">{m.calisan.tercihYok}</p>
       ) : (
         <ul className="m-0 flex list-none flex-col p-0">
           {liste.tercihler.map((t) => {
-            const durum = DURUM_ROZET[t.durum]
+            const varyant = DURUM_VARYANTI[t.durum]
+            const durumEtiketi =
+              m.calisan.tercihDurumu[t.durum as keyof typeof m.calisan.tercihDurumu]
             // TD-12: karşılanma yalnızca onaylanmış tercihler için türetilir;
             // aksi hâlde null gelir ve satır hiç gösterilmez ("REDDEDİLDİ +
             // KARŞILANMADI" yan yana yazmak yanıltıcı olurdu).
-            const karsilanma = t.karsilanma ? KARSILANMA_METNI[t.karsilanma] : null
+            const karsilanmaRengi = t.karsilanma ? KARSILANMA_RENGI[t.karsilanma] : null
+            const karsilanmaEtiketi = t.karsilanma
+              ? m.calisan.tercihDurumu[t.karsilanma]
+              : null
             return (
               <li key={t.tercih_id} className="flex flex-col gap-1 border-t border-rule py-3 first:border-none">
                 <div className="flex items-center gap-3">
                   <span className="w-20 shrink-0 text-sm font-semibold text-ink">
                     {gunKisaltmasiVeNumarasi(t.tarih)}
                   </span>
-                  <span className="flex-1 text-sm text-ink">{tercihAciklamasi(t.tip, t.tercih_baslangic, t.tercih_bitis)}</span>
-                  {durum && (
-                    <Rozet varyant={durum.varyant} genislik={104}>
-                      {durum.etiket}
+                  <span className="flex-1 text-sm text-ink">{tercihAciklamasi(t.tip, t.tercih_baslangic, t.tercih_bitis, m)}</span>
+                  {varyant && (
+                    <Rozet varyant={varyant} genislik={104}>
+                      {durumEtiketi}
                     </Rozet>
                   )}
                 </div>
-                {karsilanma && (
+                {karsilanmaRengi && karsilanmaEtiketi && (
                   <div className="ml-[92px] flex items-center gap-1.5 text-xs">
-                    <span className={cn('size-1.5 rounded-full', karsilanma.renk)} />
+                    <span className={cn('size-1.5 rounded-full', karsilanmaRengi)} />
                     <span className="etiket-caps text-ink-muted">
-                      {buyukHarf(karsilanma.etiket)}
+                      {buyukHarf(karsilanmaEtiketi, dil)}
                     </span>
                     {t.karsilanma === 'henuz_belirsiz' && (
-                      <span className="text-ink-muted">· çizelge henüz yayınlanmadı</span>
+                      <span className="text-ink-muted">{m.calisan.cizelgeYayinlanmadi}</span>
                     )}
                   </div>
                 )}
                 {t.durum === 'reddedildi' && t.ret_gerekcesi && (
-                  <p className="ml-[92px] m-0 text-xs text-ink-muted">Gerekçe: {t.ret_gerekcesi}</p>
+                  <p className="ml-[92px] m-0 text-xs text-ink-muted">{m.calisan.gerekce(t.ret_gerekcesi)}</p>
                 )}
               </li>
             )
@@ -179,7 +192,7 @@ export function TercihlerimEkrani() {
       <>
         <Kart>
           <p className="m-0 text-sm text-ink-muted">
-            Şu anda tercihe açık bir dönem yok. Yeni dönem açıldığında buradan bildirebilirsin.
+            {m.calisan.acikDonemYok}
           </p>
         </Kart>
         {bildirdiklerimKarti}
@@ -195,8 +208,7 @@ export function TercihlerimEkrani() {
       {kalanGun !== null && kalanGun >= 0 && (
         <div className="rounded-sm border-l-2 border-accent bg-accent-soft px-4 py-3">
           <p className="m-0 text-sm font-semibold text-accent">
-            Tercih bildirimi {gunKisaltmasiVeNumarasi(acik.tercih_son_tarihi)} tarihinde
-            kapanıyor
+            {m.calisan.tercihKapaniyor(gunKisaltmasiVeNumarasi(acik.tercih_son_tarihi))}
           </p>
           {/* DÖNEM ADIYLA SÖYLENİR. "Bir sonraki dönem" sabit bir ifadeydi
               ve yanlıştı: tercihe açık dönem, içinde bulunulan dönem de
@@ -204,19 +216,21 @@ export function TercihlerimEkrani() {
               öyle). Konuma dayalı bir ifade yerine aralığın kendisi
               yazılınca belirsizlik kalmıyor. */}
           <p className="m-0 mt-0.5 text-sm text-ink-muted">
-            {donemAraligiBicimle(acik.baslangic_tarihi, acik.bitis_tarihi)} dönemi için{' '}
-            {kalanGun} günün var.
+            {m.calisan.kalanGun(
+              donemAraligiBicimle(acik.baslangic_tarihi, acik.bitis_tarihi),
+              kalanGun,
+            )}
           </p>
         </div>
       )}
 
       <Kart>
-        <KartEtiketi>Yeni Tercih Bildir</KartEtiketi>
+        <KartEtiketi>{m.calisan.yeniTercihBildir}</KartEtiketi>
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-end gap-6">
             <div className="flex flex-col gap-1">
               <label className="etiket-caps text-ink-muted">
-                {buyukHarf('Tercih Tipi')}
+                {buyukHarf(m.calisan.tercihTipi, dil)}
               </label>
               <div className="flex gap-2">
                 <button
@@ -227,7 +241,7 @@ export function TercihlerimEkrani() {
                     tip === 'calismama' ? 'border-accent bg-accent-soft font-medium text-accent' : 'text-ink-muted',
                   )}
                 >
-                  Çalışmak istemiyorum
+                  {m.calisan.calismakIstemiyorum}
                 </button>
                 <button
                   type="button"
@@ -239,7 +253,7 @@ export function TercihlerimEkrani() {
                       : 'text-ink-muted',
                   )}
                 >
-                  Şu saatlerde çalışmak istiyorum
+                  {m.calisan.suSaatlerdeCalismak}
                 </button>
               </div>
             </div>
@@ -247,7 +261,7 @@ export function TercihlerimEkrani() {
               <>
                 <div className="flex flex-col gap-1">
                   <label htmlFor="tercih-baslangic" className="etiket-caps text-ink-muted">
-                    {buyukHarf('Başlangıç')}
+                    {buyukHarf(m.calisan.baslangic, dil)}
                   </label>
                   <select
                     id="tercih-baslangic"
@@ -264,7 +278,7 @@ export function TercihlerimEkrani() {
                 </div>
                 <div className="flex flex-col gap-1">
                   <label htmlFor="tercih-bitis" className="etiket-caps text-ink-muted">
-                    {buyukHarf('Bitiş')}
+                    {buyukHarf(m.calisan.bitis, dil)}
                   </label>
                   <select
                     id="tercih-bitis"
@@ -283,13 +297,13 @@ export function TercihlerimEkrani() {
                     aralik_sure_saat); bunu yazmazsak 08→08 seçen kullanıcı 24
                     saat bildirdiğini bilmez. */}
                 <span className="text-sm text-ink-muted">
-                  {aralikSuresi === 24 ? 'tüm gün (24 saat)' : `${aralikSuresi} saat`}
+                  {aralikSuresi === 24 ? m.calisan.tumGun : m.calisan.saatSuresi(aralikSuresi)}
                 </span>
               </>
             )}
             <div className="flex flex-col gap-1">
               <label htmlFor="tercih-gun" className="etiket-caps text-ink-muted">
-                {buyukHarf('Gün')}
+                {buyukHarf(m.calisan.gun, dil)}
               </label>
               <Input
                 type="date"
@@ -305,7 +319,7 @@ export function TercihlerimEkrani() {
 
           <div className="flex flex-col gap-1">
             <label htmlFor="tercih-not" className="etiket-caps text-ink-muted">
-              {buyukHarf('Gerekçe (isteğe bağlı)')}
+              {buyukHarf(m.calisan.gerekceIsteğeBagli, dil)}
             </label>
             <textarea
               id="tercih-not"
@@ -322,7 +336,7 @@ export function TercihlerimEkrani() {
               disabled={gonderiliyor || !tarih}
               onClick={gonder}
             >
-              Tercihi Gönder
+              {m.calisan.tercihiGonder}
             </Buton>
           </div>
         </div>

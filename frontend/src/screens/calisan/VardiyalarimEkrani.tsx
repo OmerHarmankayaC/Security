@@ -15,6 +15,7 @@ import {
 import { aralikGradyani } from '@/lib/saatRengi'
 import { baslangicSaati, blokEtiketi, blokSuresi } from '@/lib/blok'
 import { cn } from '@/lib/utils'
+import { useDil, useMetin } from '@/i18n/DilBaglami'
 
 interface Props {
   veri: Vardiyalarim
@@ -40,7 +41,6 @@ function bantZemini(baslangicZamani: string, bitisZamani: string): string {
 
 // Takvim ızgarası pazartesi ile başlar (TD-3'teki hafta sonu tanımı cumartesi/
 // pazar olduğundan hafta sonu ızgaranın sağ ucunda bitişik durur).
-const HAFTA_GUNLERI = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz']
 
 // JS getDay() pazar=0 verir; pazartesi=0 eksenine çeviriyoruz.
 function pazartesiEksenliGun(iso: string): number {
@@ -53,6 +53,7 @@ function sondakiBosHucreSayisi(gunler: string[]): number {
 }
 
 export function VardiyalarimEkrani({ veri }: Props) {
+  const { dil, metin: m } = useDil()
   const bugun = bugunIso()
   const vardiyaMap = useMemo(
     () => new Map(veri.vardiyalar.map((v) => [v.tarih, v])),
@@ -89,7 +90,7 @@ export function VardiyalarimEkrani({ veri }: Props) {
   if (veri.donem_id === null) {
     return (
       <Kart>
-        <p className="m-0 text-sm text-ink-muted">Aktif bir planlama dönemi yok.</p>
+        <p className="m-0 text-sm text-ink-muted">{m.calisan.donemYok}</p>
       </Kart>
     )
   }
@@ -98,7 +99,7 @@ export function VardiyalarimEkrani({ veri }: Props) {
     return (
       <Kart>
         <p className="m-0 text-sm text-ink-muted">
-          Bu dönem için henüz yayınlanmış bir çizelge yok.
+          {m.calisan.cizelgeYok}
         </p>
       </Kart>
     )
@@ -112,7 +113,7 @@ export function VardiyalarimEkrani({ veri }: Props) {
     <>
       {veri.siradaki && (
         <Kart>
-          <p className="mb-4 etiket-caps text-ink-muted">{buyukHarf('Sıradaki Vardiyan')}</p>
+          <p className="mb-4 etiket-caps text-ink-muted">{buyukHarf(m.calisan.siradakiVardiyan, dil)}</p>
           <p className="m-0 text-baslik-bolum font-semibold text-ink">
             {gunEtiketi(veri.siradaki.tarih, bugun)} · {tarihUzunBicim(veri.siradaki.tarih)}
           </p>
@@ -134,7 +135,7 @@ export function VardiyalarimEkrani({ veri }: Props) {
               aria-hidden="true"
             />
             {veri.siradaki.gece_saati > 0 && (
-              <BeyazEtiket genislik={104}>{`${sayiBicimle(veri.siradaki.gece_saati, 0)} sa gece`}</BeyazEtiket>
+              <BeyazEtiket genislik={104}>{m.calisan.geceSaati2(sayiBicimle(veri.siradaki.gece_saati, 0))}</BeyazEtiket>
             )}
             <BeyazEtiket genislik={110}>{veri.siradaki.nokta_ad}</BeyazEtiket>
           </div>
@@ -142,17 +143,17 @@ export function VardiyalarimEkrani({ veri }: Props) {
       )}
 
       <Kart>
-        <KartEtiketi>Dönem Görünümü · {gunler.length} Gün</KartEtiketi>
+        <KartEtiketi>{m.calisan.donemGorunumu(gunler.length)}</KartEtiketi>
         <div className="grid grid-cols-7 gap-px overflow-hidden rounded-sm border border-rule bg-rule">
           {/* Başlıklar SABİT yedi sütundur, dönem uzunluğundan bağımsız —
               günler bu yedi sütuna sarmalanır (SDD 6.1: bir haftalık dönemde
               tek satır, dört haftalıkta dört satır). */}
-          {HAFTA_GUNLERI.map((ad) => (
+          {m.calisan.haftaGunleri.map((ad) => (
             <div
               key={`baslik-${ad}`}
               className="bg-sunken py-1.5 text-center etiket-caps text-ink-muted"
             >
-              {buyukHarf(ad)}
+              {buyukHarf(ad, dil)}
             </div>
           ))}
           {/* Dönem haftanın ortasında başlıyorsa ilk satır doğru sütundan
@@ -168,11 +169,11 @@ export function VardiyalarimEkrani({ veri }: Props) {
             // olduğu liste görünümündeki rozetten okunur. Kaldırılan günde
             // hücre BOŞ kalır (artık vardiya yok) ve yalnızca işaret düşer.
             const degisimBasligi = kaldirilan
-              ? 'Bu günkü vardiyan kaldırıldı'
+              ? m.calisan.gunKaldirildi
               : v?.degisim_tipi === 'eklendi'
-                ? 'Bu güne yeni vardiya eklendi'
+                ? m.calisan.gunEklendi
                 : v?.degisim_tipi === 'degisti'
-                  ? 'Bu günkü vardiyan değişti'
+                  ? m.calisan.gunDegisti
                   : undefined
             return (
               <div
@@ -226,19 +227,19 @@ export function VardiyalarimEkrani({ veri }: Props) {
               aria-hidden="true"
             />
             <span className="font-mono">24</span>
-            <span>saat bandı</span>
+            <span>{m.calisan.saatBandi}</span>
           </span>
           <span className="flex items-center gap-1.5">
             <span className="h-[3px] w-6 bg-accent" />
-            Değişen gün
+            {m.calisan.degisenGun}
           </span>
         </div>
       </Kart>
 
       <Kart>
-        <KartEtiketi>Vardiya Listesi · {veri.vardiyalar.length} Vardiya</KartEtiketi>
+        <KartEtiketi>{m.calisan.vardiyaListesi(veri.vardiyalar.length)}</KartEtiketi>
         {listeSatirlari.length === 0 ? (
-          <p className="m-0 text-sm text-ink-muted">Bu dönemde vardiyan yok.</p>
+          <p className="m-0 text-sm text-ink-muted">{m.calisan.vardiyanYok}</p>
         ) : (
           <ul className="m-0 flex list-none flex-col p-0">
             {listeSatirlari.map((satir) =>
@@ -256,7 +257,7 @@ export function VardiyalarimEkrani({ veri }: Props) {
                     satir.v.degisim_tipi
                       ? satir.v.degisim_tipi === 'eklendi'
                         ? 'Eklendi'
-                        : 'Değişti'
+                        : m.calisan.degisti
                       : null
                   }
                 />
@@ -281,7 +282,7 @@ export function VardiyalarimEkrani({ veri }: Props) {
                   geceSaati={null}
                   noktaAd={satir.k.onceki_nokta_ad}
                   isaretli
-                  rozet="Kaldırıldı"
+                  rozet={m.calisan.kaldirildi}
                   kaldirildi
                 />
               ),
@@ -292,9 +293,9 @@ export function VardiyalarimEkrani({ veri }: Props) {
 
       {veri.yayin_zamani && (
         <p className="m-0 rounded-sm bg-sunken px-4 py-3 text-sm text-ink-muted">
-          Bu çizelge {zamanBicimle(veri.yayin_zamani)} tarihinde yayınlandı.
+          {m.calisan.yayinBilgisi(zamanBicimle(veri.yayin_zamani))}
           {degisenGunSayisi > 0
-            ? ` ${degisenGunSayisi} günün bir önceki sürüme göre değişti.`
+            ? m.calisan.degisenGunSayisi(degisenGunSayisi)
             : ''}
         </p>
       )}
@@ -328,6 +329,7 @@ function ListeSatiri({
   rozet: string | null
   kaldirildi?: boolean
 }) {
+  const m = useMetin()
   const soluk = kaldirildi ? 'text-ink-muted' : 'text-ink'
   return (
     <li
@@ -368,7 +370,7 @@ function ListeSatiri({
           />
           {geceSaati !== null && geceSaati > 0 && (
             <span className="etiket-caps whitespace-nowrap text-ink-muted">
-              {sayiBicimle(geceSaati, 0)} SA GECE
+              {m.calisan.geceSaati2(sayiBicimle(geceSaati, 0))}
             </span>
           )}
         </span>
@@ -392,12 +394,13 @@ function ListeSatiri({
 // sağlar — Rozet bileşeninin varyantları buradaki değişken zemine göre
 // otomatik kontrast vermez.
 function BeyazEtiket({ children, genislik }: { children: string; genislik: number }) {
+  const { dil } = useDil()
   return (
     <span
       className="flex items-center justify-center rounded-sm bg-surface px-2.5 py-1 etiket-caps text-ink"
       style={{ width: genislik }}
     >
-      {buyukHarf(children)}
+      {buyukHarf(children, dil)}
     </span>
   )
 }

@@ -25,6 +25,9 @@ let _bekleyenler: Array<{ resolve: (v: DonemOzeti | null) => void; reject: (e: u
 const calisanOzetim = vi.fn()
 
 vi.mock('@/api/client', () => ({
+  // `ApiHatasi` DA verilmeli: `hataMetni` sunucu kodunu okumak için ona
+  // bakıyor ve taklit onu atlarsa `instanceof` yükselir.
+  ApiHatasi: class ApiHatasi extends Error {},
   api: {
     calisanOzetim: (...a: unknown[]) => {
       calisanOzetim(...a)

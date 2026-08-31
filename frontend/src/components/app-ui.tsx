@@ -6,6 +6,13 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { buyukHarf } from '@/lib/metin'
+// ETKIN DILLE buyutulur, `buyukHarf`in Turkce varsayilaniyla DEGIL.
+// Bu uc bilesenin cocuklari her zaman arayuzun kendi etiketidir (kart
+// basligi, rozet metni, sayi altligi) ve Turkce yereliyle buyutulunce
+// Ingilizce metin bozuluyordu: "Period view" -> "PERİOD VİEW", "Fri" ->
+// "FRİ". Veriyi buyuten cagrilar (gorev noktasi adi, izgara kisaltmasi)
+// varsayilanda kalir.
+import { useDil } from '@/i18n/DilBaglami'
 import { cn } from '@/lib/utils'
 
 // JSX metin + ifade karisimi (orn. `sonuç özeti — {durum}`) React'e AYRI
@@ -59,6 +66,7 @@ export function KartEtiketi({
   children,
   renk,
 }: PropsWithChildren<{ renk?: 'accent' | 'warn' }>) {
+  const { dil } = useDil()
   return (
     <p
       className={cn(
@@ -67,7 +75,7 @@ export function KartEtiketi({
         renk === 'warn' && 'text-signal',
       )}
     >
-      {buyukHarf(duzMetneCevir(children))}
+      {buyukHarf(duzMetneCevir(children), dil)}
     </p>
   )
 }
@@ -96,13 +104,14 @@ export function Rozet({
   varyant,
   genislik = 112,
 }: PropsWithChildren<{ varyant: RozetVaryanti; genislik?: number }>) {
+  const { dil } = useDil()
   return (
     <Badge
       variant="secondary"
       className={cn('etiket-caps h-5.5 justify-center rounded-sm', ROZET_VARYANT_SINIFI[varyant])}
       style={{ width: genislik }}
     >
-      {buyukHarf(duzMetneCevir(children))}
+      {buyukHarf(duzMetneCevir(children), dil)}
     </Badge>
   )
 }
@@ -117,10 +126,11 @@ export function Sayi({ children, className }: PropsWithChildren<{ className?: st
 
 // `sayı/büyük` — Azeret Mono SemiBold 26px.
 export function BuyukRakam({ deger, etiket }: { deger: string; etiket: string }) {
+  const { dil } = useDil()
   return (
     <div>
       <p className="m-0 font-mono text-sayi-buyuk font-semibold text-ink">{deger}</p>
-      <p className="etiket-caps mt-1 text-ink-muted">{buyukHarf(etiket)}</p>
+      <p className="etiket-caps mt-1 text-ink-muted">{buyukHarf(etiket, dil)}</p>
     </div>
   )
 }

@@ -17,9 +17,16 @@ import { ApiHatasi } from '@/api/client'
 import type { HataKodu, Metinler } from './sozluk'
 
 export function hataMetni(hata: unknown, metin: Metinler): string {
-  if (hata instanceof ApiHatasi) {
-    const detay = typeof hata.detay === 'string' ? hata.detay : ''
-    const kod = hata.kod
+  // `ApiHatasi` sınıf olarak ELDE OLMAYABİLİR: modülü taklit eden bir test
+  // onu dışa vurmazsa `instanceof` bir TypeError yükseltir ve o hata TAM DA
+  // hata işleyicisinin içinde patlar, yani özgün hatayı gizler. Hata metni
+  // üreten bir fonksiyonun yükselmesi, düzeltmeye çalıştığı şeyi imkânsız
+  // kılar; bu yüzden sınıfın varlığı önce sınanıyor.
+  const apiHatasiMi = typeof ApiHatasi === 'function' && hata instanceof ApiHatasi
+  if (apiHatasiMi) {
+    const somut = hata as ApiHatasi
+    const detay = typeof somut.detay === 'string' ? somut.detay : ''
+    const kod = somut.kod
     if (kod !== null && kod in metin.hatalar) {
       return metin.hatalar[kod as HataKodu](detay)
     }

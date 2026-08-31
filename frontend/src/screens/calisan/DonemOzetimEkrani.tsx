@@ -5,6 +5,9 @@ import { Kart, KartEtiketi, Rozet } from '@/components/app-ui'
 import { donemAraligiBicimle } from '@/lib/tarih'
 import { sayiBicimle } from '@/lib/sayi'
 import { cn } from '@/lib/utils'
+import { useMetin } from '@/i18n/DilBaglami'
+import { hataMetni } from '@/i18n/hata'
+import type { Metinler } from '@/i18n/sozluk'
 
 interface Props {
   veri: Vardiyalarim
@@ -17,12 +20,18 @@ function esik(referans: number): number {
   return Math.max(0.5, Math.abs(referans) * 0.05)
 }
 
-function karsilastirmaMetni(sen: number, referans: number, birim: string): string {
+function karsilastirmaMetni(
+  sen: number,
+  referans: number,
+  birim: string,
+  m: Metinler,
+): string {
   const fark = sen - referans
-  if (Math.abs(fark) < esik(referans)) return 'adil payına yakınsın'
+  if (Math.abs(fark) < esik(referans)) return m.calisan.payinaYakinsin
+  const buyukluk = sayiBicimle(Math.abs(fark), 1)
   return fark > 0
-    ? `adil payının ${sayiBicimle(Math.abs(fark), 1)} ${birim} üzerindesin`
-    : `adil payının ${sayiBicimle(Math.abs(fark), 1)} ${birim} altındasın`
+    ? m.calisan.payinUstundesin(buyukluk, birim)
+    : m.calisan.payinAltindasin(buyukluk, birim)
 }
 
 function MetrikKarti({
@@ -40,6 +49,7 @@ function MetrikKarti({
   ekip: number
   ondalik?: number
 }) {
+  const m = useMetin()
   const fark = sen - referans
   const maks = Math.max(sen, referans, 1)
   return (
@@ -48,7 +58,7 @@ function MetrikKarti({
         <KartEtiketi>{etiket}</KartEtiketi>
         {Math.abs(fark) >= esik(referans) && (
           <Rozet varyant={fark > 0 ? 'kilitli' : 'notr'} genislik={192}>
-            {fark > 0 ? 'Adil Payın Üstünde' : 'Adil Payın Altında'}
+            {fark > 0 ? m.calisan.adilPayinUstunde : m.calisan.adilPayinAltinda}
           </Rozet>
         )}
       </div>
@@ -56,10 +66,12 @@ function MetrikKarti({
         {sayiBicimle(sen, ondalik)} <span className="text-sm font-normal text-ink-muted">{birim}</span>
       </p>
       <div className="mt-4 flex flex-col gap-2">
-        <BarSatiri etiket="SEN" deger={sen} maks={maks} renk="bg-accent" ondalik={ondalik} />
-        <BarSatiri etiket="ADİL PAY" deger={referans} maks={maks} renk="bg-rule-strong" ondalik={ondalik} />
+        <BarSatiri etiket={m.calisan.sen} deger={sen} maks={maks} renk="bg-accent" ondalik={ondalik} />
+        <BarSatiri etiket={m.calisan.adilPay} deger={referans} maks={maks} renk="bg-rule-strong" ondalik={ondalik} />
       </div>
-      <p className="m-0 mt-2 text-sm text-ink-muted">ekip ortalaması {sayiBicimle(ekip, 1)} sa</p>
+      <p className="m-0 mt-2 text-sm text-ink-muted">
+        {m.calisan.ekipOrtalamasi(sayiBicimle(ekip, 1))}
+      </p>
     </Kart>
   )
 }
@@ -97,13 +109,14 @@ function BarSatiri({
 }
 
 function UfukAnahtari({ ufuk, sec }: { ufuk: Ufuk; sec: (u: Ufuk) => void }) {
+  const m = useMetin()
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex gap-1" role="group" aria-label="Ölçüm ufku">
+      <div className="flex gap-1" role="group" aria-label={m.calisan.olcumUfku}>
         {(
           [
-            ['donem', 'Bu Dönem'],
-            ['adalet', 'Son 90 Gün'],
+            ['donem', m.calisan.buDonem],
+            ['adalet', m.calisan.son90Gun],
           ] as const
         ).map(([deger, etiket]) => (
           <button
@@ -124,14 +137,15 @@ function UfukAnahtari({ ufuk, sec }: { ufuk: Ufuk; sec: (u: Ufuk) => void }) {
       </div>
       <p className="m-0 text-sm text-ink-muted">
         {ufuk === 'donem'
-          ? 'Sayılar yalnızca bu dönemi kapsar.'
-          : 'Sayılar son doksan günü kapsar; geçmiş yayınlanmış çizelgeler dahil.'}
+          ? m.calisan.kapsamDonem
+          : m.calisan.kapsamAdalet}
       </p>
     </div>
   )
 }
 
 function Ozet({ veri, ozet }: { veri: Vardiyalarim; ozet: DonemOzeti }) {
+  const m = useMetin()
   const adilPayGece = ozet.adil_pay_gece ?? ozet.ekip_ortalama_gece
   const adilPayHaftaSonu = ozet.adil_pay_hafta_sonu ?? ozet.ekip_ortalama_hafta_sonu
 
@@ -140,22 +154,24 @@ function Ozet({ veri, ozet }: { veri: Vardiyalarim; ozet: DonemOzeti }) {
   // olur — o metrik hiç gösterilmez.
   const cumleler = [
     ozet.gece_havuzunda
-      ? `gece saatinde ${karsilastirmaMetni(ozet.gece_saati, adilPayGece, 'saat')}`
+      ? m.calisan.geceSaatinde(karsilastirmaMetni(ozet.gece_saati, adilPayGece, m.calisan.saat, m))
       : null,
     // "hafta sonlarında" bilerek "hafta sonunda" değil: aynı cümlede kart
     // etiketiyle (KartEtiketi "Hafta Sonu") aynı alt dizeyi taşısaydı,
     // ekran okuyucusu ve testler "Hafta Sonu" geçen iki ayrı öğeyi ayırt
     // edemezdi (bkz. test: havuz dışındaki karşılaştırmayı hiç göstermez).
     ozet.hafta_sonu_havuzunda
-      ? `hafta sonlarında ${karsilastirmaMetni(ozet.hafta_sonu_saati, adilPayHaftaSonu, 'saat')}`
+      ? m.calisan.haftaSonlarinda(
+          karsilastirmaMetni(ozet.hafta_sonu_saati, adilPayHaftaSonu, m.calisan.saat, m),
+        )
       : null,
     // Bulgu 1: toplam saat HER ZAMAN dönem içi (analiz_servisi.py bu turun
     // kapsamı dışında, ufuk almıyor) — adalet ufkunda bunu cümlenin
     // içinde açıkça söylemezsek "son 90 günde ... toplam saatte ..." okunuşu
     // sayının da 90 günü kapsadığını ima eder.
     ozet.ufuk === 'adalet'
-      ? `toplam saatte ${karsilastirmaMetni(ozet.toplam_saat, ozet.hedef_saat, 'saat')}`
-      : `toplam saatte ${karsilastirmaMetni(ozet.toplam_saat, ozet.hedef_saat, 'saat')}`,
+      ? m.calisan.toplamSaatte(karsilastirmaMetni(ozet.toplam_saat, ozet.hedef_saat, m.calisan.saat, m))
+      : m.calisan.toplamSaatte(karsilastirmaMetni(ozet.toplam_saat, ozet.hedef_saat, m.calisan.saat, m)),
   ].filter(Boolean)
 
   return (
@@ -168,20 +184,23 @@ function Ozet({ veri, ozet }: { veri: Vardiyalarim; ozet: DonemOzeti }) {
             belirsizleşir (SDD 6.3.4). */}
         <p className="m-0 etiket-caps text-ink-muted">
           {ozet.ufuk === 'adalet'
-            ? 'SON 90 GÜN'
+            ? m.calisan.son90GunBaslik
             : veri.donem_baslangic_tarihi && veri.donem_bitis_tarihi
-              ? `${donemAraligiBicimle(veri.donem_baslangic_tarihi, veri.donem_bitis_tarihi)} DÖNEMİ`
+              ? m.calisan.donemBaslik(
+                  donemAraligiBicimle(veri.donem_baslangic_tarihi, veri.donem_bitis_tarihi),
+                )
               : ''}
         </p>
         <p className="m-0 mt-1 text-sm text-ink">
-          {ozet.ufuk === 'adalet' ? 'Son 90 günde' : 'Bu dönemde'} {cumleler.join(', ')}.
+          {ozet.ufuk === 'adalet' ? m.calisan.cumleBasiAdalet : m.calisan.cumleBasiDonem}{' '}
+          {cumleler.join(', ')}.
         </p>
       </div>
 
       {ozet.gece_havuzunda && (
         <MetrikKarti
-          etiket="Gece Saati"
-          birim="saat"
+          etiket={m.calisan.geceSaati}
+          birim={m.calisan.saat}
           sen={ozet.gece_saati}
           referans={adilPayGece}
           ekip={ozet.ekip_ortalama_gece}
@@ -190,8 +209,8 @@ function Ozet({ veri, ozet }: { veri: Vardiyalarim; ozet: DonemOzeti }) {
       )}
       {ozet.hafta_sonu_havuzunda && (
         <MetrikKarti
-          etiket="Hafta Sonu"
-          birim="saat"
+          etiket={m.calisan.haftaSonu}
+          birim={m.calisan.saat}
           sen={ozet.hafta_sonu_saati}
           referans={adilPayHaftaSonu}
           ekip={ozet.ekip_ortalama_hafta_sonu}
@@ -199,8 +218,8 @@ function Ozet({ veri, ozet }: { veri: Vardiyalarim; ozet: DonemOzeti }) {
         />
       )}
       <MetrikKarti
-        etiket="Toplam Saat"
-        birim="saat"
+        etiket={m.calisan.toplamSaat}
+        birim={m.calisan.saat}
         sen={ozet.toplam_saat}
         referans={ozet.hedef_saat}
         ekip={ozet.ekip_ortalama_saat}
@@ -210,22 +229,22 @@ function Ozet({ veri, ozet }: { veri: Vardiyalarim; ozet: DonemOzeti }) {
       {(!ozet.gece_havuzunda || !ozet.hafta_sonu_havuzunda) && (
         <p className="m-0 text-sm text-ink-muted">
           {!ozet.gece_havuzunda && !ozet.hafta_sonu_havuzunda
-            ? 'Görev noktanda gece ve hafta sonu vardiyası bulunmadığı için bu iki karşılaştırma gösterilmiyor.'
+            ? m.calisan.ikisiDeYok
             : !ozet.gece_havuzunda
-              ? 'Görev noktanda gece vardiyası bulunmadığı için gece karşılaştırması gösterilmiyor.'
-              : 'Görev noktanda hafta sonu vardiyası bulunmadığı için hafta sonu karşılaştırması gösterilmiyor.'}
+              ? m.calisan.geceYok
+              : m.calisan.haftaSonuYok}
         </p>
       )}
 
       <p className="m-0 rounded-sm bg-sunken px-4 py-3 text-sm text-ink-muted">
-        Sayılar yalnızca yayınlanmış çizelgeden hesaplanır. Yönetici üzerinde çalıştığı taslak buraya
-        yansımaz.
+        {m.calisan.yayindanHesaplanir}
       </p>
     </>
   )
 }
 
 export function DonemOzetimEkrani({ veri }: Props) {
+  const m = useMetin()
   const [ufuk, setUfuk] = useState<Ufuk>('donem')
   const [ozet, setOzet] = useState<DonemOzeti | null>(null)
   const [yukleniyor, setYukleniyor] = useState(true)
@@ -249,7 +268,7 @@ export function DonemOzetimEkrani({ veri }: Props) {
         if (guncel) setOzet(yanit)
       })
       .catch((e) => {
-        if (guncel) setHata(e instanceof Error ? e.message : 'Özet alınamadı')
+        if (guncel) setHata(hataMetni(e, m))
       })
       .finally(() => {
         if (guncel) setYukleniyor(false)
@@ -269,7 +288,7 @@ export function DonemOzetimEkrani({ veri }: Props) {
       ) : yukleniyor && ozet === null ? null : ozet === null ? (
         <Kart>
           <p className="m-0 text-sm text-ink-muted">
-            Bu dönem için henüz yayınlanmış bir çizelge yok, özet hesaplanamıyor.
+            {m.calisan.ozetYok}
           </p>
         </Kart>
       ) : (

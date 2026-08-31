@@ -69,7 +69,7 @@ export function CalisanShell({
               <p className="etiket-caps m-0 text-chrome-ink-muted">{buyukHarf(m.kabuk.donem, dil)}</p>
               <p className="m-0 mt-1 font-mono text-sayi-orta font-semibold text-chrome-ink">
                 {donemBaslangic && donemBitis
-                  ? buyukHarf(donemAraligiBicimle(donemBaslangic, donemBitis))
+                  ? buyukHarf(donemAraligiBicimle(donemBaslangic, donemBitis), dil)
                   : BOS}
               </p>
             </div>
