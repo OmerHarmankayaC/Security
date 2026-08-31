@@ -267,6 +267,55 @@ const tr = {
   },
 
 
+  /** Yüzde işareti Türkçe'de sayının ÖNÜNDE, İngilizce'de arkasındadır. */
+  yuzde: (deger: number | string) => `%${deger}`,
+
+  surumDurumu: {
+    taslak: 'Taslak',
+    cozuldu: 'Çözüldü',
+    yayinlandi: 'Yayınlandı',
+    arsiv: 'Arşiv',
+  },
+
+  ozet: {
+    veriYuklenemedi: 'Özet verisi yüklenemedi.',
+    surumYuklenemedi: 'Sürüm verisi yüklenemedi.',
+    bosTaslak:
+      'Bu dönemin son sürümü henüz boş bir taslak. Çizelge ekranından elle çizebilir ya da Çözüm ekranını kullanabilirsin.',
+    donemIcin: (aralik: string) => `${aralik} dönemi için`,
+    kapsama: 'kapsama',
+    eksikHucre: 'eksik hücre',
+    toplamCeza: 'toplam ceza',
+    bekleyenTercih: 'bekleyen tercih',
+    surumDurumuBasligi: 'sürüm durumu',
+    kisi: (sayi: number) => `${sayi} kişi`,
+    kayit: 'kayıt',
+    cezaKaynagi: {
+      cozucu: 'çözüm işinden · S8 dahil',
+      kurallardan: 'kurallardan hesaplandı · S8 hariç',
+      yok: '',
+    },
+    cezaKaynagiCozucu:
+      'Döküm çözüm işinden geliyor; sayı amaç fonksiyonunun tamamıdır, önceki sürümden sapma (S8) dahil.',
+    cezaKaynagiKurallardan:
+      'Bu sürümde çözücü çalışmadı ya da çizelge sonradan elle değişti; döküm kural motorundan hesaplandı. Önceki sürümden sapma (S8) bu hesaba GİRMEZ: kaynak değişince sayının kapsamı da değişir, iki kaynağın toplamı doğrudan karşılaştırılamaz.',
+    gunlukKapsama: 'günlük kapsama',
+    gunlukKapsamaAralik: (aralik: string) => `günlük kapsama · ${aralik}`,
+    kapsamaVerisiYok: 'Bu sürüm için günlük kapsama verisi yok.',
+    gunAcikKayitlari: (gun: string) => `${gun} günü açık kayıtları`,
+    donemAcikKayitlari: 'Dönemin açık kayıtları',
+    acikKayitYok: 'Açık kayıt yok.',
+    kisiBasinaSaat: 'kişi başına saat',
+    kisiBasinaSaatAralik: (aralik: string) => `kişi başına saat · ${aralik}`,
+    saatSapmasiYok: 'Bu sürümde saat sapması yok.',
+    tumunuAnalizde: 'Tümünü Analiz ekranında görüntüle',
+    musaitOlmayanlar: 'bu dönem müsait olmayanlar',
+    musaitOlmayanlarAralik: (aralik: string) => `bu dönem müsait olmayanlar · ${aralik}`,
+    musaitOlmayanYok: 'Bu dönemde müsait olmayan yok.',
+    yaklasanKayitlar: 'yaklaşan müsaitlik kayıtları · bugünden itibaren',
+    yaklasanYok: 'Yaklaşan kayıt yok.',
+  },
+
   musaitlik: {
     dilim: { tam_gun: 'TAM', ogleden_once: 'ÖÖ', ogleden_sonra: 'ÖS' },
     tip: { yillik_izin: 'İzin', rapor: 'Rapor', egitim: 'Eğitim', mazeret: 'Mazeret' },
@@ -667,6 +716,54 @@ const en: Metinler = {
     verilerYuklenemedi: 'Could not load the data.',
   },
 
+
+  yuzde: (deger: number | string) => `${deger}%`,
+
+  surumDurumu: {
+    taslak: 'Draft',
+    cozuldu: 'Solved',
+    yayinlandi: 'Published',
+    arsiv: 'Archived',
+  },
+
+  ozet: {
+    veriYuklenemedi: 'Could not load the summary.',
+    surumYuklenemedi: 'Could not load the version data.',
+    bosTaslak:
+      'The latest version of this period is still an empty draft. You can draw it by hand on the Schedule screen or use the Solve screen.',
+    donemIcin: (aralik: string) => `for the ${aralik} period`,
+    kapsama: 'coverage',
+    eksikHucre: 'missing cells',
+    toplamCeza: 'total penalty',
+    bekleyenTercih: 'pending preferences',
+    surumDurumuBasligi: 'version status',
+    kisi: (sayi: number) => (sayi === 1 ? '1 person' : `${sayi} people`),
+    kayit: 'records',
+    cezaKaynagi: {
+      cozucu: 'from the solve job · includes S8',
+      kurallardan: 'computed from the rules · excludes S8',
+      yok: '',
+    },
+    cezaKaynagiCozucu:
+      'The breakdown comes from the solve job; the figure is the whole objective function, including deviation from the previous version (S8).',
+    cezaKaynagiKurallardan:
+      'The solver did not run for this version, or the schedule was edited by hand afterwards; the breakdown was computed from the rule engine. Deviation from the previous version (S8) is NOT part of this figure: when the source changes so does the scope, and totals from the two sources cannot be compared directly.',
+    gunlukKapsama: 'daily coverage',
+    gunlukKapsamaAralik: (aralik: string) => `daily coverage · ${aralik}`,
+    kapsamaVerisiYok: 'No daily coverage data for this version.',
+    gunAcikKayitlari: (gun: string) => `open records on ${gun}`,
+    donemAcikKayitlari: 'Open records for the period',
+    acikKayitYok: 'No open records.',
+    kisiBasinaSaat: 'hours per person',
+    kisiBasinaSaatAralik: (aralik: string) => `hours per person · ${aralik}`,
+    saatSapmasiYok: 'No hour deviation in this version.',
+    tumunuAnalizde: 'See them all on the Analysis screen',
+    musaitOlmayanlar: 'unavailable this period',
+    musaitOlmayanlarAralik: (aralik: string) => `unavailable this period · ${aralik}`,
+    musaitOlmayanYok: 'Nobody is unavailable this period.',
+    yaklasanKayitlar: 'upcoming availability records · from today',
+    yaklasanYok: 'No upcoming records.',
+  },
 
   musaitlik: {
     dilim: { tam_gun: 'FULL', ogleden_once: 'AM', ogleden_sonra: 'PM' },

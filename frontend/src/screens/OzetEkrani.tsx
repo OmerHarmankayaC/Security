@@ -18,41 +18,28 @@ import { sayiBicimle, sapmaBicimle } from '../lib/sayi'
 import { sapmaEtiketi, sapmaGunu } from '@/lib/blok'
 import { donemSec, olculebilirSurum } from '@/lib/donemSecimi'
 import { cn } from '../lib/utils'
+import { useMetin } from '@/i18n/DilBaglami'
+import { hataMetni } from '@/i18n/hata'
+import type { Metinler } from '@/i18n/sozluk'
+import { BOS } from '@/lib/sayi'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
 }
 
-const SURUM_DURUM_METNI: Record<string, string> = {
-  taslak: 'Taslak',
-  cozuldu: 'Çözüldü',
-  yayinlandi: 'Yayınlandı',
-  arsiv: 'Arşiv',
-}
-
-const MUSAITLIK_TIP_METNI: Record<string, string> = {
-  yillik_izin: 'İzin',
-  rapor: 'Rapor',
-  egitim: 'Eğitim',
-  mazeret: 'Mazeret',
-}
-
 // CEZA KAYNAĞININ KISA HÂLİ (tasarım, Parça 2 → Ekranlar). Analiz ekranı
 // aynı bilgiyi dipnotta uzun uzun yazar; Özet'in kartına sığan hâli bu.
 // "yok" durumunda sayı zaten "—" olarak çıkar ve satır hiç render edilmez.
-const CEZA_KAYNAGI_KISA: Record<Analiz['ceza_kaynagi'], string> = {
-  cozucu: 'çözüm işinden · S8 dahil',
-  kurallardan: 'kurallardan hesaplandı · S8 hariç',
-  yok: '',
-}
-
 /** Kaynak değişince sayının KAPSAMI da değişir; ipucu bunu söyler. */
-function cezaKaynagiAciklamasi(kaynak: Analiz['ceza_kaynagi']): string | undefined {
+function cezaKaynagiAciklamasi(
+  kaynak: Analiz['ceza_kaynagi'],
+  m: Metinler,
+): string | undefined {
   if (kaynak === 'cozucu') {
-    return 'Döküm çözüm işinden geliyor; sayı amaç fonksiyonunun tamamıdır — önceki sürümden sapma (S8) dahil.'
+    return m.ozet.cezaKaynagiCozucu
   }
   if (kaynak === 'kurallardan') {
-    return 'Bu sürümde çözücü çalışmadı ya da çizelge sonradan elle değişti; döküm kural motorundan hesaplandı. Önceki sürümden sapma (S8) bu hesaba GİRMEZ — kaynak değişince sayının kapsamı da değişir, iki kaynağın toplamı doğrudan karşılaştırılamaz.'
+    return m.ozet.cezaKaynagiKurallardan
   }
   return undefined
 }
@@ -63,6 +50,7 @@ function cezaKaynagiAciklamasi(kaynak: Analiz['ceza_kaynagi']): string | undefin
 const KISI_BASINA_SAAT_SATIR_SAYISI = 6
 
 export function OzetEkrani({ ekranSec }: Props) {
+  const m = useMetin()
   const [surumler, setSurumler] = useState<CizelgeSurumu[]>([])
   const [kapsamaAcigi, setKapsamaAcigi] = useState<KapsamaAcigi[]>([])
   const [analiz, setAnaliz] = useState<Analiz | null>(null)
@@ -102,7 +90,7 @@ export function OzetEkrani({ ekranSec }: Props) {
           return []
         })
         .then((s) => setSurumler(s))
-        .catch((e) => setHata(e instanceof Error ? e.message : 'Özet verisi yüklenemedi'))
+        .catch((e) => setHata(hataMetni(e, m)))
     }
 
     yukle()
@@ -134,7 +122,7 @@ export function OzetEkrani({ ekranSec }: Props) {
         setKapsamaAcigi(k)
         setAnaliz(a)
       })
-      .catch((e) => setHata(e instanceof Error ? e.message : 'Sürüm verisi yüklenemedi'))
+      .catch((e) => setHata(hataMetni(e, m)))
   }, [sonSurum])
 
   // Sürüm değiştiğinde önceki sürümün gün süzgeci taşınmaz — o gün yeni
@@ -196,16 +184,16 @@ export function OzetEkrani({ ekranSec }: Props) {
     if (!seciliDonem) return []
     return musaitlikler
       .filter(
-        (m) =>
-          m.baslangic_tarihi <= seciliDonem.bitis_tarihi &&
-          m.bitis_tarihi >= seciliDonem.baslangic_tarihi,
+        (kayit) =>
+          kayit.baslangic_tarihi <= seciliDonem.bitis_tarihi &&
+          kayit.bitis_tarihi >= seciliDonem.baslangic_tarihi,
       )
       .sort((a, b) => a.baslangic_tarihi.localeCompare(b.baslangic_tarihi))
   }, [musaitlikler, seciliDonem])
 
   const bugunTarih = isoAyristir(bugun)
   const yaklasanMusaitlikler = [...musaitlikler]
-    .filter((m) => isoAyristir(m.bitis_tarihi) >= bugunTarih)
+    .filter((kayit) => isoAyristir(kayit.bitis_tarihi) >= bugunTarih)
     .sort((a, b) => a.baslangic_tarihi.localeCompare(b.baslangic_tarihi))
     .slice(0, 6)
 
@@ -213,29 +201,28 @@ export function OzetEkrani({ ekranSec }: Props) {
     <AppShell
       aktifEkran="Özet"
       ekranSec={ekranSec}
-      baslik="Özet"
+      baslik={m.menu['Özet']}
     >
       {hata && <p className="text-sm text-signal">{hata}</p>}
       {olculemeyenTaslak && (
         <p className="m-0 rounded-sm bg-sunken px-4 py-3 text-sm text-ink-muted">
-          Bu dönemin son sürümü henüz boş bir taslak. Çizelge ekranından elle çizebilir ya da
-          Çözüm ekranını kullanabilirsin.
+          {m.ozet.bosTaslak}
         </p>
       )}
 
       {/* 1. ÖLÇÜ KARTLARI ŞERİDİ — üstteki satır hangi aralığa ait olduğunu
           söyler; dönem seçici yok, aralık bugünden türetilir. */}
       <div className="flex flex-col gap-3">
-        {araligiMetni && <p className="m-0 text-sm text-ink-muted">{araligiMetni} dönemi için</p>}
+        {araligiMetni && <p className="m-0 text-sm text-ink-muted">{m.ozet.donemIcin(araligiMetni)}</p>}
         <div className="grid grid-cols-5 gap-4">
           <Kart>
-            <KartEtiketi>kapsama</KartEtiketi>
+            <KartEtiketi>{m.ozet.kapsama}</KartEtiketi>
             <Sayi className="text-sayi-buyuk font-semibold text-accent">
-              {kapsamaOrani === null ? '—' : `%${kapsamaOrani}`}
+              {kapsamaOrani === null ? BOS : m.yuzde(kapsamaOrani)}
             </Sayi>
           </Kart>
           <Kart>
-            <KartEtiketi renk={toplamEksik > 0 ? 'warn' : undefined}>eksik hücre</KartEtiketi>
+            <KartEtiketi renk={toplamEksik > 0 ? 'warn' : undefined}>{m.ozet.eksikHucre}</KartEtiketi>
             <Sayi
               className={`text-sayi-buyuk font-semibold ${toplamEksik > 0 ? 'text-signal' : 'text-ink'}`}
             >
@@ -243,7 +230,7 @@ export function OzetEkrani({ ekranSec }: Props) {
             </Sayi>
           </Kart>
           <Kart>
-            <KartEtiketi>toplam ceza</KartEtiketi>
+            <KartEtiketi>{m.ozet.toplamCeza}</KartEtiketi>
             <Sayi className="text-sayi-buyuk font-semibold text-ink">
               {analiz?.toplam_ceza != null ? sayiBicimle(analiz.toplam_ceza, 0) : '—'}
             </Sayi>
@@ -256,22 +243,22 @@ export function OzetEkrani({ ekranSec }: Props) {
                 kaynak değişince yok olmasından gelir. Uzun hâli Analiz
                 ekranındaki dipnotta. */}
             {analiz && analiz.toplam_ceza != null && (
-              <p className="m-0 mt-1 text-xs text-ink-muted" title={cezaKaynagiAciklamasi(analiz.ceza_kaynagi)}>
-                {CEZA_KAYNAGI_KISA[analiz.ceza_kaynagi]}
+              <p className="m-0 mt-1 text-xs text-ink-muted" title={cezaKaynagiAciklamasi(analiz.ceza_kaynagi, m)}>
+                {m.ozet.cezaKaynagi[analiz.ceza_kaynagi]}
               </p>
             )}
           </Kart>
           <Kart>
-            <KartEtiketi>bekleyen tercih</KartEtiketi>
+            <KartEtiketi>{m.ozet.bekleyenTercih}</KartEtiketi>
             <p className="m-0 font-mono text-sayi-buyuk font-semibold text-ink">
-              {bekleyenTercihSayisi} kişi
+              {m.ozet.kisi(bekleyenTercihSayisi)}
             </p>
           </Kart>
           <Kart>
-            <KartEtiketi>sürüm durumu</KartEtiketi>
+            <KartEtiketi>{m.ozet.surumDurumuBasligi}</KartEtiketi>
             <p className="m-0 font-mono text-sayi-buyuk font-semibold text-ink">
               {sonSurum
-                ? `${SURUM_DURUM_METNI[sonSurum.durum] ?? sonSurum.durum} · S${sonSurum.surum_no}`
+                ? `${m.surumDurumu[sonSurum.durum] ?? sonSurum.durum} · S${sonSurum.surum_no}`
                 : '—'}
             </p>
           </Kart>
@@ -283,7 +270,7 @@ export function OzetEkrani({ ekranSec }: Props) {
           GunlukKapsamaSeridi docstring'i). */}
       <Kart>
         <KartEtiketi>
-          {araligiMetni ? `günlük kapsama · ${araligiMetni}` : 'günlük kapsama'}
+          {araligiMetni ? m.ozet.gunlukKapsamaAralik(araligiMetni) : m.ozet.gunlukKapsama}
         </KartEtiketi>
         {analiz && analiz.gunluk_kapsama.length > 0 ? (
           <GunlukKapsamaSeridi
@@ -292,22 +279,22 @@ export function OzetEkrani({ ekranSec }: Props) {
             gunSec={setSeciliGun}
           />
         ) : (
-          <p className="text-sm text-ink-muted">Bu sürüm için günlük kapsama verisi yok.</p>
+          <p className="text-sm text-ink-muted">{m.ozet.kapsamaVerisiYok}</p>
         )}
 
         <div className="mt-4">
           <div className="mb-2 flex items-baseline justify-between">
             <p className="m-0 text-sm text-ink-muted">
               {seciliGun
-                ? `${gunKisaltmasiVeNumarasi(seciliGun)} günü açık kayıtları`
-                : 'Dönemin açık kayıtları'}
+                ? m.ozet.gunAcikKayitlari(gunKisaltmasiVeNumarasi(seciliGun))
+                : m.ozet.donemAcikKayitlari}
             </p>
             <span className="text-sm text-ink-muted">
-              <Sayi>{gunlukAcikListesi.length}</Sayi> kayıt
+              <Sayi>{gunlukAcikListesi.length}</Sayi> {m.ozet.kayit}
             </span>
           </div>
           {gunlukAcikListesi.length === 0 ? (
-            <p className="text-sm text-ink-muted">Açık kayıt yok.</p>
+            <p className="text-sm text-ink-muted">{m.ozet.acikKayitYok}</p>
           ) : (
             <ul className="m-0 flex list-none flex-col gap-3 p-0">
               {gunlukAcikListesi.map((k) => (
@@ -333,10 +320,10 @@ export function OzetEkrani({ ekranSec }: Props) {
           ekranında. */}
       <Kart>
         <KartEtiketi>
-          {araligiMetni ? `kişi başına saat · ${araligiMetni}` : 'kişi başına saat'}
+          {araligiMetni ? m.ozet.kisiBasinaSaatAralik(araligiMetni) : m.ozet.kisiBasinaSaat}
         </KartEtiketi>
         {enSapanAlti.length === 0 ? (
-          <p className="text-sm text-ink-muted">Bu sürümde saat sapması yok.</p>
+          <p className="text-sm text-ink-muted">{m.ozet.saatSapmasiYok}</p>
         ) : (
           <ul className="m-0 flex list-none flex-col p-0">
             {enSapanAlti.map((s) => (
@@ -366,7 +353,7 @@ export function OzetEkrani({ ekranSec }: Props) {
           onClick={() => ekranSec('Analiz')}
           disabled={!sonSurum}
         >
-          Tümünü Analiz ekranında görüntüle
+          {m.ozet.tumunuAnalizde}
         </Buton>
       </Kart>
 
@@ -374,28 +361,28 @@ export function OzetEkrani({ ekranSec }: Props) {
       <Kart>
         <KartEtiketi>
           {araligiMetni
-            ? `bu dönem müsait olmayanlar · ${araligiMetni}`
-            : 'bu dönem müsait olmayanlar'}
+            ? m.ozet.musaitOlmayanlarAralik(araligiMetni)
+            : m.ozet.musaitOlmayanlar}
         </KartEtiketi>
         {donemIciMusaitlikler.length === 0 ? (
-          <p className="text-sm text-ink-muted">Bu dönemde müsait olmayan yok.</p>
+          <p className="text-sm text-ink-muted">{m.ozet.musaitOlmayanYok}</p>
         ) : (
           <ul className="m-0 flex list-none flex-col gap-3 p-0">
-            {donemIciMusaitlikler.map((m) => (
+            {donemIciMusaitlikler.map((kayit) => (
               <li
-                key={m.musaitlik_id}
+                key={kayit.musaitlik_id}
                 className="flex items-center gap-3 border-b border-rule pb-3 last:border-none"
               >
                 <span className="w-32 shrink-0 text-sm font-medium text-ink">
-                  {personelMap.get(m.personel_id)?.ad_soyad ?? `Personel ${m.personel_id}`}
+                  {personelMap.get(kayit.personel_id)?.ad_soyad ?? `Personel ${kayit.personel_id}`}
                 </span>
                 <span className="font-mono text-sm text-ink-muted">
-                  {gunKisaltmasiVeNumarasi(m.baslangic_tarihi)}
-                  {m.baslangic_tarihi !== m.bitis_tarihi &&
-                    ` – ${gunKisaltmasiVeNumarasi(m.bitis_tarihi)}`}
+                  {gunKisaltmasiVeNumarasi(kayit.baslangic_tarihi)}
+                  {kayit.baslangic_tarihi !== kayit.bitis_tarihi &&
+                    ` – ${gunKisaltmasiVeNumarasi(kayit.bitis_tarihi)}`}
                 </span>
                 <Rozet varyant="notr" genislik={84}>
-                  {MUSAITLIK_TIP_METNI[m.tip] ?? m.tip}
+                  {m.musaitlik.tip[kayit.tip] ?? kayit.tip}
                 </Rozet>
               </li>
             ))}
@@ -406,26 +393,26 @@ export function OzetEkrani({ ekranSec }: Props) {
       {/* 5. YAKLAŞAN MÜSAİTLİK KAYITLARI — dönemle değil BUGÜNLE sınırlı;
           etiket bunu dürüstçe söyler. */}
       <Kart>
-        <KartEtiketi>yaklaşan müsaitlik kayıtları · bugünden itibaren</KartEtiketi>
+        <KartEtiketi>{m.ozet.yaklasanKayitlar}</KartEtiketi>
         {yaklasanMusaitlikler.length === 0 ? (
-          <p className="text-sm text-ink-muted">Yaklaşan kayıt yok.</p>
+          <p className="text-sm text-ink-muted">{m.ozet.yaklasanYok}</p>
         ) : (
           <ul className="m-0 flex list-none flex-col gap-3 p-0">
-            {yaklasanMusaitlikler.map((m) => (
+            {yaklasanMusaitlikler.map((kayit) => (
               <li
-                key={m.musaitlik_id}
+                key={kayit.musaitlik_id}
                 className="flex items-center gap-3 border-b border-rule pb-3 last:border-none"
               >
                 <span className="w-32 shrink-0 text-sm font-medium text-ink">
-                  {personelMap.get(m.personel_id)?.ad_soyad ?? `Personel ${m.personel_id}`}
+                  {personelMap.get(kayit.personel_id)?.ad_soyad ?? `Personel ${kayit.personel_id}`}
                 </span>
                 <span className="font-mono text-sm text-ink-muted">
-                  {gunKisaltmasiVeNumarasi(m.baslangic_tarihi)}
-                  {m.baslangic_tarihi !== m.bitis_tarihi &&
-                    ` – ${gunKisaltmasiVeNumarasi(m.bitis_tarihi)}`}
+                  {gunKisaltmasiVeNumarasi(kayit.baslangic_tarihi)}
+                  {kayit.baslangic_tarihi !== kayit.bitis_tarihi &&
+                    ` – ${gunKisaltmasiVeNumarasi(kayit.bitis_tarihi)}`}
                 </span>
                 <Rozet varyant="notr" genislik={84}>
-                  {MUSAITLIK_TIP_METNI[m.tip] ?? m.tip}
+                  {m.musaitlik.tip[kayit.tip] ?? kayit.tip}
                 </Rozet>
               </li>
             ))}
