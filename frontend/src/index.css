@@ -215,10 +215,20 @@ body {
   line-height: 145%;
   color: var(--ink);
   background: var(--canvas);
+  /* Lastik taşma (macOS) sayfanın ucunda GÖVDE rengini gösterir. Giriş
+     ekranı koyu bir yüzey ve altında/üstünde beliren açık şerit, ekranın
+     iki ucundan sızmış beyazlık gibi görünüyordu. */
+  overscroll-behavior: none;
 }
 
+/* Kök DİKEY AKIŞ. Gösterim şeridi eklendiğinde sayfa "şerit + 100svh"
+   yüksekliğine çıkıyor ve her ekran, içeriği sığsa bile kayıyordu: alttaki
+   ekran kendi başına 100svh istiyordu. Kök bir sütun olunca şerit kendi
+   yüksekliğini alır, ekran KALANI doldurur ve toplam tam bir ekran eder. */
 #root {
   min-height: 100svh;
+  display: flex;
+  flex-direction: column;
 }
 
 button,

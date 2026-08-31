@@ -49,8 +49,13 @@ export function GirisEkrani({ girisYapildi }: Props) {
     }
   }
 
+  // `min-h-svh` DEĞİL `flex-1`: üstte gösterim şeridi varken ekran ayrıca tam
+  // bir görüntü yüksekliği isterse toplam taşar ve sayfa kayar — kayınca da
+  // gövde rengi ekranın iki ucundan açık bir şerit olarak görünür. Kök bir
+  // dikey sütun (index.css) ve burası kalan alanı dolduruyor. `py-8`: içerik
+  // gerçekten sığmadığında kayma olur ama kart kenarları ekrana yapışmaz.
   return (
-    <div className="flex min-h-svh items-center justify-center bg-chrome-base px-6">
+    <div className="flex flex-1 items-center justify-center bg-chrome-base px-6 py-8">
       <div className="w-full max-w-[380px]">
         <div className="mb-6">
           <Marka altBaslik="vardiya çizelgeleme karar destek aracı" />

@@ -39,12 +39,20 @@ Gecmis donem sayisi adalet ufkunun (90 gun) tamamini dolduracak bicimde
 secilmistir; Analiz ekranindaki ufuk anahtari ancak boyle iki farkli sonuc
 gosterir.
 
-HESAPLAR (Demo Senaryosu 7). Parolalar `DEMO_PAROLA` ortam degiskeninden
-okunur; ne bu dosyada, ne depoda, ne baska bir yerde durur. Degisken
-verilmezse hesaplar ACILMAZ ve betik bunu yuksek sesle soyler.
+HESAPLAR (Demo Senaryosu 7). Her hesabin parolasi AYRIDIR ve tek bir tohumdan
+(`DEMO_PAROLA_TOHUMU` ortam degiskeni) turetilir; giris ekranindaki kimlik
+kutusu ayni turetmeyi yapar. Hicbir parola ne bu dosyada, ne depoda, ne de
+duz metin olarak veritabaninda durur. Tohum verilmezse hesaplar ACILMAZ ve
+betik bunu yuksek sesle soyler.
 
 Kullanim:
-    DEMO_PAROLA=... python scripts/demo_veri_uret.py --reset
+    DEMO_PAROLA_TOHUMU=... python scripts/demo_veri_uret.py --reset
+
+Yalnizca hesaplari tazelemek icin (veri uretimi ~25 dakika surer, tohum
+degistiginde ya da hesaplar eksik acildiginda butun donemleri yeniden
+cozmenin anlami yok):
+
+    DEMO_PAROLA_TOHUMU=... python scripts/demo_veri_uret.py --yalniz-hesaplar
 
 --reset verilirse once tum tanim/girdi/kural/sonuc satirlari silinir
 (silinecek tablolarin listesi app/veri_temizligi.py'de) ve demo hesaplari
@@ -90,7 +98,7 @@ from app.models.tanim import (
 from app.repositories.sonuc import AtamaDeposu, CizelgeSurumuDeposu
 from app.services import parola as parola_araclari
 from app.services.cozum_servisi import CozumServisi, cozum_isini_calistir
-from app.services.demo_hesaplari import DEMO_HESAPLARI
+from app.services.demo_hesaplari import DEMO_HESAPLARI, parola_uret
 from app.services.kullanici_servisi import KullaniciServisi
 from app.services.kural_katalogu_tohumu import KURAL_TANIMLARI, katalogu_kur
 from app.services.ornek_senaryo import (
@@ -349,7 +357,7 @@ _RET_GEREKCELERI = (
 )
 
 # --- Hesaplar (Demo Senaryosu 7) -------------------------------------------
-_PAROLA_DEGISKENI = "DEMO_PAROLA"
+_TOHUM_DEGISKENI = "DEMO_PAROLA_TOHUMU"
 
 # Hesap listesi BURADA DEGIL `app/services/demo_hesaplari.py`'de durur: ayni
 # listeyi giris ekranindaki kimlik kutusu da okuyor ve iki yerde yazilsaydi
@@ -947,7 +955,7 @@ def _cizelgeleri_uret(oturum: Session, donemler: DemoDonemleri, rng: random.Rand
 # --- Hesaplar --------------------------------------------------------------
 
 
-def _hesaplari_kur(oturum: Session, parola: str) -> int:
+def _hesaplari_kur(oturum: Session, tohum: str) -> int:
     """Demo hesaplarini acar/tazeler (Demo Senaryosu 7).
 
     IDEMPOTENT: var olan hesabin parolasi tazelenir, olmayan acilir.
@@ -980,6 +988,7 @@ def _hesaplari_kur(oturum: Session, parola: str) -> int:
         hedefler.append((hesap.kullanici_adi, hesap.rol, personel.personel_id))
 
     for kullanici_adi, rol, personel_id in hedefler:
+        parola = parola_uret(tohum, kullanici_adi)
         kullanici = mevcut.get(kullanici_adi)
         if kullanici is None:
             kullanici = servis.olustur(kullanici_adi, parola, rol, personel_id)
@@ -996,12 +1005,43 @@ def _hesaplari_kur(oturum: Session, parola: str) -> int:
 # --- Ana akis --------------------------------------------------------------
 
 
+def hesaplari_tazele() -> None:
+    """Veriye DOKUNMADAN yalnizca demo hesaplarini acar/tazeler.
+
+    Neden ayri bir yol: tam uretim on bes donemi gercek cozucuyle cozuyor ve
+    referans donanimda yarim saati buluyor. Tohum degistiginde ya da tohumsuz
+    kosturulmus bir uretim yuzunden hesaplar hic acilmamissa, cizelgeleri
+    yeniden cozmenin hicbir faydasi yok - degismesi gereken tek sey parola
+    ozetleri.
+
+    Veri temizligi kilidini ISTEMEZ: hicbir sey silmiyor.
+    """
+    tohum = ayarlar.demo_parola_tohumu
+    if not tohum:
+        print(
+            f"REDDEDILDI: {_TOHUM_DEGISKENI} ortam degiskeni verilmedi; "
+            f"turetilecek parola yok.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    oturum = OturumYerel()
+    try:
+        sayi = _hesaplari_kur(oturum, tohum)
+        oturum.commit()
+    except Exception:
+        oturum.rollback()
+        raise
+    finally:
+        oturum.close()
+    print(f"{sayi} demo hesabi kuruldu/tazelendi; parolalar {_TOHUM_DEGISKENI}'ndan turetildi.")
+
+
 def uret(*, sifirla: bool, coz: bool = True) -> None:
     oturum = OturumYerel()
     temizlik: TemizlikSonucu | None = None
     bugun = date.today()
     rng = random.Random(_SABIT_TOHUM)
-    parola = ayarlar.demo_parola
+    tohum = ayarlar.demo_parola_tohumu
     try:
         if not sifirla and _mevcut_demo_verisi_var_mi(oturum):
             print(
@@ -1031,7 +1071,7 @@ def uret(*, sifirla: bool, coz: bool = True) -> None:
         tercih_sayisi = _tercihleri_olustur(oturum, rng, personeller, donemler)
         oturum.flush()
         belgeli_izin = _ornek_belgeleri_ekle(oturum)
-        hesap_sayisi = _hesaplari_kur(oturum, parola) if parola else 0
+        hesap_sayisi = _hesaplari_kur(oturum, tohum) if tohum else 0
         oturum.commit()
 
         if coz:
@@ -1053,12 +1093,17 @@ def uret(*, sifirla: bool, coz: bool = True) -> None:
         f"donem (toplam {_TOPLAM_DONEM_SAYISI})."
     )
     print(f"Ornek belge eklenen izin kaydi: {belgeli_izin}")
-    if parola:
-        print(f"Demo hesabi: {hesap_sayisi} adet; parola {_PAROLA_DEGISKENI} degiskeninden okundu.")
+    if tohum:
+        print(f"Demo hesabi: {hesap_sayisi} adet; parolalar {_TOHUM_DEGISKENI}'ndan turetildi.")
     else:
+        # SESSIZ GECILMEZ ve bu bir kez pahaliya mal oldu: tohum verilmeden
+        # kosturulan bir uretim hicbir hesap acmaz, ama giris ekranindaki
+        # kutu statik listeyi cizmeye devam eder - kullanici var olmayan bir
+        # hesapla karsilasir ve "kullanici adi veya parola hatali" gorur.
         print(
-            f"HESAP ACILMADI: {_PAROLA_DEGISKENI} ortam degiskeni verilmedi. "
-            f"Parola koda ve depoya yazilmaz (Demo Senaryosu 7).",
+            f"HESAP ACILMADI: {_TOHUM_DEGISKENI} ortam degiskeni verilmedi. "
+            f"Giris ekranindaki kimlik kutusu bu durumda CALISMAYAN hesaplar "
+            f"gosterir; tohumu verip `--yalniz-hesaplar` ile tekrar kosturun.",
             file=sys.stderr,
         )
     # Silinen hesap SESSIZ kalmamali: silinen sey bir kullanicinin sisteme
@@ -1086,9 +1131,21 @@ if __name__ == "__main__":
             "ekranlarina bakilacaksa bu bayrakla atlanabilir."
         ),
     )
+    ayristirici.add_argument(
+        "--yalniz-hesaplar",
+        action="store_true",
+        help=(
+            "Veriye DOKUNMADAN yalnizca demo hesaplarini acar/tazeler. "
+            "Tohum degistiginde ya da hesaplar eksik acildiginda on bes donemi "
+            "yeniden cozmek gereksizdir."
+        ),
+    )
     argumanlar = ayristirici.parse_args()
     try:
-        uret(sifirla=argumanlar.reset, coz=not argumanlar.cozme)
+        if argumanlar.yalniz_hesaplar:
+            hesaplari_tazele()
+        else:
+            uret(sifirla=argumanlar.reset, coz=not argumanlar.cozme)
     except UretimKilidiError as hata:
         # Yigin izi YAZILMAZ. Bu bir program hatasi degil, kasitli bir ret;
         # mesajin kendisi ne yapilacagini soyluyor (NFR-5: hata mesajlari

@@ -6,11 +6,11 @@
 // bayrağın yanlış geldiği bir kurulumda kimlik bilgisini ekrana yazardı.
 // Sunucu kaynağı hiç vermiyorsa yazılacak bir şey de yoktur.
 //
-// Parola PAKETTE DEĞİLDİR. Yanıtla birlikte çalışma zamanında gelir;
-// depoda, derlenmiş pakette ve sürüm geçmişinde bulunmaz.
+// PAROLALAR PAKETTE DEĞİLDİR ve her hesabınki ayrıdır: sunucu onları her
+// istekte tohumdan türetir.
 //
-// Tek tıkla form doldurmak süs değil: kullanıcı adı ve parolayı elle
-// kopyalamak, demoyu gezen kişinin ilk karşılaştığı sürtünme olurdu.
+// Tek tıkla form doldurmak süs değil: dört ayrı on iki karakterlik parolayı
+// elle kopyalamak, demoyu gezen kişinin ilk karşılaştığı sürtünme olurdu.
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import type { DemoHesabi, DemoKimlik, Rol } from '../api/types'
@@ -32,8 +32,9 @@ const ROL_BASLIGI: Record<Rol, string> = {
 const ROL_SIRASI: Rol[] = ['idare', 'hesap_yoneticisi', 'calisan']
 
 function rolegoreGrupla(hesaplar: DemoHesabi[]): [Rol, DemoHesabi[]][] {
-  return ROL_SIRASI.map((rol) => [rol, hesaplar.filter((h) => h.rol === rol)] as [Rol, DemoHesabi[]])
-    .filter(([, liste]) => liste.length > 0)
+  return ROL_SIRASI.map(
+    (rol) => [rol, hesaplar.filter((h) => h.rol === rol)] as [Rol, DemoHesabi[]],
+  ).filter(([, liste]) => liste.length > 0)
 }
 
 export function DemoKimlikKutusu({ doldur }: Props) {
@@ -53,36 +54,32 @@ export function DemoKimlikKutusu({ doldur }: Props) {
   return (
     <section
       aria-label="Gösterim hesapları"
-      className="mt-4 rounded-md border border-rule bg-surface p-4"
+      className="mt-3 rounded-md border border-rule bg-surface px-4 py-3"
     >
-      <h2 className="m-0 text-xs font-semibold tracking-wide text-ink-muted uppercase">
-        Gösterim hesapları
-      </h2>
-      <p className="m-0 mt-1 text-xs leading-relaxed text-ink-muted">
-        Hepsinin parolası aynı: <code className="text-ink">{kimlik.parola}</code>. Bir satıra
-        tıklayın, form dolsun.
+      <p className="m-0 text-xs text-ink-muted">
+        <span className="font-semibold text-ink">Gösterim hesapları</span> — bir satıra tıklayın,
+        form dolsun.
       </p>
 
-      <ul className="m-0 mt-3 list-none space-y-2 p-0">
-        {rolegoreGrupla(kimlik.hesaplar).map(([rol, liste]) => (
-          <li key={rol}>
-            <span className="text-xs font-semibold text-ink">{ROL_BASLIGI[rol]}</span>
-            <ul className="m-0 mt-1 list-none space-y-1 p-0">
-              {liste.map((hesap) => (
-                <li key={hesap.kullanici_adi}>
-                  <button
-                    type="button"
-                    onClick={() => doldur(hesap.kullanici_adi, kimlik.parola)}
-                    className="w-full rounded-sm border border-rule px-2 py-1 text-left text-xs text-ink hover:border-accent focus-visible:border-accent focus-visible:ring-3 focus-visible:ring-accent/30 focus-visible:outline-none"
-                  >
-                    <code className="text-ink">{hesap.kullanici_adi}</code>
-                    <span className="ml-2 text-ink-muted">{hesap.aciklama}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </li>
-        ))}
+      <ul className="m-0 mt-2 list-none space-y-1 p-0">
+        {rolegoreGrupla(kimlik.hesaplar).map(([rol, liste]) =>
+          liste.map((hesap) => (
+            <li key={hesap.kullanici_adi}>
+              <button
+                type="button"
+                onClick={() => doldur(hesap.kullanici_adi, hesap.parola)}
+                title={hesap.aciklama}
+                className="flex w-full items-baseline gap-2 rounded-sm border border-rule px-2 py-1 text-left hover:border-accent focus-visible:border-accent focus-visible:ring-3 focus-visible:ring-accent/30 focus-visible:outline-none"
+              >
+                <code className="text-xs text-ink">{hesap.kullanici_adi}</code>
+                <code className="text-xs text-ink-muted">{hesap.parola}</code>
+                <span className="ml-auto shrink-0 text-[11px] text-ink-muted">
+                  {ROL_BASLIGI[rol]}
+                </span>
+              </button>
+            </li>
+          )),
+        )}
       </ul>
     </section>
   )

@@ -11,14 +11,14 @@
 # API surecinin ve elle kosturulan her betigin de yikici islem izni olurdu.
 # Izin yalnizca bu birimin sureci boyunca, yalnizca bu betik icin acilir.
 #
-# DEMO_KIPI ve DEMO_PAROLA ise `/opt/vardiya/.env` icindedir - birimin
+# DEMO_KIPI ve DEMO_PAROLA_TOHUMU ise `/opt/vardiya/.env` icindedir - birimin
 # icinde DEGIL, cunku birim dosyasina yazilan bir deger `systemctl cat`
 # calistirabilen herkese gorunur.
 #
 # IKISI DE API SURECININ GORMESI GEREKEN DEGERLER. Once ayri bir ikinci
 # ortam dosyasi dusunulmustu; `vardiya-api.service` yalnizca `.env` okudugu
 # icin gosterim seridi (DEMO_KIPI) ve giris ekranindaki kimlik kutusu
-# (DEMO_PAROLA) orada kalsalardi sessizce kapali kalirdi - arayuz hata
+# (DEMO_PAROLA_TOHUMU) orada kalsalardi sessizce kapali kalirdi - arayuz hata
 # vermez, yalnizca hicbir sey gostermez.
 
 [Unit]

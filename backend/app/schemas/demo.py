@@ -7,13 +7,13 @@ class DemoHesabiOku(BaseModel):
     kullanici_adi: str
     rol: str
     aciklama: str
+    #: HER HESABIN KENDI PAROLASI. Once dordu icin tek bir alan tutuluyordu;
+    #: ayni dize demekti ve "parolayi biliyorum" ile "hepsini biliyorum" ayni
+    #: seye cikiyordu. Deger saklanmaz, tohumdan turetilir.
+    parola: str
 
 
 class DemoKimlikOku(BaseModel):
-    #: Butun demo hesaplari AYNI parolayi tasir. Ayri parolalar gosterim
-    #: ortaminda hicbir sey korumaz - hepsi zaten ayni ekranda yazili - ama
-    #: ekrani uzatir ve kopyalamayi zorlastirirdi.
-    parola: str
     hesaplar: list[DemoHesabiOku]
 
 

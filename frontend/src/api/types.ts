@@ -700,9 +700,10 @@ export interface DemoHesabi {
   kullanici_adi: string
   rol: Rol
   aciklama: string
+  /** Her hesabın kendi parolası; saklanmaz, sunucuda tohumdan türetilir. */
+  parola: string
 }
 
 export interface DemoKimlik {
-  parola: string
   hesaplar: DemoHesabi[]
 }

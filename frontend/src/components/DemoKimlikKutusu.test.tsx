@@ -9,13 +9,33 @@ import { DemoKimlikKutusu } from './DemoKimlikKutusu'
 import { api } from '../api/client'
 import type { DemoKimlik } from '../api/types'
 
+// Parolalar hesap başına AYRI; testin tamamı bu ayrımın üstünde duruyor.
 const KIMLIK: DemoKimlik = {
-  parola: 'gosterim-parolasi',
   hesaplar: [
-    { kullanici_adi: 'demo_idare', rol: 'idare', aciklama: 'Çizelgeyi kuran rol' },
-    { kullanici_adi: 'demo_hesap', rol: 'hesap_yoneticisi', aciklama: 'Hesapları yönetir' },
-    { kullanici_adi: 'demo_d1010', rol: 'calisan', aciklama: 'Kotası dolmaya yakın' },
-    { kullanici_adi: 'demo_d1020', rol: 'calisan', aciklama: 'Ortalama yüklü' },
+    {
+      kullanici_adi: 'demo_idare',
+      rol: 'idare',
+      aciklama: 'Çizelgeyi kuran rol',
+      parola: 'aaa111bbb222',
+    },
+    {
+      kullanici_adi: 'demo_hesap',
+      rol: 'hesap_yoneticisi',
+      aciklama: 'Hesapları yönetir',
+      parola: 'ccc333ddd444',
+    },
+    {
+      kullanici_adi: 'demo_d1010',
+      rol: 'calisan',
+      aciklama: 'Kotası dolmaya yakın',
+      parola: 'eee555fff666',
+    },
+    {
+      kullanici_adi: 'demo_d1020',
+      rol: 'calisan',
+      aciklama: 'Ortalama yüklü',
+      parola: 'ggg777hhh888',
+    },
   ],
 }
 
@@ -34,35 +54,41 @@ describe('DemoKimlikKutusu', () => {
     expect(container.innerHTML).toBe('')
   })
 
-  it('üç rolü de ayrı ayrı listeler', async () => {
+  it('üç rolü de etiketler ve her hesabın kendi parolasını yazar', async () => {
     vi.spyOn(api, 'demoKimlik').mockResolvedValue(KIMLIK)
 
     render(<DemoKimlikKutusu doldur={() => {}} />)
 
     await screen.findByText('İdare')
     expect(screen.getByText('Hesap yöneticisi')).toBeTruthy()
-    expect(screen.getByText('Çalışan')).toBeTruthy()
-    // Sistem yöneticisi sunucudan HİÇ gelmez; ekranda da başlığı olmamalı.
+    expect(screen.getAllByText('Çalışan')).toHaveLength(2)
+    // Sistem yöneticisi sunucudan HİÇ gelmez; ekranda da etiketi olmamalı.
     expect(screen.queryByText('Sistem yöneticisi')).toBeNull()
+    for (const hesap of KIMLIK.hesaplar) {
+      expect(screen.getByText(hesap.parola)).toBeTruthy()
+    }
   })
 
-  it('bir satıra tıklamak formu o hesapla doldurur', async () => {
+  it('bir satıra tıklamak formu O HESABIN kendi parolasıyla doldurur', async () => {
     vi.spyOn(api, 'demoKimlik').mockResolvedValue(KIMLIK)
     const doldur = vi.fn()
 
     render(<DemoKimlikKutusu doldur={doldur} />)
     fireEvent.click(await screen.findByText('demo_d1010'))
 
-    expect(doldur).toHaveBeenCalledWith('demo_d1010', 'gosterim-parolasi')
+    // Ortak bir parola değil, o satırın parolası gitmeli.
+    expect(doldur).toHaveBeenCalledWith('demo_d1010', 'eee555fff666')
   })
 
-  it('parola paketten değil yanıttan gelir', async () => {
-    // Aynı bileşen farklı bir parolayla farklı bir değer göstermeli;
-    // gömülü olsaydı yanıt değişse de ekran değişmezdi.
-    vi.spyOn(api, 'demoKimlik').mockResolvedValue({ ...KIMLIK, parola: 'bambaska-parola' })
+  it('parolalar paketten değil yanıttan gelir', async () => {
+    // Gömülü olsalardı yanıt değişse de ekran değişmezdi.
+    const baska = {
+      hesaplar: KIMLIK.hesaplar.map((h) => ({ ...h, parola: `x${h.parola.slice(1)}` })),
+    }
+    vi.spyOn(api, 'demoKimlik').mockResolvedValue(baska)
 
     render(<DemoKimlikKutusu doldur={() => {}} />)
 
-    expect(await screen.findByText('bambaska-parola')).toBeTruthy()
+    expect(await screen.findByText('xaa111bbb222')).toBeTruthy()
   })
 })

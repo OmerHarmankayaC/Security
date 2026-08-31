@@ -243,12 +243,12 @@ and the measurement record describe the same scale.
 ```bash
 cd backend && source .venv/bin/activate
 python scripts/demo_veri_uret.py                    # first run
-VERI_TEMIZLIGINE_IZIN=1 DEMO_PAROLA=... \
+VERI_TEMIZLIGINE_IZIN=1 DEMO_PAROLA_TOHUMU=... \
   python scripts/demo_veri_uret.py --reset          # wipe and regenerate
 VERI_TEMIZLIGINE_IZIN=1 python scripts/demo_veri_uret.py --reset --cozme
 ```
 
-`--reset` is behind the destructive-operation lock. `DEMO_PAROLA` is the
+`--reset` is behind the destructive-operation lock. `DEMO_PAROLA_TOHUMU` is the
 password for the demo accounts; without it no accounts are created and the
 script says so. The password is never written to the repository.
 
@@ -305,8 +305,13 @@ same accounts, for reference:
 | `demo_d1010` | employee | Someone close to their annual overtime quota |
 | `demo_d1020` | employee | Someone with an average load |
 
-They share one password, taken from `DEMO_PAROLA` at run time — it is not in
-this repository and not in the built bundle. A fifth account with the system
+Each has its own twelve-character password, derived at run time from
+`DEMO_PAROLA_TOHUMU` — no password is stored anywhere, not in this
+repository, not in the built bundle, and not in plain text in the database.
+The generator that opens the accounts and the endpoint that shows them run
+the same derivation, so they cannot drift apart. Changing the seed changes
+every password, and the accounts then need
+`demo_veri_uret.py --yalniz-hesaplar` to catch up. A fifth account with the system
 administrator role is created but deliberately **not** listed on the screen:
 a public demo that hands every visitor the widest role has handed away
 account management too.
@@ -423,12 +428,12 @@ If the deployment is a public demo, three things go into `<INSTALL_DIR>/.env`
 
 ```
 DEMO_KIPI=true
-DEMO_PAROLA=<the password shown on the login screen>
+DEMO_PAROLA_TOHUMU=<any long random string>
 ```
 
 Both must be in `.env`, not in a second file: `vardiya-api.service` reads
 only `.env`, and the API is what serves the strip (`DEMO_KIPI`) and the
-credentials box (`DEMO_PAROLA`). Put them elsewhere and both stay off
+credentials box (`DEMO_PAROLA_TOHUMU`). Put them elsewhere and both stay off
 silently — nothing errors, the screens simply come up without them.
 
 The demo password is not a secret; it is printed on the login screen for

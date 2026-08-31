@@ -4,9 +4,9 @@ Bu dosyanin asil isi bir OLUMSUZ iddiayi kilitlemek: gercek bir kurulumda
 demo kimlik bilgisi HICBIR yuzeyde bulunmaz. Uc nokta kapali kipte 404 doner
 ve ne parola ne kullanici adi sizar.
 
-Ikinci iddia: parola koda ya da on yuz paketine GOMULMEZ. Bunun tek
-gozlenebilir karsiligi, uc noktanin parolayi CALISMA ZAMANINDA ayardan
-okumasidir - ayar degistiginde yanit da degisir.
+Ikinci iddia: parolalar koda ya da on yuz paketine GOMULMEZ ve saklanmaz.
+Tohumdan turetilirler; tohum degistiginde butun parolalar degisir ve her
+hesabinki DIGERLERINDEN FARKLIDIR.
 
 Ucuncu iddia: sistem yoneticisi hesabi ACILIR ama GOSTERILMEZ. Gosterim
 ortami herkese aciktir; en genis yetkiyi giris ekranina yazmak, demoyu
@@ -18,16 +18,16 @@ from fastapi.testclient import TestClient
 from app.config import ayarlar
 from app.main import app
 from app.models.kimlik import Rol
-from app.services.demo_hesaplari import DEMO_HESAPLARI, gosterilecekler
+from app.services.demo_hesaplari import DEMO_HESAPLARI, gosterilecekler, parola_uret
 
 istemci = TestClient(app)
 
-_PAROLA = "gosterim-icin-uzun-parola"
+_TOHUM = "gosterim-icin-uzun-tohum"
 
 
-def _demo_kipini_ac(monkeypatch, *, parola: str | None = _PAROLA) -> None:  # noqa: ANN001
+def _demo_kipini_ac(monkeypatch, *, tohum: str | None = _TOHUM) -> None:  # noqa: ANN001
     monkeypatch.setattr(ayarlar, "demo_kipi", True)
-    monkeypatch.setattr(ayarlar, "demo_parola", parola)
+    monkeypatch.setattr(ayarlar, "demo_parola_tohumu", tohum)
 
 
 def test_demo_kipi_kapaliyken_404_doner() -> None:
@@ -50,30 +50,44 @@ def test_kapali_kipte_hicbir_kimlik_bilgisi_sizmaz() -> None:
         assert hesap.kullanici_adi not in govde
 
 
-def test_demo_kipi_acikken_hesaplar_ve_parola_doner(monkeypatch) -> None:  # noqa: ANN001
+def test_demo_kipi_acikken_hesaplar_doner(monkeypatch) -> None:  # noqa: ANN001
     _demo_kipini_ac(monkeypatch)
 
     yanit = istemci.get("/api/demo/kimlik")
 
     assert yanit.status_code == 200
-    govde = yanit.json()
-    assert govde["parola"] == _PAROLA
-    assert [h["kullanici_adi"] for h in govde["hesaplar"]] == [
-        h.kullanici_adi for h in gosterilecekler()
-    ]
+    hesaplar = yanit.json()["hesaplar"]
+    assert [h["kullanici_adi"] for h in hesaplar] == [h.kullanici_adi for h in gosterilecekler()]
+    for h in hesaplar:
+        assert h["parola"] == parola_uret(_TOHUM, h["kullanici_adi"])
 
 
-def test_parola_calisma_zamaninda_ayardan_okunur(monkeypatch) -> None:  # noqa: ANN001
-    """Gomulu olsaydi ayari degistirmek yaniti degistirmezdi."""
-    _demo_kipini_ac(monkeypatch, parola="baska-bir-uzun-parola")
+def test_her_hesabin_parolasi_farklidir(monkeypatch) -> None:  # noqa: ANN001
+    """Dordu ayni dize olsaydi "parolayi biliyorum" ile "hepsini biliyorum"
+    ayni seye cikardi."""
+    _demo_kipini_ac(monkeypatch)
 
-    assert istemci.get("/api/demo/kimlik").json()["parola"] == "baska-bir-uzun-parola"
+    parolalar = [h["parola"] for h in istemci.get("/api/demo/kimlik").json()["hesaplar"]]
+
+    assert len(set(parolalar)) == len(parolalar)
+    assert all(len(p) == 12 and p.isalnum() and p.islower() for p in parolalar)
 
 
-def test_parola_tanimsizken_kutu_cizilmez(monkeypatch) -> None:  # noqa: ANN001
-    """Demo kipi acik ama parola yoksa gosterilecek kimlik bilgisi yoktur;
-    bos parolali bir kutu, calismayan bir girisi calisiyor gibi gosterirdi."""
-    _demo_kipini_ac(monkeypatch, parola=None)
+def test_parolalar_calisma_zamaninda_tohumdan_turetilir(monkeypatch) -> None:  # noqa: ANN001
+    """Gomulu olsalardi tohumu degistirmek yaniti degistirmezdi."""
+    _demo_kipini_ac(monkeypatch)
+    ilk = [h["parola"] for h in istemci.get("/api/demo/kimlik").json()["hesaplar"]]
+
+    _demo_kipini_ac(monkeypatch, tohum="bambaska-bir-tohum")
+    ikinci = [h["parola"] for h in istemci.get("/api/demo/kimlik").json()["hesaplar"]]
+
+    assert set(ilk).isdisjoint(ikinci)
+
+
+def test_tohum_tanimsizken_kutu_cizilmez(monkeypatch) -> None:  # noqa: ANN001
+    """Demo kipi acik ama tohum yoksa turetilecek parola yoktur; bos parolali
+    bir kutu, calismayan bir girisi calisiyor gibi gosterirdi."""
+    _demo_kipini_ac(monkeypatch, tohum=None)
 
     assert istemci.get("/api/demo/kimlik").status_code == 404
 

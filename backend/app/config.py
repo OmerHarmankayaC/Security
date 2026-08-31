@@ -130,18 +130,23 @@ class Ayarlar(BaseSettings):
     # Demo hesaplarinin parolasi (scripts/demo_veri_uret.py). Uygulama bunu
     # HIC OKUMAZ; burada tanimli olmasinin nedeni `.env` dosyasinda
     # durabilmesidir - pydantic-settings tanimadigi anahtari REDDEDER
-    # (extra='forbid'), dolayisiyla tanimlanmadan yazilan bir DEMO_PAROLA
+    # (extra='forbid'), dolayisiyla tanimlanmadan yazilan bir DEMO_PAROLA_TOHUMU
     # satiri butun arka ucu acilmaz hale getirirdi.
+    #
+    # PAROLANIN KENDISI DEGIL, TOHUMU. Her demo hesabinin parolasi bu
+    # tohumdan turetilir (app/services/demo_hesaplari.parola_uret): dordu de
+    # farklidir ve hicbiri saklanmaz.
     #
     # API SURECI DE OKUR. Once yalnizca gecelik sifirlama birimine verilmesi
     # dusunulmustu, ama giris ekranindaki kimlik kutusu (`/api/demo/kimlik`)
-    # bu degeri istek aninda okuyor: API gormezse uc nokta 404 doner ve kutu
-    # hic cizilmez - arayuz bir hata da vermez, sadece bos kalir.
+    # parolalari istek aninda TURETIYOR: API tohumu gormezse uc nokta 404
+    # doner ve kutu hic cizilmez - arayuz bir hata da vermez, sadece bos
+    # kalir.
     #
-    # Korunacak bir sir DEGILDIR: gosterim parolasi zaten giris ekraninda
-    # yazili. Gizli tutulmasinin tek nedeni depoya ve surum gecmisine
-    # girmemesi; bu yuzden `.env` icinde (0600) durur, kodda degil.
-    demo_parola: str | None = None
+    # Tohumu degistirmek butun demo parolalarini degistirir; hesaplarin
+    # veritabanindaki ozetleri eskiyle kalacagi icin degisiklikten sonra
+    # `demo_veri_uret.py --yalniz-hesaplar` kosturulmalidir.
+    demo_parola_tohumu: str | None = None
 
 
 ayarlar = Ayarlar()
