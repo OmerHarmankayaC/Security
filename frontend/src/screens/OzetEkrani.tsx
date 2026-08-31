@@ -232,7 +232,7 @@ export function OzetEkrani({ ekranSec }: Props) {
           <Kart>
             <KartEtiketi>{m.ozet.toplamCeza}</KartEtiketi>
             <Sayi className="text-sayi-buyuk font-semibold text-ink">
-              {analiz?.toplam_ceza != null ? sayiBicimle(analiz.toplam_ceza, 0) : '—'}
+              {analiz?.toplam_ceza != null ? sayiBicimle(analiz.toplam_ceza, 0) : BOS}
             </Sayi>
             {/* KAYNAK YAZILI OLMALI. İki kaynağın KAPSAMI farklı: "cozucu"da
                 sayı amaç fonksiyonunun tamamı (S8 dahil), "kurallardan"da S8
@@ -259,7 +259,7 @@ export function OzetEkrani({ ekranSec }: Props) {
             <p className="m-0 font-mono text-sayi-buyuk font-semibold text-ink">
               {sonSurum
                 ? `${m.surumDurumu[sonSurum.durum] ?? sonSurum.durum} · S${sonSurum.surum_no}`
-                : '—'}
+                : BOS}
             </p>
           </Kart>
         </div>

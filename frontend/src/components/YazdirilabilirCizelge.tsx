@@ -13,6 +13,7 @@ import {
 } from '@/lib/tarih'
 import { cn } from '@/lib/utils'
 import { useDil } from '@/i18n/DilBaglami'
+import { BOS } from '@/lib/sayi'
 
 interface Props extends CizelgeVerisi {
   /** Başlıkta yazan üretim tarihi (ISO). Dışarıdan verilir; bileşen saat okumaz. */
@@ -157,7 +158,7 @@ export function YazdirilabilirCizelge({
                       {sapmaEtiketi(k)}
                     </td>
                     <td className="border border-neutral-400 px-2 py-0.5 text-[8pt]">
-                      {noktaMap.get(k.nokta_id)?.ad ?? '—'}
+                      {noktaMap.get(k.nokta_id)?.ad ?? BOS}
                     </td>
                     <td className="border border-neutral-400 px-2 py-0.5 text-right font-mono text-[8pt]">
                       {k.eksik_sayi}
@@ -203,7 +204,7 @@ export function YazdirilabilirCizelge({
                     {sapmaEtiketi(f)}
                   </td>
                   <td className="border border-neutral-400 px-2 py-0.5 text-[8pt]">
-                    {noktaMap.get(f.nokta_id)?.ad ?? '—'}
+                    {noktaMap.get(f.nokta_id)?.ad ?? BOS}
                   </td>
                   <td className="border border-neutral-400 px-2 py-0.5 text-right font-mono text-[8pt]">
                     {f.fazla_sayi}

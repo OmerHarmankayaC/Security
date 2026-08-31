@@ -14,6 +14,7 @@ import type { Analiz, AnalizCezaKalemi, KotaDurumu, KumulatifDegisim } from '../
 
 import { AnalizEkrani } from './AnalizEkrani'
 import { ciz } from '@/test/ciz'
+import { BOS } from '@/lib/sayi'
 
 // İstemci modül düzeyinde taklit edilir; yanıt testten teste değişsin diye
 // değiştirilebilir bir değişkenden okunur.
@@ -251,7 +252,7 @@ describe('Analiz ekranı — adalet grafiği', () => {
 
     await screen.findByText('+15 sa')
     // Kemal payını tam tutturdu: ne fazla ne eksik, çubuk hiç çizilmez.
-    expect(screen.getAllByText('—').length).toBeGreaterThan(0)
+    expect(screen.getAllByText(BOS).length).toBeGreaterThan(0)
   })
 
   it('sütun başlıkları yazılıdır', async () => {

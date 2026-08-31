@@ -55,6 +55,7 @@ import {
 import { useDil, useMetin } from '@/i18n/DilBaglami'
 import { hataMetni } from '@/i18n/hata'
 import type { Metinler } from '@/i18n/sozluk'
+import { BOS } from '@/lib/sayi'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -859,7 +860,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
 
         <div className="ml-auto flex items-center gap-4">
           <Olcum etiket={m.cizelge.kapsama}>
-            {analiz ? `%${Math.round(analiz.kapsama_orani * 100)}` : '—'}
+            {analiz ? m.yuzde(Math.round(analiz.kapsama_orani * 100)) : BOS}
           </Olcum>
           <span className="h-5 w-px bg-rule" />
           <Olcum etiket={m.cizelge.acik} vurgulu={kapsamaAcigi.length > 0}>
@@ -867,7 +868,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
           </Olcum>
           <span className="h-5 w-px bg-rule" />
           <Olcum etiket={m.cizelge.toplamCeza}>
-            {analiz?.toplam_ceza != null ? sayiBicimle(Math.round(analiz.toplam_ceza)) : '—'}
+            {analiz?.toplam_ceza != null ? sayiBicimle(Math.round(analiz.toplam_ceza)) : BOS}
           </Olcum>
         </div>
       </div>
@@ -1024,7 +1025,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
               {/* İKİNCİL YOL (SRS 5.6). Birincil yol ızgaradır; bu form tam
                   değer yazmak isteyen kullanıcı içindir. */}
               <p className="m-0 text-sm text-ink">
-                {seciliPersonel.ad_soyad} — {gunKisaltmasiVeNumarasi(seciliHucre.tarih)}
+                {seciliPersonel.ad_soyad} · {gunKisaltmasiVeNumarasi(seciliHucre.tarih)}
               </p>
               <div className="mt-3 flex flex-col gap-3">
                 <div className="flex gap-2">
@@ -1036,7 +1037,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                       disabled={!surumDuzenlenebilir}
                       onChange={(e) => setSeciliBaslangic(Number(e.target.value))}
                     >
-                      <option value="">—</option>
+                      <option value="">{BOS}</option>
                       {BASLANGIC_SAATLERI.map((x) => (
                         <option key={x} value={x}>
                           {saatEtiketi(x)}
@@ -1052,7 +1053,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                       disabled={!surumDuzenlenebilir || seciliBaslangic === null}
                       onChange={(e) => setSeciliBitis(Number(e.target.value))}
                     >
-                      <option value="">—</option>
+                      <option value="">{BOS}</option>
                       {BITIS_SAATLERI.map((x) => (
                         <option key={x} value={x}>
                           {saatEtiketi(x)}
@@ -1069,7 +1070,7 @@ export function CizelgeEkrani({ ekranSec, donemId, donemIdSec, yenidenCozIste }:
                     disabled={!surumDuzenlenebilir}
                     onChange={(e) => setSeciliNoktaId(e.target.value)}
                   >
-                    <option value={BOSALT_DEGERI}>—</option>
+                    <option value={BOSALT_DEGERI}>{BOS}</option>
                     {noktalar.map((n) => (
                       <option key={n.nokta_id} value={n.nokta_id}>
                         {n.ad}
@@ -1227,7 +1228,7 @@ function SonucSeridi({
         <ul className="m-0 flex list-none flex-col gap-1 p-0">
           {ozet.ihlaller.map((ihlal, i) => (
             <li key={i} className="border-l-2 border-signal pl-3 text-sm text-signal">
-              <span className="font-mono">{ihlal.kural_kimlik}</span> — {ihlal.aciklama}
+              <span className="font-mono">{ihlal.kural_kimlik}</span> · {ihlal.aciklama}
               {ihlal.personel_id !== null && personelMap.get(ihlal.personel_id) && (
                 <span className="text-ink-muted">
                   {' '}

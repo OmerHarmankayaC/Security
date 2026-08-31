@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { gunKisaltmasiVeNumarasi } from '../lib/tarih'
 import { useMetin } from '@/i18n/DilBaglami'
 import { hataMetni } from '@/i18n/hata'
+import { BOS } from '@/lib/sayi'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -128,7 +129,7 @@ export function MusaitlikEkrani({ ekranSec }: Props) {
                 value={personelId}
                 onChange={(e) => setPersonelId(e.target.value)}
               >
-                <option value="">—</option>
+                <option value="">{BOS}</option>
                 {personelListesi.map((p) => (
                   <option key={p.personel_id} value={p.personel_id}>
                     {p.ad_soyad}

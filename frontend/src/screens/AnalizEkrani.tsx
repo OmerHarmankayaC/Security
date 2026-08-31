@@ -19,7 +19,9 @@ import { sayiBicimle, sapmaBicimle } from '../lib/sayi'
 import { adaletSatirlari, type AdaletSatiri } from '../lib/adalet'
 import { sonDonem } from '@/lib/donemSecimi'
 import { useMetin } from '@/i18n/DilBaglami'
+import type { Metinler } from '@/i18n/sozluk'
 import { hataMetni } from '@/i18n/hata'
+import { BOS } from '@/lib/sayi'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -30,8 +32,8 @@ interface Props {
 const SECIM_SINIFI =
   'h-8 rounded-sm border border-rule bg-surface px-2.5 font-mono text-sm text-ink outline-none focus-visible:border-accent focus-visible:ring-3 focus-visible:ring-accent/30 disabled:opacity-50'
 
-function yuzdeBicimle(oran: number | null): string {
-  return oran === null ? '—' : `%${Math.round(oran * 100)}`
+function yuzdeBicimle(oran: number | null, m: Metinler): string {
+  return oran === null ? BOS : m.yuzde(Math.round(oran * 100))
 }
 
 // Birim burada eklenir, sayının kendisi lib/sayi.ts'ten gelir — işaret ve
@@ -270,7 +272,7 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
             <Kart>
               <KartEtiketi>{m.analiz.donemKapsamasi}</KartEtiketi>
               <p className="m-0 font-mono text-sayi-buyuk font-semibold text-accent">
-                {yuzdeBicimle(analiz.kapsama_orani)}
+                {yuzdeBicimle(analiz.kapsama_orani, m)}
               </p>
             </Kart>
             {/* Kapsama oranının YANINDA ama ondan ayrı: oran "talebin ne
@@ -314,19 +316,19 @@ export function AnalizEkrani({ ekranSec, donemId, donemIdSec }: Props) {
             <Kart>
               <KartEtiketi>{m.analiz.tercihKarsilama}</KartEtiketi>
               <p className="m-0 font-mono text-sayi-buyuk font-semibold text-ink">
-                {yuzdeBicimle(analiz.tercih_karsilama_orani)}
+                {yuzdeBicimle(analiz.tercih_karsilama_orani, m)}
               </p>
             </Kart>
             <Kart>
               <KartEtiketi>en dengesiz</KartEtiketi>
               <p className="m-0 text-sayi-buyuk font-semibold text-signal">
-                {analiz.en_dengesiz_ad_soyad ?? '—'}
+                {analiz.en_dengesiz_ad_soyad ?? BOS}
               </p>
             </Kart>
             <Kart>
               <KartEtiketi>toplam ceza</KartEtiketi>
               <Sayi className="text-sayi-buyuk font-semibold text-ink">
-                {analiz.toplam_ceza !== null ? sayiBicimle(analiz.toplam_ceza, 0) : '—'}
+                {analiz.toplam_ceza !== null ? sayiBicimle(analiz.toplam_ceza, 0) : BOS}
               </Sayi>
             </Kart>
           </div>
@@ -613,7 +615,7 @@ function AdaletGrafigi({
                     )}
                   >
                     {s.yon === 'yok'
-                      ? '—'
+                      ? BOS
                       : `${s.yon === 'ust' ? '+' : '\u2212'}${sayiBicimle(s.sapma, 0)} sa`}
                   </Sayi>
                 </span>

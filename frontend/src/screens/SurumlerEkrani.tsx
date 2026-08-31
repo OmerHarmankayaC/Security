@@ -229,7 +229,7 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                 value={oncekiId}
                 onChange={(e) => setOncekiId(e.target.value)}
               >
-                <option value="">—</option>
+                <option value="">{BOS}</option>
                 {surumler.map((s) => (
                   <option key={s.surum_id} value={s.surum_id}>
                     {m.surumler.surumSecenegi(s.surum_no, m.surumDurumu[s.durum])}
@@ -244,7 +244,7 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                 value={yeniId}
                 onChange={(e) => setYeniId(e.target.value)}
               >
-                <option value="">—</option>
+                <option value="">{BOS}</option>
                 {surumler.map((s) => (
                   <option key={s.surum_id} value={s.surum_id}>
                     {m.surumler.surumSecenegi(s.surum_no, m.surumDurumu[s.durum])}

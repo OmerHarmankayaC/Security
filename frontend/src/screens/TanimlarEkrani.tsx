@@ -43,6 +43,7 @@ import { useDil, useMetin } from '@/i18n/DilBaglami'
 import type { Metinler } from '@/i18n/sozluk'
 import { hataMetni } from '@/i18n/hata'
 import { kucukHarf } from '@/lib/metin'
+import { BOS } from '@/lib/sayi'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -740,7 +741,7 @@ export function TanimlarEkrani({ ekranSec }: Props) {
                       >
                         <span className="font-medium text-ink">{noktaAdi(t.nokta_id)}</span>
                         <span className="text-ink-muted">{m.tanimlar.gunTipi[t.gun_tipi]}</span>
-                        <span className="font-mono text-ink-muted">{t.tarih ?? '—'}</span>
+                        <span className="font-mono text-ink-muted">{t.tarih ?? BOS}</span>
                         <span className="font-mono text-ink">
                           {saatEtiketi(baslangic)}–{saatEtiketi(bitis)}
                         </span>
@@ -1055,7 +1056,7 @@ function KuralSatiri({
                 />
               ) : (
                 <Sayi className={cn(DEGER_ALANI, 'py-1 text-sm text-ink')}>
-                  {String(kural.parametreler[tanim.anahtar] ?? '—')}
+                  {String(kural.parametreler[tanim.anahtar] ?? BOS)}
                 </Sayi>
               )}
             </div>
@@ -1081,7 +1082,7 @@ function KuralSatiri({
               />
             ) : (
               <Sayi className={cn(DEGER_ALANI, 'py-1 text-sm text-ink')}>
-                {kural.agirlik ?? '—'}
+                {kural.agirlik ?? BOS}
               </Sayi>
             )}
           </div>
@@ -1375,7 +1376,7 @@ function EkleFormu({
                 type="number"
                 value={kotaYili}
                 onChange={(e) => setKotaYili(e.target.value)}
-                placeholder="—"
+                placeholder={BOS}
                 className="w-28 rounded-sm border-rule font-mono"
               />
             </div>
@@ -1411,7 +1412,7 @@ function EkleFormu({
                 value={yetkinlikId}
                 onChange={(e) => setYetkinlikId(e.target.value)}
               >
-                <option value="">—</option>
+                <option value="">{BOS}</option>
                 {yetkinlikler.map((y) => (
                   <option key={y.yetkinlik_id} value={y.yetkinlik_id}>
                     {y.ad}

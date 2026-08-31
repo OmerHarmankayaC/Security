@@ -405,7 +405,7 @@ function KapsamaSatiri({
               saat % 3 === 0 && 'border-l border-rule',
               eksik > 0 && 'bg-signal-soft',
             )}
-            title={eksik > 0 ? `${saatEtiketi(saat)} — ${adlar}` : undefined}
+            title={eksik > 0 ? `${saatEtiketi(saat)} · ${adlar}` : undefined}
           >
             {eksik > 0 && (
               <span className="font-mono text-[9px] leading-none font-semibold text-signal">

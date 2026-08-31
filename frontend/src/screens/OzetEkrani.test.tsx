@@ -22,6 +22,7 @@ import type {
 
 import { OzetEkrani } from './OzetEkrani'
 import { ciz } from '@/test/ciz'
+import { BOS } from '@/lib/sayi'
 
 // AppShell oturum bağlamı ister ve bu testlerin konusu değil; çocuklarını
 // döken bir kabukla değiştirilir (bkz. AnalizEkrani.test.tsx).
@@ -355,7 +356,7 @@ describe('Özet ekranı — atamasız taslak', () => {
     ).toBeDefined()
     // Ölçü kartları (kapsama, toplam ceza, sürüm durumu) sayı yerine tire
     // gösterir.
-    expect(screen.getAllByText('—').length).toBeGreaterThan(0)
+    expect(screen.getAllByText(BOS).length).toBeGreaterThan(0)
 
     _surumler = [SURUM_OLCULEBILIR]
   })
