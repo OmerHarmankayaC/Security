@@ -35,6 +35,21 @@ satir() {
 kod() { curl -sS -o /dev/null -w '%{http_code}' -m 20 "$@"; }
 govde() { curl -sS -m 20 "$@"; }
 
+# X-Robots-Tag yanitta BIRDEN COK kez bulunabilir ve bu dogrudur: statik
+# icerige basligi vekil koyar, /api/* hem vekilden hem uygulamanin ara
+# katmanindan gecer. Ayni degeri iki kez gormek bir kusur degil, README'de
+# yazan iki katmanli kurulumun dogal sonucu - ve tekrarlanan ayni yonerge
+# gezginler icin de tek yonergedir.
+#
+# Ilk surum satirlari oldugu gibi karsilastiriyordu; iki ayni satir tek
+# satira esit olmadigi icin DOGRU KURULMUS bir sunucuyu "kaldi" gosterdi.
+# Tekillestiriyoruz: degerler ayni ise o deger, farkli ise ikisi de basilir.
+baslik() {
+  curl -sS -D - -o /dev/null -m 20 "$1" \
+    | sed -n 's/^[Xx]-[Rr]obots-[Tt]ag:[[:space:]]*//p' \
+    | tr -d '\r' | sort -u | paste -sd' + ' -
+}
+
 echo "== Yayin kontrolu: $ADRES =="
 echo
 
@@ -92,10 +107,8 @@ satir "salt okunur reddi: DELETE /api/surum/1" "403" \
 # --- 5. Dizinlemeye kapali --------------------------------------------------
 satir "robots.txt dosya olarak var" "yes" \
   "$(govde "$ADRES/robots.txt" | grep -qi '^User-agent' && echo yes || echo no)"
-satir "X-Robots-Tag: / (vekil)" "noindex, nofollow" \
-  "$(curl -sS -D - -o /dev/null -m 20 "$ADRES/" | sed -n 's/^[Xx]-[Rr]obots-[Tt]ag:[[:space:]]*//p' | tr -d '\r')"
-satir "X-Robots-Tag: /api (uygulama)" "noindex, nofollow" \
-  "$(curl -sS -D - -o /dev/null -m 20 "$ADRES/api/ortam" | sed -n 's/^[Xx]-[Rr]obots-[Tt]ag:[[:space:]]*//p' | tr -d '\r')"
+satir "X-Robots-Tag: /" "noindex, nofollow" "$(baslik "$ADRES/")"
+satir "X-Robots-Tag: /api" "noindex, nofollow" "$(baslik "$ADRES/api/ortam")"
 satir "index.html meta robots" "1" \
   "$(govde "$ADRES/" | grep -c 'name="robots"')"
 
@@ -103,6 +116,12 @@ satir "index.html meta robots" "1" \
 if [ -d "$KURULUM" ]; then
   satir "sifirlama timer etkin" "enabled" \
     "$(systemctl is-enabled vardis-demo-sifirlama.timer 2>&1)"
+  # TIMER ETKIN OLMASI SERVISIN BASARILI OLDUGU ANLAMINA GELMEZ. Sifirlama
+  # kuruldugundan beri her gece `ExecStartPre`de dusuyordu ve disaridan
+  # bakinca her sey saglam gorunuyordu: timer etkin, sonraki kosum yazili,
+  # servisler ayakta. Eksik olan tam da bu satirdi.
+  satir "son sifirlama sonucu" "success" \
+    "$(systemctl show vardis-demo-sifirlama.service -p Result --value 2>&1)"
   echo "          sonraki kosum: $(systemctl list-timers vardis-demo-sifirlama.timer \
     --no-pager --no-legend 2>/dev/null | awk '{print $1, $2, $3}')"
   satir ".yasakli-metinler yerinde" "yes" \

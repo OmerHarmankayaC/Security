@@ -3639,3 +3639,40 @@ satır da eklenmeli; "timer etkin" tek başına yanıltıcıydı.
 `extra='forbid'` taşıyor ve alan artık tanımlı değil; import anında
 `extra_forbidden` ile düşer. `.env` düzeltmesi yeniden başlatmadan ÖNCE
 yapılmalıdır.
+
+### Yayın koştu — 19/19
+
+Dağıtım yapıldı (rsync), `.env` düzeltildi, Caddy'ye başlık eklendi,
+sıfırlama elle tetiklendi. `deploy/yayin_kontrolu.sh` sunucuda **19/19**.
+
+Gecelik sıfırlama **ilk kez başarıyla koştu**: 15 dk 55 sn duvar saati,
+43 dk 50 sn CPU, 941 MB tepe bellek. Bir saatlik tahminim fazlaydı;
+`TimeoutStartSec=7200` bir üst sınır, süre değil.
+
+DEMO_SENARYOSU §9, sunucuda üretilmiş veri üzerinde: 9.1 · 9.2 · 9.3 · 9.4 ·
+9.6 geçti, 9.5 tek koşumda ölçülemez (özet
+`185785561815b41edcc54636b0a28ba2dffbcc71be4898e358ee62c052d44e40`). **9.6
+sıfır isabet** — `.yasakli-metinler` sunucuda bulundu, "ölçülemedi"
+dönmedi. Dönemler bugüne çapalandı (sıkışık dönem 14–20 Eylül 2026).
+
+Parolalar **birebir uyuyor**: dördü de kayıttaki değerle aynı, çünkü
+sunucudaki tohum `gosterim-tohumu-yerel`e sabitlendi.
+
+### Kontrol betiği üç kez yanlış alarm verdi
+
+Hepsi düzeltildi, ama örüntü kayda değer — **doğrulama aracının kendisi de
+üründür ve aynı disipline tabidir:**
+
+1. Giriş gövdesi iç içe tırnaklarda virgülden ikiye bölünüyordu → çalışan
+   giriş "kaldı" görünüyordu.
+2. `robots.txt` denetimi ilk satırın `User-agent` olmasını bekliyordu; dosya
+   yorumla başlıyor.
+3. `X-Robots-Tag` **iki kez** dönüyordu — statik içeriğe vekil, `/api/*`e hem
+   vekil hem ara katman koyuyor. İki aynı satır tek satıra eşit olmadığı için
+   **doğru kurulmuş** bir sunucu "kaldı" gösterildi. Tekrarlama kusur değil,
+   README'de yazan iki katmanlı kurulumun doğal sonucu; ölçüm tekilleştirildi.
+
+Üçü de sessizce yeşile döndürülmedi; kök nedenleriyle birlikte betiğe yazıldı.
+
+Ayrıca `son sifirlama sonucu` satırı eklendi: "timer etkin" tek başına
+yanıltıcıydı ve sıfırlamanın aylardır düştüğünü tam da bu gizlemişti.
