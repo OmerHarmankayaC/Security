@@ -1,0 +1,14 @@
+# VARDIS — arama motorlarina kapali.
+#
+# Gosterim ornegi herkese acik olabilir ama ARANABILIR olmamalidir: demo
+# verisi kurgudur ve bir arama sonucunda baglamsiz gorulmesi, onu gercek
+# bir kurumun cizelgesi sanmaya davet eder. Gercek bir kurulum icin de ayni
+# sey gecerli - ic kullanima acik bir aracin dizine girmesi icin bir neden
+# yok.
+#
+# robots.txt bir RICADIR, kapi degil: uyan gezgin uyar. Kapinin kendisi
+# `X-Robots-Tag: noindex` basligidir (bkz. app/dizinleme.py ve README'deki
+# Caddy parcasi); ikisi birlikte kullanilir cunku basligi gormeyen gezgin
+# bu dosyayi okur, bu dosyayi yok sayan gezgin de basligi gorur.
+User-agent: *
+Disallow: /

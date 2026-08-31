@@ -417,6 +417,28 @@ lets the session cookie work without CORS.
 cd frontend && npm ci && npm run build   # output: frontend/dist
 ```
 
+### Keeping the instance out of search results
+
+The build ships a `robots.txt` that disallows every crawler, and the API
+sends `X-Robots-Tag: noindex, nofollow` on every response. The static files
+are served by the proxy rather than the API, so add the same header there —
+`robots.txt` is a request that a crawler may ignore, the header is part of
+the response itself:
+
+```
+# Caddy
+header X-Robots-Tag "noindex, nofollow"
+```
+
+```
+# nginx
+add_header X-Robots-Tag "noindex, nofollow" always;
+```
+
+This is not conditional on demo mode. A demo carries invented data that
+should not surface in a search result stripped of its context, and a real
+installation is an internal tool with no reason to be indexed either.
+
 `OTURUM_CEREZI_SECURE` must stay `true` wherever the site is served over
 HTTPS. The browser will not return a `Secure` cookie over plain HTTP, and the
 symptom is a login that fails silently rather than with an error.

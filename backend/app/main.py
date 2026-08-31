@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from app.dizinleme import noindex_basligi
 from app.repositories.sonuc import TaslakSiniriAsildiError
 from app.routers import (
     analiz,
@@ -21,6 +22,10 @@ app = FastAPI(title="Vardiya Cizelgeleme Karar Destek Araci")
 # Gosterim kipinde yazma yasagi (app/salt_okunur.py). Ara katman, uc nokta
 # bagimliligi DEGIL: yarin eklenen bir yazma ucu bunu unutamaz.
 app.middleware("http")(salt_okunur_kapisi)
+
+# Arama motorlarina kapali (app/dizinleme.py). Kosulsuz: bu bir API ve
+# gercek bir kurulumda da dizine girmesi icin bir neden yok.
+app.middleware("http")(noindex_basligi)
 
 
 @app.exception_handler(TaslakSiniriAsildiError)
