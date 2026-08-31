@@ -54,6 +54,9 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
   // Kopyalama onayı da aynı iki adımlı deseni izler. Ayrı bir durumda
   // tutulur: iki eylem aynı satırda ve onayları karışmamalı.
   const [kopyaOnayBekleyenId, setKopyaOnayBekleyenId] = useState<number | null>(null)
+  // Silme onayı da aynı iki adımlı desende ve AYRI bir durumda: üç eylem
+  // aynı satırda ve onayları birbirine karışmamalı.
+  const [silmeOnayBekleyenId, setSilmeOnayBekleyenId] = useState<number | null>(null)
   // Onay metnindeki atama sayısı; onay açılınca çekilir. Sürüm listesi bu
   // sayıyı taşımıyor ve her satır için önden çekmek gereksiz istek olurdu.
   const [kopyalanacakAtamaSayisi, setKopyalanacakAtamaSayisi] = useState<number | null>(null)
@@ -151,6 +154,23 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
       if (donemId !== null) surumleriYukle(donemId)
     } catch (e) {
       setHata(e instanceof ApiHatasi ? e.message : 'Sürüm kopyalanamadı')
+    } finally {
+      setIslenenId(null)
+    }
+  }
+
+  const sil = async (surum: CizelgeSurumu) => {
+    setIslenenId(surum.surum_id)
+    setHata(null)
+    try {
+      await api.surumSil(surum.surum_id)
+      setSilmeOnayBekleyenId(null)
+      if (donemId !== null) surumleriYukle(donemId)
+    } catch (e) {
+      // Sunucunun metni OLDUĞU GİBİ gösterilir: üç ret nedeni var
+      // (yayınlanmış, arşiv, zincire bağlı) ve hangisi olduğunu yalnızca
+      // sunucu bilir.
+      setHata(e instanceof ApiHatasi ? e.message : 'Sürüm silinemedi')
     } finally {
       setIslenenId(null)
     }
@@ -362,10 +382,49 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                     >
                       Yayınla
                     </Buton>
+                    {/* SİLME YALNIZ AÇIK SÜRÜMLERDE. Yayınlanmış ve arşiv
+                        sürümler bu dalda zaten yok; sunucu da ayrıca
+                        reddediyor — düğmenin gizlenmesi tek başına bir
+                        koruma değil (SDD 5.5.2 ile aynı gerekçe). */}
+                    <Buton
+                      varyant="ikincil"
+                      disabled={islenenId === s.surum_id}
+                      title="Bu sürümü ve atamalarını siler; denenip vazgeçilmiş taslaklar birikmesin diye"
+                      onClick={() => {
+                        setOnayBekleyenId(null)
+                        setKopyaOnayBekleyenId(null)
+                        setSilmeOnayBekleyenId(s.surum_id)
+                      }}
+                    >
+                      Sil
+                    </Buton>
                   </>
                 )}
               </div>
             </div>
+
+            {silmeOnayBekleyenId === s.surum_id && (
+              <div className="mt-4 flex items-center gap-4 border-t border-rule pt-4">
+                <p className="m-0 flex-1 text-sm text-ink">
+                  Sürüm {s.surum_no} ve{' '}
+                  {s.atama_sayisi > 0 ? `${s.atama_sayisi} ataması` : 'atamaları'} silinecek.{' '}
+                  <span className="text-ink-muted">
+                    Geri alınamaz. Yayınlanmış ve arşivlenmiş sürümler silinemez; bu sürüm
+                    ikisi de değil.
+                  </span>
+                </p>
+                <Buton varyant="hayalet" onClick={() => setSilmeOnayBekleyenId(null)}>
+                  Vazgeç
+                </Buton>
+                <Buton
+                  varyant="birincil"
+                  disabled={islenenId === s.surum_id}
+                  onClick={() => sil(s)}
+                >
+                  {islenenId === s.surum_id ? 'Siliniyor…' : 'Onayla ve Sil'}
+                </Buton>
+              </div>
+            )}
 
             {kopyaOnayBekleyenId === s.surum_id && (
               <div className="mt-4 flex items-center gap-4 border-t border-rule pt-4">

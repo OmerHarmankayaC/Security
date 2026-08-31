@@ -349,6 +349,9 @@ export const api = {
     ),
 
   // --- Sürümler (FR-7.x, SDD 6.3.5) ---------------------------------------
+  // Yayınlanmamış sürümü siler. Yayınlanmış, arşivlenmiş ya da zincire
+  // bağlı sürümlerde sunucu 409 döner ve nedenini yazar.
+  surumSil: (surumId: number) => silIste(`/api/surum/${surumId}`),
   surumYayinla: (surumId: number) => gonder<CizelgeSurumu>(`/api/surum/${surumId}/yayinla`, {}),
   surumTaslakTuret: (oncekiSurumId: number) =>
     gonder<CizelgeSurumu>('/api/surum', { onceki_surum_id: oncekiSurumId }),

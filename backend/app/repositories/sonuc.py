@@ -79,9 +79,73 @@ class DonemDeposu(TabanDepo[Donem]):
         return self.oturum.execute(stmt).scalars().first()
 
 
+# Donem basina AZAMI ACIK SURUM. Her "Yeniden Coz" bir surum aciyor ve
+# hicbiri kendiliginden kapanmiyor; sinirsiz birakildiginda tek bir donem
+# yuzlerce satir biriktirebilir - Surumler ekrani okunmaz, karsilastirma
+# secicisi kullanilmaz hale gelir.
+#
+# SAYIM YAYINLANMIS VE ARSIVLENMISI KAPSAMAZ. Onlar kayittir: her yayin bir
+# oncekini arsive dusurur ve bir donem hayat boyu defalarca yayinlanabilir.
+# Hepsi sayilsaydi yeterince duzeltilmis bir donem, sinira takildigi icin bir
+# daha YAYINLANAMAZDI - sinir tam da duzeltmeyi engellerdi.
+DONEM_BASINA_AZAMI_ACIK_SURUM = 20
+
+# "Acik" = henuz yayinlanmamis ve arsivlenmemis. Duzenlenebilir durumlarla
+# (dogrulama_servisi) ayni kume ama AYRI TANIM: oradaki soru "bu surum
+# degistirilebilir mi", buradaki "bu surum donemde yer tutuyor mu". Ikisi
+# bugun ayni, yarin ayrilabilir.
+_ACIK_DURUMLAR = (CizelgeSurumuDurumu.TASLAK, CizelgeSurumuDurumu.COZULDU)
+
+
+class TaslakSiniriAsildiError(Exception):
+    """Donemde acik surum sayisi sinira ulasti (SDD 5.6)."""
+
+    def __init__(self, donem_id: int, sinir: int) -> None:
+        super().__init__(
+            f"Bu dönemde {sinir} açık çizelge sürümü var. Yenisini açmadan önce "
+            f"kullanmadıklarınızı silin ya da birini yayınlayın."
+        )
+        self.donem_id = donem_id
+        self.sinir = sinir
+
+
+class SurumSilinemezError(Exception):
+    """Surum silinemez; gerekce mesajda (SDD 5.6)."""
+
+
 class CizelgeSurumuDeposu(TabanDepo[CizelgeSurumu]):
     def __init__(self, oturum: Session) -> None:
         super().__init__(oturum, CizelgeSurumu)
+
+    # --- Acik surum sayisi ---------------------------------------------------
+
+    def acik_surum_sayisi(self, donem_id: int) -> int:
+        """Donemdeki YAYINLANMAMIS ve ARSIVLENMEMIS surum sayisi."""
+        stmt = (
+            select(func.count())
+            .select_from(CizelgeSurumu)
+            .where(
+                CizelgeSurumu.donem_id == donem_id,
+                CizelgeSurumu.durum.in_(_ACIK_DURUMLAR),
+            )
+        )
+        return self.oturum.execute(stmt).scalar_one()
+
+    def olustur(self, **alanlar: object) -> CizelgeSurumu:
+        """Sinir denetimi TEK YARATMA NOKTASINDA.
+
+        Surum acan dort yol var (bos taslak, turetilmis taslak, kopya, cozum
+        baslatma) ve dordu de buradan geciyor. Denetimi cagiranlara birakmak,
+        yarin eklenen besinci yolun onu unutmasi demekti - ve unutuldugu
+        ancak bir donemde yuzlerce satir birikince fark edilirdi.
+        """
+        donem_id = alanlar.get("donem_id")
+        if (
+            isinstance(donem_id, int)
+            and self.acik_surum_sayisi(donem_id) >= DONEM_BASINA_AZAMI_ACIK_SURUM
+        ):
+            raise TaslakSiniriAsildiError(donem_id, DONEM_BASINA_AZAMI_ACIK_SURUM)
+        return super().olustur(**alanlar)
 
     def kilitle(self, surum_id: int) -> CizelgeSurumu | None:
         """Satiri SELECT ... FOR UPDATE ile kilitleyerek getirir (SDD 5.5.1).
@@ -141,6 +205,59 @@ class CizelgeSurumuDeposu(TabanDepo[CizelgeSurumu]):
             durum=CizelgeSurumuDurumu.TASLAK,
             onceki_surum_id=onceki_surum_id,
         )
+
+    def sil(self, surum_id: int) -> bool:
+        """Yayinlanmamis bir surumu ve ona bagli her seyi siler.
+
+        NEDEN VAR: her cozum denemesi bir surum aciyor ve kullanilmayanlari
+        birakmaktan baska yol yoktu; Surumler ekrani denenip vazgecilmis
+        taslaklarla doluyordu.
+
+        UC RET VE UCU DE FARKLI SEY SOYLER:
+
+          - YAYINLANMIS surum silinmez. Calisan paneli onu okuyor; silmek,
+            insanlarin vardiyalarini ekrandan kaldirmak demek.
+          - ARSIV surum silinmez. FR-9.4'un "degisen gunler" isareti ayni
+            donemdeki en son arsivi taban aliyor; taban silindiginde isaret
+            sessizce yanlislasir - hata vermez, YANLIS sayi gosterir.
+          - BASKA BIR SURUM BUNA BAGLIYSA silinmez. `onceki_surum_id`
+            zinciri S8'in ("onceki cizelgeden sapma") ve surum
+            karsilastirmasinin dayanagi; ortadan bir halka cikarmak zinciri
+            koparir. Once ona bagli surum silinmeli.
+
+        Bagli satirlar (atama, kapsama acigi, fazla kadro, cozum isi) TEK
+        ISLEMDE silinir. Yarim silinmis bir surum, atamasi olmayan ama satiri
+        duran bir kayittir ve bos taslaktan ayirt edilemez.
+        """
+        surum = self.getir(surum_id)
+        if surum is None:
+            return False
+        if surum.durum is CizelgeSurumuDurumu.YAYINLANDI:
+            raise SurumSilinemezError(
+                "Yayınlanmış sürüm silinemez. Çalışan paneli bu çizelgeyi gösteriyor; "
+                "önce başka bir sürüm yayınlayın."
+            )
+        if surum.durum is CizelgeSurumuDurumu.ARSIV:
+            raise SurumSilinemezError(
+                "Arşivlenmiş sürüm silinemez. Yayınlanan çizelgedeki 'değişen günler' "
+                "işareti bu sürümü taban alıyor."
+            )
+        bagli = self.oturum.execute(
+            select(func.count())
+            .select_from(CizelgeSurumu)
+            .where(CizelgeSurumu.onceki_surum_id == surum_id)
+        ).scalar_one()
+        if bagli:
+            raise SurumSilinemezError(
+                f"Bu sürümden türetilmiş {bagli} sürüm var; zincir kopmasın diye "
+                f"önce onlar silinmeli."
+            )
+
+        for model in (Atama, KapsamaAcigi, FazlaKadro, CozumIsi):
+            self.oturum.execute(delete(model).where(model.surum_id == surum_id))
+        self.oturum.delete(surum)
+        self.oturum.flush()
+        return True
 
     def yayinla(self, surum_id: int) -> CizelgeSurumu | None:
         """TD-8: yayinlanan surum salt okunur olur; ayni donemde daha once

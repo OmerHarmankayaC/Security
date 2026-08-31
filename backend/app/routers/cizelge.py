@@ -20,6 +20,7 @@ from app.repositories.sonuc import (
     DonemDeposu,
     FazlaKadroDeposu,
     KapsamaAcigiDeposu,
+    SurumSilinemezError,
 )
 from app.schemas.cozum import (
     CozumBaslatIstek,
@@ -367,6 +368,27 @@ def surum_yayinla(surum_id: int, oturum: Oturum) -> CizelgeSurumuOku:
     if surum is None:
         raise HTTPException(status_code=404, detail="Cizelge surumu bulunamadi")
     return CizelgeSurumuOku.model_validate(surum)
+
+
+@router.delete("/surum/{surum_id}", status_code=204)
+def surum_sil(surum_id: int, oturum: Oturum) -> None:
+    """Yayinlanmamis bir surumu siler (SDD 5.6).
+
+    Her cozum denemesi bir surum aciyor ve kullanilmayanlari birakmaktan
+    baska yol yoktu; Surumler ekrani denenip vazgecilmis taslaklarla
+    doluyordu.
+
+    409'un uc ayri nedeni var ve ucu de kullaniciya farkli sey soyler:
+    surum yayinlanmis (calisan paneli onu okuyor), arsivlenmis (FR-9.4'un
+    degisen gunler isareti onu taban aliyor) ya da baska bir surum ona bagli
+    (zincir kopar).
+    """
+    try:
+        silindi = CizelgeSurumuDeposu(oturum).sil(surum_id)
+    except SurumSilinemezError as hata:
+        raise HTTPException(status_code=409, detail=str(hata)) from hata
+    if not silindi:
+        raise HTTPException(status_code=404, detail="Cizelge surumu bulunamadi")
 
 
 @router.get("/surum/{surum_id}/atama", response_model=list[AtamaOku])

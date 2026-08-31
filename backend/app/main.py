@@ -1,5 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
+from app.repositories.sonuc import TaslakSiniriAsildiError
 from app.routers import (
     analiz,
     belge,
@@ -19,6 +21,22 @@ app = FastAPI(title="Vardiya Cizelgeleme Karar Destek Araci")
 # Gosterim kipinde yazma yasagi (app/salt_okunur.py). Ara katman, uc nokta
 # bagimliligi DEGIL: yarin eklenen bir yazma ucu bunu unutamaz.
 app.middleware("http")(salt_okunur_kapisi)
+
+
+@app.exception_handler(TaslakSiniriAsildiError)
+def taslak_siniri(_istek: Request, hata: TaslakSiniriAsildiError) -> JSONResponse:
+    """Donem basina acik surum siniri (SDD 5.6) — 409.
+
+    Uc noktalarda tek tek yakalanmiyor: surum acan dort yol var (bos taslak,
+    turetilmis taslak, kopya, cozum baslatma) ve yarin bir besincisi
+    eklenebilir. Uygulama duzeyinde tek isleyici, o yolun yakalamayi
+    unutmasini imkansiz kilar.
+
+    409, 400 DEGIL: istek gecerli, CAKISTIGI sey sistemin o andaki durumu -
+    ve kullanicinin yapacagi sey istegi duzeltmek degil, yer acmak.
+    """
+    return JSONResponse(status_code=409, content={"detail": str(hata)})
+
 
 app.include_router(saglik.router)
 app.include_router(ortam.router)

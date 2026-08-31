@@ -541,3 +541,80 @@ def test_donemden_acilan_bos_taslagin_yaniti_damga_tasir(istemci: TestClient) ->
     assert liste.status_code == 200
     satir = next(s for s in liste.json() if s["surum_id"] == yanit.json()["surum_id"])
     assert satir["damga"] == yeni_damga
+
+
+# --- Silme ve acik surum siniri (SDD 5.6) -----------------------------------
+
+
+def test_yayinlanmamis_surum_silinir(istemci: TestClient) -> None:
+    """Denenip vazgecilmis taslaklar birikmesin diye."""
+    oturum = OturumYerel()
+    try:
+        senaryo_verisini_temizle(oturum)
+        donem_id = _bos_donem_olustur(oturum)
+    finally:
+        oturum.close()
+    surum_id = istemci.post("/api/surum", json={"donem_id": donem_id}).json()["surum_id"]
+
+    assert istemci.delete(f"/api/surum/{surum_id}").status_code == 204
+
+    kalan = istemci.get(f"/api/surum?donem_id={donem_id}").json()
+    assert [s["surum_id"] for s in kalan] == []
+
+
+def test_olmayan_surumun_silinmesi_404(istemci: TestClient) -> None:
+    assert istemci.delete("/api/surum/99999999").status_code == 404
+
+
+def test_yayinlanmis_surum_silinmez(istemci: TestClient) -> None:
+    """Calisan paneli o cizelgeyi okuyor; silmek vardiyalari ekrandan
+    kaldirmak demek."""
+    oturum = OturumYerel()
+    try:
+        senaryo_verisini_temizle(oturum)
+        donem_id = _bos_donem_olustur(oturum)
+    finally:
+        oturum.close()
+    surum_id = istemci.post("/api/surum", json={"donem_id": donem_id}).json()["surum_id"]
+    istemci.post(f"/api/surum/{surum_id}/yayinla")
+
+    yanit = istemci.delete(f"/api/surum/{surum_id}")
+
+    assert yanit.status_code == 409
+    assert "Yayınlanmış" in yanit.json()["detail"]
+
+
+def test_zincire_bagli_surum_silinmez(istemci: TestClient) -> None:
+    """`onceki_surum_id` zinciri S8'in ve karsilastirmanin dayanagi."""
+    oturum = OturumYerel()
+    try:
+        senaryo_verisini_temizle(oturum)
+        donem_id = _bos_donem_olustur(oturum)
+    finally:
+        oturum.close()
+    taban = istemci.post("/api/surum", json={"donem_id": donem_id}).json()["surum_id"]
+    istemci.post("/api/surum", json={"onceki_surum_id": taban})
+
+    yanit = istemci.delete(f"/api/surum/{taban}")
+
+    assert yanit.status_code == 409
+    assert "türetilmiş" in yanit.json()["detail"]
+
+
+def test_acik_surum_siniri_409_doner(istemci: TestClient) -> None:
+    """Sinir uc noktalarda tek tek degil, tek bir isleyicide 409'a cevriliyor."""
+    from app.repositories.sonuc import DONEM_BASINA_AZAMI_ACIK_SURUM
+
+    oturum = OturumYerel()
+    try:
+        senaryo_verisini_temizle(oturum)
+        donem_id = _bos_donem_olustur(oturum)
+    finally:
+        oturum.close()
+    for _ in range(DONEM_BASINA_AZAMI_ACIK_SURUM):
+        assert istemci.post("/api/surum", json={"donem_id": donem_id}).status_code == 201
+
+    yanit = istemci.post("/api/surum", json={"donem_id": donem_id})
+
+    assert yanit.status_code == 409
+    assert str(DONEM_BASINA_AZAMI_ACIK_SURUM) in yanit.json()["detail"]
