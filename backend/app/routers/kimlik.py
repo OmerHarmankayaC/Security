@@ -7,11 +7,12 @@ acar, ilk yonetim hesabini arayuz disi bir betik acar (FR-10.10).
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
 from app.db import oturum_al
 from app.guvenlik import Baglam, cerez_sil, cerez_yaz
+from app.hatalar import Hata, kodu
 from app.models.kimlik import Kullanici
 from app.repositories.tanim import PersonelDeposu
 from app.schemas.kimlik import BenOku, GirisIstegi, ParolaDegistirIstegi
@@ -54,14 +55,16 @@ def giris(veri: GirisIstegi, yanit: Response, oturum: Oturum) -> BenOku:
     try:
         sonuc = KimlikServisi(oturum).giris(veri.kullanici_adi, veri.parola)
     except GirisBasarisizError as hata:
-        raise HTTPException(status_code=401, detail=_GENEL_RET) from hata
+        raise Hata(status_code=401, kod="giris_basarisiz", detail=_GENEL_RET) from hata
     except HesapKilitliError as hata:
         # Kilit mesaji yalnizca PAROLA DOGRUYKEN buraya ulasir; parolayi
         # bilmeyen biri bu metni hicbir kullanici adi icin goremez, yani
         # FR-10.8'in bildirim gereksinimi kullanici sayimina kapi acmaz.
-        raise HTTPException(status_code=401, detail=str(hata)) from hata
+        raise Hata(status_code=401, kod=kodu(hata), detail=str(hata)) from hata
     except HesapPasifError as hata:
-        raise HTTPException(status_code=401, detail="Hesabiniz devre disi birakilmis") from hata
+        raise Hata(
+            status_code=401, kod="hesap_pasif", detail="Hesabiniz devre disi birakilmis"
+        ) from hata
 
     cerez_yaz(yanit, sonuc.belirtec)
     return _ben(sonuc.kullanici, oturum)
@@ -99,13 +102,13 @@ def parola_degistir(
     try:
         belirtec = servis.parola_degistir(baglam.kullanici, veri.mevcut_parola, veri.yeni_parola)
     except ParolaHataliError as hata:
-        raise HTTPException(status_code=400, detail="Mevcut parola hatali") from hata
+        raise Hata(status_code=400, kod="parola_hatali", detail="Mevcut parola hatali") from hata
     except ParolaAyniError as hata:
-        raise HTTPException(
-            status_code=400, detail="Yeni parola mevcut parolayla ayni olamaz"
+        raise Hata(
+            status_code=400, kod="parola_ayni", detail="Yeni parola mevcut parolayla ayni olamaz"
         ) from hata
     except ParolaKuraliError as hata:
-        raise HTTPException(status_code=400, detail=str(hata)) from hata
+        raise Hata(status_code=400, kod=kodu(hata), detail=str(hata)) from hata
 
     # Parola degisikligi butun oturumlari kapatti; cagiran istek de kendi
     # oturumunu kaybetti ve yerine yenisi acildi. Cerez tazelenmezse

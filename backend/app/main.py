@@ -1,7 +1,9 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.dizinleme import noindex_basligi
+from app.hatalar import hata_isleyici, kodu
 from app.repositories.sonuc import TaslakSiniriAsildiError
 from app.routers import (
     analiz,
@@ -40,7 +42,14 @@ def taslak_siniri(_istek: Request, hata: TaslakSiniriAsildiError) -> JSONRespons
     409, 400 DEGIL: istek gecerli, CAKISTIGI sey sistemin o andaki durumu -
     ve kullanicinin yapacagi sey istegi duzeltmek degil, yer acmak.
     """
-    return JSONResponse(status_code=409, content={"detail": str(hata)})
+    return JSONResponse(status_code=409, content={"detail": str(hata), "kod": kodu(hata)})
+
+
+# HTTP hatalarinin govdesine `kod` alanini ekler. Starlette'in tipine
+# baglaniyor, FastAPI'ninkine degil: FastAPI'nin HTTPException'i onun alt
+# sinifi ve bagimliliklardan yukselenler de dahil hepsi buradan gecer.
+# Kod tasimayan bir hata FastAPI'nin varsayilaniyla BIREBIR ayni cikar.
+app.add_exception_handler(StarletteHTTPException, hata_isleyici)
 
 
 app.include_router(saglik.router)

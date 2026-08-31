@@ -55,11 +55,21 @@ interface PersonelYazma {
 export class ApiHatasi extends Error {
   status: number
   detay: unknown
+  /**
+   * Sunucunun MAKINE KODU (`surum_yok`, `parola_hatali`…), varsa.
+   *
+   * Ekranlar metni bundan, kendi sözlüklerinden yazar; `message` yalnızca
+   * kodu tanımayan yer için Türkçe bir düşüş noktası olarak duruyor. İkisi
+   * birden var çünkü sunucu her hataya kod vermiyor (ağ hatası, 500,
+   * doğrulama hatası) ve kodsuz bir hatada kullanıcı boş kutu görmemeli.
+   */
+  kod: string | null
 
-  constructor(status: number, detay: unknown) {
+  constructor(status: number, detay: unknown, kod: string | null = null) {
     super(typeof detay === 'string' ? detay : `İstek başarısız (HTTP ${status})`)
     this.status = status
     this.detay = detay
+    this.kod = kod
   }
 }
 
@@ -130,7 +140,7 @@ async function istek<T>(yol: string, secenekler?: RequestInit): Promise<T> {
       _yazmaReddedildiDinleyicisi?.(govde.detail)
       throw new SaltOkunurHatasi(govde.detail)
     }
-    throw new ApiHatasi(yanit.status, govde?.detail ?? govde)
+    throw new ApiHatasi(yanit.status, govde?.detail ?? govde, govde?.kod ?? null)
   }
   if (yanit.status === 204) return undefined as T
   return (await yanit.json()) as T

@@ -16,11 +16,12 @@ Rol kapilari (FR-10.4) bu ikisinin uzerine kurulur.
 
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, Request, Response
+from fastapi import Depends, Request, Response
 from sqlalchemy.orm import Session
 
 from app.config import ayarlar
 from app.db import oturum_al
+from app.hatalar import Hata
 from app.models.kimlik import HESAP_YONETEN_ROLLER, IDARE_VE_USTU, Rol
 from app.services.oturum_servisi import CEREZ_ADI, OturumBaglami, OturumServisi
 
@@ -72,11 +73,13 @@ def oturum_baglami(istek: Request, veri_oturumu: VeriOturumu) -> OturumBaglami:
     """
     belirtec = istek.cookies.get(CEREZ_ADI)
     if not belirtec:
-        raise HTTPException(status_code=401, detail="Oturum acik degil")
+        raise Hata(status_code=401, kod="oturum_yok", detail="Oturum acik degil")
 
     baglam = OturumServisi(veri_oturumu).dogrula(belirtec)
     if baglam is None:
-        raise HTTPException(status_code=401, detail="Oturum gecersiz veya suresi dolmus")
+        raise Hata(
+            status_code=401, kod="oturum_gecersiz", detail="Oturum gecersiz veya suresi dolmus"
+        )
     return baglam
 
 
@@ -91,7 +94,7 @@ def giris_yapan(baglam: Baglam) -> OturumBaglami:
     istek dogrudan gonderildiginde de reddedilir.
     """
     if baglam.kullanici.parola_degistirmeli:
-        raise HTTPException(status_code=403, detail=_PAROLA_BORCU_MESAJI)
+        raise Hata(status_code=403, kod="parola_borcu", detail=_PAROLA_BORCU_MESAJI)
     return baglam
 
 
@@ -113,7 +116,7 @@ def _rol_kapisi(*izinli: Rol):  # noqa: ANN202 - FastAPI bagimliligi dondurur
             # 404 degil 403: kaynagin varligi zaten gizli degil, gizli olan
             # ona erisim yetkisi. 404 dondurmek, arayuzu hata ayiklanamaz
             # hale getirirdi.
-            raise HTTPException(status_code=403, detail="Bu islem icin yetkiniz yok")
+            raise Hata(status_code=403, kod="yetki_yok", detail="Bu islem icin yetkiniz yok")
         return baglam
 
     return kapi
@@ -151,9 +154,13 @@ def calisan_yetkisi(baglam: GirisYapan) -> OturumBaglami:
     `personel_id=None` ile calismaya baslamasini engeller.
     """
     if baglam.kullanici.rol is not Rol.CALISAN:
-        raise HTTPException(status_code=403, detail="Bu islem icin yetkiniz yok")
+        raise Hata(status_code=403, kod="yetki_yok", detail="Bu islem icin yetkiniz yok")
     if baglam.kullanici.personel_id is None:
-        raise HTTPException(status_code=403, detail="Hesap bir personel kaydina bagli degil")
+        raise Hata(
+            status_code=403,
+            kod="personel_baglantisi_yok",
+            detail="Hesap bir personel kaydina bagli degil",
+        )
     return baglam
 
 

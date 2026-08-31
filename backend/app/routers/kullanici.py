@@ -12,11 +12,12 @@ birakilir.
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db import oturum_al
 from app.guvenlik import GirisYapan, hesap_yonetimi_yetkisi
+from app.hatalar import Hata, kodu
 from app.models.kimlik import Kullanici
 from app.repositories.tanim import PersonelDeposu
 from app.schemas.kullanici import (
@@ -113,9 +114,9 @@ def olustur(veri: KullaniciOlustur, baglam: GirisYapan, oturum: Oturum) -> Kulla
             isteyen=baglam.kullanici,
         )
     except _YETKI_HATALARI as hata:
-        raise HTTPException(status_code=403, detail=_YETKI_METNI[type(hata)]) from hata
+        raise Hata(status_code=403, kod=kodu(hata), detail=_YETKI_METNI[type(hata)]) from hata
     except _ISTEK_HATALARI as hata:
-        raise HTTPException(status_code=400, detail=str(hata)) from hata
+        raise Hata(status_code=400, kod=kodu(hata), detail=str(hata)) from hata
     return _oku(kullanici, oturum)
 
 
@@ -133,16 +134,17 @@ def guncelle(
             personel_id_verildi="personel_id" in veri.model_fields_set,
         )
     except KullaniciBulunamadiError as hata:
-        raise HTTPException(status_code=404, detail="Kullanici bulunamadi") from hata
+        raise Hata(status_code=404, kod="kullanici_yok", detail="Kullanici bulunamadi") from hata
     except KendiHesabiError as hata:
-        raise HTTPException(
+        raise Hata(
             status_code=400,
+            kod="kendi_hesabi",
             detail="Kendi rolunuzu degistiremez ve kendi hesabinizi devre disi birakamazsiniz",
         ) from hata
     except _YETKI_HATALARI as hata:
-        raise HTTPException(status_code=403, detail=_YETKI_METNI[type(hata)]) from hata
+        raise Hata(status_code=403, kod=kodu(hata), detail=_YETKI_METNI[type(hata)]) from hata
     except _ISTEK_HATALARI as hata:
-        raise HTTPException(status_code=400, detail=str(hata)) from hata
+        raise Hata(status_code=400, kod=kodu(hata), detail=str(hata)) from hata
     return _oku(kullanici, oturum)
 
 
@@ -157,9 +159,9 @@ def parola_sifirla(
             kullanici_id, veri.yeni_parola, isteyen=baglam.kullanici
         )
     except KullaniciBulunamadiError as hata:
-        raise HTTPException(status_code=404, detail="Kullanici bulunamadi") from hata
+        raise Hata(status_code=404, kod="kullanici_yok", detail="Kullanici bulunamadi") from hata
     except _YETKI_HATALARI as hata:
-        raise HTTPException(status_code=403, detail=_YETKI_METNI[type(hata)]) from hata
+        raise Hata(status_code=403, kod=kodu(hata), detail=_YETKI_METNI[type(hata)]) from hata
     except _ISTEK_HATALARI as hata:
-        raise HTTPException(status_code=400, detail=str(hata)) from hata
+        raise Hata(status_code=400, kod=kodu(hata), detail=str(hata)) from hata
     return _oku(kullanici, oturum)

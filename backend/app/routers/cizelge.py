@@ -7,11 +7,12 @@ Cizelge/Cozum ekranlarinin ihtiyac duydugu okuma uc noktalari ve kilitleme).
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.db import oturum_al
 from app.guvenlik import idare_yetkisi
+from app.hatalar import Hata, kodu
 from app.kurallar.temel import Ihlal
 from app.repositories.sonuc import (
     AtamaDeposu,
@@ -82,7 +83,7 @@ def on_kontrol_calistir(istek: OnKontrolIstek, oturum: Oturum) -> OnKontrolYanit
     servis = OnKontrolServisi(oturum)
     bulgular = servis.calistir(istek.donem_id)
     if bulgular is None:
-        raise HTTPException(status_code=404, detail="Donem bulunamadi")
+        raise Hata(status_code=404, kod="donem_yok", detail="Donem bulunamadi")
     return OnKontrolYaniti(bulgular=[BulguOku.model_validate(b) for b in bulgular])
 
 
@@ -95,7 +96,11 @@ def cozum_baslat(istek: CozumBaslatIstek, oturum: Oturum) -> CozumOku:
         zaman_limiti_saniye=istek.zaman_limiti_saniye,
     )
     if is_kaydi is None:
-        raise HTTPException(status_code=404, detail="Donem ya da onceki surum bulunamadi")
+        raise Hata(
+            status_code=404,
+            kod="donem_ya_da_surum_yok",
+            detail="Donem ya da onceki surum bulunamadi",
+        )
     return CozumOku.model_validate(is_kaydi)
 
 
@@ -121,7 +126,7 @@ def cozum_aktif(oturum: Oturum) -> CozumOku | None:
 def cozum_durumu(is_id: int, oturum: Oturum) -> CozumOku:
     is_kaydi = CozumIsiDeposu(oturum).getir(is_id)
     if is_kaydi is None:
-        raise HTTPException(status_code=404, detail="Cozum isi bulunamadi")
+        raise Hata(status_code=404, kod="cozum_isi_yok", detail="Cozum isi bulunamadi")
     return CozumOku.kayittan(is_kaydi)
 
 
@@ -146,9 +151,9 @@ def cozum_durdur(is_id: int, oturum: Oturum) -> CozumOku:
     try:
         is_kaydi = durdurma_istegini_uygula(oturum, is_id)
     except LookupError as hata:
-        raise HTTPException(status_code=404, detail=str(hata)) from hata
+        raise Hata(status_code=404, kod=kodu(hata), detail=str(hata)) from hata
     except DurdurulamazError as hata:
-        raise HTTPException(status_code=409, detail=str(hata)) from hata
+        raise Hata(status_code=409, kod=kodu(hata), detail=str(hata)) from hata
     return CozumOku.kayittan(is_kaydi)
 
 
@@ -165,9 +170,9 @@ def cozum_karari(is_id: int, istek: CozumKarariIstek, oturum: Oturum) -> CozumKa
             oturum, is_id, istek.karar, zaman_limiti_saniye=istek.zaman_limiti_saniye
         )
     except LookupError as hata:
-        raise HTTPException(status_code=404, detail=str(hata)) from hata
+        raise Hata(status_code=404, kod=kodu(hata), detail=str(hata)) from hata
     except KararUygulanamazError as hata:
-        raise HTTPException(status_code=409, detail=str(hata)) from hata
+        raise Hata(status_code=409, kod=kodu(hata), detail=str(hata)) from hata
     return CozumKarariYaniti(
         is_kaydi=CozumOku.kayittan(is_kaydi),
         yeni_is=None if yeni_is is None else CozumOku.kayittan(yeni_is),
@@ -225,9 +230,9 @@ def atama_dogrula(istek: DogrulamaIstegi, oturum: Oturum) -> DogrulamaSonucuOku:
     try:
         sonuc = servis.dogrula(istek.surum_id, _degisikliklere_cevir(istek))
     except SurumTaslakDegilError as hata:
-        raise HTTPException(status_code=409, detail=str(hata)) from hata
+        raise Hata(status_code=409, kod=kodu(hata), detail=str(hata)) from hata
     if sonuc is None:
-        raise HTTPException(status_code=404, detail="Cizelge surumu bulunamadi")
+        raise Hata(status_code=404, kod="surum_yok", detail="Cizelge surumu bulunamadi")
     return _sonucu_cevir(sonuc)
 
 
@@ -243,18 +248,20 @@ def atama_kaydet(istek: KaydetIstegi, oturum: Oturum) -> DogrulamaSonucuOku:
     try:
         yanit = servis.kaydet(istek.surum_id, _degisikliklere_cevir(istek), istek.damga)
     except SurumTaslakDegilError as hata:
-        raise HTTPException(status_code=409, detail=str(hata)) from hata
+        raise Hata(status_code=409, kod=kodu(hata), detail=str(hata)) from hata
     except DamgaCakismasiError as hata:
-        raise HTTPException(status_code=409, detail=str(hata)) from hata
+        raise Hata(status_code=409, kod=kodu(hata), detail=str(hata)) from hata
     except ZorunluIhlalError as hata:
         sonuc = DogrulamaSonucuOku(
             kabul_edilebilir=False,
             zorunlu_ihlaller=[_ihlali_cevir(i) for i in hata.ihlaller],
             ceza_degisimi=0.0,
         )
-        raise HTTPException(status_code=409, detail=sonuc.model_dump(mode="json")) from hata
+        raise Hata(
+            status_code=409, kod="zorunlu_ihlal", detail=sonuc.model_dump(mode="json")
+        ) from hata
     if yanit is None:
-        raise HTTPException(status_code=404, detail="Cizelge surumu bulunamadi")
+        raise Hata(status_code=404, kod="surum_yok", detail="Cizelge surumu bulunamadi")
     sonuc, yeni_damga = yanit
     return _sonucu_cevir(sonuc, damga=yeni_damga)
 
@@ -265,9 +272,13 @@ def atama_kilit_ayarla(istek: AtamaKilitIstek, oturum: Oturum) -> AtamaOku:
     try:
         atama = servis.kilit_ayarla(istek.surum_id, istek.personel_id, istek.tarih, istek.kilitli)
     except SurumTaslakDegilError as hata:
-        raise HTTPException(status_code=409, detail=str(hata)) from hata
+        raise Hata(status_code=409, kod=kodu(hata), detail=str(hata)) from hata
     if atama is None:
-        raise HTTPException(status_code=404, detail="Cizelge surumu ya da atama bulunamadi")
+        raise Hata(
+            status_code=404,
+            kod="surum_ya_da_atama_yok",
+            detail="Cizelge surumu ya da atama bulunamadi",
+        )
     return AtamaOku.model_validate(atama)
 
 
@@ -309,9 +320,9 @@ def surum_karsilastir(
     try:
         sonuc = SurumServisi(oturum).karsilastir(onceki_surum_id, yeni_surum_id)
     except SurumlerAyniDonemdeDegilError as hata:
-        raise HTTPException(status_code=409, detail=str(hata)) from hata
+        raise Hata(status_code=409, kod=kodu(hata), detail=str(hata)) from hata
     if sonuc is None:
-        raise HTTPException(status_code=404, detail="Cizelge surumu bulunamadi")
+        raise Hata(status_code=404, kod="surum_yok", detail="Cizelge surumu bulunamadi")
     return sonuc
 
 
@@ -328,12 +339,12 @@ def surum_taslak_turet(veri: SurumTaslakTuretIstek, oturum: Oturum) -> CizelgeSu
     depo = CizelgeSurumuDeposu(oturum)
     if veri.donem_id is not None:
         if DonemDeposu(oturum).getir(veri.donem_id) is None:
-            raise HTTPException(status_code=404, detail="Donem bulunamadi")
+            raise Hata(status_code=404, kod="donem_yok", detail="Donem bulunamadi")
         surum = depo.taslak_ac(veri.donem_id)
     else:
         surum = depo.taslak_turet(veri.onceki_surum_id)  # type: ignore[arg-type]
         if surum is None:
-            raise HTTPException(status_code=404, detail="Onceki surum bulunamadi")
+            raise Hata(status_code=404, kod="onceki_surum_yok", detail="Onceki surum bulunamadi")
     return CizelgeSurumuOku.model_validate(surum)
 
 
@@ -354,9 +365,9 @@ def surum_taslak_olarak_kopyala(surum_id: int, oturum: Oturum) -> CizelgeSurumuO
     try:
         yeni = SurumServisi(oturum).taslak_olarak_kopyala(surum_id)
     except KopyalanamazSurumDurumuError as hata:
-        raise HTTPException(status_code=409, detail=str(hata)) from hata
+        raise Hata(status_code=409, kod=kodu(hata), detail=str(hata)) from hata
     if yeni is None:
-        raise HTTPException(status_code=404, detail="Cizelge surumu bulunamadi")
+        raise Hata(status_code=404, kod="surum_yok", detail="Cizelge surumu bulunamadi")
     return CizelgeSurumuOku.model_validate(yeni)
 
 
@@ -366,7 +377,7 @@ def surum_yayinla(surum_id: int, oturum: Oturum) -> CizelgeSurumuOku:
     varsa arsiv durumuna gecer."""
     surum = CizelgeSurumuDeposu(oturum).yayinla(surum_id)
     if surum is None:
-        raise HTTPException(status_code=404, detail="Cizelge surumu bulunamadi")
+        raise Hata(status_code=404, kod="surum_yok", detail="Cizelge surumu bulunamadi")
     return CizelgeSurumuOku.model_validate(surum)
 
 
@@ -386,9 +397,9 @@ def surum_sil(surum_id: int, oturum: Oturum) -> None:
     try:
         silindi = CizelgeSurumuDeposu(oturum).sil(surum_id)
     except SurumSilinemezError as hata:
-        raise HTTPException(status_code=409, detail=str(hata)) from hata
+        raise Hata(status_code=409, kod=kodu(hata), detail=str(hata)) from hata
     if not silindi:
-        raise HTTPException(status_code=404, detail="Cizelge surumu bulunamadi")
+        raise Hata(status_code=404, kod="surum_yok", detail="Cizelge surumu bulunamadi")
 
 
 @router.get("/surum/{surum_id}/atama", response_model=list[AtamaOku])

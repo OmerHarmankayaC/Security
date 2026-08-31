@@ -7,12 +7,13 @@ cagirir, sonucu JSON'a cevirir. Is mantigi burada yer almaz.
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, UploadFile
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db import oturum_al
 from app.guvenlik import idare_yetkisi
+from app.hatalar import Hata, kodu
 from app.models.girdi import TERCIH_GUN_TEKILLIGI
 from app.repositories.tanim import SilmeSonucu, TanimDeposu
 from app.schemas.girdi import (
@@ -73,7 +74,7 @@ def _servis(oturum: Oturum) -> TanimServisi:
 Servis = Annotated[TanimServisi, Depends(_servis)]
 
 
-def _sil(depo: TanimDeposu, id_: int, bulunamadi: str) -> None:
+def _sil(depo: TanimDeposu, id_: int, kod: str, bulunamadi: str) -> None:
     """Ortak silme yolu.
 
     Yanit kodu her iki sonucta da 204'tur: istemci acisindan "tanim artik
@@ -83,12 +84,12 @@ def _sil(depo: TanimDeposu, id_: int, bulunamadi: str) -> None:
     degistirirdi.
     """
     if depo.sil(id_) is SilmeSonucu.BULUNAMADI:
-        raise HTTPException(status_code=404, detail=bulunamadi)
+        raise Hata(status_code=404, kod=kod, detail=bulunamadi)
 
 
-def _kullanim(depo: TanimDeposu, id_: int, bulunamadi: str) -> KullanimOku:
+def _kullanim(depo: TanimDeposu, id_: int, kod: str, bulunamadi: str) -> KullanimOku:
     if depo.getir(id_) is None:
-        raise HTTPException(status_code=404, detail=bulunamadi)
+        raise Hata(status_code=404, kod=kod, detail=bulunamadi)
     olcum = kullanimi_olc(depo.oturum, depo.model, id_)
     return KullanimOku(
         kullanimda_mi=olcum.kullanimda_mi,
@@ -114,18 +115,18 @@ def yetkinlik_olustur(veri: YetkinlikOlustur, servis: Servis) -> YetkinlikOku:
 def yetkinlik_guncelle(yetkinlik_id: int, veri: YetkinlikGuncelle, servis: Servis) -> YetkinlikOku:
     nesne = servis.yetkinlik.guncelle(yetkinlik_id, **veri.model_dump(exclude_unset=True))
     if nesne is None:
-        raise HTTPException(status_code=404, detail="Yetkinlik bulunamadi")
+        raise Hata(status_code=404, kod="yetkinlik_yok", detail="Yetkinlik bulunamadi")
     return nesne  # type: ignore[return-value]
 
 
 @router.get("/yetkinlik/{yetkinlik_id}/kullanim", response_model=KullanimOku)
 def yetkinlik_kullanimi(yetkinlik_id: int, servis: Servis) -> KullanimOku:
-    return _kullanim(servis.yetkinlik, yetkinlik_id, "Yetkinlik bulunamadi")
+    return _kullanim(servis.yetkinlik, yetkinlik_id, "yetkinlik_yok", "Yetkinlik bulunamadi")
 
 
 @router.delete("/yetkinlik/{yetkinlik_id}", status_code=204)
 def yetkinlik_sil(yetkinlik_id: int, servis: Servis) -> None:
-    _sil(servis.yetkinlik, yetkinlik_id, "Yetkinlik bulunamadi")
+    _sil(servis.yetkinlik, yetkinlik_id, "yetkinlik_yok", "Yetkinlik bulunamadi")
 
 
 # --- Bina (FR-1.5) -------------------------------------------------------
@@ -145,18 +146,18 @@ def bina_olustur(veri: BinaOlustur, servis: Servis) -> BinaOku:
 def bina_guncelle(bina_id: int, veri: BinaGuncelle, servis: Servis) -> BinaOku:
     nesne = servis.bina.guncelle(bina_id, **veri.model_dump(exclude_unset=True))
     if nesne is None:
-        raise HTTPException(status_code=404, detail="Bina bulunamadi")
+        raise Hata(status_code=404, kod="bina_yok", detail="Bina bulunamadi")
     return nesne  # type: ignore[return-value]
 
 
 @router.get("/bina/{bina_id}/kullanim", response_model=KullanimOku)
 def bina_kullanimi(bina_id: int, servis: Servis) -> KullanimOku:
-    return _kullanim(servis.bina, bina_id, "Bina bulunamadi")
+    return _kullanim(servis.bina, bina_id, "bina_yok", "Bina bulunamadi")
 
 
 @router.delete("/bina/{bina_id}", status_code=204)
 def bina_sil(bina_id: int, servis: Servis) -> None:
-    _sil(servis.bina, bina_id, "Bina bulunamadi")
+    _sil(servis.bina, bina_id, "bina_yok", "Bina bulunamadi")
 
 
 # --- Gorev Noktasi (FR-1.6) ----------------------------------------------
@@ -176,18 +177,18 @@ def nokta_olustur(veri: GorevNoktasiOlustur, servis: Servis) -> GorevNoktasiOku:
 def nokta_guncelle(nokta_id: int, veri: GorevNoktasiGuncelle, servis: Servis) -> GorevNoktasiOku:
     nesne = servis.nokta.guncelle(nokta_id, **veri.model_dump(exclude_unset=True))
     if nesne is None:
-        raise HTTPException(status_code=404, detail="Gorev noktasi bulunamadi")
+        raise Hata(status_code=404, kod="nokta_yok", detail="Gorev noktasi bulunamadi")
     return nesne  # type: ignore[return-value]
 
 
 @router.get("/nokta/{nokta_id}/kullanim", response_model=KullanimOku)
 def nokta_kullanimi(nokta_id: int, servis: Servis) -> KullanimOku:
-    return _kullanim(servis.nokta, nokta_id, "Gorev noktasi bulunamadi")
+    return _kullanim(servis.nokta, nokta_id, "nokta_yok", "Gorev noktasi bulunamadi")
 
 
 @router.delete("/nokta/{nokta_id}", status_code=204)
 def nokta_sil(nokta_id: int, servis: Servis) -> None:
-    _sil(servis.nokta, nokta_id, "Gorev noktasi bulunamadi")
+    _sil(servis.nokta, nokta_id, "nokta_yok", "Gorev noktasi bulunamadi")
 
 
 # --- Personel (FR-1.1, FR-1.2) -------------------------------------------
@@ -203,7 +204,7 @@ def personel_olustur(veri: PersonelOlustur, servis: Servis) -> PersonelOku:
     try:
         personel = servis.personel_olustur(veri)
     except SicilKullanimdaError as hata:
-        raise HTTPException(status_code=409, detail=str(hata)) from hata
+        raise Hata(status_code=409, kod=kodu(hata), detail=str(hata)) from hata
     return PersonelOku.modelden_olustur(personel)
 
 
@@ -215,20 +216,20 @@ def personel_guncelle(personel_id: int, veri: PersonelGuncelle, servis: Servis) 
         # 409: istek bicimsel olarak gecerli (400 degil), yalniz mevcut
         # veriyle CAKISIYOR. Ayrimi korumak arayuze "alani duzeltip tekrar
         # gonder" ile "istegi bastan kur" arasindaki farki soyler.
-        raise HTTPException(status_code=409, detail=str(hata)) from hata
+        raise Hata(status_code=409, kod=kodu(hata), detail=str(hata)) from hata
     if personel is None:
-        raise HTTPException(status_code=404, detail="Personel bulunamadi")
+        raise Hata(status_code=404, kod="personel_yok", detail="Personel bulunamadi")
     return PersonelOku.modelden_olustur(personel)
 
 
 @router.get("/personel/{personel_id}/kullanim", response_model=KullanimOku)
 def personel_kullanimi(personel_id: int, servis: Servis) -> KullanimOku:
-    return _kullanim(servis.personel, personel_id, "Personel bulunamadi")
+    return _kullanim(servis.personel, personel_id, "personel_yok", "Personel bulunamadi")
 
 
 @router.delete("/personel/{personel_id}", status_code=204)
 def personel_sil(personel_id: int, servis: Servis) -> None:
-    _sil(servis.personel, personel_id, "Personel bulunamadi")
+    _sil(servis.personel, personel_id, "personel_yok", "Personel bulunamadi")
 
 
 # --- Ozel gun / resmi tatil (FR-1.10) --------------------------------------
@@ -258,7 +259,7 @@ def ozel_gun_isaretle(veri: OzelGunOlustur, servis: Servis) -> OzelGunOku:
 def ozel_gun_guncelle(tarih: date, veri: OzelGunGuncelle, servis: Servis) -> OzelGunOku:
     mevcut = servis.ozel_gun.getir(tarih)
     if mevcut is None:
-        raise HTTPException(status_code=404, detail="Ozel gun bulunamadi")
+        raise Hata(status_code=404, kod="ozel_gun_yok", detail="Ozel gun bulunamadi")
     mevcut.ad = veri.ad
     return OzelGunOku.model_validate(mevcut)
 
@@ -273,7 +274,7 @@ def ozel_gun_sil(tarih: date, servis: Servis) -> None:
     atamalari kendi iclerinde tasir (SDD 4.1).
     """
     if not servis.ozel_gun.sil(tarih):
-        raise HTTPException(status_code=404, detail="Ozel gun bulunamadi")
+        raise Hata(status_code=404, kod="ozel_gun_yok", detail="Ozel gun bulunamadi")
 
 
 # --- Talep + Yuk Gostergesi (FR-1.7, FR-1.8, FR-1.9) ----------------------
@@ -296,7 +297,7 @@ def talep_araligi_ekle(veri: TalepYazma, servis: Servis) -> TalepYaniti:
     try:
         servis.talep_araligi_ekle(veri)
     except CakisanTalepAraligiError as hata:
-        raise HTTPException(status_code=409, detail=str(hata)) from hata
+        raise Hata(status_code=409, kod=kodu(hata), detail=str(hata)) from hata
     return _talep_yaniti(servis)
 
 
@@ -305,16 +306,16 @@ def talep_araligi_guncelle(talep_id: int, veri: TalepYazma, servis: Servis) -> T
     try:
         guncel = servis.talep_araligi_guncelle(talep_id, veri)
     except CakisanTalepAraligiError as hata:
-        raise HTTPException(status_code=409, detail=str(hata)) from hata
+        raise Hata(status_code=409, kod=kodu(hata), detail=str(hata)) from hata
     if guncel is None:
-        raise HTTPException(status_code=404, detail="Talep kaydi bulunamadi")
+        raise Hata(status_code=404, kod="talep_yok", detail="Talep kaydi bulunamadi")
     return _talep_yaniti(servis)
 
 
 @router.delete("/talep/{talep_id}", response_model=TalepYaniti)
 def talep_araligi_sil(talep_id: int, servis: Servis) -> TalepYaniti:
     if not servis.talep_araligi_sil(talep_id):
-        raise HTTPException(status_code=404, detail="Talep kaydi bulunamadi")
+        raise Hata(status_code=404, kod="talep_yok", detail="Talep kaydi bulunamadi")
     return _talep_yaniti(servis)
 
 
@@ -347,7 +348,7 @@ def kural_guncelle(kimlik: str, veri: KuralGuncelle, servis: Servis) -> KuralOku
     """
     mevcut = servis.kural.kimlige_gore_bul(kimlik)
     if mevcut is None:
-        raise HTTPException(status_code=404, detail="Kural bulunamadi")
+        raise Hata(status_code=404, kod="kural_yok", detail="Kural bulunamadi")
     alanlar = veri.model_dump(exclude_unset=True)
     if "parametreler" in alanlar:
         try:
@@ -355,7 +356,7 @@ def kural_guncelle(kimlik: str, veri: KuralGuncelle, servis: Servis) -> KuralOku
                 kimlik, alanlar["parametreler"]
             )
         except KuralParametresiError as hata:
-            raise HTTPException(status_code=400, detail=str(hata)) from hata
+            raise Hata(status_code=400, kod=kodu(hata), detail=str(hata)) from hata
     nesne = servis.kural.guncelle(mevcut.kural_id, **alanlar)
     assert nesne is not None  # kimlige_gore_bul yukarida dogruladi
     return KuralOku.modelden_olustur(nesne)
@@ -381,7 +382,7 @@ def musaitlik_olustur(veri: MusaitlikOlustur, servis: Servis) -> MusaitlikOku:
 @router.delete("/musaitlik/{musaitlik_id}", status_code=204)
 def musaitlik_sil(musaitlik_id: int, servis: Servis) -> None:
     if not servis.musaitlik.sil(musaitlik_id):
-        raise HTTPException(status_code=404, detail="Musaitlik kaydi bulunamadi")
+        raise Hata(status_code=404, kod="musaitlik_yok", detail="Musaitlik kaydi bulunamadi")
 
 
 # --- Tercih (FR-3.1, FR-3.2, FR-3.4) --------------------------------------
@@ -406,14 +407,17 @@ async def izin_belgesi_yukle(
         # kullanici girdisidir. Servis tipi icerigin imzasindan okur.
         kayit = BelgeServisi(oturum).yukle(musaitlik_id, dosya.filename or "belge", icerik)
     except BelgeTipiKabulEdilmediError as hata:
-        raise HTTPException(
+        raise Hata(
             status_code=415,
+            kod="belge_tipi_kabul_edilmedi",
             detail=f"Bu dosya tipi kabul edilmiyor: {hata}. PNG, JPEG ya da PDF yukleyin.",
         ) from hata
     except BelgeCokBuyukError as hata:
-        raise HTTPException(status_code=413, detail="Dosya cok buyuk; azami 5 MB.") from hata
+        raise Hata(
+            status_code=413, kod="belge_cok_buyuk", detail="Dosya cok buyuk; azami 5 MB."
+        ) from hata
     if kayit is None:
-        raise HTTPException(status_code=404, detail="Izin kaydi bulunamadi")
+        raise Hata(status_code=404, kod="izin_yok", detail="Izin kaydi bulunamadi")
     return BelgeOku(
         dosya_adi=kayit.belge_adi or "",
         icerik_tipi=kayit.belge_tipi or "",
@@ -424,7 +428,7 @@ async def izin_belgesi_yukle(
 @router.delete("/musaitlik/{musaitlik_id}/belge", status_code=204)
 def izin_belgesi_sil(musaitlik_id: int, oturum: Oturum) -> None:
     if not BelgeServisi(oturum).sil(musaitlik_id):
-        raise HTTPException(status_code=404, detail="Bu izin kaydinda belge yok")
+        raise Hata(status_code=404, kod="belge_yok", detail="Bu izin kaydinda belge yok")
 
 
 @router.get("/tercih", response_model=list[TercihOku])
@@ -451,8 +455,9 @@ def tercih_olustur(veri: TercihOlustur, servis: Servis) -> TercihOku:
     except IntegrityError as hata:
         if TERCIH_GUN_TEKILLIGI not in str(hata.orig):
             raise
-        raise HTTPException(
+        raise Hata(
             status_code=409,
+            kod="tercih_var",
             detail="Bu personelin bu tarih icin zaten bir tercihi var",
         ) from hata
 
@@ -462,5 +467,5 @@ def tercih_guncelle(tercih_id: int, veri: TercihGuncelle, servis: Servis) -> Ter
     """FR-3.4: yonetici tercihi onaylar veya reddeder (durum degisikligi)."""
     nesne = servis.tercih.guncelle(tercih_id, **veri.model_dump(exclude_unset=True))
     if nesne is None:
-        raise HTTPException(status_code=404, detail="Tercih bulunamadi")
+        raise Hata(status_code=404, kod="tercih_yok", detail="Tercih bulunamadi")
     return nesne  # type: ignore[return-value]

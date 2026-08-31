@@ -14,11 +14,12 @@ acikti: URL'deki kimlik degistirilebiliyordu.
 
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db import oturum_al
 from app.guvenlik import calisan_yetkisi, oturumdaki_personel
+from app.hatalar import Hata, kodu
 from app.schemas.calisan import (
     CalisanTercihListesiOku,
     CalisanTercihOku,
@@ -42,7 +43,7 @@ Personel = Annotated[int, Depends(oturumdaki_personel)]
 def vardiyalarim_getir(personel_id: Personel, oturum: Oturum) -> VardiyalarimOku:
     sonuc = CalisanServisi(oturum).vardiyalarim(personel_id)
     if sonuc is None:
-        raise HTTPException(status_code=404, detail="Personel bulunamadi")
+        raise Hata(status_code=404, kod="personel_yok", detail="Personel bulunamadi")
     return sonuc
 
 
@@ -63,7 +64,7 @@ def ozetim_getir(
 def tercihlerim_getir(personel_id: Personel, oturum: Oturum) -> CalisanTercihListesiOku:
     sonuc = CalisanServisi(oturum).tercihlerim(personel_id)
     if sonuc is None:
-        raise HTTPException(status_code=404, detail="Personel bulunamadi")
+        raise Hata(status_code=404, kod="personel_yok", detail="Personel bulunamadi")
     return sonuc
 
 
@@ -74,9 +75,9 @@ def tercih_bildir(
     try:
         sonuc = CalisanServisi(oturum).tercih_bildir(personel_id, veri)
     except TercihDonemiBulunamadiError as hata:
-        raise HTTPException(status_code=400, detail=str(hata)) from hata
+        raise Hata(status_code=400, kod=kodu(hata), detail=str(hata)) from hata
     except TercihKararlanmisError as hata:
-        raise HTTPException(status_code=409, detail=str(hata)) from hata
+        raise Hata(status_code=409, kod=kodu(hata), detail=str(hata)) from hata
     if sonuc is None:
-        raise HTTPException(status_code=404, detail="Personel bulunamadi")
+        raise Hata(status_code=404, kod="personel_yok", detail="Personel bulunamadi")
     return sonuc

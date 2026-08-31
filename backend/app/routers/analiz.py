@@ -3,12 +3,13 @@
 from io import BytesIO
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.db import oturum_al
 from app.guvenlik import idare_yetkisi
+from app.hatalar import Hata
 from app.schemas.analiz import AnalizOku
 from app.services.analiz_servisi import AnalizServisi
 from app.services.disa_aktarma_servisi import DisaAktarmaServisi, dosya_adi
@@ -34,7 +35,7 @@ def analiz_getir(
     """
     sonuc = AnalizServisi(oturum).hesapla(surum_id, ufuk)
     if sonuc is None:
-        raise HTTPException(status_code=404, detail="Cizelge surumu bulunamadi")
+        raise Hata(status_code=404, kod="surum_yok", detail="Cizelge surumu bulunamadi")
     return sonuc
 
 
@@ -67,7 +68,7 @@ def cizelge_excel(surum_id: int, oturum: Oturum) -> StreamingResponse:
     servis = DisaAktarmaServisi(oturum)
     kitap = servis.cizelge_calisma_kitabi(surum_id)
     if kitap is None:
-        raise HTTPException(status_code=404, detail="Cizelge surumu bulunamadi")
+        raise Hata(status_code=404, kod="surum_yok", detail="Cizelge surumu bulunamadi")
     surum = servis.surum.getir(surum_id)
     assert surum is not None
     return _kitabi_gonder(kitap, dosya_adi(surum, "cizelge"))
@@ -79,7 +80,7 @@ def analiz_excel(surum_id: int, oturum: Oturum) -> StreamingResponse:
     servis = DisaAktarmaServisi(oturum)
     kitap = servis.analiz_calisma_kitabi(surum_id)
     if kitap is None:
-        raise HTTPException(status_code=404, detail="Cizelge surumu bulunamadi")
+        raise Hata(status_code=404, kod="surum_yok", detail="Cizelge surumu bulunamadi")
     surum = servis.surum.getir(surum_id)
     assert surum is not None
     return _kitabi_gonder(kitap, dosya_adi(surum, "analiz"))
