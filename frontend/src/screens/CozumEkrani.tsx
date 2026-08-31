@@ -15,6 +15,9 @@ import {
   araligiDenetle,
   gunSayisi,
 } from '../lib/donemAraligi'
+import { useDil } from '@/i18n/DilBaglami'
+import { hataMetni } from '@/i18n/hata'
+import { BOS } from '@/lib/sayi'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -32,17 +35,6 @@ interface Props {
 }
 
 const CALISAN_DURUMLAR = new Set(['kuyrukta', 'on_kontrol', 'cozuluyor'])
-
-const DURUM_METNI: Record<string, string> = {
-  kuyrukta: 'Kuyrukta',
-  on_kontrol: 'Ön Kontrol',
-  cozuluyor: 'Çözülüyor',
-  durduruldu: 'Karar Bekleniyor',
-  tamamlandi: 'Tamamlandı',
-  uyarili: 'Uyarılı Tamamlandı',
-  basarisiz: 'Başarısız',
-  iptal: 'İptal Edildi',
-}
 
 const SECIM_SINIFI =
   'h-8 rounded-sm border border-rule bg-surface px-2.5 font-mono text-sm text-ink outline-none focus-visible:border-accent focus-visible:ring-3 focus-visible:ring-accent/30 disabled:opacity-50'
@@ -88,6 +80,7 @@ function CezaDokumu({ girdiler, azami }: { girdiler: [string, number][]; azami: 
 }
 
 export function CozumEkrani({ ekranSec, donemId, donemIdSec, oncekiSurumId = null }: Props) {
+  const { dil, metin: m } = useDil()
   const [donemler, setDonemler] = useState<Donem[]>([])
   // Charter 1.6: beş dakika. Çizelge dönemde bir kez üretilir; altmış
   // saniye çözüm kalitesini ürün gerekçesi olmadan sınırlıyordu.
@@ -119,7 +112,7 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec, oncekiSurumId = nul
         setDonemler(d)
         if (donemId === null && d[0]) donemIdSec(d[0].donem_id)
       })
-      .catch((e) => setHata(e instanceof Error ? e.message : 'Dönemler yüklenemedi'))
+      .catch((e) => setHata(hataMetni(e, m)))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -151,7 +144,7 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec, oncekiSurumId = nul
       const yanit = await api.onKontrolCalistir(donemId)
       setBulgular(yanit.bulgular)
     } catch (e) {
-      setHata(e instanceof Error ? e.message : 'Ön kontrol başarısız')
+      setHata(hataMetni(e, m))
     } finally {
       setOnKontrolYukleniyor(false)
     }
@@ -169,7 +162,7 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec, oncekiSurumId = nul
       await api.cozumBaslat(donemId, zamanLimiti, oncekiSurumId)
       await yenile()
     } catch (e) {
-      setHata(e instanceof Error ? e.message : 'Çözüm başlatılamadı')
+      setHata(hataMetni(e, m))
     }
   }
 
@@ -179,13 +172,13 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec, oncekiSurumId = nul
       await api.cozumDurdur(aktifIs.is_id)
       await yenile()
     } catch (e) {
-      setHata(e instanceof Error ? e.message : 'Durdurma isteği başarısız')
+      setHata(hataMetni(e, m))
     }
   }
 
   const kararVer = async (karar: CozumKarari) => {
     if (!aktifIs) return
-    if (karar === 'at' && !window.confirm('Bulunan çözüm silinecek. Bu işlem geri alınamaz.')) {
+    if (karar === 'at' && !window.confirm(m.cozum.atOnayi)) {
       return
     }
     setKararIsleniyor(true)
@@ -197,7 +190,7 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec, oncekiSurumId = nul
       setKapsamaSayisi(null)
       await yenile()
     } catch (e) {
-      setHata(e instanceof Error ? e.message : 'Karar uygulanamadı')
+      setHata(hataMetni(e, m))
     } finally {
       setKararIsleniyor(false)
     }
@@ -230,7 +223,7 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec, oncekiSurumId = nul
       donemIdSec(yeni.donem_id)
       setYeniDonemAcik(false)
     } catch (e) {
-      setHata(e instanceof Error ? e.message : 'Dönem oluşturulamadı')
+      setHata(hataMetni(e, m))
     } finally {
       setDonemOlusturuluyor(false)
     }
@@ -258,11 +251,11 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec, oncekiSurumId = nul
   return (
     <AppShell aktifEkran="Çözüm" ekranSec={ekranSec} baslik="Çözüm">
       <Kart>
-        <KartEtiketi>çözüm ayarları</KartEtiketi>
+        <KartEtiketi>{m.cozum.ayarlar}</KartEtiketi>
         <div className="flex flex-wrap items-end gap-6">
           <div className="flex flex-col gap-1">
             <label htmlFor="donem-sec" className="text-sm text-ink-muted">
-              Dönem
+              {m.cozum.donem}
             </label>
             <select
               id="donem-sec"
@@ -278,7 +271,7 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec, oncekiSurumId = nul
             </select>
           </div>
           <Buton varyant="ikincil" onClick={yeniDonemiAc} disabled={yeniDonemAcik}>
-            Yeni Dönem
+            {m.cozum.yeniDonem}
           </Buton>
           <div className="flex flex-col gap-1">
             <label htmlFor="zaman-limiti" className="text-sm text-ink-muted">
@@ -299,7 +292,7 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec, oncekiSurumId = nul
               onClick={onKontrolCalistir}
               disabled={donemId === null || onKontrolYukleniyor}
             >
-              Ön Kontrol
+              {m.cozum.onKontrol}
             </Buton>
             <Buton
               varyant="birincil"
@@ -307,11 +300,11 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec, oncekiSurumId = nul
               disabled={donemId === null || yeniCozumEngelli}
               title={
                 oncekiSurumId !== null
-                  ? 'Seçili sürümden yeniden çözer; kilitli atamalar olduğu gibi korunur'
-                  : 'Dönem için sıfırdan çözer'
+                  ? m.cozum.yenidenCozIpucu
+                  : m.cozum.sifirdanIpucu
               }
             >
-              Çözümü Başlat
+              {m.cozum.baslat}
             </Buton>
           </div>
         </div>
@@ -322,20 +315,18 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec, oncekiSurumId = nul
             kaybettikten sonra öğrenir. */}
         {oncekiSurumId !== null && (
           <p className="m-0 mt-4 rounded-sm border-l-2 border-accent bg-accent-soft px-4 py-3 text-sm text-ink">
-            <strong className="font-medium">Yeniden çözüm.</strong> Çizelge ekranından seçtiğiniz
-            sürüm taban alınır: <strong className="font-medium">kilitli atamalar korunur</strong>,
-            kalanını çözücü yeniden yazar. Başka bir dönem seçmek tabanı kaldırır ve çözüm
-            sıfırdan başlar.
+            <strong className="font-medium">{m.cozum.yenidenCozumBasligi}</strong>{' '}
+            {m.cozum.yenidenCozumGovde}
           </p>
         )}
 
         {yeniDonemAcik && (
           <div className="mt-5 border-t border-rule pt-4">
-            <KartEtiketi>yeni planlama dönemi</KartEtiketi>
+            <KartEtiketi>{m.cozum.yeniPlanlamaDonemi}</KartEtiketi>
             <div className="flex flex-wrap items-end gap-4">
               <div className="flex flex-col gap-1">
                 <label htmlFor="donem-baslangic" className="text-sm text-ink-muted">
-                  Başlangıç
+                  {m.cozum.baslangic}
                 </label>
                 <Input
                   id="donem-baslangic"
@@ -347,7 +338,7 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec, oncekiSurumId = nul
               </div>
               <div className="flex flex-col gap-1">
                 <label htmlFor="donem-bitis" className="text-sm text-ink-muted">
-                  Bitiş
+                  {m.cozum.bitis}
                 </label>
                 <Input
                   id="donem-bitis"
@@ -368,18 +359,18 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec, oncekiSurumId = nul
                 onClick={yeniDonemOlustur}
                 disabled={donemOlusturuluyor || aralikHatasi !== null}
               >
-                Dönemi Oluştur
+                {m.cozum.donemiOlustur}
               </Buton>
               <Buton varyant="hayalet" onClick={() => setYeniDonemAcik(false)}>
-                İptal
+                {m.cozum.iptal}
               </Buton>
             </div>
             {aralikHatasi ? (
               <p className="mt-2 text-sm text-signal">{aralikHatasi}</p>
             ) : (
               <p className="mt-2 text-sm text-ink-muted">
-                Seçilen aralık <Sayi>{secilenGunSayisi}</Sayi> gün · en fazla{' '}
-                <Sayi>{AZAMI_DONEM_GUN}</Sayi> gün
+                {m.cozum.gunSayisi} <Sayi>{secilenGunSayisi}</Sayi>{' '}
+                {m.cozum.gunSayisiSonek(AZAMI_DONEM_GUN)}
               </p>
             )}
           </div>
@@ -388,7 +379,7 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec, oncekiSurumId = nul
         {bulgular && (
           <div className="mt-4">
             {bulgular.length === 0 ? (
-              <p className="text-sm text-ink-muted">Yapısal bir engel bulunamadı.</p>
+              <p className="text-sm text-ink-muted">{m.cozum.engelYok}</p>
             ) : (
               // Engel ile uyarı ayrı gösterilir ve ayrı sayılır: engel varken
               // çözüm zaten başlamaz, uyarı varken başlar. İkisini aynı kırmızı
@@ -406,7 +397,7 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec, oncekiSurumId = nul
                     )}
                   >
                     <span className="etiket-caps text-ink-muted">
-                      {buyukHarf(b.kesin_mi ? 'Engel' : 'Uyarı')}
+                      {buyukHarf(b.kesin_mi ? m.cozum.engel : m.cozum.uyari, dil)}
                     </span>
                     <br />
                     {b.aciklama}
@@ -422,14 +413,14 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec, oncekiSurumId = nul
 
       {isKaydi && calisiyorMu && (
         <Kart vurgulu>
-          <KartEtiketi renk="accent">{DURUM_METNI[isKaydi.durum] ?? isKaydi.durum}</KartEtiketi>
+          <KartEtiketi renk="accent">{m.cozum.durum[isKaydi.durum as keyof typeof m.cozum.durum] ?? isKaydi.durum}</KartEtiketi>
           <div className="mb-4 flex gap-10">
-            <BuyukRakam deger={sureBicimle(gecenSure)} etiket="Geçen Süre" />
+            <BuyukRakam deger={sureBicimle(gecenSure)} etiket={m.cozum.gecenSure} />
             <BuyukRakam
-              deger={isKaydi.en_iyi_ceza !== null ? isKaydi.en_iyi_ceza : '—'}
-              etiket="En İyi Ceza"
+              deger={isKaydi.en_iyi_ceza !== null ? isKaydi.en_iyi_ceza : BOS}
+              etiket={m.cozum.enIyiCeza}
             />
-            <BuyukRakam deger="—" etiket="Kapsama Açığı" />
+            <BuyukRakam deger={BOS} etiket={m.cozum.kapsamaAcigi} />
           </div>
           <Buton varyant="hayalet" onClick={durdur}>
             Durdur
@@ -440,8 +431,8 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec, oncekiSurumId = nul
               ne olacağını önceden söyler. */}
           <p className="mt-2 text-sm text-ink-muted">
             {isKaydi.durum === 'cozuluyor'
-              ? 'Durdur, aramayı sonlandırır; o ana kadar bulunmuş çözüm atılmaz, kararınız için saklanır.'
-              : 'Arama henüz başlamadı. Durdur, işi doğrudan iptal eder; saklanacak bir sonuç olmadığı için karar sorulmaz.'}
+              ? m.cozum.durdurAramaVar
+              : m.cozum.durdurAramaYok}
           </p>
         </Kart>
       )}
@@ -450,18 +441,17 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec, oncekiSurumId = nul
         <Kart vurgulu>
           <KartEtiketi renk="warn">karar bekleniyor</KartEtiketi>
           <p className="mb-4 text-sm text-ink-muted">
-            Arama sonlandırıldı. Bulunan çözüm henüz çizelgeye yazılmadı; sürüm durdurma
-            öncesindeki hâlinde duruyor.
+            {m.cozum.aramaSonlandi}
           </p>
           <div className="mb-4 flex gap-10">
-            <BuyukRakam deger={sureBicimle(gecenSure)} etiket="Geçen Süre" />
+            <BuyukRakam deger={sureBicimle(gecenSure)} etiket={m.cozum.gecenSure} />
             <BuyukRakam
-              deger={isKaydi.en_iyi_ceza !== null ? isKaydi.en_iyi_ceza : '—'}
-              etiket="Toplam Ceza"
+              deger={isKaydi.en_iyi_ceza !== null ? isKaydi.en_iyi_ceza : BOS}
+              etiket={m.cozum.toplamCeza}
             />
             <BuyukRakam
-              deger={isKaydi.gecici_kapsama_acigi_sayisi?.toString() ?? '—'}
-              etiket="Kapsama Açığı"
+              deger={isKaydi.gecici_kapsama_acigi_sayisi?.toString() ?? BOS}
+              etiket={m.cozum.kapsamaAcigi}
             />
           </div>
 
@@ -470,8 +460,8 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec, oncekiSurumId = nul
           {!isKaydi.kullanilabilir_sonuc_var && (
             <p className="mt-4 text-sm text-signal">
               {isKaydi.hata_mesaji ??
-                'Çözücü ilk uygun çizelgeye ulaşmadan durduruldu; kullanılabilir bir sonuç yok.'}{' '}
-              Bu nedenle "Sonucu kullan" seçilemiyor.
+                m.cozum.uygunSonucYok}{' '}
+              {m.cozum.sonucKullanilamaz}
             </p>
           )}
 
@@ -481,18 +471,18 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec, oncekiSurumId = nul
               onClick={() => kararVer('kullan')}
               disabled={kararIsleniyor || !isKaydi.kullanilabilir_sonuc_var}
             >
-              Sonucu kullan
+              {m.cozum.sonucuKullan}
             </Buton>
             <Buton
               varyant="hayalet"
               onClick={() => kararVer('at')}
               disabled={kararIsleniyor}
             >
-              Sonucu at
+              {m.cozum.sonucuAt}
             </Buton>
             <div className="flex flex-col gap-1">
               <label htmlFor="devam-zaman-limiti" className="text-sm text-ink-muted">
-                Yeni zaman limiti (saniye)
+                {m.cozum.yeniZamanLimiti}
               </label>
               <Input
                 id="devam-zaman-limiti"
@@ -508,7 +498,7 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec, oncekiSurumId = nul
               onClick={() => kararVer('devam')}
               disabled={kararIsleniyor || devamZamanLimiti < 1}
             >
-              Bu çözümden devam et
+              {m.cozum.bundanDevam}
             </Buton>
           </div>
           {/* SDD 5.4.1: "kaldığı yerden devam" DEĞİLDİR. Çözücü
@@ -527,7 +517,9 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec, oncekiSurumId = nul
       {isKaydi && sonuclandiMi && (
         <Kart>
           <KartEtiketi renk={isKaydi.durum === 'tamamlandi' ? undefined : 'warn'}>
-            sonuç özeti — {DURUM_METNI[isKaydi.durum] ?? isKaydi.durum}
+            {m.cozum.sonucOzeti(
+              m.cozum.durum[isKaydi.durum as keyof typeof m.cozum.durum] ?? isKaydi.durum,
+            )}
           </KartEtiketi>
           {isKaydi.hata_mesaji && <p className="text-sm text-signal">{isKaydi.hata_mesaji}</p>}
           {/* İptal edilen işte karar paneli HİÇ açılmaz (SDD 5.4.1); işin ne
@@ -535,19 +527,18 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec, oncekiSurumId = nul
               arar. */}
           {isKaydi.durum === 'iptal' && (
             <p className="text-sm text-ink-muted">
-              İş iptal edildi. Çizelge sürümü değişmedi.
+              {m.cozum.isIptal}
             </p>
           )}
           {cezaGirdileri.length > 0 && <CezaDokumu girdiler={cezaGirdileri} azami={azamiCeza} />}
           {kapsamaSayisi !== null && kapsamaSayisi > 0 && (
             <p className="mt-2 text-sm text-ink-muted">
-              {kapsamaSayisi} kapsama açığı bulundu → Çizelge ekranında ilgili hücreler
-              işaretlendi.
+              {m.cozum.kapsamaBulundu(kapsamaSayisi)}
             </p>
           )}
           {donem && (
             <Buton varyant="hayalet" className="mt-4" onClick={() => ekranSec('Çizelge')}>
-              Çizelgeyi Görüntüle
+              {m.cozum.cizelgeyiGoruntule}
             </Buton>
           )}
         </Kart>

@@ -277,6 +277,72 @@ const tr = {
     arsiv: 'Arşiv',
   },
 
+  cozum: {
+    durum: {
+      kuyrukta: 'Kuyrukta',
+      on_kontrol: 'Ön Kontrol',
+      cozuluyor: 'Çözülüyor',
+      durduruldu: 'Karar Bekleniyor',
+      tamamlandi: 'Tamamlandı',
+      uyarili: 'Uyarılı Tamamlandı',
+      basarisiz: 'Başarısız',
+      iptal: 'İptal Edildi',
+    },
+    donemlerYuklenemedi: 'Dönemler yüklenemedi.',
+    onKontrolBasarisiz: 'Ön kontrol başarısız.',
+    baslatilamadi: 'Çözüm başlatılamadı.',
+    durdurmaBasarisiz: 'Durdurma isteği başarısız.',
+    kararUygulanamadi: 'Karar uygulanamadı.',
+    donemOlusturulamadi: 'Dönem oluşturulamadı.',
+    atOnayi: 'Bulunan çözüm silinecek. Bu işlem geri alınamaz.',
+    ayarlar: 'çözüm ayarları',
+    donem: 'Dönem',
+    yeniDonem: 'Yeni Dönem',
+    onKontrol: 'Ön Kontrol',
+    baslat: 'Çözümü Başlat',
+    yenidenCozIpucu: 'Seçili sürümden yeniden çözer; kilitli atamalar olduğu gibi korunur',
+    sifirdanIpucu: 'Dönem için sıfırdan çözer',
+    yenidenCozumBasligi: 'Yeniden çözüm.',
+    yenidenCozumGovde:
+      'Çizelge ekranından seçtiğiniz sürüm taban alınır: kilitli atamalar korunur, kalanını çözücü yeniden yazar. Başka bir dönem seçmek tabanı kaldırır ve çözüm sıfırdan başlar.',
+    tabanNotu:
+      'sürüm taban alınır: kilitli atamalar korunur, kalanını çözücü yeniden yazar. Başka bir dönem seçmek tabanı kaldırır ve çözüm sıfırdan başlar.',
+    yeniPlanlamaDonemi: 'yeni planlama dönemi',
+    baslangic: 'Başlangıç',
+    bitis: 'Bitiş',
+    donemiOlustur: 'Dönemi Oluştur',
+    iptal: 'İptal',
+    gunSayisi: 'Seçilen aralık',
+    gunSayisiSonek: (azami: number) => `gün · en fazla ${azami} gün`,
+    engelYok: 'Yapısal bir engel bulunamadı.',
+    engel: 'Engel',
+    uyari: 'Uyarı',
+    gecenSure: 'Geçen Süre',
+    enIyiCeza: 'En İyi Ceza',
+    toplamCeza: 'Toplam Ceza',
+    kapsamaAcigi: 'Kapsama Açığı',
+    durdurAramaVar:
+      'Durdur, aramayı sonlandırır; o ana kadar bulunmuş çözüm atılmaz, kararınız için saklanır.',
+    durdurAramaYok:
+      'Arama henüz başlamadı. Durdur, işi doğrudan iptal eder; saklanacak bir sonuç olmadığı için karar sorulmaz.',
+    aramaSonlandi:
+      'Arama sonlandırıldı. Bulunan çözüm henüz çizelgeye yazılmadı; sürüm durdurma öncesindeki hâlinde duruyor.',
+    uygunSonucYok:
+      'Çözücü ilk uygun çizelgeye ulaşmadan durduruldu; kullanılabilir bir sonuç yok.',
+    sonucKullanilamaz: 'Bu nedenle "Sonucu kullan" seçilemiyor.',
+    sonucuKullan: 'Sonucu kullan',
+    sonucuAt: 'Sonucu at',
+    bundanDevam: 'Bu çözümden devam et',
+    yeniZamanLimiti: 'Yeni zaman limiti (saniye)',
+    devamNotu:
+      '"Devam et", bulunan çözümü başlangıç ipucu olarak veren yeni bir arama başlatır; süre sıfırdan işler ve sonuç bu çözümden kötü olmaz.',
+    sonucOzeti: (durum: string) => `sonuç özeti · ${durum}`,
+    isIptal: 'İş iptal edildi. Çizelge sürümü değişmedi.',
+    kapsamaBulundu: (sayi: number) =>
+      `${sayi} kapsama açığı bulundu; Çizelge ekranında ilgili hücreler işaretlendi.`,
+    cizelgeyiGoruntule: 'Çizelgeyi Görüntüle',
+  },
+
   ozet: {
     veriYuklenemedi: 'Özet verisi yüklenemedi.',
     surumYuklenemedi: 'Sürüm verisi yüklenemedi.',
@@ -724,6 +790,74 @@ const en: Metinler = {
     cozuldu: 'Solved',
     yayinlandi: 'Published',
     arsiv: 'Archived',
+  },
+
+  cozum: {
+    durum: {
+      kuyrukta: 'Queued',
+      on_kontrol: 'Pre-check',
+      cozuluyor: 'Solving',
+      durduruldu: 'Awaiting decision',
+      tamamlandi: 'Completed',
+      uyarili: 'Completed with warnings',
+      basarisiz: 'Failed',
+      iptal: 'Cancelled',
+    },
+    donemlerYuklenemedi: 'Could not load the periods.',
+    onKontrolBasarisiz: 'The pre-check failed.',
+    baslatilamadi: 'Could not start the solve.',
+    durdurmaBasarisiz: 'The stop request failed.',
+    kararUygulanamadi: 'Could not apply the decision.',
+    donemOlusturulamadi: 'Could not create the period.',
+    atOnayi: 'The solution found will be deleted. This cannot be undone.',
+    ayarlar: 'solve settings',
+    donem: 'Period',
+    yeniDonem: 'New period',
+    onKontrol: 'Pre-check',
+    baslat: 'Start solving',
+    yenidenCozIpucu: 'Re-solves from the selected version; locked assignments are kept as they are',
+    sifirdanIpucu: 'Solves the period from scratch',
+    yenidenCozumBasligi: 'Re-solve.',
+    yenidenCozumGovde:
+      'The version you picked on the Schedule screen is taken as the base: locked assignments are kept and the solver rewrites the rest. Choosing another period removes the base and the solve starts from scratch.',
+    tabanNotu:
+      'is taken as the base: locked assignments are kept and the solver rewrites the rest. Choosing another period removes the base and the solve starts from scratch.',
+    yeniPlanlamaDonemi: 'new planning period',
+    baslangic: 'Start',
+    bitis: 'End',
+    donemiOlustur: 'Create period',
+    iptal: 'Cancel',
+    gunSayisi: 'The selected range is',
+    gunSayisiSonek: (azami: number) => `days · ${azami} days at most`,
+    engelYok: 'No structural obstacle was found.',
+    engel: 'Obstacle',
+    uyari: 'Warning',
+    gecenSure: 'Elapsed',
+    enIyiCeza: 'Best penalty',
+    toplamCeza: 'Total penalty',
+    kapsamaAcigi: 'Coverage gaps',
+    durdurAramaVar:
+      'Stop ends the search; the solution found so far is not discarded but kept for your decision.',
+    durdurAramaYok:
+      'The search has not started yet. Stop cancels the job outright; with no result to keep, no decision is asked.',
+    aramaSonlandi:
+      'The search was ended. The solution found has not been written to the schedule; the version is as it was before the stop.',
+    uygunSonucYok:
+      'The solver was stopped before it reached a first feasible schedule; there is no usable result.',
+    sonucKullanilamaz: 'For that reason "Use the result" cannot be selected.',
+    sonucuKullan: 'Use the result',
+    sonucuAt: 'Discard the result',
+    bundanDevam: 'Continue from this solution',
+    yeniZamanLimiti: 'New time limit (seconds)',
+    devamNotu:
+      '"Continue" starts a new search seeded with the solution found; the clock restarts from zero and the result will not be worse than this solution.',
+    sonucOzeti: (durum: string) => `result summary · ${durum}`,
+    isIptal: 'The job was cancelled. The schedule version did not change.',
+    kapsamaBulundu: (sayi: number) =>
+      sayi === 1
+        ? '1 coverage gap was found; the affected cells are marked on the Schedule screen.'
+        : `${sayi} coverage gaps were found; the affected cells are marked on the Schedule screen.`,
+    cizelgeyiGoruntule: 'View the schedule',
   },
 
   ozet: {
