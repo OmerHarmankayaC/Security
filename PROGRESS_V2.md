@@ -3206,3 +3206,53 @@ adı yok; sayfa metninde ne şerit ne kutu var.
 `.yasakli-metinler`i sunucuya koymak ve `.env`i düzenlemek dağıtım
 işlemleridir; bu oturumun sunucuya erişimi yok ve dağıtım kullanıcının
 kararıdır (CLAUDE.md: push ve remote asla). Komutlar rapora yazıldı.
+
+### Demo girişi üç ayrı kusurla düşüyordu
+
+**1 — Hiç hesap açılmamıştı.** Sunucuda veri üretimi `DEMO_PAROLA` boşken
+koştu; üreteçte `if parola` koruması var, dolayısıyla `_hesaplari_kur` hiç
+çağrılmadı. Giriş ekranındaki kutu ise **statik listeden** çiziliyor —
+var olmayan dört hesabı gösterdi ve hepsi "kullanıcı adı veya parola hatalı"
+verdi. Kutu var olan bir şeyi değil, olması gerekeni gösteriyordu.
+
+Bu hâl artık sessiz değil: tohumsuz koşum stderr'e kutunun **çalışmayan
+hesaplar göstereceğini** yazıyor ve ne yapılacağını söylüyor.
+
+**2 — Parolalar hesap başına ayrıldı.** Dördü aynı dizeydi; "parolayı
+biliyorum" ile "hepsini biliyorum" aynı şeye çıkıyordu. Her hesabın parolası
+artık on iki karakter ve tek bir tohumdan HMAC ile türetiliyor
+(`demo_hesaplari.parola_uret`). Hiçbiri saklanmıyor: hesabı açan üreteç ile
+onu ekranda gösteren uç nokta aynı türetmeyi yapıyor. İki yerde saklanan bir
+parola, iki yerin ayrışabileceği anlamına gelirdi.
+
+`DEMO_PAROLA` → **`DEMO_PAROLA_TOHUMU`**. Ad değişti çünkü değerin anlamı
+değişti; eskisini `.env`'de bırakmak `extra='forbid'` yüzünden arka ucu
+açılmaz hâle getirir.
+
+**3 — `--yalniz-hesaplar` kipi.** Tohum değiştiğinde ya da hesaplar eksik
+açıldığında değişmesi gereken tek şey parola özetleri; on beş dönemi yeniden
+çözmek yarım saati yanlış işe harcamak olurdu. Veri temizliği kilidi
+istemiyor — hiçbir şey silmiyor.
+
+Doğrulama: beş hesap da kendi parolasıyla **200**, çapraz parola **401**,
+yanlış parola **401**; uç noktanın döndürdüğü dizeler veritabanındakiyle
+tutuyor; tarayıcıda tek tıkla doldurup giriş yapıldı (`demo_d1010` → çalışan
+paneli).
+
+### Giriş ekranı: kayma ve beyaz şeritler
+
+İki ayrı neden vardı. **Kök artık dikey akış** (`#root` flex sütun): gösterim
+şeridi eklendiğinde sayfa "şerit + 100svh" yüksekliğine çıkıyordu, çünkü
+altındaki ekran ayrıca tam bir görüntü yüksekliği istiyordu. Giriş ekranı
+`min-h-svh` yerine `flex-1` ile **kalanı** dolduruyor. **`overscroll-behavior:
+none`**: macOS lastik taşması sayfanın uçlarında gövde rengini (açık) koyu
+yüzeyin üstünde ve altında şerit olarak gösteriyordu.
+
+Kimlik kutusu da sıkıştırıldı: rol başlıkları ayrı satır yerine satır sonunda
+etiket, hesap başına tek satır. 1280×800'de sayfa **hiç kaymıyor**
+(687 → 800); 1280×560 gibi kısa bir pencerede kayıyor ama kaydırıldığında
+beyazlık yok, şerit tepede sabit kalıyor.
+
+Ölçüm headless Chrome ile alındı; tarayıcı panelinin ekran görüntüsü
+yanıltıcıydı (JS `getBoundingClientRect` şeridi `top: 0`'da gösterirken panel
+üstte açık bir şerit çiziyordu).
