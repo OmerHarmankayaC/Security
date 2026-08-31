@@ -286,6 +286,64 @@ const tr = {
    * ("night fairness worsened by 2 hours"). Ortak bir şablon ikisinden
    * birini bozardı.
    */
+  surumler: {
+    donemlerYuklenemedi: 'Dönemler yüklenemedi.',
+    surumlerYuklenemedi: 'Sürümler yüklenemedi.',
+    yayinlanamadi: 'Sürüm yayınlanamadı.',
+    turetilemedi: 'Taslak türetilemedi.',
+    kopyalanamadi: 'Sürüm kopyalanamadı.',
+    silinemedi: 'Sürüm silinemedi.',
+    karsilastirilamadi: 'Karşılaştırma yapılamadı.',
+    karsilastir: 'Karşılaştır',
+    donemEtiketi: 'Dönem:',
+    surumSayisi: (sayi: number) => `${sayi} sürüm`,
+    karsilastirBasligi: 'sürüm karşılaştır',
+    oncekiSurum: 'Önceki sürüm',
+    yeniSurum: 'Yeni sürüm',
+    surumSecenegi: (no: number, durum: string) => `Sürüm ${no} (${durum})`,
+    karsilastiriliyor: 'Karşılaştırılıyor…',
+    farklariGetir: 'Farkları Getir',
+    surumYok: 'Bu dönemde henüz sürüm yok.',
+    surumNo: (no: number) => `Sürüm ${no}`,
+    acik: 'Açık',
+    kopyalaIpucu: 'Bu sürümün çizelgesini olduğu gibi taşıyan bir taslak açar; kaynak sürüm değişmez',
+    kopyala: 'Düzenlemek İçin Kopyala',
+    bosTaslakIpucu:
+      'Atamasız bir taslak açar; Çizelge ekranından elle doldurabilir ya da çözücüye bırakabilirsiniz',
+    bosTaslakAc: 'Boş Taslak Aç',
+    atamaYokYayinlanamaz: 'Atama yok, yayınlanamaz',
+    bosYayinUyarisi:
+      'Bu sürümde hiç atama yok; yayınlanırsa çalışan panelinde çizelge boş görünür. Önce Çizelge ekranından doldurun ya da çözücüyü çalıştırın.',
+    yayinla: 'Yayınla',
+    silIpucu: 'Bu sürümü ve atamalarını siler; denenip vazgeçilmiş taslaklar birikmesin diye',
+    sil: 'Sil',
+    silmeOnayi: (no: number, atamalar: string) => `Sürüm ${no} ve ${atamalar} silinecek.`,
+    atamaSayisi: (sayi: number) => `${sayi} ataması`,
+    atamalari: 'atamaları',
+    silmeNotu:
+      'Geri alınamaz. Yayınlanmış ve arşivlenmiş sürümler silinemez; bu sürüm ikisi de değil.',
+    vazgec: 'Vazgeç',
+    kopyaOnayi: (no: number, atamalar: string) =>
+      `Sürüm ${no}, ${atamalar} yeni bir taslak sürüme kopyalanacak.`,
+    kopyaAtamaSayisi: (sayi: number) => `${sayi} atamasıyla birlikte`,
+    kopyaAtamalari: 'atamalarıyla birlikte',
+    kopyaNotu: (no: number) =>
+      `Sürüm ${no} olduğu gibi kalır: durumu değişmez, atamalarına dokunulmaz. Düzenleme yeni taslak üzerinde yapılır.`,
+    kopyalaniyor: 'Kopyalanıyor…',
+    onaylaKopyala: 'Onayla ve Kopyala',
+    yayinOnayiArsiv: (yeni: number, eski: number) =>
+      `Sürüm ${yeni} yayınlanacak, Sürüm ${eski} arşive alınacak.`,
+    yayinOnayi: (no: number) => `Sürüm ${no} yayınlanacak.`,
+    yayinNotu: 'Yayınlanan sürüm salt okunur olur, üzerinde elle düzenleme yapılamaz.',
+    yayinlaniyor: 'Yayınlanıyor…',
+    onaylaYayinla: 'Onayla ve Yayınla',
+    farkBasligi: (onceki: number, yeni: number, degisen: number) =>
+      `Sürüm ${onceki} → Sürüm ${yeni} · ${degisen} değişen atama`,
+    fark: { eklendi: 'Eklendi', kaldirildi: 'Kaldırıldı', degisti: 'Değişti' },
+    farkYok: 'İki sürüm arasında farklı atama yok.',
+    farkSutunlari: ['PERSONEL', 'GÜN', 'TÜR', 'ÖNCEKİ', 'YENİ'],
+  },
+
   sonuc: {
     hedefler: {
       S1: { konu: 'kapsama açığı', birim: 'kişi' },
@@ -825,6 +883,68 @@ const en: Metinler = {
     cozuldu: 'Solved',
     yayinlandi: 'Published',
     arsiv: 'Archived',
+  },
+
+  surumler: {
+    donemlerYuklenemedi: 'Could not load the periods.',
+    surumlerYuklenemedi: 'Could not load the versions.',
+    yayinlanamadi: 'Could not publish the version.',
+    turetilemedi: 'Could not create the draft.',
+    kopyalanamadi: 'Could not copy the version.',
+    silinemedi: 'Could not delete the version.',
+    karsilastirilamadi: 'Could not compare the versions.',
+    karsilastir: 'Compare',
+    donemEtiketi: 'Period:',
+    surumSayisi: (sayi: number) => (sayi === 1 ? '1 version' : `${sayi} versions`),
+    karsilastirBasligi: 'compare versions',
+    oncekiSurum: 'Previous version',
+    yeniSurum: 'New version',
+    surumSecenegi: (no: number, durum: string) => `Version ${no} (${durum})`,
+    karsilastiriliyor: 'Comparing…',
+    farklariGetir: 'Show differences',
+    surumYok: 'No versions in this period yet.',
+    surumNo: (no: number) => `Version ${no}`,
+    acik: 'Gaps',
+    kopyalaIpucu:
+      'Opens a draft carrying this version\'s schedule as it is; the source version does not change',
+    kopyala: 'Copy to edit',
+    bosTaslakIpucu:
+      'Opens a draft with no assignments; you can fill it by hand on the Schedule screen or leave it to the solver',
+    bosTaslakAc: 'Open empty draft',
+    atamaYokYayinlanamaz: 'No assignments, cannot publish',
+    bosYayinUyarisi:
+      'This version has no assignments; if published, the schedule will look empty in the employee panel. Fill it on the Schedule screen first, or run the solver.',
+    yayinla: 'Publish',
+    silIpucu:
+      'Deletes this version and its assignments, so abandoned drafts do not pile up',
+    sil: 'Delete',
+    silmeOnayi: (no: number, atamalar: string) =>
+      `Version ${no} and ${atamalar} will be deleted.`,
+    atamaSayisi: (sayi: number) => (sayi === 1 ? 'its 1 assignment' : `its ${sayi} assignments`),
+    atamalari: 'its assignments',
+    silmeNotu:
+      'This cannot be undone. Published and archived versions cannot be deleted; this version is neither.',
+    vazgec: 'Cancel',
+    kopyaOnayi: (no: number, atamalar: string) =>
+      `Version ${no} will be copied into a new draft version, ${atamalar}.`,
+    kopyaAtamaSayisi: (sayi: number) =>
+      sayi === 1 ? 'along with its 1 assignment' : `along with its ${sayi} assignments`,
+    kopyaAtamalari: 'along with its assignments',
+    kopyaNotu: (no: number) =>
+      `Version ${no} stays as it is: its status does not change and its assignments are untouched. Editing happens on the new draft.`,
+    kopyalaniyor: 'Copying…',
+    onaylaKopyala: 'Confirm and copy',
+    yayinOnayiArsiv: (yeni: number, eski: number) =>
+      `Version ${yeni} will be published and Version ${eski} archived.`,
+    yayinOnayi: (no: number) => `Version ${no} will be published.`,
+    yayinNotu: 'A published version becomes read only and cannot be edited by hand.',
+    yayinlaniyor: 'Publishing…',
+    onaylaYayinla: 'Confirm and publish',
+    farkBasligi: (onceki: number, yeni: number, degisen: number) =>
+      `Version ${onceki} → Version ${yeni} · ${degisen} changed assignments`,
+    fark: { eklendi: 'Added', kaldirildi: 'Removed', degisti: 'Changed' },
+    farkYok: 'No assignments differ between the two versions.',
+    farkSutunlari: ['STAFF', 'DAY', 'KIND', 'PREVIOUS', 'NEW'],
   },
 
   sonuc: {

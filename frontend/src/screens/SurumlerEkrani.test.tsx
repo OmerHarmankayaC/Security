@@ -13,6 +13,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { CizelgeSurumu, Donem } from '../api/types'
 import { SurumlerEkrani } from './SurumlerEkrani'
 import { ciz } from '@/test/ciz'
+import { SOZLUK } from '@/i18n/sozluk'
 
 // AppShell oturum bağlamı ister ve bu testlerin konusu değil; çocuklarını
 // döken bir kabukla değiştirilir (bkz. OzetEkrani.test.tsx).
@@ -85,7 +86,7 @@ describe('Yayınla düğmesi — atamasız sürüm koruması', () => {
     })) as HTMLButtonElement
     expect(yayinla.disabled).toBe(true)
     // Neden EKRANDA durur, yalnız ipucunda değil.
-    expect(screen.getByText('Atama yok — yayınlanamaz')).toBeDefined()
+    expect(screen.getByText(SOZLUK.tr.surumler.atamaYokYayinlanamaz)).toBeDefined()
     expect(yayinla.title).toContain('hiç atama yok')
   })
 
@@ -96,7 +97,7 @@ describe('Yayınla düğmesi — atamasız sürüm koruması', () => {
       name: 'Yayınla',
     })) as HTMLButtonElement
     expect(yayinla.disabled).toBe(false)
-    expect(screen.queryByText('Atama yok — yayınlanamaz')).toBeNull()
+    expect(screen.queryByText(SOZLUK.tr.surumler.atamaYokYayinlanamaz)).toBeNull()
   })
 
   it('pasif düğme onay şeridini açmaz', async () => {

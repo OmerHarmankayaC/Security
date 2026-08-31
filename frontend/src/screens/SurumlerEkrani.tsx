@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { api, ApiHatasi } from '../api/client'
+import { api } from '../api/client'
 import type {
   CizelgeSurumu,
   CizelgeSurumuDurumu,
@@ -12,18 +12,14 @@ import { buyukHarf } from '../lib/metin'
 import { donemAraligiBicimle, gunKisaltmasiVeNumarasi, goreliZaman } from '../lib/tarih'
 import { cn } from '../lib/utils'
 import { sayiBicimle } from '../lib/sayi'
+import { useDil, useMetin } from '@/i18n/DilBaglami'
+import { hataMetni } from '@/i18n/hata'
+import { BOS } from '@/lib/sayi'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
   donemId: number | null
   donemIdSec: (id: number | null) => void
-}
-
-const DURUM_METNI: Record<CizelgeSurumuDurumu, string> = {
-  taslak: 'Taslak',
-  cozuldu: 'Çözüldü',
-  yayinlandi: 'Yayınlandı',
-  arsiv: 'Arşiv',
 }
 
 const DURUM_VARYANTI: Record<CizelgeSurumuDurumu, 'dolu' | 'eksik' | 'kilitli' | 'notr'> = {
@@ -36,13 +32,8 @@ const DURUM_VARYANTI: Record<CizelgeSurumuDurumu, 'dolu' | 'eksik' | 'kilitli' |
 const SECIM_SINIFI =
   'h-8 rounded-sm border border-rule bg-surface px-2.5 font-mono text-sm text-ink outline-none focus-visible:border-accent focus-visible:ring-3 focus-visible:ring-accent/30'
 
-const FARK_ETIKETI = {
-  eklendi: 'Eklendi',
-  kaldirildi: 'Kaldırıldı',
-  degisti: 'Değişti',
-} as const
-
 export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
+  const { dil, metin: m } = useDil()
   const [donemler, setDonemler] = useState<Donem[]>([])
   const [surumler, setSurumler] = useState<CizelgeSurumu[]>([])
   const [hata, setHata] = useState<string | null>(null)
@@ -75,14 +66,14 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
         setDonemler(d)
         if (donemId === null && d.length > 0) donemIdSec(d[0]!.donem_id)
       })
-      .catch((e) => setHata(e instanceof Error ? e.message : 'Dönemler yüklenemedi'))
+      .catch((e) => setHata(hataMetni(e, m)))
   }, [donemId, donemIdSec])
 
   const surumleriYukle = (id: number) => {
     api
       .surumler(id)
       .then(setSurumler)
-      .catch((e) => setHata(e instanceof Error ? e.message : 'Sürümler yüklenemedi'))
+      .catch((e) => setHata(hataMetni(e, m)))
   }
 
   useEffect(() => {
@@ -113,7 +104,7 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
       setOnayBekleyenId(null)
       if (donemId !== null) surumleriYukle(donemId)
     } catch (e) {
-      setHata(e instanceof ApiHatasi ? e.message : 'Sürüm yayınlanamadı')
+      setHata(hataMetni(e, m))
     } finally {
       setIslenenId(null)
     }
@@ -126,7 +117,7 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
       await api.surumTaslakTuret(surum.surum_id)
       if (donemId !== null) surumleriYukle(donemId)
     } catch (e) {
-      setHata(e instanceof ApiHatasi ? e.message : 'Taslak türetilemedi')
+      setHata(hataMetni(e, m))
     } finally {
       setIslenenId(null)
     }
@@ -153,7 +144,7 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
       setKopyaOnayBekleyenId(null)
       if (donemId !== null) surumleriYukle(donemId)
     } catch (e) {
-      setHata(e instanceof ApiHatasi ? e.message : 'Sürüm kopyalanamadı')
+      setHata(hataMetni(e, m))
     } finally {
       setIslenenId(null)
     }
@@ -170,7 +161,7 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
       // Sunucunun metni OLDUĞU GİBİ gösterilir: üç ret nedeni var
       // (yayınlanmış, arşiv, zincire bağlı) ve hangisi olduğunu yalnızca
       // sunucu bilir.
-      setHata(e instanceof ApiHatasi ? e.message : 'Sürüm silinemedi')
+      setHata(hataMetni(e, m))
     } finally {
       setIslenenId(null)
     }
@@ -184,7 +175,7 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
       setKarsilastirma(await api.surumKarsilastir(Number(oncekiId), Number(yeniId)))
     } catch (e) {
       setKarsilastirma(null)
-      setHata(e instanceof Error ? e.message : 'Karşılaştırma yapılamadı')
+      setHata(hataMetni(e, m))
     } finally {
       setKarsilastiriliyor(false)
     }
@@ -194,21 +185,21 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
     <AppShell
       aktifEkran="Sürümler"
       ekranSec={ekranSec}
-      baslik="Sürümler"
+      baslik={m.menu['Sürümler']}
       aksiyonlar={
         <Buton
           varyant={karsilastirmaAcik ? 'birincil' : 'ikincil'}
           onClick={() => setKarsilastirmaAcik((a) => !a)}
           disabled={surumler.length < 2}
         >
-          Karşılaştır
+          {m.surumler.karsilastir}
         </Buton>
       }
     >
       {hata && <p className="m-0 text-sm text-signal">{hata}</p>}
 
       <div className="flex items-center gap-3">
-        <label className="text-sm text-ink-muted">Dönem:</label>
+        <label className="text-sm text-ink-muted">{m.surumler.donemEtiketi}</label>
         <select
           className={SECIM_SINIFI}
           value={donemId ?? ''}
@@ -222,17 +213,17 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
         </select>
         {donem && (
           <span className="font-mono text-xs text-ink-muted">
-            {surumler.length} sürüm
+            {m.surumler.surumSayisi(surumler.length)}
           </span>
         )}
       </div>
 
       {karsilastirmaAcik && (
         <Kart vurgulu>
-          <KartEtiketi renk="accent">sürüm karşılaştır</KartEtiketi>
+          <KartEtiketi renk="accent">{m.surumler.karsilastirBasligi}</KartEtiketi>
           <div className="flex flex-wrap items-end gap-4">
             <div className="flex flex-col gap-1">
-              <label className="text-sm text-ink-muted">Önceki sürüm</label>
+              <label className="text-sm text-ink-muted">{m.surumler.oncekiSurum}</label>
               <select
                 className={SECIM_SINIFI}
                 value={oncekiId}
@@ -241,13 +232,13 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                 <option value="">—</option>
                 {surumler.map((s) => (
                   <option key={s.surum_id} value={s.surum_id}>
-                    Sürüm {s.surum_no} ({DURUM_METNI[s.durum]})
+                    {m.surumler.surumSecenegi(s.surum_no, m.surumDurumu[s.durum])}
                   </option>
                 ))}
               </select>
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-sm text-ink-muted">Yeni sürüm</label>
+              <label className="text-sm text-ink-muted">{m.surumler.yeniSurum}</label>
               <select
                 className={SECIM_SINIFI}
                 value={yeniId}
@@ -256,7 +247,7 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                 <option value="">—</option>
                 {surumler.map((s) => (
                   <option key={s.surum_id} value={s.surum_id}>
-                    Sürüm {s.surum_no} ({DURUM_METNI[s.durum]})
+                    {m.surumler.surumSecenegi(s.surum_no, m.surumDurumu[s.durum])}
                   </option>
                 ))}
               </select>
@@ -266,7 +257,7 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
               onClick={karsilastir}
               disabled={karsilastiriliyor || !oncekiId || !yeniId}
             >
-              {karsilastiriliyor ? 'Karşılaştırılıyor…' : 'Farkları Getir'}
+              {karsilastiriliyor ? m.surumler.karsilastiriliyor : m.surumler.farklariGetir}
             </Buton>
           </div>
         </Kart>
@@ -276,17 +267,17 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
 
       {surumler.length === 0 ? (
         <Kart>
-          <p className="m-0 text-sm text-ink-muted">Bu dönemde henüz sürüm yok.</p>
+          <p className="m-0 text-sm text-ink-muted">{m.surumler.surumYok}</p>
         </Kart>
       ) : (
         surumler.map((s) => (
           <Kart key={s.surum_id}>
             <div className="flex items-center gap-6">
               <Rozet varyant={DURUM_VARYANTI[s.durum]} genislik={104}>
-                {DURUM_METNI[s.durum]}
+                {m.surumDurumu[s.durum]}
               </Rozet>
               <span className="w-24 shrink-0 text-sm font-semibold text-ink">
-                {buyukHarf(`Sürüm ${s.surum_no}`)}
+                {buyukHarf(m.surumler.surumNo(s.surum_no), dil)}
               </span>
               <Sayi className="w-32 shrink-0 text-sm text-ink-muted">
                 {goreliZaman(s.olusturma_zamani)}
@@ -296,12 +287,12 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                   {buyukHarf('Toplam Ceza')}
                 </p>
                 <Sayi className="text-sayi-orta font-semibold text-ink">
-                  {s.toplam_ceza === null ? '—' : sayiBicimle(Math.round(s.toplam_ceza))}
+                  {s.toplam_ceza === null ? BOS : sayiBicimle(Math.round(s.toplam_ceza))}
                 </Sayi>
               </div>
               <div className="w-20 shrink-0">
                 <p className="m-0 etiket-caps text-ink-muted">
-                  {buyukHarf('Açık')}
+                  {buyukHarf(m.surumler.acik, dil)}
                 </p>
                 <Sayi
                   className={cn(
@@ -338,18 +329,18 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                     <Buton
                       varyant="birincil"
                       disabled={islenenId === s.surum_id}
-                      title="Bu sürümün çizelgesini olduğu gibi taşıyan bir taslak açar; kaynak sürüm değişmez"
+                      title={m.surumler.kopyalaIpucu}
                       onClick={() => kopyaOnayiniAc(s)}
                     >
-                      Düzenlemek İçin Kopyala
+                      {m.surumler.kopyala}
                     </Buton>
                     <Buton
                       varyant="ikincil"
                       disabled={islenenId === s.surum_id}
-                      title="Atamasız bir taslak açar; Çizelge ekranından elle doldurabilir ya da çözücüye bırakabilirsiniz"
+                      title={m.surumler.bosTaslakIpucu}
                       onClick={() => taslakTuret(s)}
                     >
-                      Boş Taslak Aç
+                      {m.surumler.bosTaslakAc}
                     </Buton>
                   </>
                 ) : (
@@ -367,7 +358,7 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                         ise hataya benziyor. */}
                     {s.atama_sayisi === 0 && (
                       <span className="self-center text-sm text-ink-muted">
-                        Atama yok — yayınlanamaz
+                        {m.surumler.atamaYokYayinlanamaz}
                       </span>
                     )}
                     <Buton
@@ -375,12 +366,12 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                       disabled={islenenId === s.surum_id || s.atama_sayisi === 0}
                       title={
                         s.atama_sayisi === 0
-                          ? 'Bu sürümde hiç atama yok; yayınlanırsa çalışan panelinde çizelge boş görünür. Önce Çizelge ekranından doldurun ya da çözücüyü çalıştırın.'
+                          ? m.surumler.bosYayinUyarisi
                           : undefined
                       }
                       onClick={() => setOnayBekleyenId(s.surum_id)}
                     >
-                      Yayınla
+                      {m.surumler.yayinla}
                     </Buton>
                     {/* SİLME YALNIZ AÇIK SÜRÜMLERDE. Yayınlanmış ve arşiv
                         sürümler bu dalda zaten yok; sunucu da ayrıca
@@ -389,7 +380,7 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                     <Buton
                       varyant="ikincil"
                       disabled={islenenId === s.surum_id}
-                      title="Bu sürümü ve atamalarını siler; denenip vazgeçilmiş taslaklar birikmesin diye"
+                      title={m.surumler.silIpucu}
                       onClick={() => {
                         setOnayBekleyenId(null)
                         setKopyaOnayBekleyenId(null)
@@ -406,15 +397,16 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
             {silmeOnayBekleyenId === s.surum_id && (
               <div className="mt-4 flex items-center gap-4 border-t border-rule pt-4">
                 <p className="m-0 flex-1 text-sm text-ink">
-                  Sürüm {s.surum_no} ve{' '}
-                  {s.atama_sayisi > 0 ? `${s.atama_sayisi} ataması` : 'atamaları'} silinecek.{' '}
-                  <span className="text-ink-muted">
-                    Geri alınamaz. Yayınlanmış ve arşivlenmiş sürümler silinemez; bu sürüm
-                    ikisi de değil.
-                  </span>
+                  {m.surumler.silmeOnayi(
+                    s.surum_no,
+                    s.atama_sayisi > 0
+                      ? m.surumler.atamaSayisi(s.atama_sayisi)
+                      : m.surumler.atamalari,
+                  )}{' '}
+                  <span className="text-ink-muted">{m.surumler.silmeNotu}</span>
                 </p>
                 <Buton varyant="hayalet" onClick={() => setSilmeOnayBekleyenId(null)}>
-                  Vazgeç
+                  {m.surumler.vazgec}
                 </Buton>
                 <Buton
                   varyant="birincil"
@@ -432,25 +424,23 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
                   {/* Virgül şart: sürüm numarası ile atama sayısı ardışık iki
                       sayı ve aralarında ayraç olmadan "Sürüm 1 4 atamasıyla"
                       diye okunuyor. */}
-                  Sürüm {s.surum_no},{' '}
-                  {kopyalanacakAtamaSayisi !== null
-                    ? `${kopyalanacakAtamaSayisi} atamasıyla birlikte`
-                    : 'atamalarıyla birlikte'}{' '}
-                  yeni bir taslak sürüme kopyalanacak.{' '}
-                  <span className="text-ink-muted">
-                    Sürüm {s.surum_no} olduğu gibi kalır — durumu değişmez, atamalarına
-                    dokunulmaz. Düzenleme yeni taslak üzerinde yapılır.
-                  </span>
+                  {m.surumler.kopyaOnayi(
+                    s.surum_no,
+                    kopyalanacakAtamaSayisi !== null
+                      ? m.surumler.kopyaAtamaSayisi(kopyalanacakAtamaSayisi)
+                      : m.surumler.kopyaAtamalari,
+                  )}{' '}
+                  <span className="text-ink-muted">{m.surumler.kopyaNotu(s.surum_no)}</span>
                 </p>
                 <Buton varyant="hayalet" onClick={() => setKopyaOnayBekleyenId(null)}>
-                  Vazgeç
+                  {m.surumler.vazgec}
                 </Buton>
                 <Buton
                   varyant="birincil"
                   disabled={islenenId === s.surum_id}
                   onClick={() => taslakOlarakKopyala(s)}
                 >
-                  {islenenId === s.surum_id ? 'Kopyalanıyor…' : 'Onayla ve Kopyala'}
+                  {islenenId === s.surum_id ? m.surumler.kopyalaniyor : m.surumler.onaylaKopyala}
                 </Buton>
               </div>
             )}
@@ -459,21 +449,19 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
               <div className="mt-4 flex items-center gap-4 border-t border-rule pt-4">
                 <p className="m-0 flex-1 text-sm text-ink">
                   {yayindaOlan
-                    ? `Sürüm ${s.surum_no} yayınlanacak, Sürüm ${yayindaOlan.surum_no} arşive alınacak.`
-                    : `Sürüm ${s.surum_no} yayınlanacak.`}{' '}
-                  <span className="text-ink-muted">
-                    Yayınlanan sürüm salt okunur olur, üzerinde elle düzenleme yapılamaz.
-                  </span>
+                    ? m.surumler.yayinOnayiArsiv(s.surum_no, yayindaOlan.surum_no)
+                    : m.surumler.yayinOnayi(s.surum_no)}{' '}
+                  <span className="text-ink-muted">{m.surumler.yayinNotu}</span>
                 </p>
                 <Buton varyant="hayalet" onClick={() => setOnayBekleyenId(null)}>
-                  Vazgeç
+                  {m.surumler.vazgec}
                 </Buton>
                 <Buton
                   varyant="birincil"
                   disabled={islenenId === s.surum_id}
                   onClick={() => yayinla(s)}
                 >
-                  {islenenId === s.surum_id ? 'Yayınlanıyor…' : 'Onayla ve Yayınla'}
+                  {islenenId === s.surum_id ? m.surumler.yayinlaniyor : m.surumler.onaylaYayinla}
                 </Buton>
               </div>
             )}
@@ -485,25 +473,26 @@ export function SurumlerEkrani({ ekranSec, donemId, donemIdSec }: Props) {
 }
 
 function KarsilastirmaSonucu({ sonuc }: { sonuc: SurumKarsilastirmasi }) {
+  const m = useMetin()
   return (
     <Kart>
       <KartEtiketi>
-        {`Sürüm ${sonuc.onceki_surum_no} → Sürüm ${sonuc.yeni_surum_no} · ${sonuc.toplam_degisiklik} değişen atama`}
+        {m.surumler.farkBasligi(sonuc.onceki_surum_no, sonuc.yeni_surum_no, sonuc.toplam_degisiklik)}
       </KartEtiketi>
 
       <div className="mb-4 flex gap-8">
-        <FarkSayaci etiket="Eklendi" deger={sonuc.eklenen} />
-        <FarkSayaci etiket="Kaldırıldı" deger={sonuc.kaldirilan} />
-        <FarkSayaci etiket="Değişti" deger={sonuc.degisen} />
+        <FarkSayaci etiket={m.surumler.fark.eklendi} deger={sonuc.eklenen} />
+        <FarkSayaci etiket={m.surumler.fark.kaldirildi} deger={sonuc.kaldirilan} />
+        <FarkSayaci etiket={m.surumler.fark.degisti} deger={sonuc.degisen} />
       </div>
 
       {sonuc.farklar.length === 0 ? (
-        <p className="m-0 text-sm text-ink-muted">İki sürüm arasında farklı atama yok.</p>
+        <p className="m-0 text-sm text-ink-muted">{m.surumler.farkYok}</p>
       ) : (
         <table className="w-full border-collapse">
           <thead>
             <tr className="bg-sunken">
-              {['PERSONEL', 'GÜN', 'TÜR', 'ÖNCEKİ', 'YENİ'].map((b) => (
+              {m.surumler.farkSutunlari.map((b) => (
                 <th
                   key={b}
                   className="mono-caps whitespace-nowrap px-3 py-2 text-left text-ink-muted"
@@ -522,14 +511,14 @@ function KarsilastirmaSonucu({ sonuc }: { sonuc: SurumKarsilastirmasi }) {
                 </td>
                 <td className="px-3 py-2.5">
                   <Rozet varyant={f.tur === 'kaldirildi' ? 'eksik' : 'kilitli'} genislik={96}>
-                    {FARK_ETIKETI[f.tur]}
+                    {m.surumler.fark[f.tur]}
                   </Rozet>
                 </td>
                 <td className="px-3 py-2.5 text-sm text-ink-muted">
-                  {f.onceki_blok ? `${f.onceki_blok} · ${f.onceki_nokta_ad ?? '—'}` : '—'}
+                  {f.onceki_blok ? `${f.onceki_blok} · ${f.onceki_nokta_ad ?? BOS}` : BOS}
                 </td>
                 <td className="px-3 py-2.5 text-sm text-ink">
-                  {f.yeni_blok ? `${f.yeni_blok} · ${f.yeni_nokta_ad ?? '—'}` : '—'}
+                  {f.yeni_blok ? `${f.yeni_blok} · ${f.yeni_nokta_ad ?? BOS}` : BOS}
                 </td>
               </tr>
             ))}
