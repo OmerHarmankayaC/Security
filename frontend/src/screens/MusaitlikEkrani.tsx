@@ -5,28 +5,18 @@ import { AppShell, type NavOgesi } from '../components/AppShell'
 import { Buton, Kart, KartEtiketi, Rozet } from '../components/app-ui'
 import { Input } from '@/components/ui/input'
 import { gunKisaltmasiVeNumarasi } from '../lib/tarih'
+import { useMetin } from '@/i18n/DilBaglami'
+import { hataMetni } from '@/i18n/hata'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
-}
-
-const DILIM_METNI: Record<MusaitlikDilimi, string> = {
-  tam_gun: 'TAM',
-  ogleden_once: 'ÖÖ',
-  ogleden_sonra: 'ÖS',
-}
-
-const TIP_METNI: Record<MusaitlikTipi, string> = {
-  yillik_izin: 'İzin',
-  rapor: 'Rapor',
-  egitim: 'Eğitim',
-  mazeret: 'Mazeret',
 }
 
 const INPUT_SINIFI =
   'h-8 w-full rounded-sm border border-rule bg-surface px-2.5 font-mono text-sm text-ink outline-none focus-visible:border-accent focus-visible:ring-3 focus-visible:ring-accent/30'
 
 export function MusaitlikEkrani({ ekranSec }: Props) {
+  const m = useMetin()
   const [kayitlar, setKayitlar] = useState<Musaitlik[]>([])
   const [personelListesi, setPersonelListesi] = useState<Personel[]>([])
   const [formAcik, setFormAcik] = useState(false)
@@ -45,7 +35,7 @@ export function MusaitlikEkrani({ ekranSec }: Props) {
         setKayitlar(m)
         setPersonelListesi(p)
       })
-      .catch((e) => setHata(e instanceof Error ? e.message : 'Müsaitlik kayıtları yüklenemedi'))
+      .catch((e) => setHata(hataMetni(e, m)))
   }
 
   useEffect(yukle, [])
@@ -73,7 +63,7 @@ export function MusaitlikEkrani({ ekranSec }: Props) {
       setBitis('')
       yukle()
     } catch (e) {
-      setHata(e instanceof Error ? e.message : 'Kayıt oluşturulamadı')
+      setHata(hataMetni(e, m))
     } finally {
       setGonderiliyor(false)
     }
@@ -84,7 +74,7 @@ export function MusaitlikEkrani({ ekranSec }: Props) {
       await api.musaitlikSil(id)
       yukle()
     } catch (e) {
-      setHata(e instanceof Error ? e.message : 'Kayıt silinemedi')
+      setHata(hataMetni(e, m))
     }
   }
 
@@ -102,7 +92,7 @@ export function MusaitlikEkrani({ ekranSec }: Props) {
         if (a.baslangic_tarihi <= b.bitis_tarihi && b.baslangic_tarihi <= a.bitis_tarihi) {
           const adA = personelMap.get(a.personel_id)?.ad_soyad ?? `#${a.personel_id}`
           const adB = personelMap.get(b.personel_id)?.ad_soyad ?? `#${b.personel_id}`
-          return `${adA} ve ${adB} aynı dönemde izinli — kadro riski oluşabilir.`
+          return m.musaitlik.kadroRiski(adA, adB)
         }
       }
     }
@@ -113,10 +103,10 @@ export function MusaitlikEkrani({ ekranSec }: Props) {
     <AppShell
       aktifEkran="Müsaitlik"
       ekranSec={ekranSec}
-      baslik="Müsaitlik"
+      baslik={m.menu['Müsaitlik']}
       aksiyonlar={
         <Buton varyant="birincil" onClick={() => setFormAcik((a) => !a)}>
-          Kayıt Ekle
+          {m.musaitlik.kayitEkle}
         </Buton>
       }
     >
@@ -129,10 +119,10 @@ export function MusaitlikEkrani({ ekranSec }: Props) {
 
       {formAcik && (
         <Kart vurgulu>
-          <KartEtiketi renk="accent">yeni müsaitlik kaydı</KartEtiketi>
+          <KartEtiketi renk="accent">{m.musaitlik.yeniKayit}</KartEtiketi>
           <div className="flex flex-wrap items-end gap-4">
             <div className="flex flex-col gap-1">
-              <label className="text-sm text-ink-muted">Personel</label>
+              <label className="text-sm text-ink-muted">{m.musaitlik.personelEtiketi}</label>
               <select
                 className={INPUT_SINIFI}
                 value={personelId}
@@ -147,7 +137,7 @@ export function MusaitlikEkrani({ ekranSec }: Props) {
               </select>
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-sm text-ink-muted">Başlangıç</label>
+              <label className="text-sm text-ink-muted">{m.musaitlik.baslangic}</label>
               <Input
                 type="date"
                 value={baslangic}
@@ -156,7 +146,7 @@ export function MusaitlikEkrani({ ekranSec }: Props) {
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-sm text-ink-muted">Bitiş</label>
+              <label className="text-sm text-ink-muted">{m.musaitlik.bitis}</label>
               <Input
                 type="date"
                 value={bitis}
@@ -165,13 +155,13 @@ export function MusaitlikEkrani({ ekranSec }: Props) {
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-sm text-ink-muted">Dilim</label>
+              <label className="text-sm text-ink-muted">{m.musaitlik.dilimEtiketi}</label>
               <select
                 className={INPUT_SINIFI}
                 value={dilim}
                 onChange={(e) => setDilim(e.target.value as MusaitlikDilimi)}
               >
-                {Object.entries(DILIM_METNI).map(([deger, etiket]) => (
+                {Object.entries(m.musaitlik.dilim).map(([deger, etiket]) => (
                   <option key={deger} value={deger}>
                     {etiket}
                   </option>
@@ -179,13 +169,13 @@ export function MusaitlikEkrani({ ekranSec }: Props) {
               </select>
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-sm text-ink-muted">Tip</label>
+              <label className="text-sm text-ink-muted">{m.musaitlik.tipEtiketi}</label>
               <select
                 className={INPUT_SINIFI}
                 value={tip}
                 onChange={(e) => setTip(e.target.value as MusaitlikTipi)}
               >
-                {Object.entries(TIP_METNI).map(([deger, etiket]) => (
+                {Object.entries(m.musaitlik.tip).map(([deger, etiket]) => (
                   <option key={deger} value={deger}>
                     {etiket}
                   </option>
@@ -200,7 +190,7 @@ export function MusaitlikEkrani({ ekranSec }: Props) {
               Kaydet
             </Buton>
             <Buton varyant="hayalet" onClick={() => setFormAcik(false)}>
-              İptal
+              {m.musaitlik.iptal}
             </Buton>
           </div>
         </Kart>
@@ -210,7 +200,7 @@ export function MusaitlikEkrani({ ekranSec }: Props) {
         <table className="w-full min-w-[640px] border-collapse">
           <thead>
             <tr className="bg-sunken">
-              {['PERSONEL', 'BAŞLANGIÇ', 'BİTİŞ', 'DİLİM', 'TİP', 'BELGE', ''].map((b) => (
+              {m.musaitlik.sutunlar.map((b) => (
                 <th
                   key={b}
                   className="mono-caps whitespace-nowrap px-3 py-2 text-left text-ink-muted"
@@ -232,10 +222,10 @@ export function MusaitlikEkrani({ ekranSec }: Props) {
                 <td className="px-3 py-3 font-mono text-sm text-ink-muted">
                   {gunKisaltmasiVeNumarasi(k.bitis_tarihi)}
                 </td>
-                <td className="px-3 py-3 font-mono text-sm text-ink-muted">{DILIM_METNI[k.dilim]}</td>
+                <td className="px-3 py-3 font-mono text-sm text-ink-muted">{m.musaitlik.dilim[k.dilim]}</td>
                 <td className="px-3 py-3">
                   <Rozet varyant="notr" genislik={84}>
-                    {TIP_METNI[k.tip]}
+                    {m.musaitlik.tip[k.tip]}
                   </Rozet>
                 </td>
                 <td className="px-3 py-3">
@@ -243,7 +233,7 @@ export function MusaitlikEkrani({ ekranSec }: Props) {
                 </td>
                 <td className="px-3 py-3 text-right">
                   <Buton varyant="hayalet" onClick={() => sil(k.musaitlik_id)}>
-                    Sil
+                    {m.musaitlik.sil}
                   </Buton>
                 </td>
               </tr>
@@ -251,7 +241,7 @@ export function MusaitlikEkrani({ ekranSec }: Props) {
             {kayitlar.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-3 py-6 text-center text-sm text-ink-muted">
-                  Henüz müsaitlik kaydı yok.
+                  {m.musaitlik.kayitYok}
                 </td>
               </tr>
             )}
@@ -272,6 +262,7 @@ export function MusaitlikEkrani({ ekranSec }: Props) {
  * dönüştürmek, hata durumunu da (401, 404) görünür kılar.
  */
 function BelgeDugmesi({ kayit, yenile }: { kayit: Musaitlik; yenile: () => void }) {
+  const m = useMetin()
   const dosyaGirdisi = useRef<HTMLInputElement>(null)
   const [calisiyor, setCalisiyor] = useState(false)
   const [hata, setHata] = useState<string | null>(null)
@@ -280,7 +271,7 @@ function BelgeDugmesi({ kayit, yenile }: { kayit: Musaitlik; yenile: () => void 
     setHata(null)
     try {
       const yanit = await fetch(api.izinBelgesiYolu(kayit.musaitlik_id))
-      if (!yanit.ok) throw new Error('Belge alınamadı')
+      if (!yanit.ok) throw new Error(m.musaitlik.belgeAlinamadi)
       const veri = await yanit.blob()
       const url = URL.createObjectURL(veri)
       const bag = document.createElement('a')
@@ -289,7 +280,7 @@ function BelgeDugmesi({ kayit, yenile }: { kayit: Musaitlik; yenile: () => void 
       bag.click()
       URL.revokeObjectURL(url)
     } catch (e) {
-      setHata(e instanceof Error ? e.message : 'Belge alınamadı')
+      setHata(hataMetni(e, m))
     }
   }
 
@@ -302,10 +293,10 @@ function BelgeDugmesi({ kayit, yenile }: { kayit: Musaitlik; yenile: () => void 
     } catch (e) {
       setHata(
         e instanceof ApiHatasi && e.status === 415
-          ? 'Yalnızca PNG, JPEG ya da PDF yüklenebilir.'
+          ? m.musaitlik.belgeTipi
           : e instanceof ApiHatasi && e.status === 413
-            ? 'Dosya çok büyük (azami 5 MB).'
-            : 'Belge yüklenemedi',
+            ? m.musaitlik.belgeBuyuk
+            : m.musaitlik.belgeYuklenemedi,
       )
     } finally {
       setCalisiyor(false)
@@ -317,7 +308,7 @@ function BelgeDugmesi({ kayit, yenile }: { kayit: Musaitlik; yenile: () => void 
       <span className="flex items-center gap-2">
         {kayit.belge_var ? (
           <Buton varyant="hayalet" onClick={indir}>
-            İndir
+            {m.musaitlik.indir}
           </Buton>
         ) : (
           <Buton
@@ -325,7 +316,7 @@ function BelgeDugmesi({ kayit, yenile }: { kayit: Musaitlik; yenile: () => void 
             disabled={calisiyor}
             onClick={() => dosyaGirdisi.current?.click()}
           >
-            {calisiyor ? 'Yükleniyor…' : 'Ekle'}
+            {calisiyor ? m.musaitlik.yukleniyor : m.musaitlik.ekle}
           </Buton>
         )}
         <input

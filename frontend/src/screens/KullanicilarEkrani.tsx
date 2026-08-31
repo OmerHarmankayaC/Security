@@ -16,6 +16,8 @@ import type { Kullanici, Personel, Rol } from '@/api/types'
 import { AppShell, type NavOgesi } from '@/components/AppShell'
 import { TanimListesi, gorunumKur } from '@/components/TanimYonetimi'
 import { Buton, Kart, KartEtiketi, Rozet } from '@/components/app-ui'
+import { useMetin } from '@/i18n/DilBaglami'
+import { hataMetni } from '@/i18n/hata'
 
 interface Props {
   ekranSec: (ekran: NavOgesi) => void
@@ -23,24 +25,12 @@ interface Props {
   kendiKullaniciAdi: string
 }
 
-const ROLLER: { deger: Rol; etiket: string; aciklama: string }[] = [
-  { deger: 'calisan', etiket: 'Çalışan', aciklama: 'Yalnız kendi çizelgesi, özeti ve tercihleri' },
-  { deger: 'idare', etiket: 'Yönetici', aciklama: 'Vardiya yöneticisinin bütün işlevleri' },
-  { deger: 'hesap_yoneticisi', etiket: 'Yönetim', aciklama: 'Yöneticinin yetkileri + hesap yönetimi' },
-]
-
-const ROL_ETIKETI: Record<Rol, string> = {
-  calisan: 'Çalışan',
-  idare: 'İdare',
-  hesap_yoneticisi: 'Hesap yöneticisi',
-  sistem_yoneticisi: 'Sistem yöneticisi',
-}
-
 const ALAN_SINIFI =
   'h-8 w-full rounded-sm border border-rule bg-surface px-2.5 text-sm text-ink outline-none ' +
   'focus-visible:border-accent focus-visible:ring-3 focus-visible:ring-accent/30'
 
 export function KullanicilarEkrani({ ekranSec, kendiKullaniciAdi }: Props) {
+  const m = useMetin()
   const [kullanicilar, setKullanicilar] = useState<Kullanici[]>([])
   const [personeller, setPersoneller] = useState<Personel[]>([])
   const [hata, setHata] = useState<string | null>(null)
@@ -55,7 +45,7 @@ export function KullanicilarEkrani({ ekranSec, kendiKullaniciAdi }: Props) {
         setKullanicilar(k)
         setPersoneller(p)
       })
-      .catch((e) => setHata(e instanceof Error ? e.message : 'Hesaplar yüklenemedi'))
+      .catch((e) => setHata(hataMetni(e, m)))
   }
 
   useEffect(yukle, [])
@@ -79,7 +69,7 @@ export function KullanicilarEkrani({ ekranSec, kendiKullaniciAdi }: Props) {
     baslik: (k) => k.kullanici_adi,
     ozet: (k) => (
       <>
-        {ROL_ETIKETI[k.rol]}
+        {m.roller[k.rol]}
         {k.ad_soyad ? ` · ${k.ad_soyad}` : ''}
         {k.kullanici_adi === kendiKullaniciAdi ? ' · bu hesapla girdiniz' : ''}
       </>
@@ -94,12 +84,12 @@ export function KullanicilarEkrani({ ekranSec, kendiKullaniciAdi }: Props) {
         )}
         {k.parola_degistirmeli && (
           <Rozet varyant="kilitli" genislik={148}>
-            Parola bekliyor
+            {m.kullanicilar.parolaBekliyor}
           </Rozet>
         )}
       </>
     ),
-    bosMesaji: 'Henüz hesap yok.',
+    bosMesaji: m.kullanicilar.hesapYok,
   })
 
   const kapat = () => {
@@ -111,7 +101,7 @@ export function KullanicilarEkrani({ ekranSec, kendiKullaniciAdi }: Props) {
     <AppShell
       aktifEkran="Kullanıcılar"
       ekranSec={ekranSec}
-      baslik="Kullanıcılar"
+      baslik={m.menu['Kullanıcılar']}
       // Tanımlar ekranıyla aynı konum, aynı sıra. "Sil" YOKTUR: hesap
       // silinmez, devre dışı bırakılır ve bu, düzenleme kipindeki bir
       // alandır (FR-10.5).
@@ -129,18 +119,18 @@ export function KullanicilarEkrani({ ekranSec, kendiKullaniciAdi }: Props) {
           <Buton
             varyant="ikincil"
             disabled={secili === null}
-            title={secili === null ? 'Önce listeden bir hesap seçin' : undefined}
+            title={secili === null ? m.kullanicilar.onceSec : undefined}
             onClick={() => setKip('duzenle')}
           >
-            Değiştir
+            {m.kullanicilar.degistir}
           </Buton>
           <Buton
             varyant="ikincil"
             disabled={secili === null}
-            title={secili === null ? 'Önce listeden bir hesap seçin' : undefined}
+            title={secili === null ? m.kullanicilar.onceSec : undefined}
             onClick={() => setKip('parola')}
           >
-            Parola Sıfırla
+            {m.kullanicilar.parolaSifirla}
           </Buton>
         </>
       }
@@ -155,7 +145,7 @@ export function KullanicilarEkrani({ ekranSec, kendiKullaniciAdi }: Props) {
             onChange={(e) => setPasifleriGoster(e.target.checked)}
             className="accent-accent"
           />
-          Pasifleri göster
+          {m.kullanicilar.pasifleriGoster}
         </label>
       </div>
 
@@ -210,6 +200,7 @@ function HesapFormu({
   onIptal,
   onKaydedildi,
 }: HesapFormuProps) {
+  const m = useMetin()
   const [kullaniciAdi, setKullaniciAdi] = useState(duzenlenen?.kullanici_adi ?? '')
   const [parola, setParola] = useState('')
   const [rol, setRol] = useState<Rol>(duzenlenen?.rol ?? 'calisan')
@@ -246,12 +237,12 @@ function HesapFormu({
 
   return (
     <Kart vurgulu>
-      <KartEtiketi renk="accent">{duzenlenen ? 'hesabı değiştir' : 'yeni hesap'}</KartEtiketi>
+      <KartEtiketi renk="accent">{duzenlenen ? m.kullanicilar.hesabiDegistir : m.kullanicilar.yeniHesap}</KartEtiketi>
       <form onSubmit={gonder} noValidate>
         <div className="flex flex-wrap gap-4">
           <div className="w-[220px]">
             <label className="mb-1 block text-sm text-ink-muted" htmlFor="hesap-ad">
-              Kullanıcı adı
+              {m.kullanicilar.kullaniciAdi}
             </label>
             <input
               id="hesap-ad"
@@ -265,7 +256,7 @@ function HesapFormu({
             />
             {duzenlenen === null && (
               <p className="mt-1 mb-0 text-xs text-ink-muted">
-                Küçük harf, rakam, nokta, tire; 3–50 karakter.
+                {m.kullanicilar.kullaniciAdiKurali}
               </p>
             )}
           </div>
@@ -273,7 +264,7 @@ function HesapFormu({
           {duzenlenen === null && (
             <div className="w-[220px]">
               <label className="mb-1 block text-sm text-ink-muted" htmlFor="hesap-parola">
-                Başlangıç parolası
+                {m.kullanicilar.baslangicParolasi}
               </label>
               <input
                 id="hesap-parola"
@@ -284,7 +275,7 @@ function HesapFormu({
                 autoComplete="new-password"
               />
               <p className="mt-1 mb-0 text-xs text-ink-muted">
-                En az 12 karakter. Kullanıcı ilk girişte değiştirmek zorunda.
+                {m.kullanicilar.parolaKurali}
               </p>
             </div>
           )}
@@ -303,7 +294,7 @@ function HesapFormu({
               // yoktur (FR-10.10). Sunucu da reddeder.
               disabled={kendisi}
             >
-              {ROLLER.map((r) => (
+              {m.kullanicilar.roller.map((r) => (
                 <option key={r.deger} value={r.deger}>
                   {r.etiket}
                 </option>
@@ -311,14 +302,14 @@ function HesapFormu({
             </select>
             <p className="mt-1 mb-0 text-xs text-ink-muted">
               {kendisi
-                ? 'Kendi rolünüzü değiştiremezsiniz.'
-                : ROLLER.find((r) => r.deger === rol)?.aciklama}
+                ? m.kullanicilar.kendiRolun
+                : m.kullanicilar.roller.find((r) => r.deger === rol)?.aciklama}
             </p>
           </div>
 
           <div className="w-[260px]">
             <label className="mb-1 block text-sm text-ink-muted" htmlFor="hesap-personel">
-              Personel kaydı
+              {m.kullanicilar.personelKaydi}
             </label>
             <select
               id="hesap-personel"
@@ -326,7 +317,7 @@ function HesapFormu({
               value={personelId ?? ''}
               onChange={(e) => setPersonelId(e.target.value ? Number(e.target.value) : null)}
             >
-              <option value="">— bağlı değil —</option>
+              <option value="">{m.kullanicilar.bagliDegil}</option>
               {secilebilirPersoneller.map((p) => (
                 <option key={p.personel_id} value={p.personel_id}>
                   {p.ad_soyad} ({p.sicil_no})
@@ -335,8 +326,8 @@ function HesapFormu({
             </select>
             <p className="mt-1 mb-0 text-xs text-ink-muted">
               {rol === 'calisan'
-                ? 'Çalışan hesabı bir personel kaydına bağlanmak zorunda.'
-                : 'Yönetici ve yönetim rollerinde boş bırakılabilir.'}
+                ? m.kullanicilar.calisanBaglanmali
+                : m.kullanicilar.bosBirakilabilir}
             </p>
           </div>
 
@@ -355,8 +346,8 @@ function HesapFormu({
               </label>
               <p className="mt-1 mb-0 text-xs text-ink-muted">
                 {kendisi
-                  ? 'Kendi hesabınızı kapatamazsınız.'
-                  : 'Kapatıldığında hesap silinmez; girişi durur ve açık oturumları kapanır.'}
+                  ? m.kullanicilar.kendiHesabin
+                  : m.kullanicilar.kapatmaNotu}
               </p>
             </div>
           )}
@@ -373,7 +364,7 @@ function HesapFormu({
             Kaydet
           </Buton>
           <Buton varyant="hayalet" type="button" onClick={onIptal} disabled={kaydediliyor}>
-            Vazgeç
+            {m.kullanicilar.vazgec}
           </Buton>
         </div>
       </form>
@@ -390,6 +381,7 @@ interface ParolaSifirlamaProps {
 }
 
 function ParolaSifirlamaFormu({ kullanici, onIptal, onKaydedildi }: ParolaSifirlamaProps) {
+  const m = useMetin()
   const [yeni, setYeni] = useState('')
   const [hata, setHata] = useState<string | null>(null)
   const [kaydediliyor, setKaydediliyor] = useState(false)
@@ -402,23 +394,21 @@ function ParolaSifirlamaFormu({ kullanici, onIptal, onKaydedildi }: ParolaSifirl
       await api.kullaniciParolaSifirla(kullanici.kullanici_id, yeni)
       onKaydedildi()
     } catch (e) {
-      setHata(e instanceof ApiHatasi ? e.message : 'Sıfırlanamadı')
+      setHata(hataMetni(e, m))
       setKaydediliyor(false)
     }
   }
 
   return (
     <Kart vurgulu>
-      <KartEtiketi renk="warn">parola sıfırlama</KartEtiketi>
+      <KartEtiketi renk="warn">{m.kullanicilar.sifirlamaBasligi}</KartEtiketi>
       <form onSubmit={gonder} noValidate>
         <p className="m-0 text-sm text-ink">
-          <span className="font-medium">{kullanici.kullanici_adi}</span> hesabına yeni bir
-          başlangıç parolası atanacak. Kullanıcı ilk girişte parolayı değiştirmek zorunda
-          kalacak ve <span className="font-medium">açık oturumlarının hepsi kapanacak</span>.
+          {m.kullanicilar.sifirlamaUyarisi(kullanici.kullanici_adi)}
         </p>
         <div className="mt-4 w-[260px]">
           <label className="mb-1 block text-sm text-ink-muted" htmlFor="sifirlama-parola">
-            Yeni başlangıç parolası
+            {m.kullanicilar.yeniBaslangicParolasi}
           </label>
           <input
             id="sifirlama-parola"
@@ -440,10 +430,10 @@ function ParolaSifirlamaFormu({ kullanici, onIptal, onKaydedildi }: ParolaSifirl
 
         <div className="mt-5 flex gap-2">
           <Buton varyant="birincil" type="submit" disabled={kaydediliyor || yeni.length === 0}>
-            Parolayı Sıfırla
+            {m.kullanicilar.parolayiSifirla}
           </Buton>
           <Buton varyant="hayalet" type="button" onClick={onIptal} disabled={kaydediliyor}>
-            Vazgeç
+            {m.kullanicilar.vazgec}
           </Buton>
         </div>
       </form>
