@@ -208,7 +208,7 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec, oncekiSurumId = nul
   }
 
   const yeniDonemOlustur = async () => {
-    if (araligiDenetle(yeniBaslangic, yeniBitis)) return
+    if (araligiDenetle(yeniBaslangic, yeniBitis, m)) return
     setDonemOlusturuluyor(true)
     setHata(null)
     try {
@@ -230,7 +230,7 @@ export function CozumEkrani({ ekranSec, donemId, donemIdSec, oncekiSurumId = nul
     }
   }
 
-  const aralikHatasi = yeniDonemAcik ? araligiDenetle(yeniBaslangic, yeniBitis) : null
+  const aralikHatasi = yeniDonemAcik ? araligiDenetle(yeniBaslangic, yeniBitis, m) : null
   const secilenGunSayisi =
     yeniDonemAcik && yeniBaslangic && yeniBitis ? gunSayisi(yeniBaslangic, yeniBitis) : null
 

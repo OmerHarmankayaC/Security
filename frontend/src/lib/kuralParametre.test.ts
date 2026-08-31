@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { Kural } from '@/api/types'
 import { blokSinirlariniOku, sinirUyarisi } from './kuralParametre'
+import { SOZLUK } from '@/i18n/sozluk'
+
+// Metnin KURULUŞU sınanıyor, çevirisi değil: kaynak dil Türkçe.
+const TR = SOZLUK.tr
 
 function kural(kimlik: string, parametreler: Record<string, unknown>, aktif = true): Kural {
   return {
@@ -50,21 +54,21 @@ describe('sinirUyarisi — sınır sürükleme SIRASINDA görünür', () => {
   const sinirlar = { asgariSaat: 4, azamiSaat: 11 }
 
   it('asgari süreden kısa seçim engellenir ve nedeni yazılır', () => {
-    expect(sinirUyarisi(3, sinirlar)).toBe('Asgari blok 4 saat (H1)')
+    expect(sinirUyarisi(3, sinirlar, TR)).toBe('Asgari blok 4 saat (H1)')
   })
 
   it('günlük tavanı aşan seçim engellenir', () => {
-    expect(sinirUyarisi(12, sinirlar)).toBe('Günlük azami 11 saat (H9)')
+    expect(sinirUyarisi(12, sinirlar, TR)).toBe('Günlük azami 11 saat (H9)')
   })
 
   it('sınırların içindeki seçim uyarı üretmez', () => {
-    expect(sinirUyarisi(4, sinirlar)).toBeNull()
-    expect(sinirUyarisi(11, sinirlar)).toBeNull()
-    expect(sinirUyarisi(8, sinirlar)).toBeNull()
+    expect(sinirUyarisi(4, sinirlar, TR)).toBeNull()
+    expect(sinirUyarisi(11, sinirlar, TR)).toBeNull()
+    expect(sinirUyarisi(8, sinirlar, TR)).toBeNull()
   })
 
   it('sınır tanımlı değilse hiçbir seçim engellenmez', () => {
-    expect(sinirUyarisi(1, { asgariSaat: null, azamiSaat: null })).toBeNull()
-    expect(sinirUyarisi(24, { asgariSaat: null, azamiSaat: null })).toBeNull()
+    expect(sinirUyarisi(1, { asgariSaat: null, azamiSaat: null }, TR)).toBeNull()
+    expect(sinirUyarisi(24, { asgariSaat: null, azamiSaat: null }, TR)).toBeNull()
   })
 })

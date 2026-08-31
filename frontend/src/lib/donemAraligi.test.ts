@@ -5,6 +5,10 @@ import {
   araligiDenetle,
   gunSayisi,
 } from './donemAraligi'
+import { SOZLUK } from '@/i18n/sozluk'
+
+// Metnin KURULUŞU sınanıyor, çevirisi değil: kaynak dil Türkçe.
+const TR = SOZLUK.tr
 
 describe('gunSayisi', () => {
   it('iki ucu da sayar', () => {
@@ -20,37 +24,37 @@ describe('gunSayisi', () => {
 describe('araligiDenetle', () => {
   it('varsayılan bir haftalık aralığı kabul eder (Backlog 07.08.2026)', () => {
     expect(VARSAYILAN_DONEM_GUN).toBe(7)
-    expect(araligiDenetle('2026-08-03', '2026-08-09')).toBeNull()
+    expect(araligiDenetle('2026-08-03', '2026-08-09', TR)).toBeNull()
   })
 
   it('kabul kriterinin 28 günlük dönemini kabul eder (NFR-1)', () => {
     expect(gunSayisi('2026-08-03', '2026-08-30')).toBe(28)
-    expect(araligiDenetle('2026-08-03', '2026-08-30')).toBeNull()
+    expect(araligiDenetle('2026-08-03', '2026-08-30', TR)).toBeNull()
   })
 
   it('tam sınırdaki aralığı kabul eder', () => {
     expect(gunSayisi('2026-08-01', '2026-08-31')).toBe(AZAMI_DONEM_GUN)
-    expect(araligiDenetle('2026-08-01', '2026-08-31')).toBeNull()
+    expect(araligiDenetle('2026-08-01', '2026-08-31', TR)).toBeNull()
   })
 
   it('sınırı bir gün aşan aralığı reddeder', () => {
-    const hata = araligiDenetle('2026-08-01', '2026-09-01')
+    const hata = araligiDenetle('2026-08-01', '2026-09-01', TR)
     expect(hata).not.toBeNull()
     expect(hata).toContain('31')
     expect(hata).toContain('32 gün')
   })
 
   it('ters aralığı reddeder', () => {
-    expect(araligiDenetle('2026-08-09', '2026-08-03')).toContain('önce olamaz')
+    expect(araligiDenetle('2026-08-09', '2026-08-03', TR)).toContain('önce olamaz')
   })
 
   it('eksik tarihi reddeder', () => {
-    expect(araligiDenetle('', '2026-08-09')).not.toBeNull()
-    expect(araligiDenetle('2026-08-03', '')).not.toBeNull()
+    expect(araligiDenetle('', '2026-08-09', TR)).not.toBeNull()
+    expect(araligiDenetle('2026-08-03', '', TR)).not.toBeNull()
   })
 
   it('hata metni teknik terim içermez (NFR-5)', () => {
-    const hata = araligiDenetle('2026-08-01', '2026-09-30') ?? ''
+    const hata = araligiDenetle('2026-08-01', '2026-09-30', TR) ?? ''
     for (const terim of ['null', 'undefined', 'ISO', 'baslangic', 'Error']) {
       expect(hata).not.toContain(terim)
     }

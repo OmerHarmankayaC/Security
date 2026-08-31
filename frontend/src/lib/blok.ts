@@ -1,3 +1,4 @@
+import type { Metinler } from '@/i18n/sozluk'
 /**
  * Çalışma bloğunun okunması — TEK YER (SRS TD-13, SDD 4.2.1).
  *
@@ -146,11 +147,13 @@ export function blokErisilebilirEtiket(
   blok: BlokGibi & { bitis_zamani: string },
   parca: GunParcasi,
   noktaAdi: string,
+  m: Metinler,
 ): string {
   const aralik = blokEtiketi(blok.baslangic_zamani, blok.bitis_zamani)
-  if (parca.oncekiGundenGeliyor) return `${aralik} · ${noktaAdi} · önceki günden devam ediyor`
-  if (parca.sonrakiGuneTasiyor) return `${aralik} · ${noktaAdi} · ertesi güne taşıyor`
-  return `${aralik} · ${noktaAdi}`
+  const govde = `${aralik} · ${noktaAdi}`
+  if (parca.oncekiGundenGeliyor) return `${govde} · ${m.izgara.oncekiGundenDevam}`
+  if (parca.sonrakiGuneTasiyor) return `${govde} · ${m.izgara.ertesiGuneTasiyor}`
+  return govde
 }
 
 // Gece dönemi (SRS TD-2): 20:00–06:00. Yarı açık aralık — 06 gece değildir.

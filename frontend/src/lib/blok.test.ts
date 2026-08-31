@@ -8,6 +8,9 @@ import {
   gununParcalari,
   saatEtiketi,
 } from './blok'
+import { SOZLUK } from '@/i18n/sozluk'
+
+const TR = SOZLUK.tr
 
 /**
  * Bloğun okunması ve gün ızgarasındaki geometrisi.
@@ -121,17 +124,17 @@ describe('blokErisilebilirEtiket — renk tek başına bilgi taşımaz', () => {
   it('iki günde de bloğun TAMAMINI yazar, o günkü parçasını değil', () => {
     const bas = gunParcasi(gecelik, '2026-02-02')!
     const son = gunParcasi(gecelik, '2026-02-03')!
-    expect(blokErisilebilirEtiket(gecelik, bas, 'Güvenlik')).toBe(
+    expect(blokErisilebilirEtiket(gecelik, bas, 'Güvenlik', TR)).toBe(
       '20.00–06.00 · Güvenlik · ertesi güne taşıyor',
     )
-    expect(blokErisilebilirEtiket(gecelik, son, 'Güvenlik')).toBe(
+    expect(blokErisilebilirEtiket(gecelik, son, 'Güvenlik', TR)).toBe(
       '20.00–06.00 · Güvenlik · önceki günden devam ediyor',
     )
   })
 
   it('gün içinde kalan blokta devam ibaresi bulunmaz', () => {
     const parca = gunParcasi(gunduzluk, '2026-02-02')!
-    expect(blokErisilebilirEtiket(gunduzluk, parca, 'Kapı')).toBe('08.00–16.00 · Kapı')
+    expect(blokErisilebilirEtiket(gunduzluk, parca, 'Kapı', TR)).toBe('08.00–16.00 · Kapı')
   })
 })
 

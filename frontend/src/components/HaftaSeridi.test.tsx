@@ -4,6 +4,7 @@ import type { Atama, GorevNoktasi, KapsamaAcigi, Personel } from '@/api/types'
 import { gunlerListesi } from '@/lib/tarih'
 import { HaftaSeridi } from './HaftaSeridi'
 import { ciz } from '@/test/ciz'
+import { SOZLUK } from '@/i18n/sozluk'
 
 afterEach(cleanup)
 
@@ -104,7 +105,7 @@ describe('İş 2 kabul — yedi gün, otuz personel akıcı açılıyor', () => 
     ciz(
       <HaftaSeridi {...VARSAYILAN} personeller={[personel(1)]} atamalar={[]} onGunSec={onGunSec} />,
     )
-    fireEvent.click(screen.getByTitle('4 Şubat 2026 — gün ızgarasına geç'))
+    fireEvent.click(screen.getByTitle(SOZLUK.tr.izgara.gunIzgarasinaGec('4 Şubat 2026')))
     expect(onGunSec).toHaveBeenCalledWith('2026-02-04')
   })
 })

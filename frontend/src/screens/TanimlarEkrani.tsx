@@ -40,6 +40,7 @@ import {
 } from '../lib/talepAraligi'
 import { yetkinlikCakismaUyarisi } from '../lib/yetkinlikUyarisi'
 import { useDil, useMetin } from '@/i18n/DilBaglami'
+import type { Metinler } from '@/i18n/sozluk'
 import { hataMetni } from '@/i18n/hata'
 import { kucukHarf } from '@/lib/metin'
 
@@ -127,6 +128,30 @@ const DEGER_ALANI = 'w-24 text-right'
 
 const INPUT_SINIFI =
   'h-8 w-full rounded-sm border border-rule bg-surface px-2.5 font-mono text-sm text-ink outline-none focus-visible:border-accent focus-visible:ring-3 focus-visible:ring-accent/30'
+
+/**
+ * Değişiklik kaydındaki alan KİMLİĞİNİN görünen adı.
+ *
+ * Sabit iki alanın adı sözlükte; başka her değer bir parametre anahtarıdır
+ * ve zaten kullanıcının kendi girdiği addır, çevrilmez.
+ */
+function alanAdi(alan: string, m: Metinler): string {
+  if (alan === 'aktiflik') return m.kuralUyarilari.aktiflik
+  if (alan === 'agirlik') return m.kuralUyarilari.agirlik
+  return alan
+}
+
+/**
+ * Değişiklik kaydındaki DEĞERİN görünen hâli.
+ *
+ * Aktiflik değeri de kimliktir (`'aktif'` / `'pasif'`); sayı ve parametre
+ * değerleri olduğu gibi geçer.
+ */
+function degerAdi(deger: string, m: Metinler): string {
+  if (deger === 'aktif') return m.kuralUyarilari.aktif
+  if (deger === 'pasif') return m.kuralUyarilari.pasif
+  return deger
+}
 
 export function TanimlarEkrani({ ekranSec }: Props) {
   const m = useMetin()
@@ -427,7 +452,7 @@ export function TanimlarEkrani({ ekranSec }: Props) {
     liste.reduce((azami, k) => Math.max(azami, k.parametre_tanimlari.length), 0)
   const zorunluParametreSutunu = azamiParametre(zorunluKurallar)
   const esnekParametreSutunu = azamiParametre(esnekKurallar)
-  const s1Uyarisi = s1PasifUyarisi(gosterilenKurallar)
+  const s1Uyarisi = s1PasifUyarisi(gosterilenKurallar, m)
 
   return (
     <AppShell
@@ -853,8 +878,9 @@ export function TanimlarEkrani({ ekranSec }: Props) {
               <ul className="m-0 mt-2 flex list-none flex-col gap-1 p-0">
                 {kuralDegisiklikleri.map((d, i) => (
                   <li key={i} className="text-sm text-ink-muted">
-                    <span className="font-mono text-ink">{d.kimlik}</span> · {d.etiket}:{' '}
-                    {d.onceki} → <span className="font-medium text-ink">{d.yeni}</span>
+                    <span className="font-mono text-ink">{d.kimlik}</span> · {alanAdi(d.alan, m)}:{' '}
+                    {degerAdi(d.onceki, m)} →{' '}
+                    <span className="font-medium text-ink">{degerAdi(d.yeni, m)}</span>
                   </li>
                 ))}
               </ul>
@@ -1206,6 +1232,7 @@ function EkleFormu({
         yetkinlikIdleri
           .map((kimlik) => yetkinlikler.find((y) => y.yetkinlik_id === kimlik)?.ad)
           .filter((ad): ad is string => ad !== undefined),
+        m,
       )
     : null
 

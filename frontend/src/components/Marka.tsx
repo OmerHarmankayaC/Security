@@ -54,7 +54,7 @@ export function MarkaIsareti({ boyut = 22 }: { boyut?: number }) {
  */
 export function Marka({
   koyuZemin = true,
-  altBaslik = 'karar destek aracı',
+  altBaslik,
 }: {
   koyuZemin?: boolean
   /**
@@ -62,7 +62,9 @@ export function Marka({
    * varsayılan kısa hâldir. Giriş ekranı gibi yeri olan yüzeyler tam
    * tanımı verir.
    */
-  altBaslik?: string
+  /** Zorunlu: Türkçe bir varsayılan bırakmak, İngilizce arayüzde
+   *  sessizce Türkçe metin çizmek olurdu. */
+  altBaslik: string
 }) {
   const baslik = koyuZemin ? 'text-chrome-ink' : 'text-ink'
   const alt = koyuZemin ? 'text-chrome-ink-muted' : 'text-ink-muted'

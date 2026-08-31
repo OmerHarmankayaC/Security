@@ -3,6 +3,8 @@ import { api } from '@/api/client'
 import type { TanimKullanimi, TanimYolu } from '@/api/types'
 import { Buton, Kart, KartEtiketi, Rozet } from '@/components/app-ui'
 import { cn } from '@/lib/utils'
+import { useMetin } from '@/i18n/DilBaglami'
+import { hataMetni } from '@/i18n/hata'
 
 /**
  * Tanımlar ekranının beş varlığı (personel, yetkinlik, bina, görev noktası,
@@ -69,6 +71,7 @@ export function TanimListesi<T>({
   seciliIdDegistir,
   pasifleriGoster,
 }: Props<T>) {
+  const m = useMetin()
   const gorunenler = pasifleriGoster
     ? gorunum.kayitlar
     : gorunum.kayitlar.filter(gorunum.aktifMi)
@@ -118,7 +121,7 @@ export function TanimListesi<T>({
       </ul>
       {gizlenenSayisi > 0 && (
         <p className="mt-3 border-t border-rule pt-3 text-sm text-ink-muted">
-          {gizlenenSayisi} pasif kayıt gizli.
+          {m.tanimYonetimi.gizliPasif(gizlenenSayisi)}
         </p>
       )}
     </Kart>
@@ -142,6 +145,7 @@ interface SilmeOnayiProps {
  * kullanıcının onayladığı şeyden başkasını yapmak olurdu.
  */
 export function SilmeOnayi({ yol, id, ad, onIptal, onSilindi }: SilmeOnayiProps) {
+  const m = useMetin()
   const [kullanim, setKullanim] = useState<TanimKullanimi | null>(null)
   const [hata, setHata] = useState<string | null>(null)
   const [siliniyor, setSiliniyor] = useState(false)
@@ -152,7 +156,7 @@ export function SilmeOnayi({ yol, id, ad, onIptal, onSilindi }: SilmeOnayiProps)
     api
       .tanimKullanimi(yol, id)
       .then(setKullanim)
-      .catch((e) => setHata(e instanceof Error ? e.message : 'Kullanım bilgisi alınamadı'))
+      .catch((e) => setHata(hataMetni(e, m)))
   }, [yol, id])
 
   const sil = async () => {
@@ -171,10 +175,10 @@ export function SilmeOnayi({ yol, id, ad, onIptal, onSilindi }: SilmeOnayiProps)
   return (
     <Kart vurgulu>
       <KartEtiketi renk={pasiflesecek ? 'warn' : 'accent'}>
-        {pasiflesecek ? 'pasifleştirme onayı' : 'silme onayı'}
+        {pasiflesecek ? m.tanimYonetimi.pasiflestirmeOnayi : m.tanimYonetimi.silmeOnayi}
       </KartEtiketi>
       {hata && <p className="text-sm text-signal">{hata}</p>}
-      {!kullanim && !hata && <p className="text-sm text-ink-muted">Kullanım kontrol ediliyor…</p>}
+      {!kullanim && !hata && <p className="text-sm text-ink-muted">{m.tanimYonetimi.kontrolEdiliyor}</p>}
       {kullanim && (
         <>
           <p className="m-0 text-sm text-ink">
@@ -183,20 +187,19 @@ export function SilmeOnayi({ yol, id, ad, onIptal, onSilindi }: SilmeOnayiProps)
               <>
                 {' '}
                 {kullanim.kalemler.map((k) => `${k.sayi} ${k.kayit_turu}`).join(', ')} kaydında
-                kullanılıyor. Kayıt <span className="font-medium">silinmeyecek</span>,
-                pasifleştirilecek: yeni çözümlerde kullanılmaz, mevcut çizelgelerde görünmeye
+                {m.tanimYonetimi.kullaniliyorNotu}
                 devam eder.
               </>
             ) : (
-              <> hiçbir kayıtta kullanılmıyor. Kayıt kalıcı olarak silinecek.</>
+              <>{m.tanimYonetimi.kullanilmiyorNotu}</>
             )}
           </p>
           <div className="mt-4 flex gap-2">
             <Buton varyant="birincil" onClick={sil} disabled={siliniyor}>
-              {pasiflesecek ? 'Pasifleştir' : 'Kalıcı Olarak Sil'}
+              {pasiflesecek ? m.tanimYonetimi.pasiflestir : m.tanimYonetimi.kaliciSil}
             </Buton>
             <Buton varyant="hayalet" onClick={onIptal} disabled={siliniyor}>
-              Vazgeç
+              {m.tanimYonetimi.vazgec}
             </Buton>
           </div>
         </>

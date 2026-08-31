@@ -204,6 +204,7 @@ const tr = {
   },
 
   bilinmeyenHata: 'Beklenmeyen bir hata oluştu.',
+  istekBasarisiz: (durum: number) => `İstek başarısız (HTTP ${durum}).`,
 
   /**
    * MENÜ ETİKETLERİ, kimlikleri DEĞİL.
@@ -286,6 +287,68 @@ const tr = {
    * ("night fairness worsened by 2 hours"). Ortak bir şablon ikisinden
    * birini bozardı.
    */
+  izgara: {
+    blokIslemleri: 'Blok işlemleri',
+    gorevNoktasi: 'Görev Noktası',
+    kilidiAc: 'Kilidi aç',
+    kilitle: 'Kilitle',
+    blogunuSil: 'Bloğu sil',
+    basamakSirasi: (noktalar: string) => `Basamak sırası: ${noktalar}`,
+    gunIzgarasinaGec: (tarih: string) => `${tarih} · gün ızgarasına geç`,
+    oncekiGunden: ' (önceki günden)',
+    oncekiGundenDevam: 'önceki günden devam ediyor',
+    ertesiGuneTasiyor: 'ertesi güne taşıyor',
+    ertesiGune: ' (ertesi güne)',
+    gunlukKapsamaAcigi: 'Günlük kapsama açığı',
+    gunEksik: (tarih: string, saat: number) => `${tarih} · ${saat} kişi-saat eksik`,
+  },
+
+  yazdirma: {
+    baslik: 'Vardiya Çizelgesi',
+    gun: 'gün',
+    uretildi: (tarih: string) => `${tarih} tarihinde üretildi`,
+    kapsamaAciklari: 'Kapsama Açıkları',
+    acikYok: 'Bu sürümde kapsama açığı yok.',
+    acikOzeti: (aralik: number, kisi: number) => `${aralik} aralıkta toplam ${kisi} kişi eksik.`,
+    acikSutunlari: ['Tarih', 'Saat Aralığı', 'Görev Noktası', 'Eksik'],
+    fazlaOzeti: (aralik: number, kisi: number) =>
+      `${aralik} aralıkta toplam ${kisi} kişi fazla. SRS 4.3 S1 bu sınırı esnek tanımlar; aşılması elle yapılmış bir düzenlemeden gelir.`,
+    fazlaSutunlari: ['Tarih', 'Saat Aralığı', 'Görev Noktası', 'Fazla'],
+    yazdir: 'Yazdır',
+    sayfaNotu: 'Yatay A4 · her gün kendi sayfasında, saat başlığı her sayfada tekrarlanır.',
+  },
+
+  tanimYonetimi: {
+    gizliPasif: (sayi: number) => `${sayi} pasif kayıt gizli.`,
+    kullanimAlinamadi: 'Kullanım bilgisi alınamadı.',
+    pasiflestirmeOnayi: 'pasifleştirme onayı',
+    silmeOnayi: 'silme onayı',
+    kontrolEdiliyor: 'Kullanım kontrol ediliyor…',
+    kullaniliyorNotu:
+      'kullanılıyor. Kayıt silinmeyecek, pasifleştirilecek: yeni çözümlerde kullanılmaz, mevcut çizelgelerde görünmeye devam eder.',
+    kullanilmiyorNotu: ' hiçbir kayıtta kullanılmıyor. Kayıt kalıcı olarak silinecek.',
+    pasiflestir: 'Pasifleştir',
+    kaliciSil: 'Kalıcı Olarak Sil',
+    vazgec: 'Vazgeç',
+  },
+
+  kuralUyarilari: {
+    yetkinlikCakismasi: (a: string, b: string) =>
+      `${a} ile ${b} birlikte seçildi. SRS 3.3.2 bu ikisini karşılıklı dışlayıcı tanımlar: müracaat görevlisi başka bir noktada, güvenlik görevlisi de müracaat noktasında çalışamaz. Kayıt engellenmiyor; bilerek yapıyorsanız devam edin.`,
+    s1Pasif:
+      'S1 pasif: talep kısıtı modele eklenmiyor. Hiçbir vardiyanın doldurulması zorunlu değil (sonuç boş bir çizelge olabilir), bir noktaya talebin üzerinde personel atanabilir ve kapsama açığı hiç hesaplanmadığı için Analiz ile Çizelge ekranları karşılanmamış talebi "0 açık" gösterir.',
+    aktiflik: 'Aktiflik',
+    aktif: 'Aktif',
+    pasif: 'Pasif',
+    agirlik: 'Ağırlık',
+    asgariBlok: (saat: number) => `Asgari blok ${saat} saat (H1)`,
+    gunlukAzami: (saat: number) => `Günlük azami ${saat} saat (H9)`,
+    tarihSecin: 'Başlangıç ve bitiş tarihini seçin.',
+    bitisOnce: 'Bitiş tarihi başlangıç tarihinden önce olamaz.',
+    donemUzun: (azami: number, secilen: number) =>
+      `Planlama dönemi en fazla ${azami} gün olabilir; seçilen aralık ${secilen} gün. Daha kısa bir bitiş tarihi seçin.`,
+  },
+
   tanimlar: {
     sekmeler: {
       'Talep': 'Talep',
@@ -1062,6 +1125,7 @@ const en: Metinler = {
   },
 
   bilinmeyenHata: 'Something went wrong.',
+  istekBasarisiz: (durum: number) => `The request failed (HTTP ${durum}).`,
 
   menu: {
     'Özet': 'Overview',
@@ -1121,6 +1185,70 @@ const en: Metinler = {
     cozuldu: 'Solved',
     yayinlandi: 'Published',
     arsiv: 'Archived',
+  },
+
+  izgara: {
+    blokIslemleri: 'Block actions',
+    gorevNoktasi: 'Duty point',
+    kilidiAc: 'Unlock',
+    kilitle: 'Lock',
+    blogunuSil: 'Delete block',
+    basamakSirasi: (noktalar: string) => `Step order: ${noktalar}`,
+    gunIzgarasinaGec: (tarih: string) => `${tarih} · go to the day grid`,
+    oncekiGunden: ' (from the previous day)',
+    oncekiGundenDevam: 'continues from the previous day',
+    ertesiGuneTasiyor: 'carries into the next day',
+    ertesiGune: ' (into the next day)',
+    gunlukKapsamaAcigi: 'Daily coverage gap',
+    gunEksik: (tarih: string, saat: number) => `${tarih} · ${saat} person-hours short`,
+  },
+
+  yazdirma: {
+    baslik: 'Shift Schedule',
+    gun: 'days',
+    uretildi: (tarih: string) => `produced on ${tarih}`,
+    kapsamaAciklari: 'Coverage gaps',
+    acikYok: 'No coverage gaps in this version.',
+    acikOzeti: (aralik: number, kisi: number) =>
+      `${kisi} people short across ${aralik} ranges in total.`,
+    acikSutunlari: ['Date', 'Hours', 'Duty point', 'Short'],
+    fazlaOzeti: (aralik: number, kisi: number) =>
+      `${kisi} people above demand across ${aralik} ranges in total. SRS 4.3 S1 defines this limit as soft; exceeding it comes from a manual edit.`,
+    fazlaSutunlari: ['Date', 'Hours', 'Duty point', 'Above'],
+    yazdir: 'Print',
+    sayfaNotu: 'Landscape A4 · each day on its own page, the hour header repeated on every page.',
+  },
+
+  tanimYonetimi: {
+    gizliPasif: (sayi: number) =>
+      sayi === 1 ? '1 inactive record hidden.' : `${sayi} inactive records hidden.`,
+    kullanimAlinamadi: 'Could not fetch usage information.',
+    pasiflestirmeOnayi: 'confirm deactivation',
+    silmeOnayi: 'confirm deletion',
+    kontrolEdiliyor: 'Checking usage…',
+    kullaniliyorNotu:
+      'uses it. The record will not be deleted but deactivated: it is not used in new solves and keeps appearing in existing schedules.',
+    kullanilmiyorNotu: ' is not used in any record. It will be deleted permanently.',
+    pasiflestir: 'Deactivate',
+    kaliciSil: 'Delete permanently',
+    vazgec: 'Cancel',
+  },
+
+  kuralUyarilari: {
+    yetkinlikCakismasi: (a: string, b: string) =>
+      `${a} and ${b} were selected together. SRS 3.3.2 defines these two as mutually exclusive: a reception officer cannot work at another point, and a security officer cannot work at the reception point. The record is not blocked; carry on if this is deliberate.`,
+    s1Pasif:
+      'S1 is inactive: the demand constraint is not added to the model. No shift has to be filled (the result may be an empty schedule), a duty point may be staffed above its demand, and because no coverage gap is computed at all, the Analysis and Schedule screens report unmet demand as "0 gaps".',
+    aktiflik: 'Active',
+    aktif: 'Active',
+    pasif: 'Inactive',
+    agirlik: 'Weight',
+    asgariBlok: (saat: number) => `Minimum block ${saat} hours (H1)`,
+    gunlukAzami: (saat: number) => `${saat} hours per day at most (H9)`,
+    tarihSecin: 'Choose a start and an end date.',
+    bitisOnce: 'The end date cannot be before the start date.',
+    donemUzun: (azami: number, secilen: number) =>
+      `A planning period can be ${azami} days at most; the selected range is ${secilen} days. Choose an earlier end date.`,
   },
 
   tanimlar: {

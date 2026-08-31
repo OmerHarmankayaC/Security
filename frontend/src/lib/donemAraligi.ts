@@ -1,4 +1,5 @@
 import { gunFarki } from './tarih'
+import type { Metinler } from '@/i18n/sozluk'
 
 /**
  * Planlama dönemi uzunluk sınırı (madde 4).
@@ -30,12 +31,16 @@ export function gunSayisi(baslangicIso: string, bitisIso: string): number {
  * Metin doğrudan kullanıcıya gösterilir: neden ve seçilen değer birlikte
  * yazılır, teknik terim geçmez (NFR-5).
  */
-export function araligiDenetle(baslangicIso: string, bitisIso: string): string | null {
-  if (!baslangicIso || !bitisIso) return 'Başlangıç ve bitiş tarihini seçin.'
+export function araligiDenetle(
+  baslangicIso: string,
+  bitisIso: string,
+  m: Metinler,
+): string | null {
+  if (!baslangicIso || !bitisIso) return m.kuralUyarilari.tarihSecin
   const gun = gunSayisi(baslangicIso, bitisIso)
-  if (gun < 1) return 'Bitiş tarihi başlangıç tarihinden önce olamaz.'
+  if (gun < 1) return m.kuralUyarilari.bitisOnce
   if (gun > AZAMI_DONEM_GUN) {
-    return `Planlama dönemi en fazla ${AZAMI_DONEM_GUN} gün olabilir; seçilen aralık ${gun} gün. Daha kısa bir bitiş tarihi seçin.`
+    return m.kuralUyarilari.donemUzun(AZAMI_DONEM_GUN, gun)
   }
   return null
 }

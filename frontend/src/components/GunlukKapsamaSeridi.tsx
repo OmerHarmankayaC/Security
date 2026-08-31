@@ -1,6 +1,7 @@
 import type { GunlukKapsama } from '@/api/types'
 import { gunKisaltmasiVeNumarasi, tarihUzunBicim } from '@/lib/tarih'
 import { cn } from '@/lib/utils'
+import { useMetin } from '@/i18n/DilBaglami'
 
 /**
  * Günlük açık şeridi — dönemin her günü için bir çubuk.
@@ -19,13 +20,14 @@ export function GunlukKapsamaSeridi({
   seciliTarih: string | null
   gunSec: (tarih: string | null) => void
 }) {
+  const m = useMetin()
   // Çubuk yüksekliği ŞERİDİN İÇİNDEKİ AZAMİYE göredir, sabit bir ölçeğe
   // göre değil — tek günlük hafif bir açık ile ağır bir açık aynı görsel
   // aralıkta ayırt edilebilir kalsın diye.
   const azami = gunler.reduce((m, g) => Math.max(m, g.karsilanmayan_kisi_saat), 0)
 
   return (
-    <div className="flex items-end gap-1" role="group" aria-label="Günlük kapsama açığı">
+    <div className="flex items-end gap-1" role="group" aria-label={m.izgara.gunlukKapsamaAcigi}>
       {gunler.map((g) => {
         const acikMi = g.karsilanmayan_kisi_saat > 0
         const secili = g.tarih === seciliTarih
@@ -36,7 +38,7 @@ export function GunlukKapsamaSeridi({
             key={g.tarih}
             type="button"
             aria-pressed={secili}
-            aria-label={`${tarihUzunBicim(g.tarih)} — ${g.karsilanmayan_kisi_saat} kişi-saat eksik`}
+            aria-label={m.izgara.gunEksik(tarihUzunBicim(g.tarih), g.karsilanmayan_kisi_saat)}
             // Seçili güne TEKRAR tıklamak süzgeci kaldırır (null); başka bir
             // güne tıklamak süzgeci o güne taşır.
             onClick={() => gunSec(secili ? null : g.tarih)}

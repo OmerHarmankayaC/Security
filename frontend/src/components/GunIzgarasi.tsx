@@ -15,6 +15,7 @@ import { kisalt } from '@/lib/metin'
 import { sayiBicimle } from '@/lib/sayi'
 import { ETIKET_ZEMINI, KILIT_DOKUSU, aralikGradyani, saatRengi } from '@/lib/saatRengi'
 import { cn } from '@/lib/utils'
+import { useMetin } from '@/i18n/DilBaglami'
 
 /**
  * Gün ızgarası — bu turun ANA GÖRÜNÜMÜ (SDD 6.3.3, Tur 6 İş 1).
@@ -375,6 +376,7 @@ function KapsamaSatiri({
   seritNoktalari: readonly GorevNoktasi[]
   adSutunu: string
 }) {
+  const m = useMetin()
   if (seritNoktalari.length === 0) return null
   return (
     <tr>
@@ -383,7 +385,7 @@ function KapsamaSatiri({
           'etiket-caps sticky left-0 z-10 h-[26px] border-r border-b border-rule bg-surface px-3 text-ink-muted',
           adSutunu,
         )}
-        title={`Basamak sırası: ${seritNoktalari.map((n) => n.ad).join(' · ')}`}
+        title={m.izgara.basamakSirasi(seritNoktalari.map((n) => n.ad).join(' · '))}
       >
         KAPSAMA
       </td>
@@ -458,6 +460,7 @@ function PersonelSatiri({
   onKilitDegistir: (personelId: number, kilitli: boolean) => void
   onBlokSil: (personelId: number) => void
 }) {
+  const m = useMetin()
   const parcalar = useMemo(() => gununParcalari(bloklar, gun), [bloklar, gun])
 
   // Gün toplamı, o gün BAŞLAYAN bloğun tamamıdır (SRS TD-1): gece yarısını
@@ -475,7 +478,7 @@ function PersonelSatiri({
     onizleme !== null &&
     ((sinirlar.asgariSaat !== null && onizlemeSuresi === sinirlar.asgariSaat) ||
       (sinirlar.azamiSaat !== null && onizlemeSuresi === sinirlar.azamiSaat))
-  const onizlemeUyarisi = sinirdaMi ? sinirUyarisi(onizlemeSuresi, sinirlar, true) : null
+  const onizlemeUyarisi = sinirdaMi ? sinirUyarisi(onizlemeSuresi, sinirlar, m, true) : null
 
   // O gün BAŞLAYAN blok — menü ve gövde sürüklemesi onun üzerinde çalışır.
   const gununBlogu = bloklar.find((b) => b.tarih === gun) ?? null
@@ -628,6 +631,7 @@ function BlokSeridi({
   onGovdedenTut: (saat: number) => void
   onSec: () => void
 }) {
+  const m = useMetin()
   const uzunluk = parca.bitis - parca.baslangic
   // Bandın saatleri MUTLAK eksende okunur: ertesi güne düşen parçada 00–06
   // yerine 24–30 verilseydi gradient yanlış uçtan başlardı. `saatRengi` 24'e
@@ -653,8 +657,8 @@ function BlokSeridi({
         width: `${(uzunluk / 24) * 100}%`,
         backgroundImage: blok.kilitli ? `${KILIT_DOKUSU}, ${zemin}` : zemin,
       }}
-      title={blokErisilebilirEtiket(blok, parca, noktaAdi)}
-      aria-label={blokErisilebilirEtiket(blok, parca, noktaAdi)}
+      title={blokErisilebilirEtiket(blok, parca, noktaAdi, m)}
+      aria-label={blokErisilebilirEtiket(blok, parca, noktaAdi, m)}
       data-blok={blok.atama_id}
       onClick={onSec}
       onPointerDown={(e) => {
@@ -765,6 +769,7 @@ function BlokMenusu({
   onSil: () => void
   onKapat: () => void
 }) {
+  const m = useMetin()
   return (
     <>
       {/* Dışarı tıklama menüyü kapatır. Şeffaf katman ızgaranın tamamını
@@ -772,11 +777,11 @@ function BlokMenusu({
       <span className="fixed inset-0 z-30" onPointerDown={onKapat} aria-hidden="true" />
       <div
         role="menu"
-        aria-label="Blok işlemleri"
+        aria-label={m.izgara.blokIslemleri}
         className="absolute top-full left-0 z-40 mt-1 flex w-56 flex-col gap-1 rounded-sm border border-rule bg-surface p-2 shadow-lg"
       >
         <label className="flex flex-col gap-1 text-sm text-ink-muted">
-          Görev Noktası
+          {m.izgara.gorevNoktasi}
           <select
             className="h-8 rounded-sm border border-rule bg-surface px-2 font-mono text-sm text-ink"
             value={blok.nokta_id}
@@ -795,7 +800,7 @@ function BlokMenusu({
           className="rounded-sm px-2 py-1.5 text-left text-sm text-ink hover:bg-sunken"
           onClick={onKilitDegistir}
         >
-          {blok.kilitli ? 'Kilidi aç' : 'Kilitle'}
+          {blok.kilitli ? m.izgara.kilidiAc : m.izgara.kilitle}
         </button>
         <button
           type="button"
@@ -803,7 +808,7 @@ function BlokMenusu({
           className="rounded-sm px-2 py-1.5 text-left text-sm text-signal hover:bg-signal-soft"
           onClick={onSil}
         >
-          Bloğu sil
+          {m.izgara.blogunuSil}
         </button>
       </div>
     </>

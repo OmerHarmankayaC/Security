@@ -5,6 +5,10 @@ import {
   s1BaskinligiKayboldu,
   s1PasifUyarisi,
 } from './kuralAgirlik'
+import { SOZLUK } from '@/i18n/sozluk'
+
+// Metnin KURULUŞU sınanıyor, çevirisi değil: kaynak dil Türkçe.
+const TR = SOZLUK.tr
 
 function kural(
   kimlik: string,
@@ -83,24 +87,24 @@ describe('s1BaskinligiKayboldu', () => {
 
 describe('s1PasifUyarisi', () => {
   it('S1 aktifken uyarmaz', () => {
-    expect(s1PasifUyarisi([kural('S1', 10000), kural('S2', 10)])).toBeNull()
+    expect(s1PasifUyarisi([kural('S1', 10000), kural('S2', 10)], TR)).toBeNull()
   })
 
   it('S1 pasifken uyarır', () => {
-    expect(s1PasifUyarisi([kural('S1', 10000, { aktif: false })])).not.toBeNull()
+    expect(s1PasifUyarisi([kural('S1', 10000, { aktif: false })], TR)).not.toBeNull()
   })
 
   it('S1 hiç yoksa uyarmaz — katalog eksikliği ayrı bir sorun', () => {
-    expect(s1PasifUyarisi([kural('S2', 10)])).toBeNull()
+    expect(s1PasifUyarisi([kural('S2', 10)], TR)).toBeNull()
   })
 
   it('başka bir hedefin pasifliği S1 uyarısı üretmez', () => {
     // S6b gösterim verisinde bilinçli olarak pasiftir.
-    expect(s1PasifUyarisi([kural('S1', 10000), kural('S6b', 6, { aktif: false })])).toBeNull()
+    expect(s1PasifUyarisi([kural('S1', 10000), kural('S6b', 6, { aktif: false })], TR)).toBeNull()
   })
 
   it('metin üç sonucu da söyler', () => {
-    const metin = s1PasifUyarisi([kural('S1', 10000, { aktif: false })]) ?? ''
+    const metin = s1PasifUyarisi([kural('S1', 10000, { aktif: false })], TR) ?? ''
     expect(metin).toContain('boş bir çizelge')
     expect(metin).toContain('üzerinde')
     expect(metin).toContain('0 açık')

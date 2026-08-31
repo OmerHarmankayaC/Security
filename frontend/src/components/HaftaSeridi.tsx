@@ -5,6 +5,7 @@ import { kisalt } from '@/lib/metin'
 import { sayiBicimle } from '@/lib/sayi'
 import { gunBasligiParcalari, haftaSonuMu, tarihBicimle } from '@/lib/tarih'
 import { cn } from '@/lib/utils'
+import { useMetin } from '@/i18n/DilBaglami'
 
 /**
  * Hafta şeridi — İKİNCİL GÖRÜNÜM (SDD 6.3.3, Tur 6 İş 2).
@@ -45,6 +46,7 @@ export function HaftaSeridi({
   bugun,
   onGunSec,
 }: HaftaSeridiProps) {
+  const m = useMetin()
   const personelAtamalari = useMemo(() => {
     const indeks = new Map<number, Atama[]>()
     for (const a of atamalar) {
@@ -95,7 +97,7 @@ export function HaftaSeridi({
                     type="button"
                     className="flex w-full flex-col items-center gap-0.5"
                     onClick={() => onGunSec(gun)}
-                    title={`${tarihBicimle(gun)} — gün ızgarasına geç`}
+                    title={m.izgara.gunIzgarasinaGec(tarihBicimle(gun))}
                   >
                     <span>{kisaltma}</span>
                     <span
@@ -191,6 +193,7 @@ function MiniSerit({
   adSoyad: string
   onSec: () => void
 }) {
+  const m = useMetin()
   const { metin, noktaKisa, cubuklar, baslik, kilitli, dolu } = useMemo(() => {
     const parcalar = gununParcalari(bloklar, gun)
     const satirlar: string[] = []
@@ -210,9 +213,9 @@ function MiniSerit({
       const kisa = blokKisaEtiketi(blok.baslangic_zamani, blok.bitis_zamani)
       etiketler.push(parca.oncekiGundenGeliyor ? `‹${kisa}` : kisa)
       const devam = parca.oncekiGundenGeliyor
-        ? ' (önceki günden)'
+        ? m.izgara.oncekiGunden
         : parca.sonrakiGuneTasiyor
-          ? ' (ertesi güne)'
+          ? m.izgara.ertesiGune
           : ''
       satirlar.push(`${blokEtiketi(blok.baslangic_zamani, blok.bitis_zamani)} · ${nokta}${devam}`)
     }

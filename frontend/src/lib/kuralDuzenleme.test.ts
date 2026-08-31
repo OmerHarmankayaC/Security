@@ -44,14 +44,14 @@ describe('degisiklikleriBul', () => {
     const once = [kural('S1', { agirlik: 10000 })]
     const sonra = [kural('S1', { agirlik: 10000, aktif: false })]
     expect(degisiklikleriBul(once, sonra)).toEqual([
-      { kimlik: 'S1', ad: 'S1 adı', etiket: 'Aktiflik', onceki: 'Aktif', yeni: 'Pasif' },
+      { kimlik: 'S1', ad: 'S1 adı', alan: 'aktiflik', onceki: 'aktif', yeni: 'pasif' },
     ])
   })
 
   it('ağırlık değişimini yazar', () => {
     const d = degisiklikleriBul([kural('S2', { agirlik: 10 })], [kural('S2', { agirlik: 4 })])
     expect(d).toHaveLength(1)
-    expect(d[0]).toMatchObject({ etiket: 'Ağırlık', onceki: '10', yeni: '4' })
+    expect(d[0]).toMatchObject({ alan: 'agirlik', onceki: '10', yeni: '4' })
   })
 
   it('parametre değişimini etiketiyle yazar', () => {
@@ -73,7 +73,9 @@ describe('degisiklikleriBul', () => {
       {
         kimlik: 'H2',
         ad: 'H2 adı',
-        etiket: 'Asgari dinlenme süresi',
+        // Parametre alanının kimliği, kullanıcının kendi girdiği etikettir;
+        // çevrilmez, olduğu gibi taşınır.
+        alan: 'Asgari dinlenme süresi',
         onceki: '16',
         yeni: '11',
       },
@@ -95,7 +97,7 @@ describe('degisiklikleriBul', () => {
       kural('S2', { agirlik: 10 }),
     ]
     const d = degisiklikleriBul(once, sonra)
-    expect(d.map((x) => x.etiket)).toEqual(['Aktiflik', 'Ağırlık'])
+    expect(d.map((x) => x.alan)).toEqual(['aktiflik', 'agirlik'])
     expect(d.every((x) => x.kimlik === 'S1')).toBe(true)
   })
 })

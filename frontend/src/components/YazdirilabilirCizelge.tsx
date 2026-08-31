@@ -12,6 +12,7 @@ import {
   tarihUzunBicim,
 } from '@/lib/tarih'
 import { cn } from '@/lib/utils'
+import { useDil } from '@/i18n/DilBaglami'
 
 interface Props extends CizelgeVerisi {
   /** Başlıkta yazan üretim tarihi (ISO). Dışarıdan verilir; bileşen saat okumaz. */
@@ -54,6 +55,7 @@ export function YazdirilabilirCizelge({
   noktaMap,
   uretimTarihi,
 }: Props) {
+  const { dil, metin: m } = useDil()
   const gunler = gunlerListesi(donem.baslangic_tarihi, donem.bitis_tarihi)
 
   const personelAtamalari = useMemo(() => {
@@ -96,16 +98,16 @@ export function YazdirilabilirCizelge({
     <div className="yazdirma-alani bg-white text-black">
       <header className="mb-3 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 border-b border-black pb-2">
         <h1 className="m-0 text-base font-semibold">
-          {buyukHarf('Vardiya Çizelgesi')} ·{' '}
+          {buyukHarf(m.yazdirma.baslik, dil)} ·{' '}
           {donemAraligiBicimle(donem.baslangic_tarihi, donem.bitis_tarihi)}
         </h1>
         {/* Sayılar mono, cümle değil: "… tarihinde üretildi" düz metindir ve
             Azeret Mono yalnızca sayı ve koda ayrılmıştır. */}
         <p className="m-0 text-[10px]">
           Sürüm <span className="font-mono">{surum.surum_no}</span> ·{' '}
-          <span className="font-mono">{gunler.length}</span> gün ·{' '}
+          <span className="font-mono">{gunler.length}</span> {m.yazdirma.gun} ·{' '}
           <span className="font-mono">{personeller.length}</span> personel ·{' '}
-          <span className="font-mono">{tarihBicimle(uretimTarihi)}</span> tarihinde üretildi
+          {m.yazdirma.uretildi(tarihBicimle(uretimTarihi))}
         </p>
       </header>
 
@@ -121,21 +123,21 @@ export function YazdirilabilirCizelge({
       ))}
 
       <section className="yazdirma-sayfa-basi mt-4">
-        <h2 className="m-0 mb-1 text-[9pt] font-semibold">Kapsama Açıkları</h2>
+        <h2 className="m-0 mb-1 text-[9pt] font-semibold">{m.yazdirma.kapsamaAciklari}</h2>
         {acikSatirlari.length === 0 ? (
           // Bölüm hiç açık olmadığında da basılır. Gizlenirse okuyucu,
           // çıktının açıkları hiç göstermediği bir sürüm mü yoksa açığı
           // olmayan bir çizelge mi olduğunu ayırt edemez.
-          <p className="m-0 text-[8pt]">Bu sürümde kapsama açığı yok.</p>
+          <p className="m-0 text-[8pt]">{m.yazdirma.acikYok}</p>
         ) : (
           <>
             <p className="m-0 mb-1 text-[8pt]">
-              {acikSatirlari.length} aralıkta toplam {toplamEksik} kişi eksik.
+              {m.yazdirma.acikOzeti(acikSatirlari.length, toplamEksik)}
             </p>
             <table className="w-auto border-collapse">
               <thead>
                 <tr>
-                  {['Tarih', 'Saat Aralığı', 'Görev Noktası', 'Eksik'].map((b) => (
+                  {m.yazdirma.acikSutunlari.map((b) => (
                     <th
                       key={b}
                       className="border border-neutral-400 px-2 py-0.5 text-left text-[8pt] font-semibold"
@@ -176,13 +178,12 @@ export function YazdirilabilirCizelge({
         <section className="mt-4 break-inside-avoid">
           <h2 className="m-0 mb-1 text-[9pt] font-semibold">Talepten Fazla Kadro</h2>
           <p className="m-0 mb-1 text-[8pt]">
-            {fazlaSatirlari.length} aralıkta toplam {toplamFazla} kişi fazla. SRS 4.3 S1 bu sınırı
-            esnek tanımlar; aşılması elle yapılmış bir düzenlemeden gelir.
+            {m.yazdirma.fazlaOzeti(fazlaSatirlari.length, toplamFazla)}
           </p>
           <table className="w-auto border-collapse">
             <thead>
               <tr>
-                {['Tarih', 'Saat Aralığı', 'Görev Noktası', 'Fazla'].map((b) => (
+                {m.yazdirma.fazlaSutunlari.map((b) => (
                   <th
                     key={b}
                     className="border border-neutral-400 px-2 py-0.5 text-left text-[8pt] font-semibold"

@@ -1,4 +1,5 @@
 import type { Kural } from '@/api/types'
+import type { Metinler } from '@/i18n/sozluk'
 
 /**
  * S1'in baskın ağırlığının ölçüsü (madde 2d).
@@ -37,13 +38,8 @@ export function s1BaskinligiKayboldu(
  * orası çözüm başlatıldığında, burası kullanıcı anahtarı kapattığı anda
  * söyler.
  */
-export function s1PasifUyarisi(kurallar: Kural[]): string | null {
+export function s1PasifUyarisi(kurallar: Kural[], m: Metinler): string | null {
   const s1 = kurallar.find((k) => k.kimlik === 'S1')
   if (!s1 || s1.aktif) return null
-  return (
-    'S1 pasif: talep kısıtı modele eklenmiyor. Hiçbir vardiyanın doldurulması ' +
-    'zorunlu değil (sonuç boş bir çizelge olabilir), bir noktaya talebin üzerinde ' +
-    'personel atanabilir ve kapsama açığı hiç hesaplanmadığı için Analiz ile ' +
-    'Çizelge ekranları karşılanmamış talebi "0 açık" gösterir.'
-  )
+  return m.kuralUyarilari.s1Pasif
 }

@@ -31,6 +31,10 @@ export function hataMetni(hata: unknown, metin: Metinler): string {
       return metin.hatalar[kod as HataKodu](detay)
     }
     if (detay !== '') return detay
+    // Gövdesi metin OLMAYAN bir yanıt (500, boş 4xx): `ApiHatasi.message`
+    // Türkçe bir yedek cümle taşıyor ve onu göstermek İngilizce ekranda
+    // Türkçe metin demekti. Durum kodunu sözlükten yazıyoruz.
+    return metin.istekBasarisiz(somut.status)
   }
   if (hata instanceof Error && hata.message !== '') return hata.message
   return metin.bilinmeyenHata

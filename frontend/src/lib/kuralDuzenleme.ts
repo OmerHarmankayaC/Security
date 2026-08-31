@@ -1,3 +1,4 @@
+import { BOS } from './sayi'
 import type { Kural } from '@/api/types'
 
 /**
@@ -13,8 +14,18 @@ import type { Kural } from '@/api/types'
 export interface KuralDegisikligi {
   kimlik: string
   ad: string
-  /** Kullanıcıya gösterilen alan adı ("Aktiflik", "Ağırlık", parametre etiketi). */
-  etiket: string
+  /**
+   * Değişen alanın KİMLİĞİ, görünen adı değil.
+   *
+   * `'aktiflik'` ve `'agirlik'` sabit alanlar; başka her değer bir parametre
+   * anahtarıdır ve zaten kullanıcının girdiği ada karşılık gelir. Görünen
+   * metni ekran sözlükten yazar.
+   *
+   * Kimlik olmasının pratik bir sonucu da var: bu fonksiyon SAF kalıyor ve
+   * `kirliMi` gibi yalnızca "değişiklik var mı" diye soran çağrılar sözlük
+   * taşımak zorunda kalmıyor.
+   */
+  alan: 'aktiflik' | 'agirlik' | (string & {})
   onceki: string
   yeni: string
 }
@@ -25,12 +36,13 @@ export interface KuralYazma {
   govde: Partial<Pick<Kural, 'aktif' | 'agirlik' | 'parametreler'>>
 }
 
+// Aktif/pasif DEĞERİ de bir kimliktir; ekran onu sözlükten yazar.
 function aktiflikMetni(aktif: boolean): string {
-  return aktif ? 'Aktif' : 'Pasif'
+  return aktif ? 'aktif' : 'pasif'
 }
 
 function sayiMetni(deger: unknown): string {
-  return deger === null || deger === undefined ? '—' : String(deger)
+  return deger === null || deger === undefined ? BOS : String(deger)
 }
 
 /**
@@ -52,7 +64,7 @@ export function degisiklikleriBul(orijinal: Kural[], taslak: Kural[]): KuralDegi
       degisiklikler.push({
         kimlik: yeni.kimlik,
         ad: yeni.ad,
-        etiket: 'Aktiflik',
+        alan: 'aktiflik',
         onceki: aktiflikMetni(eski.aktif),
         yeni: aktiflikMetni(yeni.aktif),
       })
@@ -62,7 +74,7 @@ export function degisiklikleriBul(orijinal: Kural[], taslak: Kural[]): KuralDegi
       degisiklikler.push({
         kimlik: yeni.kimlik,
         ad: yeni.ad,
-        etiket: 'Ağırlık',
+        alan: 'agirlik',
         onceki: sayiMetni(eski.agirlik),
         yeni: sayiMetni(yeni.agirlik),
       })
@@ -75,7 +87,7 @@ export function degisiklikleriBul(orijinal: Kural[], taslak: Kural[]): KuralDegi
         degisiklikler.push({
           kimlik: yeni.kimlik,
           ad: yeni.ad,
-          etiket: tanim.etiket,
+          alan: tanim.etiket,
           onceki: sayiMetni(oncekiDeger),
           yeni: sayiMetni(yeniDeger),
         })

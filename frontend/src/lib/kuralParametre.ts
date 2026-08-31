@@ -1,4 +1,5 @@
 import type { Kural } from '@/api/types'
+import type { Metinler } from '@/i18n/sozluk'
 
 /**
  * Izgaranın sürükleme sınırlarını kural kataloğundan okur (Tur 6 İş 4).
@@ -50,6 +51,7 @@ export function blokSinirlariniOku(kurallar: readonly Kural[]): BlokSinirlari {
 export function sinirUyarisi(
   sureSaat: number,
   sinirlar: BlokSinirlari,
+  m: Metinler,
   sinirdaMi = false,
 ): string | null {
   // SINIRA DAYANMA (Tur 7): sürükleme artık aralığı kırpıyor, yani geçersiz
@@ -57,18 +59,18 @@ export function sinirUyarisi(
   // geldin" der; metin de ona göre değişir.
   if (sinirdaMi) {
     if (sinirlar.asgariSaat !== null && sureSaat === sinirlar.asgariSaat) {
-      return `Asgari blok ${sinirlar.asgariSaat} saat (H1)`
+      return m.kuralUyarilari.asgariBlok(sinirlar.asgariSaat)
     }
     if (sinirlar.azamiSaat !== null && sureSaat === sinirlar.azamiSaat) {
-      return `Günlük azami ${sinirlar.azamiSaat} saat (H9)`
+      return m.kuralUyarilari.gunlukAzami(sinirlar.azamiSaat)
     }
     return null
   }
   if (sinirlar.asgariSaat !== null && sureSaat < sinirlar.asgariSaat) {
-    return `Asgari blok ${sinirlar.asgariSaat} saat (H1)`
+    return m.kuralUyarilari.asgariBlok(sinirlar.asgariSaat)
   }
   if (sinirlar.azamiSaat !== null && sureSaat > sinirlar.azamiSaat) {
-    return `Günlük azami ${sinirlar.azamiSaat} saat (H9)`
+    return m.kuralUyarilari.gunlukAzami(sinirlar.azamiSaat)
   }
   return null
 }

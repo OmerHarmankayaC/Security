@@ -1,3 +1,5 @@
+import type { Metinler } from '@/i18n/sozluk'
+
 /**
  * Personel formundaki yetkinlik seçiminin ön koşul mantığına etkisi.
  *
@@ -21,14 +23,13 @@ const GUVENLIK = 'Güvenlik Görevi'
  * ve TD-9'un "yeni bir kural tipi eklemek gerekmez" ilkesini bozmak olurdu.
  * Burada yapılan şey kullanıcıya sonucu söylemek — kararı ona bırakarak.
  */
-export function yetkinlikCakismaUyarisi(secilenAdlar: string[]): string | null {
+export function yetkinlikCakismaUyarisi(
+  secilenAdlar: string[],
+  m: Metinler,
+): string | null {
   const kume = new Set(secilenAdlar)
   if (kume.has(MURACAAT) && kume.has(GUVENLIK)) {
-    return (
-      `${MURACAAT} ile ${GUVENLIK} birlikte seçildi. SRS 3.3.2 bu ikisini karşılıklı ` +
-      'dışlayıcı tanımlar: müracaat görevlisi başka bir noktada, güvenlik görevlisi de ' +
-      'müracaat noktasında çalışamaz. Kayıt engellenmiyor — bilerek yapıyorsanız devam edin.'
-    )
+    return m.kuralUyarilari.yetkinlikCakismasi(MURACAAT, GUVENLIK)
   }
   return null
 }
