@@ -4,10 +4,54 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- Arama motorlarina kapali. robots.txt ve `X-Robots-Tag` ile birlikte
-         uc katman: gezgin ucunu de gormeyebilir. -->
-    <meta name="robots" content="noindex, nofollow" />
     <title>VARDİS — Vardiya Çizelgeleme</title>
+
+    <!-- ONIZLEME KARTI (Open Graph + Twitter).
+         Baglantiyi paylasan kisi bagi cikplak bir URL olarak degil, ne
+         oldugunu soyleyen bir kartla paylassin diye.
+
+         METINLER INGILIZCE, arayuz iki dilli olsa da: bu etiketler STATIK
+         HTML'de durur ve kart, sayfa hic acilmadan once uretilir; calisma
+         aninda secilen dilden haberi olamaz. Ingilizce, README'nin ve depo
+         aciklamasinin diliyle ayni; Turkce isteniyorsa buradaki dort satir
+         degistirilir.
+
+         ACIKLAMA VERININ URETILMIS OLDUGUNU SOYLER. Kart baglamdan kopuk
+         gorulur - bir akista, bir sohbette - ve "gercek bir kurumun
+         cizelgesi" sanilmasini onleyen tek yer burasidir; gosterim seridi
+         ancak sayfa acildiginda gorunur.
+
+         MUTLAK URL SART: kazayicilarin cogu goreli yolu cozmez, `og:image`
+         goreli verilirse kart gorselsiz cikar. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="VARDİS" />
+    <meta property="og:title" content="VARDİS — Shift Scheduling Decision Support" />
+    <meta
+      property="og:description"
+      content="Builds shift schedules with constraint programming: hard rules are never broken, and night, weekend and total load are shared fairly. All data in this demo is generated."
+    />
+    <meta property="og:url" content="https://vardiya.omerharmankaya.com/" />
+    <meta property="og:image" content="https://vardiya.omerharmankaya.com/onizleme.png" />
+    <!-- Olculer, kaziyicinin gorseli indirip olcmesini gereksiz kilar;
+         LinkedIn onlar olmadan karti bazen gorselsiz onbellege alir. -->
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="VARDİS gun izgarasi: personel satirlari ve saat bandinda vardiya bloklari" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="VARDİS — Shift Scheduling Decision Support" />
+    <meta
+      name="twitter:description"
+      content="Builds shift schedules with constraint programming: hard rules are never broken, and night, weekend and total load are shared fairly. All data in this demo is generated."
+    />
+    <meta name="twitter:image" content="https://vardiya.omerharmankaya.com/onizleme.png" />
+
+    <!-- `description` kaziyici icin degil ARAMA SONUCU icin: og:description
+         ile ayni cumle, cunku ikisi de ayni soruyu yanitliyor. -->
+    <meta
+      name="description"
+      content="Builds shift schedules with constraint programming: hard rules are never broken, and night, weekend and total load are shared fairly. All data in this demo is generated."
+    />
   </head>
   <body>
     <div id="root"></div>

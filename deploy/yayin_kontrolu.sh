@@ -104,15 +104,35 @@ done
 satir "salt okunur reddi: DELETE /api/surum/1" "403" \
   "$(kod -X DELETE "$ADRES/api/surum/1")"
 
-# --- 5. Dizinlemeye kapali --------------------------------------------------
-satir "robots.txt dosya olarak var" "yes" \
-  "$(govde "$ADRES/robots.txt" | grep -qi '^User-agent' && echo yes || echo no)"
-satir "X-Robots-Tag: /" "noindex, nofollow" "$(baslik "$ADRES/")"
-satir "X-Robots-Tag: /api" "noindex, nofollow" "$(baslik "$ADRES/api/ortam")"
-satir "index.html meta robots" "1" \
+# --- 5. Dizinlemeye ACIK ----------------------------------------------------
+#
+# Bu blok bir zamanlar TERSINI sinardi: her yanit `X-Robots-Tag: noindex`
+# tasimali, robots.txt her gezgini reddetmeliydi. O karar demo
+# yayinlanmayacakken alinmisti ve gecerliligi kalmadi. Satirlar silinmedi
+# TERS CEVRILDI: engeli geri getiren bir degisiklik - uygulamada, vekilde ya
+# da yapilandirmada - siteyi arama sonuclarindan sessizce dusururdu ve
+# "gorunmuyor" ile "hic aranmadi" disaridan ayni gorunur.
+satir "robots.txt izin veriyor" "yes" \
+  "$(govde "$ADRES/robots.txt" | grep -qiE '^Disallow:[[:space:]]*/[[:space:]]*$' && echo no || echo yes)"
+satir "X-Robots-Tag yok: /" "" "$(baslik "$ADRES/")"
+satir "X-Robots-Tag yok: /api" "" "$(baslik "$ADRES/api/ortam")"
+satir "index.html noindex tasimiyor" "0" \
   "$(govde "$ADRES/" | grep -c 'name="robots"')"
 
-# --- 5b. Onbellek -----------------------------------------------------------
+# --- 5b. Onizleme karti -----------------------------------------------------
+#
+# Kart STATIK HTML'den uretilir ve hicbir bilesen ona dokunmaz; etiketler
+# silinse uygulama calismaya devam eder, yalnizca paylasilan baglanti ciplak
+# bir URL olarak gorunur. Gorselin AYRICA acilmasi sinaniyor: etiket dogru
+# ama dosya 404 ise kart yine gorselsiz cikar.
+satir "og:image etiketi var" "1" \
+  "$(govde "$ADRES/" | grep -c 'property="og:image"')"
+satir "og:image dosyasi aciliyor" "200" "$(kod "$ADRES/onizleme.png")"
+satir "og:image gercekten PNG" "image/png" \
+  "$(curl -sS -D - -o /dev/null -m 20 "$ADRES/onizleme.png" \
+     | sed -n 's/^[Cc]ontent-[Tt]ype:[[:space:]]*//p' | tr -d '\r' | cut -d';' -f1)"
+
+# --- 5c. Onbellek -----------------------------------------------------------
 # Bu iki satir bir DAGITIM kusurunu bekliyor, bir yapilandirma tercihini
 # degil: index.html onbelleklenirse donen ziyaretci dagitimdan sonra ESKI
 # uygulamayi acar ve bunu kimse fark etmez - site ayakta, kontroller yesil,

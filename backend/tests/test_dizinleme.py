@@ -1,13 +1,17 @@
-"""Arama motoru dizinlemesine kapali olma sozlesmesi.
+"""Arama motoru dizinlemesine ACIK olma sozlesmesi.
 
-Iki iddia:
+Onceki hal bunun TERSIYDI: her yanit `X-Robots-Tag: noindex` tasiyordu ve
+yedi test onu kilitliyordu. O karar demo YAYINLANMAYACAKKEN alinmisti;
+gerekcesi, baglamdan kopuk bir arama sonucunda gorulen kurgu verinin
+gercek bir kurumun cizelgesi sanilmasiydi. Demo artik herkese acik ve
+bulunabilir olmasi isteniyor.
 
-  1. HER yanit `X-Robots-Tag: noindex` tasir - basarili da, hatali da.
-     Hata sayfalarini disarida birakmak, dizine giren tek seyin uygulamanin
-     hata mesajlari olmasi demekti.
-  2. Baslik demo kipine BAGLI DEGILDIR. Kosula baglansaydi, ayarin kapali
-     oldugu bir kurulumda uc noktalar dizine acilirdi ve bu bir ic kullanim
-     araci icin de istenmez.
+Test SILINMEDI, TERSINE CEVRILDI. Silinseydi ara katmani geri ekleyen bir
+degisiklik hicbir seyi kirmadan gecerdi ve siteyi arama sonuclarindan
+sessizce dusururdu - kimse fark etmezdi, cunku "gorunmuyor" ile "hic
+aranmadi" disaridan ayni gorunur. Bir basligin YOKLUGUNU sinamak, varligini
+sinamaktan daha az yer tutar: yedi test yerine bir tane yetiyor, cunku
+korunacak sey de daha basit.
 """
 
 import pytest
@@ -18,41 +22,33 @@ from app.main import app
 
 istemci = TestClient(app)
 
-_BEKLENEN = "noindex, nofollow"
-
 
 @pytest.mark.parametrize(
     "yol",
     [
         "/health",
         "/api/ortam",
-        "/api/demo/kimlik",  # kapali kipte 404 — o da baslik tasimali
+        "/api/demo/kimlik",  # kapali kipte 404
         "/api/personel",  # oturumsuz 401
         "/api/boyle-bir-yol-yok",  # 404
     ],
 )
-def test_her_yanit_noindex_tasir(yol: str) -> None:
+def test_hicbir_yanit_dizinlemeyi_engellemez(yol: str) -> None:
     yanit = istemci.get(yol)
 
-    assert (
-        yanit.headers.get("X-Robots-Tag") == _BEKLENEN
-    ), f"{yol} ({yanit.status_code}) dizinlemeye acik dondu"
+    assert "X-Robots-Tag" not in yanit.headers, (
+        f"{yol} ({yanit.status_code}) dizinlemeyi engelleyen bir baslik dondurdu; "
+        "demo artik aranabilir olmali."
+    )
 
 
-def test_baslik_demo_kipine_bagli_degil(monkeypatch) -> None:  # noqa: ANN001
-    monkeypatch.setattr(ayarlar, "demo_kipi", True)
-    assert istemci.get("/health").headers.get("X-Robots-Tag") == _BEKLENEN
-
-    monkeypatch.setattr(ayarlar, "demo_kipi", False)
-    assert istemci.get("/health").headers.get("X-Robots-Tag") == _BEKLENEN
-
-
-def test_yazma_reddi_de_baslik_tasir(monkeypatch) -> None:  # noqa: ANN001
-    """Salt okunur kapisi yaniti ARA KATMANDA uretiyor; ikisinin sirasi
-    yanlis olsaydi o yanit basliksiz cikardi."""
+def test_gosterim_kipi_de_engellemez(monkeypatch) -> None:  # noqa: ANN001
+    """Hata yanitlari ve gosterim kipi ayrica sinaniyor cunku engel, eger
+    geri gelirse, en kolay oralardan geri gelir: birini kapsamayan bir ara
+    katman yazmak, hepsini kapsayan birini yazmaktan kolaydir."""
     monkeypatch.setattr(ayarlar, "demo_kipi", True)
 
     yanit = istemci.post("/api/personel", json={})
 
-    assert yanit.status_code == 403
-    assert yanit.headers.get("X-Robots-Tag") == _BEKLENEN
+    assert yanit.status_code == 403  # salt okunur reddi
+    assert "X-Robots-Tag" not in yanit.headers

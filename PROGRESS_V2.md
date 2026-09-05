@@ -3868,3 +3868,72 @@ noktası adı, yetkinlik adı).
 14. **Tasarım Referansı** — "Sayı biçimi" ondalık ayracını virgüle
     sabitliyor, artık dile bağlı. Yüzde işaretinin konumu da öyle.
 15. **SRS** — arayüz dili ve dil seçimi bir gereksinim değil.
+
+## Tur 20 — Dizinleme açıldı, önizleme kartı eklendi
+
+Ürün sahibinin kararı: noindex, demo **yayınlanmayacakken** alınmıştı;
+geçerliliği kalmadı. Site aranabilir olacak ve paylaşılan bağlantı bir
+önizleme kartı üretecek.
+
+### Dizinleme kısıtı kaldırıldı
+
+`app/dizinleme.py` silindi, ara katman `main.py`'den çıktı, `index.html`'in
+`<meta name="robots">` satırı gitti, `robots.txt` `Allow: /` oldu.
+
+**Testler silinmedi, TERSİNE ÇEVRİLDİ.** Yedi test "her yanıt noindex
+taşır" diyordu; yerine iki test "hiçbir yanıt dizinlemeyi engellemez"
+diyor. Silseydim engeli geri getiren bir değişiklik hiçbir şeyi kırmadan
+geçerdi ve siteyi arama sonuçlarından sessizce düşürürdü — "görünmüyor" ile
+"hiç aranmadı" dışarıdan aynı görünür. Bir başlığın yokluğunu sınamak
+varlığını sınamaktan daha az yer tutuyor (7 → 2), çünkü korunacak şey de
+daha basit.
+
+`robots.txt` **boş bırakılmadı, izin verir hâle getirildi**: eksik bir dosya
+her istekte 404 üretip günlüğü doldururdu.
+
+### Önizleme kartı
+
+`index.html`'e Open Graph ve Twitter etiketleri. Görsel
+`frontend/public/onizleme.png`: `docs/gorseller/gun-izgarasi.png`'in
+(2880×1800) ortadan 2880×1512 kırpılıp 1200×630'a ölçeklenmiş kopyası.
+Kaynak dosyaya dokunulmadı.
+
+**Metinler İngilizce**, arayüz iki dilli olsa da: etiketler statik HTML'de
+durur ve kart sayfa hiç açılmadan üretilir, çalışma anında seçilen dilden
+haberi olamaz. README'nin ve depo açıklamasının diliyle aynı; Türkçe
+istenirse `index.html`'deki dört satır değişir.
+
+**Açıklama verinin üretilmiş olduğunu söylüyor.** Kart bağlamdan kopuk
+görülür ve gösterim şeridi ancak sayfa açıldığında görünür; kurgu olduğunu
+söyleyen tek yer o cümle.
+
+`frontend/src/onizleme.test.ts` (11 test) etiketleri ve `robots.txt`'i
+kilitliyor. Bunlar statik dosya ve hiçbir bileşen onlara dokunmuyor: silinse
+ne derleme ne tip denetimi fark ederdi, uygulama çalışmaya devam ederdi,
+yalnızca paylaşılan bağlantı çıplak bir URL olurdu. **Testlerin gerçekten
+kırıldığı doğrulandı**: `og:image` göreliye çevrilince ve `robots.txt`
+kapatılınca üç test düştü.
+
+### Kontrol betiğine üç satır
+
+`deploy/yayin_kontrolu.sh`'daki dizinleme satırları ters çevrildi, önizleme
+için üç satır eklendi. Üçüncüsü — **`og:image` gerçekten PNG mi** — kâğıt
+üzerinde fazlalık görünüyordu, ilk koşumda kendini kanıtladı: canlıda
+`/onizleme.png` **200 dönüyor ama gövdesi HTML**, çünkü SPA geri düşümü
+bilinmeyen yolu `index.html`e çeviriyor. Yalnızca durum koduna bakan bir
+kontrol dosya hiç dağıtılmamışken yeşil gösterirdi.
+
+### Ölçülen durum
+
+Yerelde: API hiçbir yanıtta `X-Robots-Tag` göndermiyor, `dist/robots.txt`
+izin veriyor, `dist/onizleme.png` 1200×630, on iki `og:`/`twitter:` etiketi
+çıktıda. 419 arka uç + 429 ön yüz testi, lint ve biçim temiz.
+
+Canlıda **6 satır kaldı** ve hepsi "henüz dağıtılmadı": Caddy hâlâ
+`X-Robots-Tag` gönderiyor, `robots.txt` hâlâ `Disallow: /`.
+
+### DOKÜMAN BORCU — ek
+
+16. **SDD / Charter** — noindex kararı geri alındı. Demo artık aranabilir ve
+    paylaşım kartı üretiyor; dizinleme kararının kendisi hiçbir kanonik
+    dokümanda yazılı değil, ama geri alınmış bir kararın kaydı olmalı.

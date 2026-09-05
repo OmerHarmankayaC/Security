@@ -442,25 +442,9 @@ lets the session cookie work without CORS.
 cd frontend && npm ci && npm run build   # output: frontend/dist
 ```
 
-### Keeping the instance out of search results
+### Proxy rules
 
-The build ships a `robots.txt` that disallows every crawler, and the API
-sends `X-Robots-Tag: noindex, nofollow` on every response. The static files
-are served by the proxy rather than the API, so add the same header there —
-`robots.txt` is a request that a crawler may ignore, the header is part of
-the response itself:
-
-```
-# Caddy
-header X-Robots-Tag "noindex, nofollow"
-```
-
-```
-# nginx
-add_header X-Robots-Tag "noindex, nofollow" always;
-```
-
-Two more proxy rules matter, and neither is cosmetic. `index.html` must not be
+Two of these matter and neither is cosmetic. `index.html` must not be
 cached: its name never changes, so a browser that kept a copy opens the *old*
 application after a deploy and asks for a bundle that is gone. And the SPA
 fallback must not swallow missing assets -- `try_files` answers a deleted
@@ -469,8 +453,6 @@ the hashed assets their own handler:
 
 ```
 vardiya.example.com {
-	header X-Robots-Tag "noindex, nofollow"
-
 	handle /api/* {
 		reverse_proxy 127.0.0.1:<API_PORT>
 	}
@@ -493,9 +475,28 @@ vardiya.example.com {
 The hashed bundles are safe to cache forever precisely because their names
 change with their contents.
 
-This is not conditional on demo mode. A demo carries invented data that
-should not surface in a search result stripped of its context, and a real
-installation is an internal tool with no reason to be indexed either.
+An earlier version of this block also sent `X-Robots-Tag: noindex, nofollow`,
+and the build shipped a `robots.txt` that disallowed every crawler. Both are
+gone: the instance is meant to be found. **If you are upgrading an existing
+deployment, remove that header line from the proxy** -- the application no
+longer sends it, but a proxy that still does will keep the site out of search
+results on its own, and nothing in the application will report it.
+
+### The link preview card
+
+`index.html` carries Open Graph and Twitter tags so a shared link renders as
+a card rather than a bare URL. The image is a separate 1200×630 file at
+`frontend/public/onizleme.png`, served from the web root.
+
+Two things about it are easy to get wrong. `og:image` and `og:url` must be
+**absolute**: most scrapers will not resolve a relative path, and the card
+comes out with no image at all -- visible only to whoever shared it. And the
+description says the data is generated, because the card is read stripped of
+its context; the demonstration strip only appears once the page is open.
+
+The tags are in static HTML and no component touches them, so nothing in the
+build or the type checker would notice if they were deleted. `frontend/src/
+onizleme.test.ts` is what notices.
 
 `OTURUM_CEREZI_SECURE` must stay `true` wherever the site is served over
 HTTPS. The browser will not return a `Secure` cookie over plain HTTP, and the
